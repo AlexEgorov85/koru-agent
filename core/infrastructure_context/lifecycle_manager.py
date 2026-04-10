@@ -22,10 +22,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 import asyncio
+import logging
 
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.agent.components.lifecycle import ComponentState
 from core.models.enums.common_enums import ResourceType
@@ -131,23 +130,17 @@ class LifecycleManager:
     ```
     """
 
-    def __init__(self, event_bus: Optional[UnifiedEventBus] = None):
+    def __init__(
+        self,
+        event_bus: Optional[UnifiedEventBus] = None,
+        log: Optional[logging.Logger] = None
+    ):
         self._resources: Dict[str, ResourceRecord] = {}
         self._initialized = False
         self._shutdown_in_progress = False
         self.event_bus: Optional[UnifiedEventBus] = event_bus
-        self.event_bus_logger: Optional[EventBusLogger] = None
+        self.log = log or logging.getLogger(__name__)
         self._lock = asyncio.Lock()
-        
-        if event_bus:
-            self.event_bus_logger = EventBusLogger(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                event_bus, 
-                session_id="system", 
-                agent_id="system", 
-                component="LifecycleManager"
-            )
 
     # ==================== РЕГИСТРАЦИЯ РЕСУРСОВ ====================
 
@@ -186,17 +179,13 @@ class LifecycleManager:
             self._resources[name] = record
             
             await self._publish_event("resource_registered", {
-                "name": name, 
+                "name": name,
                 "type": resource_type.value
             })
-            
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    "Зарегистрирован ресурс '%s' типа %s", 
-                    name, resource_type.value
-                )
+
+            self.log.debug("Зарегистрирован ресурс '%s' типа %s",
+                           name, resource_type.value,
+                           extra={"event_type": LogEventType.SYSTEM_INIT})
 
     # ==================== УДОБНЫЕ МЕТОДЫ РЕГИСТРАЦИИ ====================
 
@@ -269,29 +258,13 @@ class LifecycleManager:
         """
         async with self._lock:
             if self._initialized:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("LifecycleManager уже инициализирован")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.warning("LifecycleManager уже инициализирован",
+                                 extra={"event_type": LogEventType.WARNING})
                 return {name: True for name in self._resources}
 
-            if self.event_bus_logger is None and self.event_bus:
-                self.event_bus_logger = EventBusLogger(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    self.event_bus, 
-                    session_id="system", 
-                    agent_id="system", 
-                    component="LifecycleManager"
-                )
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    "Начало инициализации %d инфраструктурных ресурсов",
-                    len(self._resources)
-                )
+            self.log.info("Начало инициализации %d инфраструктурных ресурсов",
+                          len(self._resources),
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
 
             # Построение графа зависимостей
             graph = {name: set(record.dependencies) for name, record in self._resources.items()}
@@ -314,13 +287,9 @@ class LifecycleManager:
                     record.status = ComponentState.FAILED
                     record.init_error = f"Failed dependencies: {failed_deps}"
                     results[name] = False
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            "Ресурс '%s' не инициализирован:_failed зависимости %s",
-                            name, failed_deps
-                        )
+                    self.log.error("Ресурс '%s' не инициализирован: failed зависимости %s",
+                                   name, failed_deps,
+                                   extra={"event_type": LogEventType.SYSTEM_ERROR})
                     continue
                 
                 record.status = ComponentState.INITIALIZING
@@ -336,30 +305,22 @@ class LifecycleManager:
                         record.status = ComponentState.INITIALIZED
                         record.initialized_at = datetime.now()
                         results[name] = True
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.debug("Ресурс '%s' успешно инициализирован", name)
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        self.log.debug("Ресурс '%s' успешно инициализирован", name,
+                                       extra={"event_type": LogEventType.SYSTEM_INIT})
                     else:
                         record.status = ComponentState.FAILED
                         record.init_error = "initialize returned False"
                         results[name] = False
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.error("Ресурс '%s' вернул False при инициализации", name)
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        self.log.error("Ресурс '%s' вернул False при инициализации", name,
+                                       extra={"event_type": LogEventType.SYSTEM_ERROR})
                             
                 except Exception as e:
                     record.status = ComponentState.FAILED
                     record.init_error = str(e)
                     results[name] = False
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            "Ошибка инициализации ресурса '%s': %s", 
-                            name, str(e), exc_info=True
-                        )
+                    self.log.error("Ошибка инициализации ресурса '%s': %s",
+                                   name, str(e),
+                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
                     await self._publish_event("resource_init_failed", {
                         "name": name, 
                         "error": str(e)
@@ -367,15 +328,11 @@ class LifecycleManager:
 
             self._initialized = True
             self._shutdown_in_progress = False
-            
+
             success_count = sum(1 for v in results.values() if v)
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    "Все инфраструктурные ресурсы инициализированы: %d/%d успешно",
-                    success_count, len(results)
-                )
+            self.log.info("Все инфраструктурные ресурсы инициализированы: %d/%d успешно",
+                          success_count, len(results),
+                          extra={"event_type": LogEventType.SYSTEM_READY})
             
             await self._publish_event("lifecycle_initialized", {
                 "total": len(results),
@@ -440,10 +397,8 @@ class LifecycleManager:
             
             self._shutdown_in_progress = True
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("Завершение работы инфраструктурных ресурсов")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("Завершение работы инфраструктурных ресурсов",
+                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
 
             # Обратный порядок инициализации
             graph = {name: set(record.dependencies) for name, record in self._resources.items()}
@@ -466,33 +421,23 @@ class LifecycleManager:
                     
                     record.status = ComponentState.SHUTDOWN
                     results[name] = True
-                    
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.debug("Ресурс '%s' завершён", name)
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        
+
+                    self.log.debug("Ресурс '%s' завершён", name,
+                                   extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+
                 except Exception as e:
                     results[name] = False
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            "Ошибка при завершении ресурса '%s': %s", 
-                            name, str(e), exc_info=True
-                        )
+                    self.log.error("Ошибка при завершении ресурса '%s': %s",
+                                   name, str(e),
+                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
             self._initialized = False
             self._shutdown_in_progress = False
-            
+
             success_count = sum(1 for v in results.values() if v)
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    "Все инфраструктурные ресурсы завершены: %d/%d успешно",
-                    success_count, len(results)
-                )
+            self.log.info("Все инфраструктурные ресурсы завершены: %d/%d успешно",
+                          success_count, len(results),
+                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
             
             await self._publish_event("lifecycle_shutdown", {
                 "total": len(results),
@@ -847,7 +792,5 @@ class LifecycleManager:
                     source="LifecycleManager"
                 )
             except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.debug("Ошибка публикации события: %s", e)
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.debug("Ошибка публикации события: %s", e,
+                               extra={"event_type": LogEventType.DEBUG})
