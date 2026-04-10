@@ -83,7 +83,6 @@ async def run_agent(
         app_config = AppConfig.from_discovery(
             profile="prod",
             data_dir=str(getattr(infrastructure_context.config, 'data_dir', 'data')),
-            discovery=infrastructure_context.resource_discovery
         )
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,

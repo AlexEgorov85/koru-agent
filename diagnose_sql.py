@@ -111,17 +111,16 @@ async def diagnose_infrastructure() -> InfrastructureContext:
     else:
         warn("LLM провайдеры НЕ зарегистрированы")
 
-    # Resource Discovery
-    section("1.3. Resource Discovery")
-    if hasattr(infra_ctx, "resource_discovery") and infra_ctx.resource_discovery:
-        rd = infra_ctx.resource_discovery
-        ok(f"ResourceDiscovery: profile={rd.profile}")
-        prompt_caps = list(getattr(rd, "discovered_prompt_capabilities", {}).keys()) if hasattr(rd, "discovered_prompt_capabilities") else []
-        info(f"Найдено prompt capabilities: {len(prompt_caps)}")
-        contract_caps = list(getattr(rd, "discovered_contract_capabilities", {}).keys()) if hasattr(rd, "discovered_contract_capabilities") else []
-        info(f"Найдено contract capabilities: {len(contract_caps)}")
+    # Resource Loader
+    section("1.3. Resource Loader")
+    if hasattr(infra_ctx, "resource_loader") and infra_ctx.resource_loader:
+        rl = infra_ctx.resource_loader
+        ok(f"ResourceLoader: profile={rl.profile}")
+        stats = rl.get_stats()
+        info(f"Промптов загружено: {stats['prompts_loaded']}")
+        info(f"Контрактов загружено: {stats['contracts_loaded']}")
     else:
-        warn("ResourceDiscovery не найден")
+        warn("ResourceLoader не найден")
 
     return infra_ctx
 
@@ -133,7 +132,6 @@ async def diagnose_application_context(infra_ctx: InfrastructureContext) -> Appl
     app_config = AppConfig.from_discovery(
         profile=PROFILE,
         data_dir=DATA_DIR,
-        discovery=infra_ctx.resource_discovery
     )
 
     ok(f"AppConfig создан из discovery")
