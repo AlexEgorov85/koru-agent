@@ -1,198 +1,55 @@
-# =============================================================================
-# PYTHON
-# =============================================================================
-
-# Byte-compiled / optimized / DLL files
+```
+# Dependencies
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
 *.pyc
 *.pyo
 *.pyd
-.Python
+*.py~
 
-# C extensions
-*.c
-
-# Distribution / packaging
-build/
+# Build artifacts
 dist/
+build/
 *.egg-info/
-*.egg
-.eggs/
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Environments / Virtual environments
-.env
-.venv
-env/
+# Virtual environments
 venv/
-ENV/
-env.bak/
-venv.bak/
-.env.local
-.env.*.local
-.envrc
+.venv/
+env/
+.env/
 
-# Dependencies
-requirements-dev.txt.lock
-Pipfile.lock
-
-# =============================================================================
-# TESTING & COVERAGE
-# =============================================================================
-
-# Pytest
-.pytest_cache/
-.cache/
-.coverage
-.coverage.*
-*.cover
-*.py,cover
-htmlcov/
-.tox/
-.nox/
-nosetests.xml
-coverage.xml
-
-# Hypothesis
-.hypothesis/
-
-# Unit test logs
-tests/logs/
-examples/logs/
-
-# =============================================================================
-# LOGS
-# =============================================================================
-
-# Runtime logs (root)
-logs/
+# Logs
 *.log
 
-# Logs in any directory
-**/logs/*
+# OS generated files
+.DS_Store
+Thumbs.db
 
-# Audit and debug logs
-logs/audit/
-logs/debug/
-
-# =============================================================================
-# IDE & EDITORS
-# =============================================================================
-
-# VS Code
+# IDE files
 .vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# Qwen Code
-.qwen/
-
-# JetBrains IDEs
 .idea/
-*.iml
-*.iws
-
-# Vim / Emacs
 *.swp
 *.swo
-*~
-*.bak
-*.backup
 
-# =============================================================================
-# OS
-# =============================================================================
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
 
-# Windows
-Thumbs.db
-desktop.ini
-$RECYCLE.BIN/
+# Testing
+.pytest_cache/
+.mypy_cache/
 
-# macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
+# Distribution / packaging
+*.tar.gz
+*.whl
+*.egg
 
-# Linux
-ehthumbs.db
+# Environment specific
+.env*
+!.env.example
 
-# =============================================================================
-# DATA & TEMPORARY
-# =============================================================================
-
-# Temporary files
-*.tmp
-*.temp
-tmp/
-temp/
-
-# Data files (generic)
-*.csv
-*.db
-*.sqlite
-
-# FAISS vector indexes
-data/vector/*.faiss
-data/vector/*_metadata.json
-
-# Models and datasets
-models/trained/
-dataset/
-datasets/
-
-# Jupyter notebooks
-.ipynb_checkpoints/
-Untitled.ipynb
-
-# =============================================================================
-# PROJECT SPECIFIC
-# =============================================================================
-
-# Project-specific ignores
-core/events/event_bus_test.py
-core/events/event_handlers_test.py
-
-# Exported results
-output/
-results/
-export/
-
-# Agent configuration (local instructions)
-AGENTS.md
-
-# Architecture documents (if sensitive)
-ARCHITECTURE.md
-ARCHITECTURE_DECISIONS.md
-ARCHITECTURE_CHECKLIST.md
-
-# Allow DataAnalysisSkill files
-!data/manifests/skills/data_analysis/**
-!data/contracts/skill/data_analysis/**
-!data/prompts/skill/data_analysis/**
-
-# Local configuration (may contain secrets)
-config/local/*
-!config/local/.gitkeep
-config/secrets.yml
-config/secrets.yaml
-config/database.yml
-config/database.yaml
-*.config
-.secrets
-*.secrets
-secret_token.rb
-nul  
-data/metrics/default_llm/latest/metrics.json
-
-# Runtime-generated metrics (auto-generated on agent runs)
-data/metrics/
+# Compiled Python
+__pycache__/
+*.py[cod]
+*$py.class
+```

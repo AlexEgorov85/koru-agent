@@ -6,87 +6,115 @@ ARCHITECTURE:
 - Не содержит бизнес-логики конкретного навыка
 - Предоставляет общие утилиты для всех хендлеров
 - Устраняет дублирование кода между навыками
+- Теперь наследуется от Component для консистентного логирования
 
 RESPONSIBILITIES:
 - Общий интерфейс для всех хендлеров
-- Доступ к executor и event_bus_logger
+- Доступ к executor и event_bus через Component
 - Унифицированная обработка ошибок
 - Публикация метрик
 - Валидация входных/выходных данных через контракты
 """
 from abc import ABC, abstractmethod
+from typing import Any, Optional, Type, Dict
 from pydantic import BaseModel
 
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
-from core.infrastructure.logging import EventBusLogger
-from core.components.skills.base_skill import BaseSkill
-from typing import Any, Optional, Type, Tuple, Union, List, Dict
+from core.config.component_config import ComponentConfig
+from core.agent.components.component import Component
 
 
-class BaseSkillHandler(ABC):
+class SkillHandler(Component, ABC):
     """
     УНИВЕРСАЛЬНЫЙ БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ОБРАБОТЧИКОВ НАВЫКОВ.
     
     АРХИТЕКТУРА:
     - Все входные/выходные данные — Pydantic модели из YAML контрактов
-    - Валидация происходит в BaseComponent.execute() ДО вызова хендлера
+    - Валидация происходит в Component.execute() ДО вызова хендлера
     - Хендлер работает с типизированными данными
+    - Наследует Component для консистентного логирования
     
     RESPONSIBILITIES:
     - Общий интерфейс для всех хендлеров
-    - Доступ к executor и event_bus_logger
+    - Доступ к executor через Component
     - Унифицированная обработка ошибок
     - Публикация метрик
     """
-
+    
     capability_name: str = ""
-
-    def __init__(self, skill: BaseSkill):
-        self.skill = skill
-        self.executor: ActionExecutor = skill.executor
-        self.application_context = skill.application_context
-        self._event_bus = getattr(skill, '_event_bus', None)
-        self.event_bus_logger = getattr(skill, 'event_bus_logger', None)
-
-    @abstractmethod
-    async def execute(
+    
+    def __init__(
         self,
-        params: BaseModel,
-        execution_context: Any = None
-    ) -> BaseModel:
+        name: str,
+        component_config: ComponentConfig,
+        executor: ActionExecutor,
+        event_bus: Any,
+        skill: Optional[Any] = None,
+        application_context: Optional[Any] = None
+    ):
+        """
+        Инициализация хендлера.
+        
+        ARGS:
+        - name: Имя хендлера (обычно capability_name)
+        - component_config: Конфигурация компонента
+        - executor: ActionExecutor для взаимодействия
+        - event_bus: EventBusInterface для логирования
+        - skill: Родительский навык (опционально)
+        - application_context: ApplicationContext (DEPRECATED)
+        """
+        super().__init__(
+            name=name,
+            component_type="handler",
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            application_context=application_context
+        )
+        
+        # Сохраняем ссылку на родительский навык
+        self.skill = skill
+    
+    @abstractmethod
+    async def _execute_impl(
+        self,
+        capability: Capability,
+        parameters: Dict[str, Any],
+        execution_context: Optional[ExecutionContext] = None
+    ) -> Any:
         """
         Выполнение логики хендлера.
         
         АРХИТЕКТУРА:
-        - params: Pydantic модель из input_contract (уже валидировано)
+        - parameters: Pydantic модель из input_contract (уже валидировано)
         - execution_context: ExecutionContext для доступа к session_context
         
         RETURNS:
-        - BaseModel: Pydantic модель для выходного контракта
+        - Any: Результат выполнения (Pydantic модель или dict)
         """
         pass
-
+    
     # === ОБЩИЕ УТИЛИТЫ ДЛЯ ВСЕХ ХЕНДЛЕРОВ ===
-
+    
     def get_input_schema(self) -> Optional[Type[BaseModel]]:
-        """Получение входной схемы контракта"""
-        return self.skill.get_input_contract(self.capability_name)
-
+        """Получение входной схемы контракта."""
+        return self.get_input_contract(self.capability_name)
+    
     def get_output_schema(self) -> Optional[Type[BaseModel]]:
-        """Получение выходной схемы контракта"""
-        return self.skill.get_output_contract(self.capability_name)
-
+        """Получение выходной схемы контракта."""
+        return self.get_output_contract(self.capability_name)
+    
     def get_prompt(self) -> Optional[str]:
-        """Получение промпта для capability"""
-        prompt_obj = self.skill.get_prompt(self.capability_name)
+        """Получение промпта для capability."""
+        prompt_obj = self.get_prompt(self.capability_name)
         return prompt_obj.content if prompt_obj else None
-
+    
     def get_prompt_with_contract(self) -> Optional[str]:
         """Получение промпта для capability (метод для обратной совместимости)."""
         return self.get_prompt()
-
+    
     async def publish_metrics(
         self,
         success: bool,
@@ -98,7 +126,7 @@ class BaseSkillHandler(ABC):
         **kwargs
     ) -> None:
         """
-        Публикация метрик через родительский skill.
+        Публикация метрик через parent skill.
         
         УНИВЕРСАЛЬНЫЙ МЕТОД — работает для всех навыков!
         
@@ -111,60 +139,20 @@ class BaseSkillHandler(ABC):
         - error: сообщение об ошибке
         - **kwargs: дополнительные параметры (script_name, etc.)
         """
-        await self.skill._publish_metrics(
-            event_type=self.skill._get_event_type_for_success(),
-            capability_name=self.capability_name,
-            success=success,
-            execution_time_ms=execution_time_ms,
-            tokens_used=tokens_used,
-            execution_type=execution_type,
-            rows_returned=rows_returned,
-            error=error,
-            **kwargs
-        )
-
-    async def log_info(self, message: str) -> None:
-        """Логирование информационного сообщения"""
-        if hasattr(self.skill, '_publish_with_context'):
-            await self.skill._publish_with_context(
-                event_type="book_library.info",
-                data={"message": message},
-                source="book_library"
+        if self.skill and hasattr(self.skill, '_publish_metrics'):
+            await self.skill._publish_metrics(
+                event_type=self.skill._get_event_type_for_success(),
+                capability_name=self.capability_name,
+                success=success,
+                execution_time_ms=execution_time_ms,
+                tokens_used=tokens_used,
+                execution_type=execution_type,
+                rows_returned=rows_returned,
+                error=error,
+                **kwargs
             )
-
-    async def log_warning(self, message: str) -> None:
-        """Логирование предупреждения"""
-        if hasattr(self.skill, '_publish_with_context'):
-            await self.skill._publish_with_context(
-                event_type="book_library.warning",
-                data={"message": message},
-                source="book_library"
-            )
-
-    async def log_error(self, message: str) -> None:
-        """Логирование ошибки"""
-        if hasattr(self.skill, '_publish_with_context'):
-            await self.skill._publish_with_context(
-                event_type="book_library.error",
-                data={"message": message},
-                source="book_library"
-            )
-
-    async def log_debug(self, message: str) -> None:
-        """Логирование отладочного сообщения"""
-        if hasattr(self.skill, '_publish_with_context'):
-            await self.skill._publish_with_context(
-                event_type="book_library.debug",
-                data={"message": message},
-                source="book_library"
-            )
-
-    async def user_message(self, message: str, icon: str = "ℹ️") -> None:
-        """Сообщение пользователю (выводится в терминал)"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.user_message(message, icon=icon)
-
-    def _validate_input(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    
+    def _validate_input(self, params: Dict[str, Any]) -> Any:
         """
         Валидация входных параметров через входной контракт.
         
@@ -181,11 +169,11 @@ class BaseSkillHandler(ABC):
             except Exception as e:
                 raise ValueError(f"Валидация входных параметров не пройдена: {e}")
         return params
-
+    
     def _validate_output(self, result: Dict[str, Any]) -> Any:
         """
         Валидация результата через выходной контракт.
-
+        
         RETURNS:
         - Валидированный результат (Pydantic модель или dict)
         """
@@ -193,14 +181,14 @@ class BaseSkillHandler(ABC):
         if output_schema:
             return output_schema.model_validate(result)
         return result
-
+    
     def _format_table_metadata(self, metadata: Dict[str, Any]) -> str:
-        """Форматирование метаданных таблицы в строку для LLM"""
+        """Форматирование метаданных таблицы в строку для LLM."""
         schema_name = metadata.get("schema_name", "public")
         table_name = metadata.get("table_name", "unknown")
         description = metadata.get("description", "")
         columns = metadata.get("columns", [])
-
+        
         cols_str = []
         for col in columns:
             col_name = col.get("column_name", "")
@@ -208,28 +196,28 @@ class BaseSkillHandler(ABC):
             nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
             default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
             cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
-
+        
         result = f'"{schema_name}"."{table_name}" (\n'
         result += ",\n".join(f"    {c}" for c in cols_str)
         result += "\n)"
         if description:
             result += f" -- {description}"
         return result
-
-    async def get_table_descriptions(self, tables_config: List[Dict[str, str]], format_for_llm: bool = False) -> str:
+    
+    async def get_table_descriptions(self, tables_config: list, format_for_llm: bool = False) -> str:
         """
         Получить описание таблиц из конфигурации навыка.
-
+        
         ARGS:
         - tables_config: список таблиц с колонками из skill._tables_config
         - format_for_llm: если True — форматировать для LLM, иначе — raw dict
-
+        
         RETURNS:
         - str: описание таблиц
         """
         if not tables_config:
             return ""
-
+        
         if format_for_llm:
             # Проверяем есть ли колонки (значит table_description_service отработал)
             has_columns = any(t.get("columns") for t in tables_config)
@@ -243,9 +231,9 @@ class BaseSkillHandler(ABC):
                 )
         else:
             return str(tables_config)
-
-    def _get_default_schema_fallback(self, tables_config: List[Dict[str, str]]) -> str:
-        """Fallback: возвращает схему с колонками если сервис недоступен"""
+    
+    def _get_default_schema_fallback(self, tables_config: list) -> str:
+        """Fallback: возвращает схему с колонками если сервис недоступен."""
         schema_parts = []
         for t in tables_config:
             schema = t.get("schema", "public")
