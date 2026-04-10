@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
+from core.infrastructure.logging.event_types import LogEventType
 
 
 class MockDBProvider(BaseDBProvider):
@@ -16,18 +17,18 @@ class MockDBProvider(BaseDBProvider):
     def __init__(self, config: DBConnectionConfig):
         super().__init__(config)
         self.is_initialized = False
-        # event_bus_logger инициализируется в BaseProvider.initialize()
 
     async def initialize(self) -> bool:
         """Инициализация провайдера."""
         try:
-            self.event_bus_logger.info(f"Mock DB провайдер инициализирован для базы: {self.config.database}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("Mock DB провайдер инициализирован для базы: %s",
+                          self.config.database,
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
             self.is_initialized = True
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации MockDBProvider: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error("Ошибка инициализации MockDBProvider: %s", str(e),
+                           extra={"event_type": LogEventType.DB_ERROR})
             return False
 
     async def health_check(self) -> Dict[str, Any]:
@@ -43,8 +44,8 @@ class MockDBProvider(BaseDBProvider):
         if not self.is_initialized:
             await self.initialize()
 
-        self.event_bus_logger.debug(f"Mock выполнение запроса: {query}")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.debug("Mock выполнение запроса: %s", query,
+                       extra={"event_type": LogEventType.DB_QUERY})
 
         # Возвращаем mock-результат в виде списка словарей
         return [{"test": 1}]  # Простой тестовый результат
@@ -54,8 +55,8 @@ class MockDBProvider(BaseDBProvider):
         if not self.is_initialized:
             await self.initialize()
 
-        self.event_bus_logger.debug(f"Mock выполнение запроса: {query}")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.debug("Mock выполнение запроса: %s", query,
+                       extra={"event_type": LogEventType.DB_QUERY})
 
         # Возвращаем mock-результат
         mock_result = DBQueryResult(
@@ -86,8 +87,8 @@ class MockDBProvider(BaseDBProvider):
 
     async def shutdown(self):
         """Завершение работы провайдера."""
-        self.event_bus_logger.info("Mock DB провайдер завершает работу")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info("Mock DB провайдер завершает работу",
+                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
         self.is_initialized = False
 
 

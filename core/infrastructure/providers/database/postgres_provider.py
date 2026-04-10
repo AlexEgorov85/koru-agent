@@ -11,6 +11,7 @@ import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
+from core.infrastructure.logging.event_types import LogEventType
 
 
 class PostgreSQLProvider(BaseDBProvider):
@@ -27,35 +28,13 @@ class PostgreSQLProvider(BaseDBProvider):
         super().__init__(config)
         self.pool = None
         self._lock = asyncio.Lock()
-        # event_bus_logger инициализируется в BaseProvider.initialize()
 
     async def initialize(self) -> bool:
         """
         Асинхронная инициализация пула соединений.
         """
         try:
-            # Инициализация event_bus_logger если ещё не создан
-            if self.event_bus_logger is None:
-                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-                from core.infrastructure.logging import EventBusLogger
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                try:
-                    event_bus = get_event_bus()
-                    self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", self.name)
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                except:
-                    self.event_bus_logger = type('obj', (object,), {
-                        'info': lambda *args, **kwargs: None,
-                        'debug': lambda *args, **kwargs: None,
-                        'warning': lambda *args, **kwargs: None,
-                        'error': lambda *args, **kwargs: None
-                    })()
-
-            await self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}", extra={"event_type": LogEventType.SYSTEM_INIT})
             start_time = time.time()
 
             # Создаем пул соединений
@@ -78,25 +57,19 @@ class PostgreSQLProvider(BaseDBProvider):
             # Проверяем подключение
             async with self.pool.acquire() as conn:
                 version = await conn.fetchval("SELECT version()")
-                await self.event_bus_logger.info(f"Подключено к PostgreSQL: {version}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.info(f"Подключено к PostgreSQL: {version}", extra={"event_type": LogEventType.SYSTEM_INIT})
 
             self.is_initialized = True
             self.health_status = DBHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
             init_time = time.time() - start_time
-            await self.event_bus_logger.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд", extra={"event_type": LogEventType.SYSTEM_INIT})
 
             return True
 
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка инициализации PostgreSQL провайдера: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"Ошибка инициализации PostgreSQL провайдера: {str(e)}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
             self.health_status = DBHealthStatus.UNHEALTHY
             return False
 
@@ -115,7 +88,7 @@ class PostgreSQLProvider(BaseDBProvider):
             return conn
         except Exception:
             # Подключение мертво — пересоздаём пул
-            await self.event_bus_logger.warning("Обнаружено мёртвое подключение, пересоздаю пул...")
+            self.log.warning("Обнаружено мёртвое подключение, пересоздаю пул...", extra={"event_type": LogEventType.WARNING})
             try:
                 await self.pool.close()
             except Exception:
@@ -133,21 +106,15 @@ class PostgreSQLProvider(BaseDBProvider):
         async with self._lock:
             try:
                 if self.pool:
-                    await self.event_bus_logger.info("Завершение работы пула соединений PostgreSQL...")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.info("Завершение работы пула соединений PostgreSQL...", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
                     await self.pool.close()
                     self.pool = None
 
                 self.is_initialized = False
-                await self.event_bus_logger.info("PostgreSQL провайдер успешно завершил работу")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.info("PostgreSQL провайдер успешно завершил работу", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
 
             except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -189,8 +156,7 @@ class PostgreSQLProvider(BaseDBProvider):
             }
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка health check для PostgreSQL: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"Ошибка health check для PostgreSQL: {str(e)}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
             return {
                 "status": DBHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -208,33 +174,21 @@ class PostgreSQLProvider(BaseDBProvider):
         start_time = time.time()
 
         # [DB_DEBUG] 3.1. Входные параметры
-        await self.event_bus_logger.info(f"[DB_DEBUG] execute_query вызван с query={query}, params={params}")
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info(f"[DB_DEBUG] execute_query вызван с query={query}, params={params}", extra={"event_type": LogEventType.DB_QUERY})
 
         try:
             conn = await self._acquire_valid_connection()
             try:
                 # [DB_DEBUG] 3.2. Выполнение запроса
-                await self.event_bus_logger.debug(f"Выполнение SQL: {query}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.debug(f"Params: {params}, type: {type(params)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.debug(f"Выполнение SQL: {query}", extra={"event_type": LogEventType.DB_QUERY})
+                self.log.debug(f"Params: {params}, type: {type(params)}", extra={"event_type": LogEventType.DB_QUERY})
 
-                await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.info(f"[DB_DEBUG] выполнение запроса...", extra={"event_type": LogEventType.DB_QUERY})
 
                 # Логируем запрос при необходимости
-                await self.event_bus_logger.debug(f"Executing query: {query}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.debug(f"Executing query: {query}", extra={"event_type": LogEventType.DB_QUERY})
                 if params:
-                    await self.event_bus_logger.debug(f"Query params: {params}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.debug(f"Query params: {params}", extra={"event_type": LogEventType.DB_QUERY})
 
                 # Выполняем запрос
                 if params:
@@ -264,12 +218,8 @@ class PostgreSQLProvider(BaseDBProvider):
                         converted_query = query
                         for i in range(len(params)):
                             converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.debug(f"Final query: {converted_query}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        self.log.debug(f"After replacing {i+1}: {converted_query}", extra={"event_type": LogEventType.DB_QUERY})
+                        self.log.debug(f"Final query: {converted_query}", extra={"event_type": LogEventType.DB_QUERY})
                         result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров
@@ -282,9 +232,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 columns = list(rows[0].keys()) if rows else []
 
                 # [DB_DEBUG] 3.2. Результат выполнения
-                await self.event_bus_logger.info(f"[DB_DEBUG] запрос выполнен, rows={len(rows) if rows else 0}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.info(f"[DB_DEBUG] запрос выполнен, rows={len(rows) if rows else 0}", extra={"event_type": LogEventType.DB_QUERY})
 
                 # Создаем результат
                 query_result = DBQueryResult(
@@ -301,9 +249,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 )
 
                 # [DB_DEBUG] 3.3. Возврат DBQueryResult
-                await self.event_bus_logger.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={query_result.success}, error={query_result.error}, rows={len(query_result.rows)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={query_result.success}, error={query_result.error}, rows={len(query_result.rows)}", extra={"event_type": LogEventType.DB_QUERY})
 
                 # Обновляем метрики
                 self._update_metrics(query_result.execution_time)
@@ -316,19 +262,14 @@ class PostgreSQLProvider(BaseDBProvider):
 
         except Exception as e:
             # [DB_DEBUG] 3.2. Исключение при выполнении
-            await self.event_bus_logger.error(f"[DB_DEBUG] исключение при выполнении запроса: {e}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error(f"Query was: {query}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"[DB_DEBUG] исключение при выполнении запроса: {e}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+            self.log.error(f"Ошибка выполнения запроса: {str(e)}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+            self.log.error(f"Query was: {query}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
             if params:
-                await self.event_bus_logger.error(f"Params were: {params}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"Params were: {params}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
 
             self._update_metrics(time.time() - start_time, success=False)
-            
+
             # [DB_DEBUG] 3.3. Возврат DBQueryResult (ошибка)
             error_result = DBQueryResult(
                 success=False,
@@ -343,9 +284,7 @@ class PostgreSQLProvider(BaseDBProvider):
                     "error_type": type(e).__name__
                 }
             )
-            await self.event_bus_logger.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={error_result.success}, error={error_result.error}, rows={len(error_result.rows)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={error_result.success}, error={error_result.error}, rows={len(error_result.rows)}", extra={"event_type": LogEventType.DB_QUERY})
             return error_result
 
     @asynccontextmanager
@@ -419,8 +358,7 @@ class PostgreSQLProvider(BaseDBProvider):
                     await self.pool.release(conn)
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"Ошибка выполнения запроса: {str(e)}", extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
             self._update_metrics(time.time() - start_time, success=False)
             raise
 

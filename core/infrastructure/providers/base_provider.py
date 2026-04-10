@@ -10,12 +10,16 @@ FEATURES:
 - Общая логика отслеживания состояния
 - Базовые метрики производительности
 - Поддержка политики повторных попыток
+- Стандартное logging.Logger
 """
 import time
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 from typing import Protocol, Any
+
+from core.infrastructure.logging.event_types import LogEventType
 
 
 class ProviderHealthStatus:
@@ -107,8 +111,8 @@ class BaseProvider(IProvider):
         self.avg_response_time = 0.0
         self.retry_policy: Optional[Any] = None
 
-        # event_bus_logger будет инициализирован в initialize()
-        self.event_bus_logger = None
+        # Логгер провайдера (использует стандартный logging)
+        self.log: logging.Logger = logging.getLogger(self.__class__.__module__ + "." + self.__class__.__name__)
 
     def _set_healthy_status(self) -> None:
         """Устанавливает статус здоровья как здоровый после успешной инициализации."""
@@ -132,36 +136,18 @@ class BaseProvider(IProvider):
         ВОЗВРАЩАЕТ:
         - bool: True если инициализация успешна
         """
-        # Инициализация event_bus_logger
-        if self.event_bus_logger is None:
-            try:
-                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-                from core.infrastructure.logging import EventBusLogger
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                event_bus = get_event_bus()
-                self.event_bus_logger = EventBusLogger(event_bus, "system", "provider", self.name)
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            except:
-                self.event_bus_logger = type('obj', (object,), {
-                    'info': lambda *args, **kwargs: None,
-                    'debug': lambda *args, **kwargs: None,
-                    'warning': lambda *args, **kwargs: None,
-                    'error': lambda *args, **kwargs: None
-                })()
-
         self.is_initialized = True
         self._set_healthy_status()
+        self.log.info("Провайдер %s инициализирован", self.name,
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
         return True
 
     async def shutdown(self) -> None:
         """Корректное завершение работы провайдера."""
         self.is_initialized = False
         self.health_status = ProviderHealthStatus.UNKNOWN
-        await self.event_bus_logger.info("Провайдер %s завершил работу", self.name)
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info("Провайдер %s завершил работу", self.name,
+                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -189,9 +175,8 @@ class BaseProvider(IProvider):
             await self.shutdown()
             return await self.initialize()
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error("Ошибка перезапуска провайдера: %s", str(e),
+                           extra={"event_type": LogEventType.SYSTEM_ERROR})
             return False
 
     def restart_with_module_reload(self):
@@ -203,10 +188,9 @@ class BaseProvider(IProvider):
         - Новый экземпляр провайдера из перезагруженного модуля
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
-        self.event_bus_logger.warning(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Выполняется перезапуск с перезагрузкой модуля для провайдера {self.__class__.__name__}"
-        )
+        self.log.warning("Выполняется перезапуск с перезагрузкой модуля для провайдера %s",
+                         self.__class__.__name__,
+                         extra={"event_type": LogEventType.WARNING})
         return safe_reload_component_with_module_reload(self)
 
     def _update_metrics(self, response_time: float, success: bool = True) -> None:
