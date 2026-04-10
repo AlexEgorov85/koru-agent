@@ -47,6 +47,18 @@ from core.infrastructure.logging.logger import (
     get_global_logger,
 )
 
+from core.infrastructure.logging.session import (
+    LoggingSession,
+)
+
+from core.infrastructure.logging.handlers import (
+    EventTypeFilter,
+)
+
+from core.infrastructure.logging.event_types import (
+    LogEventType,
+)
+
 # ============================================================
 # ИМПОРТЫ ИЗ ЕДИНОЙ КОНФИГУРАЦИИ
 # ============================================================
@@ -85,6 +97,15 @@ __all__ = [
     'shutdown_logging_system',
     'get_session_logger',
     'get_global_logger',
+
+    # LoggingSession
+    'LoggingSession',
+
+    # Handlers
+    'EventTypeFilter',
+
+    # Event Types
+    'LogEventType',
 
     # Config (из единой конфигурации)
     'LoggingConfig',
