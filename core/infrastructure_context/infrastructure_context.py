@@ -148,34 +148,30 @@ class InfrastructureContext:
         self.log.info("Инициализирована шина событий: UnifiedEventBus",
                       extra={"event_type": LogEventType.SYSTEM_INIT})
 
-        # Инициализация телеметрии (логи + метрики)
+        # === Инициализация обработкторов (вместо TelemetryCollector) ===
         from pathlib import Path
 
-        log_dir = Path(self.config.data_dir) / "logs"
         storage_dir = Path(self.config.data_dir)
 
-        # Единая инициализация всей телеметрии
-        self.telemetry = await init_telemetry(
+        # 1. SessionLogHandler — запись логов сессий в файлы
+        self.session_handler = SessionLogHandler(
             event_bus=self.event_bus,
-            storage_dir=storage_dir,
-            log_dir=log_dir,
-            enable_terminal=True,
-            enable_session_logs=True,
-            enable_metrics=True
+            base_log_dir=storage_dir / "logs" / "sessions"
         )
+        self.log.info("SessionLogHandler инициализирован",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
 
-        # Получение обработчиков для доступа
-        self.terminal_handler = self.telemetry.get_terminal_handler()
-        self.session_handler = self.telemetry.get_session_handler()
-        self.metrics_publisher = self.telemetry.get_metrics_publisher()
+        # 2. MetricsPublisher — сбор метрик
+        metrics_storage = FileSystemMetricsStorage(storage_dir / "metrics")
+        self.metrics_publisher = MetricsPublisher(metrics_storage, self.event_bus)
 
-        # Информация о сессии
-        if self.session_handler:
-            session_info = self.session_handler.get_session_info()
-            self.log.info(f"📝 Логи сессии: {session_info['session_folder']}",
-                          extra={"event_type": LogEventType.SYSTEM_INIT})
-
-        self.log.info("Обработчики логирования инициализированы",
+        # Подписка на события метрик
+        self.event_bus.subscribe(EventType.SKILL_EXECUTED, self._on_skill_executed)
+        self.event_bus.subscribe(EventType.CAPABILITY_SELECTED, self._on_capability_selected)
+        self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error_occurred)
+        self.event_bus.subscribe(EventType.SESSION_STARTED, self._on_session_started)
+        self.event_bus.subscribe(EventType.SESSION_COMPLETED, self._on_session_completed)
+        self.log.info("MetricsPublisher инициализирован",
                       extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Инициализация менеджера жизненного цикла

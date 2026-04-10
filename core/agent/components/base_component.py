@@ -295,8 +295,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         """
         Предзагрузка ресурсов компонента.
 
-        [REFACTOR v5.4.0] Ресурсы УЖЕ загружены в component_config.resolved_*
-        через ResourcePreloader в ComponentFactory.
+        [REFACTOR ResourceLoader] Ресурсы УЖЕ загружены в component_config.resolved_*
+        через ResourceLoader в ComponentFactory.
         """
         try:
             # Копируем промпты из resolved_prompts

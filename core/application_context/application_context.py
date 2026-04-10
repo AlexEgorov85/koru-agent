@@ -707,21 +707,19 @@ class ApplicationContext(BaseSystemContext):
 
     async def _auto_fill_config(self):
         """Автоматическое заполнение конфигурации через AppConfig.from_discovery()."""
-        discovery = self.infrastructure_context.get_resource_discovery()
         self.config = type(self.config).from_discovery(
             profile=self.profile,
             data_dir=str(self._data_dir),
-            discovery=discovery,
         )
 
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
-        """Получение текста промпта через DataRepository."""
-        # Проверяем переопределённые промпты (из optimize)
+        """Получение текста промпта через ResourceLoader."""
         content_overrides = getattr(self.config, '_prompt_content_overrides', {})
         if capability in content_overrides:
             return content_overrides[capability]
 
-        if self.data_repository:
+        loader = self.infrastructure_context.resource_loader
+        if loader:
             if version is None:
                 version = self.config.prompt_versions.get(capability)
                 if version is None:
@@ -741,19 +739,20 @@ class ApplicationContext(BaseSystemContext):
 
             if version:
                 try:
-                    prompt_obj = self.data_repository.get_prompt(capability, version)
-                    return prompt_obj.content
+                    prompt_obj = loader.get_prompt(capability, version)
+                    if prompt_obj:
+                        return prompt_obj.content
                 except Exception as e:
                     self._publish_sync(EventType.ERROR, {
                         "message": f"Ошибка получения промпта '{capability}@{version}': {e}. "
                         f"Возвращаем пустую строку."
                     })
-                    return ""
         return ""
 
     def get_input_contract_schema(self, capability: str, version: Optional[str] = None) -> Type[BaseModel]:
         """Возвращает скомпилированную схему для валидации входных данных."""
-        if self.data_repository:
+        loader = self.infrastructure_context.resource_loader
+        if loader:
             if version is None:
                 version = self.config.input_contract_versions.get(capability)
                 if version is None:
@@ -775,9 +774,11 @@ class ApplicationContext(BaseSystemContext):
 
             if version:
                 try:
-                    return self.data_repository.get_contract_schema(capability, version, "input")
+                    contract = loader.get_contract(capability, version, "input")
+                    if contract:
+                        return contract.pydantic_schema
                 except Exception:
-                    return BaseModel
+                    pass
         return BaseModel
 
     def get_resource(self, name: str):
@@ -958,12 +959,8 @@ class ApplicationContext(BaseSystemContext):
                 await self._publish(EventType.ERROR, {"message": f"Ошибка при завершении LLMOrchestrator: {e}"})
             self.llm_orchestrator = None
 
-        if self.data_repository:
-            try:
-                await self.data_repository.shutdown()
-                await self._publish(EventType.INFO, {"message": "DataRepository завершён"})
-            except Exception as e:
-                await self._publish(EventType.ERROR, {"message": f"Ошибка при завершении DataRepository: {e}"})
+        # [REFACTOR ResourceLoader] DataRepository удалён, ресурсы в ResourceLoader
+        # ResourceLoader не требует shutdown — только кэш в памяти
 
         # Очистка ресурсов из LifecycleManager для возможности повторной регистрации
         if hasattr(self, 'lifecycle_manager') and self.lifecycle_manager:

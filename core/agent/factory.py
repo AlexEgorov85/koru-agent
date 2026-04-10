@@ -108,7 +108,7 @@ class AgentFactory:
 
     async def _validate_version_consistency(self, config: AgentConfig) -> List[str]:
         """
-        Проверка существования всех версий в хранилище инфраструктуры.
+        Проверка существования всех версий через ResourceLoader.
 
         ПАРАМЕТРЫ:
         - config: Конфигурация агента
@@ -118,31 +118,24 @@ class AgentFactory:
         """
         errors = []
 
-        # Получаем DataRepository из application_context
-        data_repo = self.application_context.data_repository
-        if not data_repo:
-            errors.append("DataRepository не инициализирован")
+        # Получаем ResourceLoader из infrastructure_context
+        infra = self.application_context.infrastructure_context
+        loader = infra.resource_loader
+        if not loader:
+            errors.append("ResourceLoader не инициализирован")
             return errors
 
-        # Проверка промптов через DataRepository
+        # Проверка промптов через ResourceLoader
         for capability, version in config.prompt_versions.items():
-            try:
-                prompt = data_repo.get_prompt(capability, version)
-                if not prompt:
-                    errors.append(f"Промпт {capability}@{version} не существует")
-            except KeyError:
+            prompt = loader.get_prompt(capability, version)
+            if not prompt:
                 errors.append(f"Промпт {capability}@{version} не существует")
 
-        # Проверка контрактов через DataRepository
+        # Проверка контрактов через ResourceLoader
         for contract_name, version in config.contract_versions.items():
-            # Проверяем как input, так и output контракты
-            try:
-                data_repo.get_contract(contract_name, version, "input")
-            except KeyError:
+            if not loader.get_contract(contract_name, version, "input"):
                 errors.append(f"Input-контракт {contract_name}@{version} не существует")
-            try:
-                data_repo.get_contract(contract_name, version, "output")
-            except KeyError:
+            if not loader.get_contract(contract_name, version, "output"):
                 errors.append(f"Output-контракт {contract_name}@{version} не существует")
 
         return errors
