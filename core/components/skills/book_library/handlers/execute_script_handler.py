@@ -96,6 +96,10 @@ class ExecuteScriptHandler(SkillHandler):
 
     capability_name = "book_library.execute_script"
 
+    async def _execute_impl(self, capability, parameters, execution_context=None):
+        """Делегирует execute() — обратная совместимость."""
+        return await self.execute(parameters, execution_context)
+
     async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Выполнение статического скрипта.

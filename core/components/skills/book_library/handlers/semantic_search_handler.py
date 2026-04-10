@@ -22,6 +22,10 @@ class SemanticSearchHandler(SkillHandler):
 
     capability_name = "book_library.semantic_search"
 
+    async def _execute_impl(self, capability, parameters, execution_context=None):
+        """Делегирует execute() — обратная совместимость."""
+        return await self.execute(parameters, execution_context)
+
     async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Выполнение семантического поиска.

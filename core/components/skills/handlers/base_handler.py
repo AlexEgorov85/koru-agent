@@ -44,29 +44,47 @@ class SkillHandler(Component, ABC):
     """
     
     capability_name: str = ""
-    
+
     def __init__(
         self,
-        name: str,
-        component_config: ComponentConfig,
-        executor: ActionExecutor,
-        event_bus: Any,
+        name: Optional[str] = None,
+        component_config: Optional[ComponentConfig] = None,
+        executor: Optional[ActionExecutor] = None,
+        event_bus: Optional[Any] = None,
         skill: Optional[Any] = None,
         application_context: Optional[Any] = None
     ):
         """
         Инициализация хендлера.
-        
+
+        ОБРАТНАЯ СОВМЕСТИМОСТЬ: Если вызван как SkillHandler(skill) —
+        берёт component_config, executor, event_bus из skill.
+
         ARGS:
         - name: Имя хендлера (обычно capability_name)
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
         - event_bus: EventBusInterface для логирования
-        - skill: Родительский навык (опционально)
+        - skill: Родительский навык
         - application_context: ApplicationContext (DEPRECATED)
         """
+        # Обратная совместимость: SkillHandler(skill) — когда передан 1 позиционный аргумент
+        if name is not None and component_config is None and executor is None and event_bus is None and skill is None:
+            skill = name
+            if hasattr(skill, 'component_config'):
+                component_config = skill.component_config
+            if hasattr(skill, 'executor'):
+                executor = skill.executor
+            if hasattr(skill, 'event_bus'):
+                event_bus = skill.event_bus
+            elif hasattr(skill, '_event_bus'):
+                event_bus = skill._event_bus
+            elif hasattr(skill, 'application_context') and skill.application_context:
+                event_bus = getattr(skill.application_context.infrastructure_context, 'event_bus', None)
+            name = getattr(self, 'capability_name', None) or getattr(skill, 'name', 'handler')
+
         super().__init__(
-            name=name,
+            name=name or self.capability_name or "handler",
             component_type="handler",
             component_config=component_config,
             executor=executor,
@@ -76,8 +94,7 @@ class SkillHandler(Component, ABC):
         
         # Сохраняем ссылку на родительский навык
         self.skill = skill
-    
-    @abstractmethod
+
     async def _execute_impl(
         self,
         capability: Capability,
@@ -86,15 +103,23 @@ class SkillHandler(Component, ABC):
     ) -> Any:
         """
         Выполнение логики хендлера.
-        
-        АРХИТЕКТУРА:
-        - parameters: Pydantic модель из input_contract (уже валидировано)
-        - execution_context: ExecutionContext для доступа к session_context
-        
+
+        ДЕФОЛТНАЯ РЕАЛИЗАЦИЯ: делегирует execute() для обратной совместимости.
+        Подклассы могут переопределить.
+
+        ARGS:
+        - capability: Capability для выполнения
+        - parameters: Параметры из input_contract
+        - execution_context: Контекст выполнения
+
         RETURNS:
         - Any: Результат выполнения (Pydantic модель или dict)
         """
-        pass
+        if hasattr(self, 'execute') and callable(self.execute):
+            return await self.execute(parameters, execution_context)
+        raise NotImplementedError(
+            f"Хендлер {self.__class__.__name__} не реализует ни _execute_impl, ни execute()"
+        )
     
     # === ОБЩИЕ УТИЛИТЫ ДЛЯ ВСЕХ ХЕНДЛЕРОВ ===
     

@@ -18,6 +18,10 @@ class ListScriptsHandler(SkillHandler):
 
     capability_name = "book_library.list_scripts"
 
+    async def _execute_impl(self, capability, parameters, execution_context=None):
+        """Делегирует execute() — обратная совместимость."""
+        return await self.execute(parameters, execution_context)
+
     async def execute(self, params: BaseModel = None, execution_context: Any = None) -> BaseModel:
         """
         Получение списка доступных скриптов.

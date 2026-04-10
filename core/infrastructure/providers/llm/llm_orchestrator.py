@@ -40,7 +40,7 @@ from core.models.types.llm_types import (
     LLMResponse,
     RawLLMResponse
 )
-from core.infrastructure.logging import EventBusLogger
+from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.providers.llm.json_parser import (
     validate_structured_response
@@ -318,8 +318,8 @@ class LLMOrchestrator:
         # Задачи фоновой очистки
         self._cleanup_task: Optional[asyncio.Task] = None
 
-        # Логгер (инициализируется в initialize)
-        self._logger: Optional[EventBusLogger] = None
+        # Логгер
+        self._logger: Optional[logging.Logger] = None
 
         # Флаг работы
         self._running = False
@@ -339,20 +339,16 @@ class LLMOrchestrator:
         """
         try:
             # Создание логгера
-            self._logger = EventBusLogger(
-                event_bus=self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component="LLMOrchestrator"
-            )
+            self._logger = logging.getLogger("core.infrastructure.providers.llm.llm_orchestrator")
 
             # Запуск фоновой задачи очистки
             self._running = True
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-            
-            await self._logger.info(
-                f"LLMOrchestrator инициализирован: max_workers={self._max_workers}, "
-                f"cleanup_interval={self._cleanup_interval}с"
+
+            self._logger.info(
+                "LLMOrchestrator инициализирован: max_workers=%d, cleanup_interval=%dс",
+                self._max_workers, self._cleanup_interval,
+                extra={"event_type": LogEventType.SYSTEM_INIT}
             )
             
             # Event bus publish

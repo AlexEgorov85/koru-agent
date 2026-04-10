@@ -175,11 +175,36 @@ class BookLibrarySkill(BaseSkill):
             self._scripts_registry = {}
 
         # Инициализация обработчиков
+        event_bus = getattr(self, 'event_bus', None) or getattr(self, '_event_bus', None)
         self._handlers = {
-            "book_library.search_books": SearchBooksHandler(self),
-            "book_library.execute_script": ExecuteScriptHandler(self),
-            "book_library.list_scripts": ListScriptsHandler(self),
-            "book_library.semantic_search": SemanticSearchHandler(self),
+            "book_library.search_books": SearchBooksHandler(
+                name="search_books",
+                component_config=self.component_config,
+                executor=self.executor,
+                event_bus=event_bus,
+                skill=self
+            ),
+            "book_library.execute_script": ExecuteScriptHandler(
+                name="execute_script",
+                component_config=self.component_config,
+                executor=self.executor,
+                event_bus=event_bus,
+                skill=self
+            ),
+            "book_library.list_scripts": ListScriptsHandler(
+                name="list_scripts",
+                component_config=self.component_config,
+                executor=self.executor,
+                event_bus=event_bus,
+                skill=self
+            ),
+            "book_library.semantic_search": SemanticSearchHandler(
+                name="semantic_search",
+                component_config=self.component_config,
+                executor=self.executor,
+                event_bus=event_bus,
+                skill=self
+            ),
         }
 
         # Загрузка конфигурации таблиц
