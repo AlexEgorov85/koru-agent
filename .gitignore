@@ -19,6 +19,9 @@ env/
 
 # Logs
 *.log
+logs/
+.benchmarks/
+data/metrics/
 
 # OS generated files
 .DS_Store
