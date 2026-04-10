@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.skills.utils.param_validator import ParamValidator
 
 
@@ -81,7 +81,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 
-class ExecuteScriptHandler(BaseSkillHandler):
+class ExecuteScriptHandler(SkillHandler):
     """
     Обработчик выполнения заготовленных скриптов проверки.
 

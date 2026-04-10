@@ -2,8 +2,8 @@
 Пакет универсальных обработчиков навыков.
 
 EXPORTS:
-- BaseSkillHandler: базовый класс для всех хендлеров
+- SkillHandler: базовый класс для всех хендлеров
 """
-from .base_handler import BaseSkillHandler
+from .base_handler import SkillHandler
 
-__all__ = ["BaseSkillHandler"]
+__all__ = ["SkillHandler"]

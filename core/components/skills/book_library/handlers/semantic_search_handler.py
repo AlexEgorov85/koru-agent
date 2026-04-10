@@ -4,10 +4,10 @@ from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import VectorSearchError, InfrastructureError
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 
 
-class SemanticSearchHandler(BaseSkillHandler):
+class SemanticSearchHandler(SkillHandler):
     """
     Обработчик семантического поиска через векторную БД.
 

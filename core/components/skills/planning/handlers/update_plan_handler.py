@@ -2,10 +2,10 @@ from typing import Dict, Any
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 
 
-class UpdatePlanHandler(BaseSkillHandler):
+class UpdatePlanHandler(SkillHandler):
     """Обработчик обновления плана."""
 
     capability_name = "planning.update_plan"

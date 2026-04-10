@@ -3,10 +3,10 @@ from typing import Dict, Any
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 
 
-class AnalyzeStepDataHandler(BaseSkillHandler):
+class AnalyzeStepDataHandler(SkillHandler):
     """Обработчик анализа данных шага."""
 
     capability_name = "data_analysis.analyze_step_data"

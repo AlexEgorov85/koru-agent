@@ -1,10 +1,10 @@
 from typing import Dict, Any, List
 from pydantic import BaseModel
 
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 
 
-class ListScriptsHandler(BaseSkillHandler):
+class ListScriptsHandler(SkillHandler):
     """
     Обработчик получения списка доступных скриптов.
 

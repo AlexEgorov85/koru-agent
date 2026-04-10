@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
-from core.components.skills.handlers.base_handler import BaseSkillHandler
+from core.components.skills.handlers.base_handler import SkillHandler
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -81,7 +81,7 @@ def fuzzy_match(value: str, candidates: List[str], max_distance: int = 2) -> Opt
     return best_match
 
 
-class ExecuteScriptHandler(BaseSkillHandler):
+class ExecuteScriptHandler(SkillHandler):
     """
     Обработчик выполнения заготовленных SQL-скриптов.
 
