@@ -513,11 +513,11 @@ class InfrastructureContext:
             raise RuntimeError("ResourceLoader не инициализирован")
         return self.resource_loader
 
-    def get_telemetry(self) -> TelemetryCollector:
-        """Получение TelemetryCollector."""
-        if not hasattr(self, 'telemetry') or self.telemetry is None:
-            raise RuntimeError("TelemetryCollector не инициализирован")
-        return self.telemetry
+    def get_session_handler(self) -> SessionLogHandler:
+        """Получение обработчика логов сессии."""
+        if not hasattr(self, 'session_handler') or self.session_handler is None:
+            raise RuntimeError("SessionHandler не инициализирован")
+        return self.session_handler
 
     def get_metrics_publisher(self) -> MetricsPublisher:
         """Получение MetricsPublisher для унифицированной публикации метрик."""
@@ -525,17 +525,106 @@ class InfrastructureContext:
             raise RuntimeError("MetricsPublisher не инициализирован")
         return self.metrics_publisher
 
-    def get_session_handler(self) -> SessionLogHandler:
-        """Получение обработчика логов сессии."""
-        if not hasattr(self, 'session_handler') or self.session_handler is None:
-            raise RuntimeError("SessionHandler не инициализирован")
-        return self.session_handler
+    # === Обработчики метрик (перенесены из TelemetryCollector) ===
 
-    def get_terminal_handler(self) -> TerminalLogHandler:
-        """Получение терминального обработчика."""
-        if not hasattr(self, 'terminal_handler') or self.terminal_handler is None:
-            raise RuntimeError("TerminalHandler не инициализирован")
-        return self.terminal_handler
+    async def _on_skill_executed(self, event):
+        """Обработка выполнения навыка."""
+        data = event.data
+        if not data.get('capability') or not self.metrics_publisher:
+            return
+        success = 1.0 if data.get('success', False) else 0.0
+        await self.metrics_publisher.gauge(
+            name='success', value=success,
+            agent_id=data.get('agent_id', 'unknown'),
+            capability=data.get('capability'),
+            session_id=data.get('session_id'),
+            correlation_id=event.correlation_id,
+            version=data.get('version'),
+            timestamp=event.timestamp,
+            publish_event=False
+        )
+        execution_time = data.get('execution_time_ms')
+        if execution_time:
+            await self.metrics_publisher.histogram(
+                name='execution_time_ms', value=float(execution_time),
+                agent_id=data.get('agent_id', 'unknown'),
+                capability=data.get('capability'),
+                session_id=data.get('session_id'),
+                correlation_id=event.correlation_id,
+                version=data.get('version'),
+                timestamp=event.timestamp,
+                publish_event=False
+            )
+        tokens = data.get('tokens_used')
+        if tokens:
+            await self.metrics_publisher.counter(
+                name='tokens_used', value=float(tokens),
+                agent_id=data.get('agent_id', 'unknown'),
+                capability=data.get('capability'),
+                session_id=data.get('session_id'),
+                correlation_id=event.correlation_id,
+                version=data.get('version'),
+                timestamp=event.timestamp,
+                publish_event=False
+            )
+
+    async def _on_capability_selected(self, event):
+        """Обработка выбора способности."""
+        data = event.data
+        if not data.get('capability') or not self.metrics_publisher:
+            return
+        await self.metrics_publisher.counter(
+            name='selection_count', value=1.0,
+            agent_id=data.get('agent_id', 'unknown'),
+            capability=data.get('capability'),
+            session_id=data.get('session_id'),
+            correlation_id=event.correlation_id,
+            version=data.get('version'),
+            timestamp=event.timestamp,
+            publish_event=False
+        )
+
+    async def _on_error_occurred(self, event):
+        """Обработка ошибки."""
+        data = event.data
+        if not data.get('capability') or not self.metrics_publisher:
+            return
+        error_type = data.get('error_type', 'unknown')
+        await self.metrics_publisher.gauge(
+            name='success', value=0.0,
+            agent_id=data.get('agent_id', 'unknown'),
+            capability=data.get('capability'),
+            session_id=data.get('session_id'),
+            correlation_id=event.correlation_id,
+            tags={'error': error_type},
+            publish_event=False
+        )
+        await self.metrics_publisher.counter(
+            name='error_count', value=1.0,
+            agent_id=data.get('agent_id', 'unknown'),
+            capability=data.get('capability'),
+            session_id=data.get('session_id'),
+            correlation_id=event.correlation_id,
+            tags={'error': error_type},
+            publish_event=False
+        )
+
+    async def _on_session_started(self, event):
+        """Обработка начала сессии."""
+        pass
+
+    async def _on_session_completed(self, event):
+        """Обработка завершения сессии."""
+        data = event.data
+        steps = data.get('steps_completed', 0)
+        if self.metrics_publisher:
+            await self.metrics_publisher.gauge(
+                name='session_steps_completed', value=float(steps),
+                agent_id=data.get('agent_id', 'unknown'),
+                session_id=data.get('session_id'),
+                tags={'final_status': data.get('final_status', 'unknown')},
+                publish_event=False
+            )
 
     def __setattr__(self, name, value):
         """Запрет на изменение после инициализации."""
@@ -745,6 +834,21 @@ class InfrastructureContext:
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:
             await self.lifecycle_manager.cleanup_all()
+
+        # Отписка от EventBus (метрики)
+        if self.event_bus:
+            for event_type in [EventType.SKILL_EXECUTED, EventType.CAPABILITY_SELECTED,
+                               EventType.ERROR_OCCURRED, EventType.SESSION_STARTED,
+                               EventType.SESSION_COMPLETED]:
+                try:
+                    if hasattr(self.event_bus, 'unsubscribe'):
+                        self.event_bus.unsubscribe(event_type)
+                except Exception:
+                    pass
+
+        # Закрытие SessionLogHandler
+        if self.session_handler:
+            await self.session_handler.shutdown()
 
         # Закрытие сессии логирования
         self.log_session.shutdown()

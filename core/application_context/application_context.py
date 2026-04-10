@@ -292,13 +292,24 @@ class ApplicationContext(BaseSystemContext):
 
         success = await self._initialize_components_with_dependencies()
         if not success:
+            import traceback
+            print("[ApplicationContext] _initialize_components_with_dependencies вернул False", flush=True)
             await self._publish(EventType.ERROR, {"message": "Ошибка инициализации компонентов с учетом зависимостей"})
             return False
 
         # РЕГИСТРАЦИЯ всех компонентов в lifecycle_manager для отображения в UI
         await self._register_components_in_lifecycle_manager()
 
-        if not await self._verify_readiness():
+        try:
+            verify_ok = await self._verify_readiness()
+        except Exception as e:
+            import traceback
+            print(f"[ApplicationContext] _verify_readiness EXCEPTION: {e}", flush=True)
+            traceback.print_exc()
+            return False
+
+        if not verify_ok:
+            print("[ApplicationContext] _verify_readiness вернул False", flush=True)
             return False
 
         await self.lifecycle_manager.initialize_all()
@@ -373,12 +384,14 @@ class ApplicationContext(BaseSystemContext):
                             session_id="system"
                         )
             except Exception as e:
+                import traceback as tb
+                print(f"[ApplicationContext] ERROR init {component.name}: {e}", flush=True)
+                tb.print_exc()
                 await self._publish(EventType.ERROR, {"message": f"Ошибка при инициализации компонента {component.name}: {e}"})
-                import traceback
                 if self.infrastructure_context and self.infrastructure_context.event_bus:
                     await self.infrastructure_context.event_bus.publish(
                         event_type="component.init_failed",
-                        data={"name": component.name, "error": str(e), "traceback": traceback.format_exc()},
+                        data={"name": component.name, "error": str(e), "traceback": tb.format_exc()},
                         source="application_context",
                         session_id="system"
                     )
@@ -577,118 +590,47 @@ class ApplicationContext(BaseSystemContext):
         return self.components.get(ComponentType.SERVICE, name)
 
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
-        """Валидация версий в зависимости от профиля и prompt_loading_config."""
+        """Валидация версий в зависимости от профиля и prompt_loading_config.
+
+        [REFACTOR ResourceLoader] Ресурсы уже загружены и валидированы в ResourceLoader.
+        Проверяем только наличие запрошенных версий.
+        """
         from core.errors.exceptions import ComponentInitializationError
 
+        loader = self.infrastructure_context.resource_loader
+        if not loader:
+            raise ComponentInitializationError("ResourceLoader не инициализирован")
+
         if prompt_versions:
-            try:
-                data_repo = self.data_repository
-                for capability, version in prompt_versions.items():
-                    try:
-                        prompt_obj = await data_repo.get_prompt(capability, version)
-                        status = None
-                        if hasattr(prompt_obj, 'status'):
-                            status_obj = prompt_obj.status
-                            status = status_obj.value if hasattr(status_obj, 'value') else str(status_obj)
-                        elif hasattr(prompt_obj, 'metadata') and hasattr(prompt_obj.metadata, 'status'):
-                            status_obj = prompt_obj.metadata.status
-                            status = status_obj.value if hasattr(status_obj, 'value') else str(status_obj)
+            for capability, version in prompt_versions.items():
+                prompt = loader.get_prompt(capability, version)
+                if not prompt:
+                    raise ComponentInitializationError(
+                        f"Промпт {capability}@{version} не найден в ResourceLoader"
+                    )
 
-                        if status is None:
-                            raise ComponentInitializationError(
-                                f"Не удалось получить статус для промпта {capability}@{version}."
-                            )
-
-                        if self._prompt_loading_config:
-                            needed_status = self._prompt_loading_config.get(
-                                capability,
-                                self._prompt_loading_config.get('default', 'active')
-                            )
-                            if status != needed_status:
-                                all_prompts = data_repo.get_prompt_versions(capability)
-                                found_correct = False
-                                for p in all_prompts:
-                                    p_status = getattr(p, 'status', None)
-                                    if hasattr(p_status, 'value'):
-                                        p_status = p_status.value
-                                    if str(p_status) == needed_status:
-                                        prompt_versions[capability] = p.version
-                                        found_correct = True
-                                        break
-                                if not found_correct:
-                                    raise ComponentInitializationError(
-                                        f"[CONFIG] Промпт {capability}@{version} имеет статус '{status}', "
-                                        f"но требуется '{needed_status}'."
-                                    )
-                        else:
-                            if self.profile == "prod" and status != "active":
-                                raise ComponentInitializationError(
-                                    f"[PROD] Промпт версия {capability}@{version} имеет статус '{status}', "
-                                    f"но требуется 'active'."
-                                )
-                            elif self.profile == "sandbox" and status == "archived":
-                                raise ComponentInitializationError(
-                                    f"[SANDBOX] Промпт версия {capability}@{version} архивирована. "
-                                    f"Использование архивированных версий запрещено."
-                                )
-                    except ComponentInitializationError:
-                        raise
-                    except Exception as e:
-                        raise ComponentInitializationError(
-                            f"Не удалось загрузить или получить статус для промпта {capability}@{version}: {e}"
-                        )
-            except ComponentInitializationError:
-                raise
-            except Exception as e:
-                raise ComponentInitializationError(f"Ошибка при доступе к хранилищу промптов: {e}")
+                # Проверка статуса для prod
+                if self.profile == "prod" and prompt.status.value != "active":
+                    raise ComponentInitializationError(
+                        f"[PROD] Промпт {capability}@{version} имеет статус '{prompt.status.value}', "
+                        f"но требуется 'active'."
+                    )
 
         if input_contract_versions:
-            try:
-                contract_repository = self.infrastructure_context.get_contract_storage()
-                for capability, version in input_contract_versions.items():
-                    try:
-                        exists = await contract_repository.exists(capability, version, "input")
-                        if not exists:
-                            raise ComponentInitializationError(
-                                f"[{self.profile.upper()}] Входной контракт {capability}@{version} не существует."
-                            )
-                        await contract_repository.load(capability, version, "input")
-                    except ComponentInitializationError:
-                        raise
-                    except Exception as e:
-                        raise ComponentInitializationError(
-                            f"Не удалось загрузить входной контракт {capability}@{version}: {e}"
-                        )
-            except ComponentInitializationError:
-                raise
-            except Exception as e:
-                raise ComponentInitializationError(
-                    f"Хранилище контрактов недоступно при валидации входных контрактов: {e}"
-                )
+            for capability, version in input_contract_versions.items():
+                contract = loader.get_contract(capability, version, "input")
+                if not contract:
+                    raise ComponentInitializationError(
+                        f"Входной контракт {capability}@{version} не найден в ResourceLoader"
+                    )
 
         if output_contract_versions:
-            try:
-                contract_repository = self.infrastructure_context.get_contract_storage()
-                for capability, version in output_contract_versions.items():
-                    try:
-                        exists = await contract_repository.exists(capability, version, "output")
-                        if not exists:
-                            raise ComponentInitializationError(
-                                f"[{self.profile.upper()}] Выходной контракт {capability}@{version} не существует."
-                            )
-                        await contract_repository.load(capability, version, "output")
-                    except ComponentInitializationError:
-                        raise
-                    except Exception as e:
-                        raise ComponentInitializationError(
-                            f"Не удалось загрузить выходной контракт {capability}@{version}: {e}"
-                        )
-            except ComponentInitializationError:
-                raise
-            except Exception as e:
-                raise ComponentInitializationError(
-                    f"Хранилище контрактов недоступно при валидации выходных контрактов: {e}"
-                )
+            for capability, version in output_contract_versions.items():
+                contract = loader.get_contract(capability, version, "output")
+                if not contract:
+                    raise ComponentInitializationError(
+                        f"Выходной контракт {capability}@{version} не найден в ResourceLoader"
+                    )
 
         return True
 
