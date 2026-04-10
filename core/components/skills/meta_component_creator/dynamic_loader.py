@@ -263,18 +263,9 @@ class DynamicComponentLoader:
         """Регистрация компонента в ApplicationContext."""
         from core.agent.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
-        from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 
         app_ctx = self.application_context
         infra = app_ctx.infrastructure_context
-
-        discovery = ResourceDiscovery(
-            base_dir=str(PROJECT_ROOT / "data"),
-            profile=getattr(app_ctx, "profile", "dev"),
-            event_bus=infra.event_bus,
-        )
-        await discovery.discover_prompts()
-        await discovery.discover_contracts()
 
         factory = ComponentFactory(infra)
 

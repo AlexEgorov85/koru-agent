@@ -39,33 +39,10 @@ class ComponentFactory:
         Инициализация фабрики.
 
         ARGS:
-        - infrastructure_context: Инфраструктурный контекст для получения провайдеров
+        - infrastructure_context: Инфраструктурный контекст для получения загрузчика ресурсов
         """
         self._infrastructure_context = infrastructure_context
         self.event_bus = infrastructure_context.event_bus if infrastructure_context else None
-        self._resource_preloader = None
-
-    def _get_resource_preloader(self, application_context: 'ApplicationContext'):
-        """
-        Получить или создать ResourcePreloader.
-
-        [REFACTOR v5.4.0] ResourcePreloader создаётся лениво при первой необходимости.
-
-        ARGS:
-        - application_context: ApplicationContext с data_repository
-
-        RETURNS:
-        - ResourcePreloader
-        """
-        if self._resource_preloader is None:
-            from core.components.services.preloading.resource_preloader import ResourcePreloader
-
-            self._resource_preloader = ResourcePreloader(
-                data_repository=application_context.data_repository,
-                event_bus=self.event_bus
-            )
-
-        return self._resource_preloader
 
     async def _log_info(self, message: str, *args, **kwargs):
         """Информационное сообщение."""
@@ -142,18 +119,12 @@ class ComponentFactory:
         """
         await self._log_info(f"Создание компонента {name} типа {component_class.__name__}")
 
-        # [REFACTOR v5.4.0] 1. Загружаем ресурсы ДО создания компонента
-        preloader = self._get_resource_preloader(application_context)
-        
-        # Логирование через event_bus
-        event_bus = self.event_bus
-        await event_bus.publish(EventType.DEBUG, {"message": f"🏭 ComponentFactory: preload_for_component({name})..."})
-        
-        resources = await preloader.preload_for_component(name, component_config)
-        
-        await event_bus.publish(EventType.DEBUG, {
-            "message": f"🏭 ComponentFactory: resources: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}"
-        })
+        # [REFACTOR ResourceLoader] Загружаем ресурсы напрямую из ResourceLoader
+        resource_loader = self._infrastructure_context.resource_loader
+        if resource_loader is None:
+            raise RuntimeError("ResourceLoader не инициализирован в InfrastructureContext")
+
+        resources = resource_loader.get_component_resources(name, component_config)
 
         # 2. Заполняем component_config.resolved_* загруженными ресурсами
         component_config.resolved_prompts = resources["prompts"]

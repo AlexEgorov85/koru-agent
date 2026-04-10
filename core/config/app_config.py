@@ -365,14 +365,14 @@ class AppConfig(BaseSettings):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
 
-        [REFACTOR v5.4.0] Профиль определяет разрешённые статусы:
+        [REFACTOR ResourceLoader] Профиль определяет разрешённые статусы:
         - prod → только status: active
         - sandbox → status: active + draft
         - dev → status: active + draft + inactive
 
         ЗАМЕНЯЕТ: registry.yaml, ConfigLoader, DynamicConfigManager, RegistryLoader
         """
-        from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+        from core.infrastructure.loading.resource_loader import ResourceLoader
         from core.models.data.prompt import PromptStatus
         from core.config.component_config import ComponentConfig
         import yaml
@@ -405,7 +405,7 @@ class AppConfig(BaseSettings):
                             enabled=provider_data.get('enabled', False),
                             parameters=provider_data.get('parameters', {})
                         )
-                
+
                 # Загружаем vector_search конфигурацию
                 if yaml_config and 'vector_search' in yaml_config:
                     from core.config.vector_config import VectorSearchConfig
@@ -413,14 +413,16 @@ class AppConfig(BaseSettings):
             except Exception:
                 pass
 
-        # === СКАНИРОВАНИЕ РЕСУРСОВ ===
-        # [REFACTOR v5.4.0] ResourceDiscovery фильтрует по статусу в зависимости от профиля
-        if discovery is None:
-            discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
+        # === СКАНИРОВАНИЕ РЕСУРСОВ через ResourceLoader ===
+        # ResourceLoader.get() гарантирует ОДНО сканирование ФС на (data_dir, profile)
+        loader = ResourceLoader.get(
+            data_dir=Path(data_dir),
+            profile=profile
+        )
 
-        # discover_prompts() и discover_contracts() уже фильтруют по статусу профиля
-        prompts = discovery.discover_prompts()
-        contracts = discovery.discover_contracts()
+        # Получаем все промпты и контракты из кэша
+        prompts = loader.get_all_prompts()
+        contracts = loader.get_all_contracts()
 
         # Собираем версии (ResourceDiscovery уже отфильтровал по статусу)
         active_prompts = {p.capability: p.version for p in prompts}

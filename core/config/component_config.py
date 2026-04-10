@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 
+from core.models.data.prompt import Prompt
+from core.models.data.contract import Contract
+
 
 class ComponentConfig(BaseModel):
     """
@@ -17,10 +20,10 @@ class ComponentConfig(BaseModel):
     # Версии ИСХОДЯЩИХ контрактов: {capability_name: version}
     output_contract_versions: Dict[str, str] = Field(default_factory=dict)
 
-    # ← КРИТИЧЕСКИ ВАЖНО: предзагруженные ресурсы
-    resolved_prompts: Dict[str, str] = Field(default_factory=dict)
-    resolved_input_contracts: Dict[str, Dict] = Field(default_factory=dict)
-    resolved_output_contracts: Dict[str, Dict] = Field(default_factory=dict)
+    # ← КРИТИЧЕСКИ ВАЖНО: предзагруженные ресурсы (объекты, не строки!)
+    resolved_prompts: Dict[str, Prompt] = Field(default_factory=dict)
+    resolved_input_contracts: Dict[str, Contract] = Field(default_factory=dict)
+    resolved_output_contracts: Dict[str, Contract] = Field(default_factory=dict)
 
     # Идентификатор варианта (для логирования)
     variant_id: str = Field(..., description="Уникальный ID варианта компонента")

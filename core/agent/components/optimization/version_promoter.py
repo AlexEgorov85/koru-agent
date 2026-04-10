@@ -11,8 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+import yaml
 from core.models.data.prompt import Prompt
-from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+from core.infrastructure.loading.resource_loader import ResourceLoader
 
 
 class VersionPromoter:
@@ -21,8 +22,8 @@ class VersionPromoter:
 
     USAGE:
     ```python
-    promoter = VersionPromoter(data_source, prompts_dir)
-    
+    promoter = VersionPromoter(prompts_dir)
+
     await promoter.promote(
         prompt=improved_prompt,
         reason="A/B test winner",
@@ -33,28 +34,60 @@ class VersionPromoter:
 
     def __init__(
         self,
-        data_source: FileSystemDataSource,
         prompts_dir: Path
     ):
         """
         Инициализация.
 
         ARGS:
-        - data_source: источник данных для сохранения
-        - prompts_dir: директория для промптов
+        - prompts_dir: Директория с промптами
         """
-        self.data_source = data_source
-        self.prompts_dir = prompts_dir
+        self.prompts_dir = Path(prompts_dir)
 
-    async def promote(
+    def save_prompt(self, prompt: Prompt) -> Path:
+        """
+        Сохранить промпт в YAML файл.
+
+        ARGS:
+        - prompt: Объект промпта для сохранения
+
+        RETURNS:
+        - Path: Путь к сохранённому файлу
+        """
+        type_dir = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
+        target_dir = self.prompts_dir / type_dir
+
+        capability_parts = prompt.capability.split('.')
+        for part in capability_parts[:-1]:
+            target_dir /= part
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = target_dir / f"{prompt.version}.yaml"
+
+        data = {
+            "capability": prompt.capability,
+            "version": prompt.version,
+            "status": prompt.status.value,
+            "component_type": prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill',
+            "content": prompt.content,
+            "variables": [v.model_dump() for v in prompt.variables],
+            "metadata": prompt.metadata,
+        }
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+        return file_path
+
+    def promote(
         self,
         prompt: Prompt,
         reason: str,
         metrics: Optional[Dict[str, float]] = None,
         ab_test_result: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    ) -> Path:
         """
-        Продвижение новой версии.
+        Продвижение новой версии — сохранение + логирование.
 
         ARGS:
         - prompt: новая версия промпта
@@ -63,103 +96,16 @@ class VersionPromoter:
         - ab_test_result: результаты A/B теста
 
         RETURNS:
-        - bool: успешно ли
+        - Path: путь к сохранённому файлу
         """
-        try:
-            # Обновление metadata
-            prompt.metadata.update({
-                'promoted_at': datetime.now().isoformat(),
-                'promotion_reason': reason,
-                'metrics': metrics or {},
-                'ab_test_result': ab_test_result or {}
-            })
+        updated_metadata = dict(prompt.metadata)
+        updated_metadata.update({
+            'promoted_at': datetime.now().isoformat(),
+            'promotion_reason': reason,
+            'metrics': metrics or {},
+            'ab_test_result': ab_test_result or {}
+        })
 
-            # Создание директории
-            capability_dir = self.prompts_dir / prompt.capability.replace('.', '/')
-            capability_dir.mkdir(parents=True, exist_ok=True)
-
-            # Сохранение через data_source
-            await self.data_source.save_prompt(
-                capability_name=prompt.capability,
-                version=prompt.version,
-                prompt=prompt
-            )
-
-            # Сохранение в файл для наглядности
-            prompt_file = capability_dir / f"{prompt.capability}.system_{prompt.version}.yaml"
-            self._save_to_yaml(prompt, prompt_file)
-
-            return True
-
-        except Exception as e:
-            pass  # Silently ignore promotion errors
-            return False
-
-    def _save_to_yaml(self, prompt: Prompt, file_path: Path) -> None:
-        """
-        Сохранение промпта в YAML файл.
-
-        ARGS:
-        - prompt: промпт
-        - file_path: путь к файлу
-        """
-        yaml_content = f"""capability: {prompt.capability}
-component_type: {prompt.component_type.value}
-version: {prompt.version}
-status: {prompt.status}
-description: Автоматически улучшенная версия — {prompt.metadata.get('promotion_reason', 'N/A')}
-content: |
-{self._indent_content(prompt.content)}
-
-variables: {prompt.variables or []}
-metadata:
-  promoted_at: {prompt.metadata.get('promoted_at', 'N/A')}
-  promotion_reason: {prompt.metadata.get('promotion_reason', 'N/A')}
-  metrics: {json.dumps(prompt.metadata.get('metrics', {}), indent=4)}
-"""
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(yaml_content)
-
-    def _indent_content(self, content: str, indent: int = 2) -> str:
-        """Добавление отступа к контенту"""
-        lines = content.split('\n')
-        return '\n'.join('  ' * indent + line for line in lines)
-
-    async def rollback(
-        self,
-        capability: str,
-        to_version: str
-    ) -> bool:
-        """
-        Откат к предыдущей версии.
-
-        ARGS:
-        - capability: название способности
-        - to_version: версия для отката
-
-        RETURNS:
-        - bool: успешно ли
-        """
-        try:
-            # Загрузка версии
-            prompt = await self.data_source.load_prompt(capability, to_version)
-
-            if not prompt:
-                return False
-
-            # Обновление статуса
-            prompt.status = 'active'
-            prompt.metadata['rolled_back_at'] = datetime.now().isoformat()
-
-            # Сохранение
-            await self.data_source.save_prompt(
-                capability_name=capability,
-                version=to_version,
-                prompt=prompt
-            )
-
-            return True
-
-        except Exception as e:
-            return False
+        # Prompt frozen — создаём копию с обновлённым metadata
+        updated_prompt = prompt.model_copy(update={'metadata': updated_metadata})
+        return self.save_prompt(updated_prompt)
