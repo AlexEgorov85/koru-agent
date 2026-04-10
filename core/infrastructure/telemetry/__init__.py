@@ -1,40 +1,17 @@
 """
-Telemetry Module — единая точка сбора телеметрии.
+Telemetry Module — обработчики и хранилища телеметрии.
 
 АРХИТЕКТУРА:
-┌─────────────────────────────────────────────────────────────┐
-│                    TelemetryCollector                       │
-│  (подписка на события EventBus)                             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ TerminalHandler │  │ SessionHandler  │  │ MetricsHandler  │
-│ (консоль)       │  │ (файлы сессий)  │  │ (метрики)       │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+- SessionLogHandler: запись логов сессий в файлы
+- FileSystemMetricsStorage: хранилище метрик
+- MetricsPublisher: публикация метрик (из core.components.services)
+- TerminalLogHandler: вывод в консоль (только иконки)
 
 USAGE:
 ```python
-from core.infrastructure.telemetry import init_telemetry
-
-telemetry = await init_telemetry(event_bus)
+from core.infrastructure.telemetry import SessionLogHandler, FileSystemMetricsStorage
 ```
-
-КОМПОНЕНТЫ:
-- TelemetryCollector: единый сборщик
-- TerminalLogHandler: вывод в консоль (только иконки)
-- SessionLogHandler: запись в файлы сессий
-- FileSystemMetricsStorage: хранилище метрик
 """
-from core.infrastructure.telemetry.telemetry_collector import (
-    TelemetryCollector,
-    get_telemetry,
-    init_telemetry,
-    shutdown_telemetry,
-)
-
 from core.infrastructure.telemetry.handlers import (
     TerminalLogHandler,
     TerminalLogFormatter,
@@ -46,12 +23,6 @@ from core.infrastructure.telemetry.storage import (
 )
 
 __all__ = [
-    # Main
-    'TelemetryCollector',
-    'get_telemetry',
-    'init_telemetry',
-    'shutdown_telemetry',
-
     # Handlers
     'TerminalLogHandler',
     'TerminalLogFormatter',
