@@ -48,6 +48,90 @@ from core.infrastructure.providers.llm.json_parser import (
 from core.errors.exceptions import StructuredOutputError
 
 
+# ========================================================================
+# Утилиты для динамического создания Pydantic моделей из JSON Schema
+# ========================================================================
+
+def _create_model_from_schema(
+    model_name: str,
+    schema: dict,
+    defs: dict
+) -> type:
+    """
+    Создаёт динамическую Pydantic модель из JSON Schema с поддержкой $ref.
+
+    ARGS:
+    - model_name: Имя создаваемой модели
+    - schema: JSON Schema (с properties, required, $defs)
+    - defs: Словарь определений ($defs) для разрешения $ref
+
+    RETURNS:
+    - Динамический класс Pydantic BaseModel
+    """
+    from pydantic import create_model
+
+    fields = {}
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+
+    for field_name, field_def in properties.items():
+        field_type = _resolve_field_type(field_def, defs)
+        is_required = field_name in required
+        fields[field_name] = (field_type, ...) if is_required else (field_type, None)
+
+    return create_model(model_name, **fields)
+
+
+def _resolve_field_type(field_def: dict, defs: dict) -> type:
+    """
+    Рекурсивно разрешает тип поля из JSON Schema.
+
+    Поддерживает:
+    - Примитивы: string, integer, number, boolean
+    - Массивы: array с items (в т.ч. с $ref)
+    - Объекты: inline object с properties
+    - $ref: ссылки на определения в $defs
+    """
+    from pydantic import create_model
+
+    # $ref → разрешение ссылки
+    if "$ref" in field_def:
+        ref_path = field_def["$ref"]
+        # Формат: "#/$defs/ModelName" или "#/definitions/ModelName"
+        ref_name = ref_path.split("/")[-1]
+        if ref_name in defs:
+            nested_schema = defs[ref_name]
+            return _create_model_from_schema(ref_name, nested_schema, defs)
+        # Если определение не найдено — fallback на dict
+        return dict
+
+    json_type = field_def.get("type", "string")
+
+    # array → list[ItemType]
+    if json_type == "array":
+        items_schema = field_def.get("items")
+        if items_schema:
+            item_type = _resolve_field_type(items_schema, defs)
+            return list[item_type]
+        return list
+
+    # object inline → вложенная модель
+    if json_type == "object" and "properties" in field_def:
+        nested_model_name = field_def.get("title", "NestedObject")
+        return _create_model_from_schema(nested_model_name, field_def, defs)
+
+    # Примитивы
+    type_map = {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }
+    return type_map.get(json_type, str)
+
+
 class CallStatus(str, Enum):
     """Статусы LLM вызова."""
     PENDING = "pending"           # Ожидает запуска
@@ -529,19 +613,18 @@ class LLMOrchestrator:
 
                 self._metrics.total_retry_attempts += 1
 
-                if self._logger:
-                    await self._logger.info(
+                print(
                         f"🔵 [STRUCTURED] Результат попытки {attempt_num}/{max_retries} | "
                         f"success={attempt.success} | "
                         f"error_type={attempt.error_type} | "
                         f"error_message={attempt.error_message if attempt.error_message else 'None'}"
-                    )
+                ,flush=True)
                     
-                    # Детальное логирование сырого ответа при ошибке
-                    if not attempt.success and attempt.raw_response:
-                        await self._logger.error(
-                            f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response}"
-                        )
+                # Детальное логирование сырого ответа при ошибке
+                if not attempt.success and attempt.raw_response:
+                    await self._logger.error(
+                        f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response}"
+                    )
 
                 if attempt.success:
                     # Успех!
@@ -739,27 +822,12 @@ class LLMOrchestrator:
                         # Создаём динамическую Pydantic модель из JSON Schema
                         schema = request.structured_output.schema_def
                         model_name = request.structured_output.output_model or "DynamicModel"
-                        
-                        # Создаём модель динамически
-                        fields = {}
-                        if "properties" in schema:
-                            for field_name, field_def in schema["properties"].items():
-                                # Определяем тип из schema
-                                field_type_str = field_def.get("type", "string")
-                                field_type = {
-                                    "integer": int,
-                                    "number": float,
-                                    "boolean": bool,
-                                    "array": list,
-                                    "object": dict
-                                }.get(field_type_str, str)
-                                
-                                # Проверяем обязательность
-                                required = field_name in schema.get("required", [])
-                                fields[field_name] = (field_type, ...) if required else (field_type, None)
-                        
-                        # Создаём модель
-                        DynamicModel = create_model(model_name, **fields)
+
+                        # Создаём модель динаически с поддержкой вложенных объектов ($ref)
+                        defs = schema.get("$defs", {})
+                        DynamicModel = _create_model_from_schema(
+                            model_name, schema, defs
+                        )
                         parsed_content = DynamicModel(**json_data)
                         
                         if self._logger:
