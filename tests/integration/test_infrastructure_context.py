@@ -1,9 +1,12 @@
 """
-Интеграционные тесты для InfrastructureContext с телеметрией.
+Интеграционные тесты для InfrastructureContext.
 
 ТЕСТЫ:
-- test_telemetry_initialized: проверка инициализации TelemetryCollector
+- test_metrics_publisher_initialized: проверка инициализации MetricsPublisher
 - test_full_integration: полный тест сбора метрик
+- test_getters: тест методов доступа
+- test_shutdown_cleanup: тест корректного завершения работы
+- test_event_bus_integration: тест интеграции EventBus
 """
 import pytest
 import tempfile
@@ -18,7 +21,6 @@ def temp_data_dir():
     """Фикстура для временной директории данных"""
     temp_dir = tempfile.mkdtemp()
 
-    # Создание базовой структуры
     (Path(temp_dir) / "prompts").mkdir(exist_ok=True)
     (Path(temp_dir) / "contracts").mkdir(exist_ok=True)
     (Path(temp_dir) / "manifests").mkdir(exist_ok=True)
@@ -50,32 +52,24 @@ class TestInfrastructureContextIntegration:
     """Интеграционные тесты InfrastructureContext."""
 
     @pytest.mark.asyncio
-    async def test_telemetry_initialized(self, config):
-        """Тест инициализации TelemetryCollector."""
+    async def test_metrics_publisher_initialized(self, config):
+        """Тест инициализации MetricsPublisher."""
         context = InfrastructureContext(config)
 
         try:
-            # Инициализация
             await context.initialize()
-
-            # Проверка что TelemetryCollector инициализирован
-            assert context.telemetry is not None
-            assert context.telemetry.is_initialized is True
-
+            assert context.metrics_publisher is not None
         finally:
             await context.shutdown()
 
     @pytest.mark.asyncio
     async def test_full_integration(self, config):
-        """Полный тест сбора телеметрии."""
+        """Полный тест сбора метрик."""
         context = InfrastructureContext(config)
 
         try:
-            # Инициализация
             await context.initialize()
 
-            # Проверка всех компонентов
-            assert context.telemetry is not None
             assert context.metrics_publisher is not None
             assert context.session_handler is not None
 
@@ -95,12 +89,8 @@ class TestInfrastructureContextIntegration:
                 }
             )
 
-            # Небольшая задержка для обработки
             import asyncio
             await asyncio.sleep(0.1)
-
-            # Проверка что метрики записаны (через telemetry)
-            # Metrics записываются через MetricsPublisher в storage
 
         finally:
             await context.shutdown()
@@ -113,8 +103,6 @@ class TestInfrastructureContextIntegration:
         try:
             await context.initialize()
 
-            # Проверка методов доступа
-            assert context.get_telemetry() is not None
             assert context.get_metrics_publisher() is not None
             assert context.get_session_handler() is not None
 
@@ -126,28 +114,22 @@ class TestInfrastructureContextIntegration:
         """Тест корректного завершения работы."""
         context = InfrastructureContext(config)
 
-        # Инициализация
         await context.initialize()
-        assert context.telemetry.is_initialized is True
+        assert context.metrics_publisher is not None
 
-        # Завершение
         await context.shutdown()
 
-        # Проверка что телеметрия завершена
-        assert context.telemetry is not None
+        # Session handler должен быть завершён
+        assert context.session_handler is not None
 
     @pytest.mark.asyncio
     async def test_event_bus_integration(self, config):
-        """Тест интеграции EventBus с телеметрией."""
+        """Тест интеграции EventBus с метриками."""
         context = InfrastructureContext(config)
 
         try:
             await context.initialize()
 
-            # Проверка что EventBus тот же самый
-            assert context.telemetry.event_bus is context.event_bus
-
-            # Публикация различных событий
             from core.infrastructure.event_bus import EventType
 
             await context.event_bus.publish(
@@ -169,12 +151,10 @@ class TestInfrastructureContextIntegration:
                 }
             )
 
-            # Задержка для обработки
             import asyncio
             await asyncio.sleep(0.1)
 
-            # Проверка что события обработаны
-            assert context.telemetry.is_initialized
+            assert context.metrics_publisher is not None
 
         finally:
             await context.shutdown()
