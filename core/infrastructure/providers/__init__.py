@@ -4,7 +4,7 @@
 КОМПОНЕНТЫ:
 - base_provider: базовые классы IProvider и BaseProvider
 - llm: LLM провайдеры (LlamaCpp, OpenAI, etc.)
-- database: database провайдеры (Postgres, SQLite, etc.)
+- database: database провайдеры (Postgres и др.)
 - vector: vector провайдеры (FAISS, etc.)
 - embedding: embedding провайдеры
 """

@@ -29,7 +29,7 @@ class DatabasePort(Protocol):
     Порт для работы с базой данных.
     
     АБСТРАКЦИЯ: Определяет что нужно для работы с БД.
-    РЕАЛИЗАЦИЯ: PostgreSQLAdapter, SQLiteAdapter и т.д.
+    РЕАЛИЗАЦИЯ: PostgreSQLAdapter и т.д.
     """
     
     async def query(

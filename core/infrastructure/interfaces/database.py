@@ -1,7 +1,7 @@
 """
 Интерфейс для базы данных.
 
-Определяет контракт для всех реализаций БД (PostgreSQL, SQLite, и т.д.).
+Определяет контракт для всех реализаций БД (PostgreSQL и др.).
 """
 
 from typing import Protocol, Any, Optional, List, Dict, Union
@@ -13,7 +13,7 @@ class DatabaseInterface(Protocol):
     Интерфейс для работы с базой данных.
 
     АБСТРАКЦИЯ: Определяет что нужно для работы с БД.
-    РЕАЛИЗАЦИИ: PostgreSQLProvider, SQLiteProvider.
+    РЕАЛИЗАЦИИ: PostgreSQLProvider.
     """
 
     async def connect(self) -> None:

@@ -42,23 +42,6 @@ class DBConnectionConfig:
 
 
 @dataclass
-class SQLiteConnectionConfig:
-    """
-    Конфигурация подключения к SQLite БД.
-
-    ATTRIBUTES:
-    - db_path: путь к файлу базы данных
-    - timeout: таймаут блокировки (в секундах)
-    - check_same_thread: проверять ли, что подключение используется из того же потока
-    - detect_types: определять типы данных автоматически
-    """
-    db_path: str = ":memory:"
-    timeout: float = 30.0
-    check_same_thread: bool = False
-    detect_types: int = 0
-
-
-@dataclass
 class DBQueryResult:
     """
     Результат выполнения SQL запроса.

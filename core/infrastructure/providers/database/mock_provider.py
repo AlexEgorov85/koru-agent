@@ -90,7 +90,3 @@ class MockDBProvider(BaseDBProvider):
         self.log.info("Mock DB провайдер завершает работу",
                       extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
         self.is_initialized = False
-
-
-# Alias для совместимости с фабрикой
-SQLiteProvider = MockDBProvider

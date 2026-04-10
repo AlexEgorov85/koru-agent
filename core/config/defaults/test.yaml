@@ -20,12 +20,7 @@ llm_providers:
       default_response: '{"status": "ok"}'
 
 # Отключаем реальные провайдеры в тестах
-db_providers:
-  test_db:
-    provider_type: sqlite
-    enabled: true
-    parameters:
-      database: ":memory:"
+db_providers: {}
 
 # Настройки агента для тестов
 agent:

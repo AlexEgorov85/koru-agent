@@ -8,12 +8,6 @@ agent:
   temperature: 0.2
 data_dir: data
 db_providers:
-  books_db:
-    enabled: true
-    parameters:
-      db_path: data/books.db
-      timeout: 30.0
-    provider_type: sqlite
   default_db:
     enabled: true
     parameters:

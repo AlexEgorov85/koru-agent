@@ -35,10 +35,8 @@ from core.models.enums.common_enums import ResourceType
 from core.infrastructure.loading.resource_loader import ResourceLoader
 
 # Импорты для телеметрии
-from core.infrastructure.telemetry import TelemetryCollector, init_telemetry
-from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
-from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
+from core.infrastructure.telemetry.storage.metrics_storage import FileSystemMetricsStorage
 
 
 class InfrastructureContext:
@@ -316,12 +314,8 @@ class InfrastructureContext:
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
                     
                     # Выбираем класс конфигурации в зависимости от типа БД
-                    if provider_type == "sqlite":
-                        from core.models.types.db_types import SQLiteConnectionConfig
-                        config_obj = SQLiteConnectionConfig(**provider_config.parameters)
-                    else:
-                        from core.models.types.db_types import DBConnectionConfig
-                        config_obj = DBConnectionConfig(**provider_config.parameters)
+                    from core.models.types.db_types import DBConnectionConfig
+                    config_obj = DBConnectionConfig(**provider_config.parameters)
 
                     provider = self.db_provider_factory.create_provider(
                         provider_type=provider_type,
@@ -330,14 +324,11 @@ class InfrastructureContext:
 
                     # Регистрация в LifecycleManager
                     db_info = {
-                        "provider_type": provider_type
+                        "provider_type": provider_type,
+                        "database": provider_config.parameters.get("database", ""),
+                        "host": provider_config.parameters.get("host", "localhost"),
+                        "port": provider_config.parameters.get("port", 5432),
                     }
-                    if provider_type == "sqlite":
-                        db_info["db_path"] = provider_config.parameters.get("db_path", "")
-                    else:
-                        db_info["database"] = provider_config.parameters.get("database", "")
-                        db_info["host"] = provider_config.parameters.get("host", "localhost")
-                        db_info["port"] = provider_config.parameters.get("port", 5432)
                     
                     await self.lifecycle_manager.register_resource(
                         name=provider_name,
