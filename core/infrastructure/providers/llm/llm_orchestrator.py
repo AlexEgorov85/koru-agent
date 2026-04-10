@@ -1,4 +1,4 @@
-"""
+﻿"""
 LLMOrchestrator - централизованное управление вызовами LLM с расширенным логированием.
 
 АРХИТЕКТУРНАЯ РОЛЬ:
@@ -363,7 +363,7 @@ class LLMOrchestrator:
 
         except Exception as e:
             if self._logger:
-                await self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
+                self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
             return False
 
     async def shutdown(self) -> None:
@@ -384,11 +384,11 @@ class LLMOrchestrator:
             # Логируем статистику
             if self._logger:
                 metrics = self._metrics.to_dict()
-                await self._logger.info(
+                self._logger.info(
                     f"LLMOrchestrator завершён. Метрики: {metrics}"
                 )
 
-            await self._logger.info("LLMOrchestrator остановлен")
+            self._logger.info("LLMOrchestrator остановлен")
 
             # Event bus publish
             if self._event_bus:
@@ -400,7 +400,7 @@ class LLMOrchestrator:
             
         except Exception as e:
             if self._logger:
-                await self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}")
+                self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}")
     
     async def execute(
         self,
@@ -503,7 +503,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.info(
+        self._logger.info(
             f"🧩 LLM вызов | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -575,7 +575,7 @@ class LLMOrchestrator:
         try:
             # Fail-fast: проверяем провайдер
             if provider is None:
-                print("❌ [LLMOrchestrator] Provider is None — модель не загружена!")
+                self._logger.warning("Provider is None — модель не загружена!", extra={"event_type": LogEventType.LLM_ERROR})
                 raise StructuredOutputError(
                     message="LLM провайдер не инициализирован (provider=None)",
                     model_name=getattr(request, 'model_name', self.model_name),
@@ -589,7 +589,7 @@ class LLMOrchestrator:
             for attempt_num in range(1, max_retries + 1):
 
                 if self._logger:
-                    await self._logger.info(
+                    self._logger.info(
                         f"🔵 [STRUCTURED] Выполнение попытки {attempt_num}/{max_retries} | "
                         f"prompt_len={len(request.prompt)} | "
                         f"use_native_structured_output={use_native_structured_output}"
@@ -609,16 +609,16 @@ class LLMOrchestrator:
 
                 self._metrics.total_retry_attempts += 1
 
-                print(
-                        f"🔵 [STRUCTURED] Результат попытки {attempt_num}/{max_retries} | "
-                        f"success={attempt.success} | "
-                        f"error_type={attempt.error_type} | "
-                        f"error_message={attempt.error_message if attempt.error_message else 'None'}"
-                ,flush=True)
+                self._logger.debug(
+                    "[STRUCTURED] Результат попытки %d/%d | success=%s | error_type=%s | error_message=%s",
+                    attempt_num, max_retries, attempt.success, attempt.error_type,
+                    attempt.error_message if attempt.error_message else 'None',
+                    extra={"event_type": LogEventType.LLM_CALL}
+                )
                     
                 # Детальное логирование сырого ответа при ошибке
                 if not attempt.success and attempt.raw_response:
-                    await self._logger.error(
+                    self._logger.error(
                         f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response}"
                     )
 
@@ -657,7 +657,7 @@ class LLMOrchestrator:
 
                     if attempt_num < max_retries:
                         if self._logger:
-                            await self._logger.warning(
+                            self._logger.warning(
                                 f"⚠️ [STRUCTURED] Retry {attempt_num}/{max_retries} failed, trying again..."
                             )
                     # Продолжаем цикл — следующая попытка
@@ -722,7 +722,7 @@ class LLMOrchestrator:
 
             # Логирование ответа
             if self._logger:
-                await self._logger.info(
+                self._logger.info(
                     f"🔵 [STRUCTURED] LLM response: type={type(response).__name__}, "
                     f"content_len={self._get_content_length(response)}, "
                     f"has_parsed={hasattr(response, 'parsed_content')}, "
@@ -732,7 +732,7 @@ class LLMOrchestrator:
                 # Логируем сырой ответ для отладки
                 if hasattr(response, 'raw_response') and response.raw_response:
                     raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
-                    await self._logger.info(
+                    self._logger.info(
                         f"🔵 [STRUCTURED] Raw response: {raw_content}..."
                     )
 
@@ -748,7 +748,7 @@ class LLMOrchestrator:
                 if hasattr(response, 'raw_response') and response.raw_response:
                     raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
                     if self._logger:
-                        await self._logger.warning(
+                        self._logger.warning(
                             f"⚠️ [STRUCTURED] finish_reason=error, но пробуем распарсить raw_response (len={len(raw_content)})"
                         )
                     # Продолжаем обработку ниже
@@ -772,7 +772,7 @@ class LLMOrchestrator:
                 raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
 
                 if self._logger:
-                    await self._logger.info(
+                    self._logger.info(
                         f"🔵 [STRUCTURED] Найден raw_response.content, len={len(raw_content) if raw_content else 0}"
                     )
 
@@ -780,7 +780,7 @@ class LLMOrchestrator:
                 if hasattr(response, 'parsed_content') and response.parsed_content:
                     # Модель уже создана провайдером (редкий случай)
                     if self._logger:
-                        await self._logger.info(
+                        self._logger.info(
                             f"🔵 [STRUCTURED] parsed_content уже заполнен: {type(response.parsed_content).__name__}"
                         )
                     return RetryAttempt(
@@ -804,7 +804,7 @@ class LLMOrchestrator:
 
                         # Логируем сырой JSON для отладки
                         if self._logger:
-                            await self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content}...")
+                            self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content}...")
 
                         # Извлекаем JSON из markdown-обёртки (если есть)
                         cleaned_json = extract_json_from_response(raw_content)
@@ -813,7 +813,7 @@ class LLMOrchestrator:
                         json_data = json.loads(cleaned_json)
                         
                         if self._logger:
-                            await self._logger.info(f"✅ [STRUCTURED] JSON распарсен: ключи={list(json_data.keys()) if isinstance(json_data, dict) else 'not a dict'}")
+                            self._logger.info(f"✅ [STRUCTURED] JSON распарсен: ключи={list(json_data.keys()) if isinstance(json_data, dict) else 'not a dict'}")
                         
                         # Создаём динамическую Pydantic модель из JSON Schema
                         schema = request.structured_output.schema_def
@@ -827,7 +827,7 @@ class LLMOrchestrator:
                         parsed_content = DynamicModel(**json_data)
                         
                         if self._logger:
-                            await self._logger.info(
+                            self._logger.info(
                                 f"✅ [STRUCTURED] Создана Pydantic модель {model_name} из JSON"
                             )
                         
@@ -845,7 +845,7 @@ class LLMOrchestrator:
                         
                     except json.JSONDecodeError as json_err:
                         if self._logger:
-                            await self._logger.error(
+                            self._logger.error(
                                 f"❌ [STRUCTURED] JSON parse error: {json_err}"
                             )
                         return RetryAttempt(
@@ -862,7 +862,7 @@ class LLMOrchestrator:
                         
                     except Exception as model_err:
                         if self._logger:
-                            await self._logger.warning(
+                            self._logger.warning(
                                 f"⚠️ [STRUCTURED] Не удалось создать Pydantic модель: {model_err}"
                             )
                         return RetryAttempt(
@@ -879,7 +879,7 @@ class LLMOrchestrator:
                 else:
                     # Нет structured_output — не должно произойти
                     if self._logger:
-                        await self._logger.error("❌ [STRUCTURED] Нет structured_output в запросе")
+                        self._logger.error("❌ [STRUCTURED] Нет structured_output в запросе")
                     return RetryAttempt(
                         attempt_number=attempt_num,
                         prompt=request.prompt,
@@ -894,7 +894,7 @@ class LLMOrchestrator:
             else:
                 # LLMResponse (старый формат) — берём content и валидируем
                 if self._logger:
-                    await self._logger.warning(
+                    self._logger.warning(
                         f"⚠️ [STRUCTURED] Нет raw_response, используем LLMResponse.content"
                     )
                 raw_content = response.content
@@ -983,7 +983,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.info(
+        self._logger.info(
             f"📋 Structured LLM | call_id={call_id} | "
             f"session={session_id} | "
             f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}"
@@ -1014,7 +1014,7 @@ class LLMOrchestrator:
                 agent_id=None,
                 correlation_id=call_id
             )
-            print(f"[LLMOrchestrator] ✓ Опубликовано LLM_PROMPT_GENERATED: call_id={call_id}", flush=True)
+            self._logger.debug("Опубликовано LLM_PROMPT_GENERATED: call_id=%s", call_id, extra={"event_type": LogEventType.LLM_CALL})
 
     async def _log_structured_success(
         self,
@@ -1030,7 +1030,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.info(
+        self._logger.info(
             f"✅ Structured SUCCESS | call_id={call_id} | "
             f"session={session_id} | attempt={attempt_num} | "
             f"duration={duration:.2f}s"
@@ -1060,7 +1060,7 @@ class LLMOrchestrator:
                 agent_id=None,
                 correlation_id=call_id
             )
-            print(f"[LLMOrchestrator] ✓ Опубликовано LLM_RESPONSE_RECEIVED: call_id={call_id}", flush=True)
+            self._logger.debug("Опубликовано LLM_RESPONSE_RECEIVED: call_id=%s", call_id, extra={"event_type": LogEventType.LLM_RESPONSE})
 
     async def _log_structured_retry(
         self,
@@ -1075,7 +1075,7 @@ class LLMOrchestrator:
             return
 
         icon = "🔄" if will_retry else "⚠️"
-        await self._logger.warning(
+        self._logger.warning(
             f"{icon} Structured RETRY | call_id={call_id} | "
             f"attempt={attempt_num} | error={error_type} | "
             f"message={error_message if error_message else 'unknown'} | "
@@ -1093,7 +1093,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.error(
+        self._logger.error(
             f"❌ Structured EXHAUSTED | call_id={call_id} | "
             f"session={session_id} | total_attempts={total_attempts} | "
             f"last_error={last_error if last_error else 'unknown'}"
@@ -1110,7 +1110,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.error(
+        self._logger.error(
             f"❌ Structured FAILURE | call_id={call_id} | "
             f"attempt={attempt_num} | type={failure_type} | "
             f"message={message}"
@@ -1126,7 +1126,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.error(
+        self._logger.error(
             f"❌ Structured EXCEPTION | call_id={call_id} | "
             f"session={session_id} | error={error}"
         )
@@ -1210,7 +1210,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.info(
+        self._logger.info(
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"response_len={self._get_content_length(result)} | tokens={self._get_tokens_used(result)} | "
@@ -1225,7 +1225,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.warning(
+        self._logger.warning(
             f"⏰ LLM TIMEOUT | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -1248,7 +1248,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        await self._logger.error(
+        self._logger.error(
             f"❌ LLM ERROR | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"{type(error).__name__}: {str(error)} | elapsed={elapsed:.2f}s"
@@ -1371,7 +1371,7 @@ class LLMOrchestrator:
                 break
             except Exception as e:
                 if self._logger:
-                    await self._logger.error(f"Ошибка в cleanup loop: {e}")
+                    self._logger.error(f"Ошибка в cleanup loop: {e}")
     
     async def _cleanup_old_records(self, max_age: float = 300.0) -> int:
         """
@@ -1398,7 +1398,7 @@ class LLMOrchestrator:
                 removed += 1
         
         if removed > 0 and self._logger:
-            await self._logger.debug(f"Очищено {removed} старых записей")
+            self._logger.debug(f"Очищено {removed} старых записей")
         
         return removed
     
