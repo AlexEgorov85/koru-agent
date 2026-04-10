@@ -1,69 +1,13 @@
 tables:
-- columns:
-  - column_default: nextval('"Lib".books_book_id_seq'::regclass)
-    column_name: id
-    data_type: integer
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: title
-    data_type: character varying
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: isbn
-    data_type: character varying
-    is_nullable: 'YES'
-  - column_default: null
-    column_name: publication_date
-    data_type: date
-    is_nullable: 'YES'
-  - column_default: null
-    column_name: author_id
-    data_type: integer
-    is_nullable: 'YES'
-  description: ''
+- columns: []
+  description: Таблица не найдена или не имеет столбцов
   schema: Lib
   table: books
-- columns:
-  - column_default: nextval('"Lib".authors_author_id_seq'::regclass)
-    column_name: id
-    data_type: integer
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: first_name
-    data_type: character varying
-    is_nullable: 'YES'
-  - column_default: null
-    column_name: last_name
-    data_type: character varying
-    is_nullable: 'YES'
-  - column_default: null
-    column_name: birth_date
-    data_type: date
-    is_nullable: 'YES'
-  description: ''
+- columns: []
+  description: Таблица не найдена или не имеет столбцов
   schema: Lib
   table: authors
-- columns:
-  - column_default: nextval('"Lib".chapters_chapter_id_seq'::regclass)
-    column_name: chapter_id
-    data_type: integer
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: book_id
-    data_type: integer
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: chapter_number
-    data_type: integer
-    is_nullable: 'NO'
-  - column_default: null
-    column_name: chapter_title
-    data_type: character varying
-    is_nullable: 'YES'
-  - column_default: null
-    column_name: chapter_text
-    data_type: text
-    is_nullable: 'NO'
-  description: ''
+- columns: []
+  description: Таблица не найдена или не имеет столбцов
   schema: Lib
   table: chapters

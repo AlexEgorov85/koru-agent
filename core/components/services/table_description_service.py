@@ -109,28 +109,45 @@ class TableDescriptionService(BaseService):
             WHERE cols.table_schema = %s AND cols.table_name = %s
             ORDER BY cols.ordinal_position
             """
-
+            
             from core.agent.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
-
-            columns_result = await self.executor.execute_action(
+            
+            result = await self.executor.execute_action(
                 action_name="sql_tool.execute",
                 parameters={
                     "sql": sql,
-                    "parameters": {"1": schema_name, "2": table_name}
+                    "parameters": [schema_name, table_name]
+                },
+                context=exec_context
+            )
+            
+            if result.status.name != "COMPLETED" or not result.data:
+                return self._empty_result(schema_name, table_name, f"Запрос не выполнен: {result.error}")
+            
+            data = result.data
+            rows = data.get("rows", []) if isinstance(data, dict) else getattr(data, "rows", [])
+            
+            if not rows:
+                return self._empty_result(schema_name, table_name, f"Таблица '{schema_name}.{table_name}' не найдена в information_schema")
+            
+            table_desc_sql = """
+            SELECT obj_description(%s::regclass) as table_description
+            """
+            table_desc_result = await self.executor.execute_action(
+                action_name="sql_tool.execute",
+                parameters={
+                    "sql": table_desc_sql,
+                    "parameters": [f"{schema_name}.{table_name}"]
                 },
                 context=exec_context
             )
 
-            # Проверяем результат — data может быть dict или объектом
-            if columns_result.status.name != "COMPLETED" or not columns_result.data:
-                return self._empty_result(schema_name, table_name, f"Запрос не выполнен: {columns_result.error}")
-
-            data = columns_result.data
-            rows = data.get("rows", []) if isinstance(data, dict) else getattr(data, "rows", [])
-
-            if not rows:
-                return self._empty_result(schema_name, table_name, "Таблица не найдена или не имеет столбцов")
+            table_description = ""
+            if table_desc_result.status.name == "COMPLETED" and table_desc_result.data:
+                table_rows = table_desc_result.data.get("rows", []) if isinstance(table_desc_result.data, dict) else getattr(table_desc_result.data, "rows", [])
+                if table_rows:
+                    table_description = table_rows[0].get("table_description") or "" if isinstance(table_rows[0], dict) else getattr(table_rows[0], "table_description", "") or ""
 
             columns = []
             for row in rows:
@@ -145,17 +162,36 @@ class TableDescriptionService(BaseService):
                     is_nullable = getattr(row, "is_nullable", "YES")
                     column_default = getattr(row, "column_default", None)
 
+                column_desc_sql = """
+                SELECT col_description(%s::regclass::oid, %s::regclass::attnum) as column_description
+                """
+                column_desc_result = await self.executor.execute_action(
+                    action_name="sql_tool.execute",
+                    parameters={
+                        "sql": column_desc_sql,
+                        "parameters": [f"{schema_name}.{table_name}", column_name]
+                    },
+                    context=exec_context
+                )
+
+                column_description = ""
+                if column_desc_result.status.name == "COMPLETED" and column_desc_result.data:
+                    col_rows = column_desc_result.data.get("rows", []) if isinstance(column_desc_result.data, dict) else getattr(column_desc_result.data, "rows", [])
+                    if col_rows:
+                        column_description = col_rows[0].get("column_description") or "" if isinstance(col_rows[0], dict) else getattr(col_rows[0], "column_description", "") or ""
+
                 columns.append({
                     "column_name": column_name,
                     "data_type": data_type,
                     "is_nullable": is_nullable,
-                    "column_default": column_default
+                    "column_default": column_default,
+                    "description": column_description
                 })
 
             return {
                 "schema_name": schema_name,
                 "table_name": table_name,
-                "description": "",
+                "description": table_description,
                 "columns": columns,
                 "constraints": [],
                 "examples": []
