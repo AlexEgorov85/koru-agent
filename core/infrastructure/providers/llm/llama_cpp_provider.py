@@ -257,13 +257,13 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - Схема добавляется в system_prompt или user prompt
         - Формат зависит от возможностей модели
 
-        ПАРАМЕТРЫ:
-        - schema_def: JSON Schema определения ответа
+ПАРАМЕТРЫ:
+         - schema_def: JSON Schema определения ответа
 
         ВОЗВРАЩАЕТ:
-        - str: Текст промпта с инструкцией и схемой
-        """
-import json  # noqa: F401 - используется для generate_structured
+         - str: Текст промпта с инструкцией и схемой
+"""
+        import json
         
         schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
         
