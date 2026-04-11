@@ -421,7 +421,7 @@ class TestLifecycleStats:
 
         assert stats["total_resources"] == 3
         assert stats["initialized"] is True
-        assert "initialized" in stats["by_status"]
+        assert "ready" in stats["by_status"]
 
     @pytest.mark.asyncio
     async def test_get_all_info(self, lifecycle_manager):

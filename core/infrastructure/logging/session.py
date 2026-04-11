@@ -48,6 +48,41 @@ from typing import Optional, Dict
 from core.config.logging_config import LoggingConfig
 
 
+class _LogFileFormatter(logging.Formatter):
+    """Форматтер для файловых логов с поддержкой event_type.
+
+    Формат:
+    %(asctime)s | %(levelname)-8s | %(event_type)s | %(name)s | %(message)s
+
+    Если event_type не указан — выводится прочерк.
+    """
+
+    def __init__(self):
+        super().__init__(
+            fmt="%(asctime)s | %(levelname)-8s | %(event_type)-20s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S,%f",
+        )
+
+    def formatTime(self, record, datefmt=None):
+        """Форматирование времени с миллисекундами."""
+        dt = datetime.fromtimestamp(record.created)
+        if datefmt:
+            # Убираем последние 3 цифры микросекунд (оставляем миллисекунды)
+            return dt.strftime(datefmt)[:-3]
+        return dt.isoformat(timespec="milliseconds")
+
+    def format(self, record):
+        """Форматирование записи с подстановкой event_type."""
+        # Подставляем event_type из extra или прочерк
+        event_type = getattr(record, "event_type", None)
+        if event_type is not None:
+            # Если это enum — берём value, иначе строковое представление
+            record.event_type = event_type.value if hasattr(event_type, "value") else str(event_type)
+        else:
+            record.event_type = "-"
+        return super().format(record)
+
+
 class LoggingSession:
     """
     Управляет жизненным циклом логов одной сессии запуска.
@@ -170,9 +205,7 @@ class LoggingSession:
         logger.propagate = False  # Не дублировать в root
 
         handler = logging.FileHandler(path, encoding="utf-8")
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-        ))
+        handler.setFormatter(_LogFileFormatter())
         logger.addHandler(handler)
         return logger
 

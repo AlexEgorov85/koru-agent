@@ -302,7 +302,7 @@ class LifecycleManager:
                         result = True
                     
                     if result:
-                        record.status = ComponentState.INITIALIZED
+                        record.status = ComponentState.READY
                         record.initialized_at = datetime.now()
                         results[name] = True
                         self.log.debug("Ресурс '%s' успешно инициализирован", name,
@@ -605,7 +605,7 @@ class LifecycleManager:
         """Количество инициализированных ресурсов."""
         return sum(
             1 for record in self._resources.values() 
-            if record.status == ComponentState.INITIALIZED
+            if record.status == ComponentState.READY
         )
 
     @property

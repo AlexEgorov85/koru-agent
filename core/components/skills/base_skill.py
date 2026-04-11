@@ -10,7 +10,7 @@
 6. Кэширование промптов и контрактов при инициализации
 7. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
 8. Возврат ExecutionResult для единого формата результатов
-9. Наследование LifecycleMixin для управления состояниями (CREATED → INITIALIZING → READY → SHUTDOWN)
+9. Наследование ComponentLifecycle для управления состояниями (CREATED → INITIALIZING → READY → SHUTDOWN)
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional

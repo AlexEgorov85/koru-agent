@@ -7,7 +7,7 @@
 - Никаких прямых обращений к контекстам
 
 ЖИЗНЕННЫЙ ЦИКЛ:
-- Наследует LifecycleMixin через BaseComponent
+- Наследует ComponentLifecycle через BaseComponent
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import inspect
@@ -135,12 +135,12 @@ class BaseService(BaseComponent):
 
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
-        # [REFACTOR Этап 6] EventBusLogger инициализируется в BaseComponent
+        # EventBusLogger инициализируется в BaseComponent
         # self.event_bus_logger будет доступен после вызова super().__init__()
         if self.event_bus_logger:
             self.event_bus_logger.debug_sync(f"Инициализирован сервис: {self.name}")
 
-    # [REFACTOR Этап 6] _init_event_bus_logger удалён — дублирует BaseComponent
+    # _init_event_bus_logger удалён — дублирует BaseComponent
 
     async def initialize(self) -> bool:
         """

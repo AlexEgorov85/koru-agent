@@ -17,21 +17,9 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin):
 import asyncio
 import sys
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, Optional, Callable
 
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-
-
-# ============================================================
-# ENUMS
-# ============================================================
-
-class LoggerInitializationState(Enum):
-    """Состояние инициализации логгера."""
-    NOT_INITIALIZED = "not_initialized"
-    INITIALIZING = "initializing"
-    READY = "ready"
 
 
 # ============================================================
@@ -131,27 +119,32 @@ class AsyncLoggerMixin:
     
     def _is_initializing(self) -> bool:
         """Проверка фазы инициализации."""
+        # Lazy import для избежания circular dependency
+        from core.agent.components.lifecycle import ComponentState
+
         callback = getattr(self, '_get_init_state_callback', None)
         if callback:
             state = callback()
             return state in (
-                LoggerInitializationState.NOT_INITIALIZED,
-                LoggerInitializationState.INITIALIZING
+                ComponentState.CREATED,
+                ComponentState.INITIALIZING
             )
-        
-        state = getattr(self, '_init_state', LoggerInitializationState.NOT_INITIALIZED)
+
+        state = getattr(self, '_init_state', ComponentState.CREATED)
         return state in (
-            LoggerInitializationState.NOT_INITIALIZED,
-            LoggerInitializationState.INITIALIZING
+            ComponentState.CREATED,
+            ComponentState.INITIALIZING
         )
 
     def _set_initializing(self):
         """Установить состояние INITIALIZING."""
-        self._init_state = LoggerInitializationState.INITIALIZING
+        from core.agent.components.lifecycle import ComponentState
+        self._init_state = ComponentState.INITIALIZING
 
     def _set_ready(self):
         """Установить состояние READY."""
-        self._init_state = LoggerInitializationState.READY
+        from core.agent.components.lifecycle import ComponentState
+        self._init_state = ComponentState.READY
 
     async def _publish(self, event_type: EventType, message: str, level: str, **extra_data):
         """Публикация события в EventBus."""
@@ -693,13 +686,16 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin, 
         session_id: str,
         agent_id: str,
         component: str = "unknown",
-        get_init_state_callback: Optional[Callable[[], LoggerInitializationState]] = None
+        get_init_state_callback: Optional[Callable[[], Any]] = None
     ):
+        # Lazy import для избежания circular dependency
+        from core.agent.components.lifecycle import ComponentState
+
         self.event_bus = event_bus
         self.session_id = session_id
         self.agent_id = agent_id
         self.component = component
-        self._init_state = LoggerInitializationState.NOT_INITIALIZED
+        self._init_state = ComponentState.CREATED
         self._get_init_state_callback = get_init_state_callback
 
 
@@ -776,9 +772,6 @@ def get_global_logger() -> Optional[EventBusLogger]:
 # ============================================================
 
 __all__ = [
-    # Enums
-    'LoggerInitializationState',
-    
     # Mixins
     'SyncLoggerMixin',
     'AsyncLoggerMixin',

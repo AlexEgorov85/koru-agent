@@ -3,7 +3,7 @@
 
 СОДЕРЖИТ:
 - ComponentState: enum состояний компонента
-- LifecycleMixin: миксин для управления жизненным циклом
+- ComponentLifecycle: базовый класс для управления состоянием компонента
 """
 from enum import Enum
 from typing import Optional
@@ -13,49 +13,47 @@ import asyncio
 class ComponentState(Enum):
     """
     Состояния жизненного цикла компонента/ресурса.
-    
+
     DIAGRAM:
     CREATED → INITIALIZING → READY → SHUTDOWN
                 ↓
               FAILED (при ошибке)
-    
-    PENDING/UNKNOWN - для совместимости с LifecycleManager
+
+    PENDING — используется только в ResourceRecord (LifecycleManager).
     """
     CREATED = "created"           # Экземпляр создан, не инициализирован
-    PENDING = "pending"           # Ожидает инициализации (для LifecycleManager)
+    PENDING = "pending"           # Зарегистрирован, ждёт инициализации (LifecycleManager)
     INITIALIZING = "initializing" # В процессе инициализации
-    INITIALIZED = "initialized"   # Успешно инициализирован (alias для READY)
     READY = "ready"               # Готов к работе
     FAILED = "failed"             # Ошибка инициализации
     SHUTDOWN = "shutdown"         # Завершён
-    UNKNOWN = "unknown"           # Статус неизвестен (для LifecycleManager)
 
     @property
     def is_ready_state(self) -> bool:
-        """Готов к работе (READY или INITIALIZED)."""
-        return self in (ComponentState.READY, ComponentState.INITIALIZED)
-    
+        """Готов к работе."""
+        return self == ComponentState.READY
+
     @property
     def is_initialized_state(self) -> bool:
-        """Был инициализирован (READY, INITIALIZED или SHUTDOWN)."""
-        return self in (ComponentState.READY, ComponentState.INITIALIZED, ComponentState.SHUTDOWN)
-    
+        """Был инициализирован (READY или SHUTDOWN)."""
+        return self in (ComponentState.READY, ComponentState.SHUTDOWN)
+
     @property
     def is_failed_state(self) -> bool:
         """Завершился ошибкой."""
         return self == ComponentState.FAILED
 
 
-class LifecycleMixin:
+class ComponentLifecycle:
     """
-    Миксин для управления жизненным циклом компонента.
-    
+    Базовый класс для управления жизненным циклом компонента.
+
     USAGE:
     ```python
-    class MyComponent(LifecycleMixin):
+    class MyComponent(ComponentLifecycle):
         def __init__(self, name: str):
             super().__init__(name)
-        
+
         async def initialize(self):
             await self._transition_to(ComponentState.INITIALIZING)
             try:
@@ -65,10 +63,10 @@ class LifecycleMixin:
             except Exception as e:
                 await self._transition_to(ComponentState.FAILED)
                 raise
-        
+
         async def shutdown(self):
             await self._transition_to(ComponentState.SHUTDOWN)
-        
+
         def some_method(self):
             self.ensure_ready()  # Проверка готовности
             # Бизнес-логика
@@ -137,3 +135,10 @@ class LifecycleMixin:
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name='{self._name}', state={self._state.value})"
+
+
+# Алиас для обратной совместимости
+LifecycleMixin = ComponentLifecycle
+
+
+__all__ = ['ComponentState', 'ComponentLifecycle', 'LifecycleMixin']

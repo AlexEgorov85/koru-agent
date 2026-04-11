@@ -26,7 +26,7 @@ from core.models.data.execution import ExecutionResult
 from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
-from core.agent.components.lifecycle import LifecycleMixin, ComponentState
+from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
 from core.agent.components.logging import LoggingMixin
 
 # Интерфейсы для DI (используются только необходимые)
@@ -38,7 +38,7 @@ MetricsStorageInterface = IMetricsStorage
 LogStorageInterface = ILogStorage
 
 
-class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
+class BaseComponent(ComponentLifecycle, LoggingMixin, ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
@@ -92,8 +92,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
         event_bus: 'EventBusInterface' = None  # ← Обязательный для логирования
     ):
-        # Вызов конструктора LifecycleMixin
-        LifecycleMixin.__init__(self, name)
+        # Вызов конструктора ComponentLifecycle
+        ComponentLifecycle.__init__(self, name)
 
         # Вызов конструктора LoggingMixin с callback для состояния инициализации
         LoggingMixin.__init__(
@@ -168,13 +168,11 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
 
     def _get_logger_init_state(self):
         """Callback для LoggingMixin: получение текущего состояния инициализации."""
-        from core.infrastructure.logging.logger import LoggerInitializationState
-
         if self._state == ComponentState.READY:
-            return LoggerInitializationState.READY
+            return ComponentState.READY
         elif self._state == ComponentState.INITIALIZING:
-            return LoggerInitializationState.INITIALIZING
-        return LoggerInitializationState.NOT_INITIALIZED
+            return ComponentState.INITIALIZING
+        return ComponentState.CREATED
 
     async def _publish_with_context(
         self,
@@ -295,7 +293,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         """
         Предзагрузка ресурсов компонента.
 
-        [REFACTOR ResourceLoader] Ресурсы УЖЕ загружены в component_config.resolved_*
+        Ресурсы УЖЕ загружены в component_config.resolved_*
         через ResourceLoader в ComponentFactory.
         """
         try:
@@ -404,7 +402,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         return True
 
     # ========================================================================
-    # [REFACTOR Этап 2.2] TTL-кэширование удалено
+    # TTL-кэширование удалено
     # invalidate_cache() и _is_cache_expired() больше не используются
     # ========================================================================
 
@@ -414,7 +412,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         """
         Получение промпта из кэша.
 
-        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
+        TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения промпта
@@ -433,7 +431,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         """
         Получение входной схемы из кэша.
 
-        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
+        TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения входной схемы
@@ -452,7 +450,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         """
         Получение выходной схемы из кэша.
 
-        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
+        TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения выходной схемы

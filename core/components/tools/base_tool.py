@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, List
 
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.application_context.application_context import ApplicationContext
 from core.agent.components.action_executor import ExecutionContext
@@ -27,7 +26,7 @@ class BaseTool(BaseComponent):
     Базовый класс для инструментов с инверсией зависимостей.
     
     ЖИЗНЕННЫЙ ЦИКЛ:
-    - Наследует LifecycleMixin через BaseComponent
+    - Наследует ComponentLifecycle через BaseComponent
     - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
     """
 
@@ -43,26 +42,20 @@ class BaseTool(BaseComponent):
         application_context: ApplicationContext,
         component_config: Optional[ComponentConfig] = None,
         executor=None,
-        event_bus = None,  # ← Только для логирования
         **kwargs
     ):
-        # Вызов конструктора родительского класса
-        # event_bus передаётся от ComponentFactory для логирования
         super().__init__(
             name,
             application_context,
             component_config=component_config,
-            executor=executor,
-            event_bus=event_bus
+            executor=executor
         )
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> str:
         """Возвращает тип события для успешного выполнения инструмента."""
-        # Для инструментов нет специального события, используем общее
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.ACTION_PERFORMED
+        return "ACTION_PERFORMED"
 
     async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: ExecutionContext = None, input_data: ToolInput = None):
         """
@@ -195,8 +188,7 @@ class BaseTool(BaseComponent):
 
         # Получаем список операций из конфигурации
         allowed_operations = self.get_allowed_operations()
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
+        self._log_debug(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
 
         if not allowed_operations and self.component_config:
             # Если operations не указаны явно, извлекаем из input_contract_versions
@@ -208,8 +200,7 @@ class BaseTool(BaseComponent):
                     # Для file_tool: file_tool.read_write
                     if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
                         allowed_operations.append(cap_name)
-                if self.event_bus_logger:
-                    self.event_bus_logger.debug_sync(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
+                self._log_debug(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
 
         # Создаём capability для каждой операции
         for op_name in allowed_operations:
@@ -229,8 +220,7 @@ class BaseTool(BaseComponent):
                 }
             ))
 
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        self._log_debug(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
         return capabilities
 
     @abstractmethod

@@ -8,11 +8,11 @@
 - Изолированные кэши для каждого экземпляра
 - Взаимодействие ТОЛЬКО через ActionExecutor
 - Поддержка внедрения зависимостей (DI) через интерфейсы
-- Единое логирование с префиксом [ComponentType:Name]
+- Единое логирование через стандартный logging с LogEventType
 
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin для управления состояниями
-- Использует LoggingMixin для логирования через event_bus
+- Использует LoggingMixinV2 для логирования через стандартный logging
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 
 ПРЕИМУЩЕСТВА ПЕРЕД СТАРЫМ ПОДХОДОМ:
@@ -20,8 +20,10 @@
 - Единая точка изменений для всех компонентов
 - Консистентное логирование с автоматическим префиксом
 - Прозрачная архитектура без глубокого наследования
+- Логирование через стандартный logging + LogEventType
 """
 import asyncio
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Type, List
@@ -30,170 +32,119 @@ from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
 from core.config.component_config import ComponentConfig
-from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.common_enums import ComponentType
-from core.agent.components.lifecycle import LifecycleMixin, ComponentState
+from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
 
 
 # =============================================================================
-# LOGGING MIXIN V2 - С НОВЫМ ПОДХОДОМ
+# LOGGING MIXIN - СТАНДАРТНЫЙ LOGGING + LOGEVENTTYPE
 # =============================================================================
 
 class LoggingMixinV2:
     """
     Миксин логирования с автоматическим префиксом [ComponentType:Name].
-    
-    ИНТЕГРАЦИЯ С EVENT_BUS:
-    - Все логи публикуются через event_bus.publish(EventType.XXX, {...})
+
+    ИНТЕГРАЦИЯ СО СТАНДАРТНЫМ LOGGING:
+    - Все логи идут через стандартный logging.getLogger()
     - Автоматический префикс [ComponentType:Name] в каждом сообщении
-    - Поддержка sync/async режимов
-    - Контекст session_id/agent_id из ExecutionContext
-    
+    - Обязательный extra={"event_type": LogEventType.XXX} в каждом вызове
+    - Контекст session_id/agent_id через LoggerAdapter extra
+
     USAGE:
     ```python
     class Component(LoggingMixinV2):
-        def __init__(self, name, component_type, event_bus):
-            super().__init__(component_name=name, component_type=component_type, event_bus=event_bus)
-            self._log_info("Компонент создан")  # ← [Skill:MySkill] Компонент создан
+        def __init__(self, name, component_type):
+            super().__init__(component_name=name, component_type=component_type)
+            self._log_info("Компонент создан", event_type=LogEventType.SYSTEM_INIT)
     ```
     """
-    
+
     def __init__(
         self,
         component_name: str = "unknown",
         component_type: str = "component",
-        event_bus: Optional[Any] = None
     ):
         """
         Инициализация логгера.
-        
+
         ARGS:
         - component_name: Имя компонента
         - component_type: Тип компонента (skill/service/tool/handler)
-        - event_bus: EventBusInterface для публикации событий
         """
         self._component_name = component_name
         self._component_type = component_type
-        self._event_bus = event_bus
         self._log_prefix = f"[{component_type.capitalize()}:{component_name}]"
         
+        # Создаём logger с именем компонента для идентификации
+        self._logger = logging.getLogger(f"{component_type}.{component_name}")
+
     def _format_log_message(self, message: str) -> str:
         """Добавляет префикс компонента к сообщению."""
         return f"{self._log_prefix} {message}"
-    
-    async def _log_event(
-        self,
-        event_type: EventType,
-        message: str,
-        level: str = "info",
-        execution_context: Optional[ExecutionContext] = None,
-        **extra_data
-    ):
+
+    def _log_info(self, message: str, event_type: LogEventType = LogEventType.INFO, **extra_data):
         """
-        Публикация лога через event_bus.
+        Логирование уровня INFO.
         
         ARGS:
-        - event_type: Тип события (LOG_INFO, LOG_WARNING, LOG_ERROR, etc.)
         - message: Сообщение
-        - level: Уровень логирования
-        - execution_context: Контекст выполнения для session_id/agent_id
-        - extra_data: Дополнительные данные
-        """
-        if not self._event_bus:
-            # Fallback: вывод в stdout
-            print(f"{self._format_log_message(message)}")
-            return
-        
-        # Формируем данные события
-        data = {
-            "message": self._format_log_message(message),
-            "level": level,
-            "component": self._component_name,
-            "component_type": self._component_type,
-            **extra_data
-        }
-        
-        # Извлекаем session_id/agent_id из execution_context
-        session_id = "system"
-        agent_id = "system"
-        
-        if execution_context is not None:
-            session_id = getattr(execution_context, 'session_id', 'system')
-            agent_id = getattr(execution_context, 'agent_id', 'system')
-        
-        # Публикуем событие
-        await self._event_bus.publish(
-            event_type=event_type,
-            data=data,
-            source=self._component_name,
-            session_id=session_id,
-            agent_id=agent_id
-        )
-    
-    def _log_sync(self, level: str, message: str, **kwargs):
-        """
-        Синхронное логирование (для инициализации).
-        
-        ARGS:
-        - level: Уровень логирования (info, debug, warning, error)
-        - message: Сообщение
-        - **kwargs: Дополнительные данные
+        - event_type: Тип события для фильтрации в консоли
+        - extra_data: Дополнительные данные для extra
         """
         formatted_message = self._format_log_message(message)
+        self._logger.info(
+            formatted_message,
+            extra={"event_type": event_type, **extra_data}
+        )
+
+    def _log_debug(self, message: str, event_type: LogEventType = LogEventType.DEBUG, **extra_data):
+        """
+        Логирование уровня DEBUG.
         
-        # Вывод в stdout для синхронного режима
-        if level == "error":
-            print(f"[ERROR] {formatted_message}")
-        elif level == "warning":
-            print(f"[WARNING] {formatted_message}")
-        elif level == "debug":
-            print(f"[DEBUG] {formatted_message}")
-        else:
-            print(f"[INFO] {formatted_message}")
-    
-    async def _log_info(self, message: str, execution_context: Optional[ExecutionContext] = None, **kwargs):
-        """Логирование уровня INFO."""
-        await self._log_event(
-            EventType.LOG_INFO,
-            message,
-            level="info",
-            execution_context=execution_context,
-            **kwargs
+        ARGS:
+        - message: Сообщение
+        - event_type: Тип события для фильтрации в консоли
+        - extra_data: Дополнительные данные для extra
+        """
+        formatted_message = self._format_log_message(message)
+        self._logger.debug(
+            formatted_message,
+            extra={"event_type": event_type, **extra_data}
         )
-    
-    async def _log_debug(self, message: str, execution_context: Optional[ExecutionContext] = None, **kwargs):
-        """Логирование уровня DEBUG."""
-        await self._log_event(
-            EventType.LOG_DEBUG,
-            message,
-            level="debug",
-            execution_context=execution_context,
-            **kwargs
-        )
-    
-    async def _log_warning(self, message: str, execution_context: Optional[ExecutionContext] = None, **kwargs):
-        """Логирование уровня WARNING."""
-        await self._log_event(
-            EventType.LOG_WARNING,
-            message,
-            level="warning",
-            execution_context=execution_context,
-            **kwargs
-        )
-    
-    async def _log_error(self, message: str, execution_context: Optional[ExecutionContext] = None, exc_info: bool = False, **kwargs):
-        """Логирование уровня ERROR."""
-        if exc_info and kwargs.get('exception'):
-            message = f"{message}: {kwargs['exception']}"
+
+    def _log_warning(self, message: str, event_type: LogEventType = LogEventType.WARNING, **extra_data):
+        """
+        Логирование уровня WARNING.
         
-        await self._log_event(
-            EventType.LOG_ERROR,
-            message,
-            level="error",
-            execution_context=execution_context,
-            **kwargs
+        ARGS:
+        - message: Сообщение
+        - event_type: Тип события для фильтрации в консоли
+        - extra_data: Дополнительные данные для extra
+        """
+        formatted_message = self._format_log_message(message)
+        self._logger.warning(
+            formatted_message,
+            extra={"event_type": event_type, **extra_data}
+        )
+
+    def _log_error(self, message: str, event_type: LogEventType = LogEventType.ERROR, exc_info: bool = False, **extra_data):
+        """
+        Логирование уровня ERROR.
+        
+        ARGS:
+        - message: Сообщение
+        - event_type: Тип события для фильтрации в консоли
+        - exc_info: Включить traceback исключения
+        - extra_data: Дополнительные данные для extra
+        """
+        formatted_message = self._format_log_message(message)
+        self._logger.error(
+            formatted_message,
+            extra={"event_type": event_type, **extra_data},
+            exc_info=exc_info
         )
 
 
@@ -201,7 +152,7 @@ class LoggingMixinV2:
 # UNIVERSAL COMPONENT
 # =============================================================================
 
-class Component(LifecycleMixin, LoggingMixinV2, ABC):
+class Component(ComponentLifecycle, LoggingMixinV2, ABC):
     """
     УНИВЕРСАЛЬНЫЙ БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ КОМПОНЕНТОВ.
     
@@ -257,47 +208,41 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         component_type: str,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus: Any,
         application_context: Optional[Any] = None
     ):
         """
         Инициализация компонента.
-        
+
         ARGS:
         - name: Имя компонента
         - component_type: Тип компонента (skill/service/tool/handler)
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
-        - application_context: ApplicationContext (DEPRECATED)
+        - application_context: ApplicationContext (опционально для доступа к ресурсам)
         """
-        # Инициализация LifecycleMixin
-        LifecycleMixin.__init__(self, name)
-        
+        # Инициализация ComponentLifecycle
+        ComponentLifecycle.__init__(self, name)
+
         # Инициализация LoggingMixinV2
         LoggingMixinV2.__init__(
             self,
             component_name=name,
             component_type=component_type,
-            event_bus=event_bus
         )
-        
+
         # Валидация обязательных параметров
         if component_config is None:
             raise ValueError(f"Компонент '{name}' требует component_config")
-        
+
         if not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
                 "Legacy-режим (agent_config) больше не поддерживается."
             )
-        
+
         if executor is None:
             raise ValueError(f"Компонент '{name}' требует executor")
-        
-        if event_bus is None:
-            raise ValueError(f"Компонент '{name}' требует event_bus")
-        
+
         # Сохраняем параметры
         self._application_context = application_context
         self.component_config = component_config
@@ -324,61 +269,58 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,
         НЕ обращаясь к сервисам напрямую.
-        
-        ВАЖНО: Все ресурсы уже загружены в component_config.application_context
-        на уровне ApplicationContext.initialize().
-        
+
+        ВАЖНО: Все ресурсы уже загружены в component_config на уровне
+        ApplicationContext.initialize().
+
         ЖИЗНЕННЫЙ ЦИКЛ:
         - Переводит компонент в состояние INITIALIZING
         - При успехе: READY
         - При ошибке: FAILED
-        
-        ЛОГИРОВАНИЕ:
-        - Во время инициализации (INITIALIZING) логи выводятся синхронно
-        - После перехода в READY логи публикуются асинхронно через EventBus
         """
         current_time = time.time()
-        
+
         # Проверка: нельзя инициализировать повторно
         if self._state == ComponentState.READY:
-            await self._log_warning(f"Компонент уже инициализирован")
+            self._log_warning(f"Компонент уже инициализирован", event_type=LogEventType.SYSTEM_INIT)
             return True
-        
+
         # Переход в состояние INITIALIZING
         await self._transition_to(ComponentState.INITIALIZING)
-        
-        # Синхронный лог о начале инициализации
-        self._log_sync("info", "Начало инициализации")
-        
+
+        # Лог о начале инициализации
+        self._log_info("Начало инициализации", event_type=LogEventType.SYSTEM_INIT)
+
         try:
             # === ЭТАП 1: Предзагрузка ресурсов ===
             if not await self._preload_resources():
-                self._log_sync("error", "Предзагрузка ресурсов не удалась")
+                self._log_error("Предзагрузка ресурсов не удалась", event_type=LogEventType.SYSTEM_ERROR)
                 await self._transition_to(ComponentState.FAILED)
                 return False
-            
+
             # === ЭТАП 2: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
-                self._log_sync("error", "Валидация загруженных ресурсов не пройдена")
+                self._log_error("Валидация загруженных ресурсов не пройдена", event_type=LogEventType.SYSTEM_ERROR)
                 await self._transition_to(ComponentState.FAILED)
                 return False
-            
+
             # Успешная инициализация
-            self._log_sync("info", 
+            self._log_info(
                 f"Компонент полностью инициализирован. "
                 f"Ресурсы: промпты={len(self.prompts)}, "
                 f"input_contracts={len(self.input_contracts)}, "
-                f"output_contracts={len(self.output_contracts)}"
+                f"output_contracts={len(self.output_contracts)}",
+                event_type=LogEventType.SYSTEM_READY
             )
-            
+
             # Переход в состояние READY
             await self._transition_to(ComponentState.READY)
             self._initialized = True
-            
+
             return True
-        
+
         except Exception as e:
-            self._log_sync("error", f"Ошибка инициализации: {e}", exception=e)
+            self._log_error(f"Ошибка инициализации: {e}", event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
             await self._transition_to(ComponentState.FAILED)
             return False
     
@@ -386,7 +328,7 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         """
         Предзагрузка ресурсов компонента.
         
-        [REFACTOR v5.4.0] Ресурсы УЖЕ загружены в component_config.resolved_*
+        Ресурсы УЖЕ загружены в component_config.resolved_*
         через ResourcePreloader в ComponentFactory.
         """
         try:
@@ -411,7 +353,7 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
             return True
         
         except Exception as e:
-            self._log_sync("error", f"Ошибка предзагрузки ресурсов: {e}", exc_info=True)
+            self._log_error(f"Ошибка предзагрузки ресурсов: {e}", event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
             return False
     
     async def _validate_loaded_resources(self) -> bool:
@@ -485,7 +427,7 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         # Логирование ошибок
         if errors:
             for error in errors:
-                self._log_sync("error", error)
+                self._log_error(error, event_type=LogEventType.SYSTEM_ERROR)
             return False
         
         return True
@@ -520,7 +462,7 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         # Этап 1: Проверка готовности
         if not self.is_ready:
             error_msg = f"Компонент не готов к выполнению (state={self._state.value})"
-            self._log_sync("error", error_msg)
+            self._log_error(error_msg, event_type=LogEventType.SYSTEM_ERROR)
             return ExecutionResult(
                 success=False,
                 error=error_msg,
@@ -557,9 +499,9 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         except Exception as e:
             execution_time_ms = (time.time() - start_time) * 1000
             error_msg = f"Ошибка выполнения: {e}"
-            
-            self._log_sync("error", error_msg, exception=e)
-            
+
+            self._log_error(error_msg, event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
+
             await self._publish_metrics(
                 capability=capability,
                 success=False,
@@ -643,32 +585,20 @@ class Component(LifecycleMixin, LoggingMixinV2, ABC):
         **extra_data
     ):
         """Публикация метрик выполнения."""
-        if not self._event_bus:
-            return
+        # Метрики теперь публикуются через EventBus отдельно (если нужно)
+        # Логи выполнения — через стандартный logging
+        event_type = LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
         
-        data = {
-            "component": self._component_name,
-            "component_type": self._component_type,
-            "capability": capability.name,
-            "success": success,
-            "execution_time_ms": execution_time_ms,
-            **extra_data
-        }
-        
-        event_type = EventType.SKILL_EXECUTED if success else EventType.ERROR_OCCURRED
-        
-        await self._log_event(
+        self._log_info(
+            f"Выполнение {capability.name}: {'успешно' if success else 'ошибка'} ({execution_time_ms:.2f}ms)",
             event_type=event_type,
-            message=f"Выполнение {capability.name}: {'успешно' if success else 'ошибка'} ({execution_time_ms:.2f}ms)",
-            level="info" if success else "error",
-            execution_context=execution_context,
-            **data
+            **extra_data
         )
-    
+
     async def shutdown(self):
         """Завершение работы компонента."""
         await self._transition_to(ComponentState.SHUTDOWN)
-        self._log_sync("info", "Компонент завершил работу")
+        self._log_info("Компонент завершил работу", event_type=LogEventType.SYSTEM_SHUTDOWN)
     
     async def restart(self) -> bool:
         """Перезапуск компонента."""

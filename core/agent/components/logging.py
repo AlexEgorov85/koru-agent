@@ -5,7 +5,7 @@ LoggingMixin для BaseComponent.
 
 USAGE:
 ```python
-class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
+class BaseComponent(ComponentLifecycle, LoggingMixin, ABC):
     pass
 ```
 """

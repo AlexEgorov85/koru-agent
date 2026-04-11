@@ -6,7 +6,7 @@
 
 LIFECYCLE:
     Для управления жизненным циклом компонентов используйте:
-    from core.agent.components.lifecycle import LifecycleMixin, ComponentState
+    from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
 """
 
 # TODO: Восстановить импорты error_handling после рефакторинга core.errors

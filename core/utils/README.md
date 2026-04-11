@@ -29,12 +29,12 @@ with ErrorContext("operation_name", logger, component="service") as ctx:
 Для управления жизненным циклом компонентов используйте:
 
 ```python
-from core.components.lifecycle import LifecycleMixin, ComponentState
+from core.components.lifecycle import ComponentLifecycle, ComponentState
 
-class MyComponent(LifecycleMixin):
+class MyComponent(ComponentLifecycle):
     def __init__(self, name: str):
         super().__init__(name)
-    
+
     async def initialize(self):
         await self._transition_to(ComponentState.INITIALIZING)
         try:
@@ -46,8 +46,8 @@ class MyComponent(LifecycleMixin):
 ```
 
 **Файлы:**
-- `core/components/lifecycle.py` — `LifecycleMixin`, `ComponentState`
-- `core/components/base_component.py` — `BaseComponent` (наследуется от `LifecycleMixin`)
+- `core/agent/components/lifecycle.py` — `ComponentLifecycle`, `ComponentState`
+- `core/agent/components/base_component.py` — `BaseComponent` (наследуется от `ComponentLifecycle`)
 
 ## 📚 Документация
 
