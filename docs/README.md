@@ -42,10 +42,8 @@ docs/
 │   └── BOOKS_INTEGRATION.md           # Интеграция с книгами
 │
 ├── logging/                           # Документация логирования
-│   ├── README.md                      # Обзор
-│   ├── structure.md                   # Структура логов
-│   ├── cli.md                         # CLI утилиты
-│   └── retention.md                   # Хранение логов
+│   ├── README.md                      # Обзор системы логирования
+│   └── ARCHITECTURE.md                # Архитектура логирования
 │
 └── api/                               # API документация
     └── vector_search_api.md           # Vector Search API
@@ -67,10 +65,7 @@ pip install -r requirements.txt
 
 ### 2. Конфигурация
 
-```bash
-cp .env.example .env
-# Отредактируйте .env под ваше окружение
-```
+Отредактируйте `core/config/defaults/dev.yaml` (или `prod.yaml`) под ваше окружение.
 
 ### 3. Запуск
 
@@ -92,12 +87,8 @@ python -m pytest tests/ -v
 
 - [RULES.MD](./RULES.MD) — требования к разработке
 - [architecture/lifecycle.md](./architecture/lifecycle.md) — жизненный цикл компонентов
-- [TESTING.md](../TESTING.md) — запуск и написание тестов
-
-### DevOps инженеры
-
-- [guides/deployment.md](./guides/deployment.md) — установка и настройка
-- [logging/README.md](./logging/README.md) — логи и метрики
+- [guides/async_best_practices.md](./guides/async_best_practices.md) — async паттерны
+- [logging/README.md](./logging/README.md) — система логирования
 
 ### Архитекторы
 

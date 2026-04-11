@@ -181,25 +181,32 @@ event_bus.subscribe(EventType.AGENT_STARTED, handler)
 ### ✅ Правильно
 
 ```python
-# Асинхронное логирование
-await self.event_bus_logger.info("Operation started")
-await self.event_bus_logger.error(f"Error: {e}", exc_info=True)
+# В компонентах (через Component/LoggingMixinV2):
+self._log_info("Operation started")
+self._log_error(f"Error: {e}", exc_info=True)
 
-# Синхронное логирование (если необходимо)
+# Синхронное логирование:
 self._safe_log_sync("info", "Message")
+
+# Вне компонентов:
+import logging
+log = logging.getLogger(__name__)
+log.info("Message", extra={"event_type": LogEventType.SYSTEM_INIT})
 ```
 
 ### ❌ Неправильно
 
 ```python
-# Стандартное logging в async коде
-import logging
-logger = logging.getLogger(__name__)
-logger.info("Message")  # Может блокировать
+# EventBusLogger — ЗАПРЕЩЁН
+await self.event_bus_logger.info("Message")
 
-# Логирование без проверки
-self.event_bus_logger.info("Message")  # Может быть None!
-# Проверяйте: if self.event_bus_logger: ...
+# print — ЗАПРЕЩЁН
+print("Debug message")
+
+# logging.getLogger() в runtime — ЗАПРЕЩЁН
+def execute(self):
+    log = logging.getLogger(__name__)
+    log.info("...")  # Только в __init__!
 ```
 
 ---
@@ -360,6 +367,5 @@ async def rate_limit(semaphore: asyncio.Semaphore):
 
 ### B. Связанная документация
 
-- [lifecycle.md](./lifecycle.md) - Жизненный цикл компонентов
-- [LOGGING_GUIDE.md](./LOGGING_GUIDE.md) - Руководство по логированию
-- [EVENT_BUS_MIGRATION.md](./EVENT_BUS_MIGRATION.md) - Миграция Event Bus
+- [../architecture/lifecycle.md](../architecture/lifecycle.md) - Жизненный цикл компонентов
+- [../logging/README.md](../logging/README.md) - Система логирования

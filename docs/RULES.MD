@@ -1040,8 +1040,8 @@ await self.executor.execute_action(
 
 **A:** Нет. Используй:
 ```python
-from core.infrastructure.logging.event_types import LogEventType
-self.log.debug("Сообщение", extra={"event_type": LogEventType.DEBUG})
+self._log_debug("Сообщение")  # только файл
+self._log_info("Сообщение", event_type=LogEventType.USER_PROGRESS)  # терминал + файл
 ```
 
 ### Q: Как добавить новую зависимость компонента?
@@ -1066,10 +1066,11 @@ self.ensure_ready()  # Бросит RuntimeError если не готов
 
 ### Q: Можно ли создать миксин для логирования?
 
-**A:** Нет, это избыточно. Все компоненты наследуют `ComponentLogger`, который предоставляет `self.log`:
-- `self.log` — стандартный `logging.Logger` из `LoggingSession.get_component_logger()`
-- Каждый вызов должен иметь `extra={"event_type": LogEventType.XXX}`
-- `EventBusLogger`, `_safe_log_sync`, `_init_event_bus_logger` — удалены
+**A:** Нет, это избыточно. Все компоненты наследуют `Component` (через `LoggingMixinV2`), который предоставляет:
+- `self._log_info()`, `self._log_debug()`, `self._log_warning()`, `self._log_error()`
+- `self._safe_log_sync()` — безопасный синхронный лог
+- Каждый вызов автоматически получает `event_type` (по умолчанию `LogEventType.INFO`)
+- Для переопределения: `self._log_info("...", event_type=LogEventType.USER_PROGRESS)`
 
 ---
 
@@ -1150,17 +1151,6 @@ def __init__(self, name, application_context, component_config, executor):
     if not hasattr(self.component_config, 'variant_id'):
         raise ValueError("component_config требует variant_id")
 ```
-
----
-
-## 📞 Контакты
-
-| Вопрос | Куда Обратиться |
-|--------|-----------------|
-| Архитектурные вопросы | @system (через PR review) |
-| Технические вопросы | docs/ARCHITECTURE.md |
-| Ошибки валидации | scripts/validation/ |
-| Предложения улучшений | Создать issue с шаблоном "Обоснование Новых Абстракций" |
 
 ---
 

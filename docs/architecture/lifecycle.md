@@ -44,7 +44,7 @@
 
 ### 3.1. LifecycleMixin
 
-**Файл:** `core/components/lifecycle.py`
+**Файл:** `core/agent/components/lifecycle.py`
 
 ```python
 from core.components.lifecycle import LifecycleMixin, ComponentState
@@ -269,13 +269,13 @@ async def test_component_states():
 
 | Файл | Описание |
 |------|----------|
-| `core/components/lifecycle.py` | Базовые классы и enum |
+| `core/agent/components/lifecycle.py` | Базовые классы и enum |
 | `core/components/base_component.py` | Базовый компонент |
 | `core/infrastructure/context/infrastructure_context.py` | Инфраструктурный контекст |
 | `core/application/context/application_context.py` | Прикладной контекст |
 
 ### B. Связанная документация
 
-- [ARCHITECTURE_OVERVIEW.md](./ARCHITECTURE_OVERVIEW.md)
-- [COMPONENTS_GUIDE.md](./COMPONENTS_GUIDE.md)
-- [TESTING.md](./TESTING.md)
+- [../RULES.MD](../RULES.MD) — правила разработки
+- [ideal.md](ideal.md) — целевая архитектура
+- [checklist.md](checklist.md) — проверка зрелости
