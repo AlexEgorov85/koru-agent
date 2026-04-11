@@ -1,7 +1,7 @@
 """
 Фабрика компонентов - создание и инициализация компонентов с внедрением зависимостей.
 
-[REFACTOR v5.4.0] Архитектура загрузки ресурсов:
+Архитектура загрузки ресурсов:
 1. ComponentFactory создаёт ResourcePreloader
 2. ResourcePreloader загружает ресурсы через DataRepository
 3. component_config.resolved_* заполняются объектами Prompt/Contract
@@ -25,10 +25,11 @@ component = await factory.create_and_initialize(
 ```
 """
 from typing import Type, Any, Optional
+import logging
 
-from core.agent.components.base_component import BaseComponent
+from core.agent.components.component import Component
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
-from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.infrastructure.logging.event_types import LogEventType
 
 
 class ComponentFactory:
@@ -42,25 +43,21 @@ class ComponentFactory:
         - infrastructure_context: Инфраструктурный контекст для получения загрузчика ресурсов
         """
         self._infrastructure_context = infrastructure_context
-        self.event_bus = infrastructure_context.event_bus if infrastructure_context else None
+        self._logger = logging.getLogger("component_factory")
 
-    async def _log_info(self, message: str, *args, **kwargs):
+    def _log_info(self, message: str):
         """Информационное сообщение."""
-        if self.event_bus:
-            full_message = message.format(*args, **kwargs) if args or kwargs else message
-            await self.event_bus.publish(EventType.DEBUG, {"message": f"[ComponentFactory] {full_message}", "level": "info"})
+        self._logger.info(f"[ComponentFactory] {message}", extra={"event_type": LogEventType.SYSTEM_INIT})
 
-    async def _log_error(self, message: str, *args, **kwargs):
+    def _log_error(self, message: str):
         """Ошибка."""
-        if self.event_bus:
-            full_message = message.format(*args, **kwargs) if args or kwargs else message
-            await self.event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"[ComponentFactory] {full_message}", "level": "error"})
+        self._logger.error(f"[ComponentFactory] {message}", extra={"event_type": LogEventType.SYSTEM_ERROR})
 
     def _get_providers(self) -> dict:
         """
         Получить все провайдеры из инфраструктурного контекста.
 
-        [REFACTOR Этап 7] db, llm, cache, vector удалены — не нужны для BaseComponent
+        db, llm, cache, vector удалены — не нужны для Component
 
         RETURNS:
         - dict: Словарь с провайдерами по именам
@@ -68,7 +65,7 @@ class ComponentFactory:
         providers = {}
         infra = self._infrastructure_context
 
-        # [REFACTOR Этап 7] Получаем только необходимые интерфейсы
+        # Получаем только необходимые интерфейсы
         # Хранилища
         if hasattr(infra, 'prompt_storage'):
             providers['prompt_storage'] = infra.prompt_storage
@@ -91,16 +88,16 @@ class ComponentFactory:
 
     async def create_and_initialize(
         self,
-        component_class: Type[BaseComponent],
+        component_class: Type[Component],
         name: str,
         application_context: 'ApplicationContext',
         component_config: 'ComponentConfig',
         executor: 'ActionExecutor'
-    ) -> BaseComponent:
+    ) -> Component:
         """
         Создание и инициализация компонента с внедрением зависимостей.
 
-        [REFACTOR v5.4.0] АРХИТЕКТУРА:
+        АРХИТЕКТУРА:
         1. ResourcePreloader загружает ресурсы через DataRepository
         2. component_config.resolved_* заполняются объектами Prompt/Contract
         3. Получаем провайдеры из InfrastructureContext
@@ -115,11 +112,11 @@ class ComponentFactory:
         - executor: ActionExecutor для взаимодействия между компонентами
 
         RETURNS:
-        - BaseComponent: созданный и инициализированный компонент
+        - Component: созданный и инициализированный компонент
         """
-        await self._log_info(f"Создание компонента {name} типа {component_class.__name__}")
+        self._log_info(f"Создание компонента {name} типа {component_class.__name__}")
 
-        # [REFACTOR ResourceLoader] Загружаем ресурсы напрямую из ResourceLoader
+        # Загружаем ресурсы напрямую из ResourceLoader
         resource_loader = self._infrastructure_context.resource_loader
         if resource_loader is None:
             raise RuntimeError("ResourceLoader не инициализирован в InfrastructureContext")
@@ -131,7 +128,7 @@ class ComponentFactory:
         component_config.resolved_input_contracts = resources["input_contracts"]
         component_config.resolved_output_contracts = resources["output_contracts"]
 
-        await self._log_info(
+        self._log_info(
             f"Ресурсы загружены для {name}: "
             f"промптов={len(resources['prompts'])}, "
             f"input_contracts={len(resources['input_contracts'])}, "
@@ -141,7 +138,7 @@ class ComponentFactory:
         # 3. Получаем провайдеры из инфраструктурного контекста
         providers = self._get_providers()
 
-        await self._log_info(
+        self._log_info(
             f"Получены провайдеры для {name}: " +
             ", ".join([k for k, v in providers.items() if v is not None])
         )
@@ -163,30 +160,26 @@ class ComponentFactory:
         if 'application_context' in params:
             kwargs['application_context'] = application_context
 
-        # Передаем event_bus для логирования
-        # metrics_storage и log_storage НЕ передаются — они подписаны на EventBus
-        # и автоматически получают события
-        if providers.get('event_bus'):
-            kwargs['event_bus'] = providers['event_bus']
+        # event_bus БОЛЬШЕ не передаётся — компоненты используют стандартный logging
         
-        # 5. Специальная обработка для behavior patterns
+        # 7. Специальная обработка для behavior patterns
         from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
         if issubclass(component_class, BaseBehaviorPattern):
-            await self._log_info(f"Создание behavior pattern {component_class.__name__} с component_name={name}")
+            self._log_info(f"Создание behavior pattern {component_class.__name__} с component_name={name}")
             # Для behavior patterns используем component_name вместо name
             if 'component_name' in params:
                 kwargs['component_name'] = name
                 del kwargs['name']
-        
-        # 6. Создаём компонент
-        await self._log_info(
+
+        # 8. Создаём компонент
+        self._log_info(
             f"Создание {component_class.__name__} с параметрами: " +
             ", ".join([f"{k}={type(v).__name__}" for k, v in kwargs.items() if v is not None])
         )
         
         component = component_class(**kwargs)
         
-        await self._log_info(f"Компонент {name} создан (инициализация будет выполнена позже)")
+        self._log_info(f"Компонент {name} создан (инициализация будет выполнена позже)")
         
         # 7. НЕ вызываем initialize() здесь!
         # Инициализация будет выполнена в _initialize_components_with_dependencies()
@@ -194,7 +187,7 @@ class ComponentFactory:
         
         return component
 
-    async def _resolve_component_class(self, component_type: str, name: str) -> Type[BaseComponent]:
+    async def _resolve_component_class(self, component_type: str, name: str) -> Type[Component]:
         """
         Разрешение класса компонента через динамическое обнаружение.
 
@@ -206,26 +199,26 @@ class ComponentFactory:
         - name: имя компонента
 
         RETURNS:
-        - Type[BaseComponent]: класс компонента
+        - Type[Component]: класс компонента
         """
-        await self._log_info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
+        self._log_info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
 
         discovery = self._get_discovery()
 
         normalized_name = self._normalize_component_name(component_type, name)
         if normalized_name != name:
-            await self._log_info(f"Нормализация имени: {name} -> {normalized_name}")
+            self._log_info(f"Нормализация имени: {name} -> {normalized_name}")
 
         entry = discovery.find_component(component_type, normalized_name)
 
         if entry is not None:
-            await self._log_info(
+            self._log_info(
                 f"Найден компонент (динамически): {entry.class_name} "
                 f"в {entry.file_path}"
             )
             return entry.class_ref
 
-        await self._log_error(
+        self._log_error(
             f"Компонент {component_type}/{name} (нормализовано: {normalized_name}) не найден. "
             f"Доступные: {discovery.get_all_names()}"
         )
@@ -281,7 +274,7 @@ class ComponentFactory:
         application_context: 'ApplicationContext',
         component_config: 'ComponentConfig',
         executor: 'ActionExecutor'
-    ) -> BaseComponent:
+    ) -> Component:
         """
         Создание компонента по имени и типу.
         
@@ -293,11 +286,11 @@ class ComponentFactory:
         - executor: ActionExecutor для взаимодействия между компонентами
         
         RETURNS:
-        - BaseComponent: созданный и инициализированный компонент
+        - Component: созданный и инициализированный компонент
         """
-        await self._log_info(f"ComponentFactory: создание компонента {name} типа {component_type}")
+        self._log_info(f"ComponentFactory: создание компонента {name} типа {component_type}")
         component_class = await self._resolve_component_class(component_type, name)
-        await self._log_info(f"ComponentFactory: найден класс {component_class.__name__} для {name}")
+        self._log_info(f"ComponentFactory: найден класс {component_class.__name__} для {name}")
         result = await self.create_and_initialize(
             component_class=component_class,
             name=name,
@@ -305,5 +298,5 @@ class ComponentFactory:
             component_config=component_config,
             executor=executor
         )
-        await self._log_info(f"ComponentFactory: компонент {name} успешно создан")
+        self._log_info(f"ComponentFactory: компонент {name} успешно создан")
         return result

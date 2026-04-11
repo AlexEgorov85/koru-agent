@@ -113,18 +113,6 @@ class AgentRuntime:
             # Обрезаем если превышен лимит
             shared_history._trim()
 
-    def _init_event_bus_logger(self):
-        """Инициализация логгера."""
-        event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
-        if event_bus:
-            from core.infrastructure.logging import EventBusLogger
-            self.event_bus_logger = EventBusLogger(
-                event_bus=event_bus,
-                session_id=self.session_context.session_id,
-                agent_id=self.agent_id,
-                component=self.__class__.__name__
-            )
-
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
         """Запуск цикла выполнения."""
         if goal:
