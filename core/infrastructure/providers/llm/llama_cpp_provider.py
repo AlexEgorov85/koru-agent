@@ -571,7 +571,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         request = LLMRequest(
             prompt=prompt,
             temperature=temperature,
-            max_tokens=max_tokens or self.config.get('max_tokens', 512),
+            max_tokens=max_tokens or self.config_obj.max_tokens,
             stop_sequences=stop_sequences
         )
 
