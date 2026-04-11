@@ -75,10 +75,13 @@ class ComponentLogger:
 
         # Создаём логгер через LoggingSession (имеет файловые хендлеры)
         if log_session is not None:
-            self._logger = log_session.get_component_logger(f"{component_type}.{component_name}")
+            self._logger: logging.LoggerAdapter = log_session.get_component_logger(f"{component_type}.{component_name}")
         else:
             # Fallback: обычный logging.getLogger (без файловых хендлеров)
-            self._logger = logging.getLogger(f"{component_type}.{component_name}")
+            self._logger: logging.LoggerAdapter = logging.LoggerAdapter(
+                logging.getLogger(f"{component_type}.{component_name}"),
+                extra={"component": f"{component_type}.{component_name}"}
+            )
 
     def _format_log_message(self, message: str) -> str:
         """Добавляет префикс компонента к сообщению."""

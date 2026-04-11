@@ -168,9 +168,9 @@ class LoggingSession:
         self._setup_console_handler()
         self._handlers_setup = True
 
-    def get_component_logger(self, component_name: str) -> logging.Logger:
+    def get_component_logger(self, component_name: str) -> logging.LoggerAdapter:
         """
-        Создаёт или возвращает логгер для компонента.
+        Создаёт или возвращает логгер для компонента с LoggerAdapter.
 
         Все компоненты пишут в app_context.log (единый файл приложения).
 
@@ -178,7 +178,7 @@ class LoggingSession:
         - component_name: Имя компонента (например, "skill.planning", "tool.sql")
 
         RETURNS:
-        - logging.Logger: Настроенный логгер с файловым хендлером
+        - logging.LoggerAdapter: Логгер с автоматически заданным component
         """
         if not self._handlers_setup:
             self.setup_context_loggers()
@@ -202,7 +202,11 @@ class LoggingSession:
             # Консольный хендлер с фильтрацией (копия из _setup_console_handler)
             self._add_console_handler(logger)
 
-        return logger
+        # Возвращаем LoggerAdapter с автоматически заданным component
+        return logging.LoggerAdapter(
+            logger,
+            extra={"component": component_name}
+        )
 
     def _add_console_handler(self, logger: logging.Logger) -> None:
         """Добавляет консольный хендлер с фильтрацией."""
