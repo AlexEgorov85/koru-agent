@@ -779,6 +779,14 @@ class LLMOrchestrator:
                         )
 
                         # Анализируем результат
+                        if self._logger:
+                            self._logger.debug(
+                                f"🔵 [STRUCTURED] parse_result: type={type(parse_result).__name__}, "
+                                f"has_data={hasattr(parse_result, 'data') if parse_result else False}, "
+                                f"data={getattr(parse_result, 'data', None) if parse_result else None}",
+                                extra={"event_type": LogEventType.LLM_RESPONSE}
+                            )
+
                         if parse_result and parse_result.data:
                             result_data = parse_result.data
                             status = result_data.get("status", "unknown")
