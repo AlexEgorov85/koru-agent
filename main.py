@@ -4,6 +4,7 @@
 ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
 """
 import asyncio
+import logging
 import sys
 import traceback
 import warnings
@@ -15,7 +16,8 @@ from core.config.app_config import AppConfig
 from core.config import get_config
 from core.errors.error_handler import ErrorContext, ErrorSeverity, get_error_handler
 from core.infrastructure.event_bus.unified_event_bus import EventType, UnifiedEventBus
-from core.infrastructure.logging.logger import shutdown_logging_system, get_session_logger
+from core.infrastructure.logging.session import LoggingSession
+from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.application_context.application_context import ApplicationContext
 from core.utils.encoding import setup_encoding
@@ -69,7 +71,39 @@ async def run_agent(
     await infrastructure_context.initialize()
 
     session_id = str(infrastructure_context.id)
-    session_logger = get_session_logger(session_id, agent_id="agent_001")
+    # Создаём логгер для агента через LoggingSession
+    agent_logger = infrastructure_context.log_session.create_agent_logger(agent_id="agent_001")
+
+    # Простая async-обёртка для логирования
+    class SessionLogger:
+        """Async-обёртка для стандартного logging.Logger."""
+        def __init__(self, logger: logging.Logger):
+            self._logger = logger
+
+        async def start_session(self, goal: str):
+            self._logger.info(f"🚀 Сессия начата: {session_id}", extra={"event_type": LogEventType.AGENT_START})
+            self._logger.info(f"📝 Цель: {goal}", extra={"event_type": LogEventType.USER_PROGRESS})
+
+        async def info(self, message: str):
+            self._logger.info(message, extra={"event_type": LogEventType.INFO})
+
+        async def error(self, message: str):
+            self._logger.error(message, extra={"event_type": LogEventType.ERROR})
+
+        async def warning(self, message: str):
+            self._logger.warning(message, extra={"event_type": LogEventType.WARNING})
+
+        async def end_session(self, success: bool, result: str):
+            status = "успешно" if success else "с ошибкой"
+            self._logger.info(f"✅ Сессия завершена {status}: {session_id}", extra={"event_type": LogEventType.AGENT_STOP})
+
+        async def exception(self, message: str, exc: Exception):
+            self._logger.exception(f"{message}: {exc}", extra={"event_type": LogEventType.CRITICAL})
+
+        def error_sync(self, message: str):
+            self._logger.error(message, extra={"event_type": LogEventType.ERROR})
+
+    session_logger = SessionLogger(agent_logger)
 
     session_info = infrastructure_context.session_handler.get_session_info()
 
@@ -263,7 +297,8 @@ async def run_agent(
 
         await infrastructure_context.shutdown()
 
-        await shutdown_logging_system()
+        # Корректно закрываем все файловые хендлеры
+        infrastructure_context.log_session.shutdown()
 
 
 async def main_async(dialogue_history=None) -> tuple:

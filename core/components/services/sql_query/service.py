@@ -1,4 +1,5 @@
 import time
+import logging
 from typing import Dict, Any, List, Optional
 from core.models.data.capability import Capability
 from core.components.services.service import Service
@@ -8,6 +9,9 @@ from core.application_context.base_system_context import BaseSystemContext
 from core.models.sql_schemas import SQLGenerationInput, SQLQueryInput, SQLQueryOutput
 from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
+from core.infrastructure.logging.event_types import LogEventType
+
+log = logging.getLogger(__name__)
 
 
 class SQLQueryServiceInput:
@@ -74,25 +78,13 @@ class SQLQueryService(Service):
                 executor=self.executor
             )
             if not await self.error_analyzer.initialize():
-                await self._publish_with_context(
-                    event_type="sql_query.init_failed",
-                    data={"component": "SQLErrorAnalyzer"},
-                    source="sql_query"
-                )
+                log.error("SQLErrorAnalyzer не инициализирован", extra={"event_type": LogEventType.ERROR})
                 return False
 
-            await self._publish_with_context(
-                event_type="sql_query.initialized",
-                data={"service": "sql_query"},
-                source="sql_query"
-            )
+            log.info("SQLQueryService успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
             return True
         except Exception as e:
-            await self._publish_with_context(
-                event_type="sql_query.init_failed",
-                data={"error": str(e)},
-                source="sql_query"
-            )
+            log.error(f"Ошибка инициализации SQLQueryService: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
             return False
 
     def _execute_impl(

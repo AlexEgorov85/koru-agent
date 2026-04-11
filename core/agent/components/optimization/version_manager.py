@@ -11,14 +11,17 @@ VersionManager - управление версиями промптов.
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass, field
 
 from core.components.benchmarks.benchmark_models import PromptVersion, MutationType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging.event_types import LogEventType
 
-_logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
+
+_logger = None  # ���������� ����� log_session
 
 
 @dataclass
@@ -56,17 +59,26 @@ class VersionManager:
     ```
     """
 
-    def __init__(self, event_bus: UnifiedEventBus):
+    def __init__(self, event_bus: UnifiedEventBus, log_session: Optional['LoggingSession'] = None):
         """
         Инициализация VersionManager.
 
         ARGS:
         - event_bus: шина событий
+        - log_session: сессия логирования
         """
         self.event_bus = event_bus
+        self._log_session = log_session
 
         # Реестры по capability
         self._registries: Dict[str, VersionRegistry] = {}
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session:
+            if self._log_session.app_logger:
+                return self._log_session.app_logger
+        return logging.getLogger(__name__)
 
     async def register(self, version: PromptVersion) -> bool:
         """
@@ -83,7 +95,7 @@ class VersionManager:
             # Проверка есть ли уже версии для этого capability
             registry = self._get_registry(version.capability)
             if registry.versions:
-                _logger.warning(
+                self._get_logger().warning(
                     f"Версия {version.id} не имеет parent_id, "
                     f"но существуют другие версии",
                     extra={"event_type": LogEventType.WARNING}
@@ -95,7 +107,7 @@ class VersionManager:
         # Регистрация
         registry.versions[version.id] = version
 
-        _logger.info(
+        self._get_logger().info(
             f"Зарегистрирована версия {version.id} "
             f"для {version.capability}",
             extra={"event_type": LogEventType.SYSTEM_INIT}
@@ -120,7 +132,7 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if version_id not in registry.versions:
-            _logger.error(
+            self._get_logger().error(
                 f"Версия {version_id} не найдена для {capability}",
                 extra={"event_type": LogEventType.ERROR}
             )
@@ -138,7 +150,7 @@ class VersionManager:
         version.status = 'active'
         registry.active_version_id = version_id
 
-        _logger.info(
+        self._get_logger().info(
             f"Версия {version_id} продвинута в active для {capability}",
             extra={"event_type": LogEventType.SYSTEM_INIT}
         )
@@ -163,7 +175,7 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if version_id not in registry.versions:
-            _logger.error(
+            self._get_logger().error(
                 f"Версия {version_id} не найдена для {capability}",
                 extra={"event_type": LogEventType.ERROR}
             )
@@ -173,7 +185,7 @@ class VersionManager:
 
         # Нельзя отклонить active версию
         if version.status == 'active':
-            _logger.warning(
+            self._get_logger().warning(
                 f"Нельзя отклонить active версию {version_id}",
                 extra={"event_type": LogEventType.WARNING}
             )
@@ -184,7 +196,7 @@ class VersionManager:
         version.metadata['rejection_reason'] = reason
         version.metadata['rejected_at'] = datetime.now().isoformat()
 
-        _logger.info(
+        self._get_logger().info(
             f"Версия {version_id} отклонена: {reason}",
             extra={"event_type": LogEventType.SYSTEM_INIT}
         )
@@ -288,7 +300,7 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if target_version_id not in registry.versions:
-            _logger.error(
+            self._get_logger().error(
                 f"Версия {target_version_id} не найдена для {capability}",
                 extra={"event_type": LogEventType.ERROR}
             )
@@ -298,7 +310,7 @@ class VersionManager:
 
         # Проверка что версия не rejected
         if target.status == 'rejected':
-            _logger.warning(
+            self._get_logger().warning(
                 f"Нельзя откатиться к rejected версии {target_version_id}",
                 extra={"event_type": LogEventType.WARNING}
             )

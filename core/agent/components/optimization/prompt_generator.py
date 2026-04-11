@@ -12,7 +12,7 @@ import hashlib
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass
 
 from core.components.benchmarks.benchmark_models import (
@@ -23,7 +23,8 @@ from core.components.benchmarks.benchmark_models import (
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging.event_types import LogEventType
 
-_logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
 
 from .root_cause_analyzer import RootCause
 from .example_extractor import Example, ErrorExample
@@ -66,7 +67,8 @@ class PromptGenerator:
         self,
         event_bus: UnifiedEventBus,
         llm_callback=None,  # Optional callback for LLM generation
-        config: Optional[GenerationConfig] = None
+        config: Optional[GenerationConfig] = None,
+        log_session: Optional['LoggingSession'] = None
     ):
         """
         Инициализация PromptGenerator.
@@ -75,13 +77,21 @@ class PromptGenerator:
         - event_bus: шина событий
         - llm_callback: callback для LLM генерации (prompt) -> str
         - config: конфигурация
+        - log_session: сессия логирования
         """
         self.event_bus = event_bus
         self.llm_callback = llm_callback
         self.config = config or GenerationConfig()
+        self._log_session = log_session
 
         # История генераций для отслеживания diversity
         self._generation_history: List[Dict[str, Any]] = []
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.app_logger:
+            return self._log_session.app_logger
+        return logging.getLogger(__name__)
 
     async def generate(
         self,
@@ -98,7 +108,7 @@ class PromptGenerator:
         RETURNS:
         - List[PromptVersion]: список кандидатов
         """
-        _logger.info(
+        self._get_logger().info(
             f"Генерация кандидатов на основе {parent.id}",
             extra={"event_type": LogEventType.TOOL_CALL}
         )
@@ -121,7 +131,7 @@ class PromptGenerator:
         # Проверка diversity
         candidates = self._ensure_diversity(candidates)
 
-        _logger.info(
+        self._get_logger().info(
             f"Сгенерировано {len(candidates)} кандидатов",
             extra={"event_type": LogEventType.TOOL_CALL}
         )
@@ -212,7 +222,7 @@ class PromptGenerator:
             return new_version
 
         except Exception as e:
-            _logger.error(
+            self._get_logger().error(
                 f"Ошибка генерации кандидата: {e}",
                 extra={"event_type": LogEventType.ERROR}
             )
@@ -521,7 +531,7 @@ class PromptGenerator:
         RETURNS:
         - List[PromptVersion]: список улучшенных кандидатов
         """
-        _logger.info(
+        self._get_logger().info(
             f"Генерация улучшений на основе {len(root_causes)} root causes",
             extra={"event_type": LogEventType.TOOL_CALL}
         )
@@ -569,7 +579,7 @@ class PromptGenerator:
             candidates = self._ensure_diversity(candidates)
         print(f"  🔍 [PromptGen] After diversity: {len(candidates)} candidates")
 
-        _logger.info(
+        self._get_logger().info(
             f"Сгенерировано {len(candidates)} улучшенных кандидатов",
             extra={"event_type": LogEventType.TOOL_CALL}
         )

@@ -12,7 +12,7 @@ import logging
 import random
 import hashlib
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Callable, Awaitable
+from typing import Dict, List, Optional, Any, Callable, Awaitable, TYPE_CHECKING
 from dataclasses import dataclass, field
 
 from core.components.benchmarks.benchmark_models import (
@@ -22,7 +22,8 @@ from core.components.benchmarks.benchmark_models import (
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging.event_types import LogEventType
 
-_logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
 
 
 @dataclass
@@ -69,7 +70,8 @@ class BenchmarkRunner:
         self,
         event_bus: UnifiedEventBus,
         executor_callback: Callable[[str, str], Awaitable[Dict[str, Any]]],
-        config: Optional[BenchmarkRunConfig] = None
+        config: Optional[BenchmarkRunConfig] = None,
+        log_session: Optional['LoggingSession'] = None
     ):
         """
         Инициализация BenchmarkRunner.
@@ -78,13 +80,21 @@ class BenchmarkRunner:
         - event_bus: шина событий
         - executor_callback: callback для выполнения промпта (input, version) -> result
         - config: конфигурация
+        - log_session: сессия логирования
         """
         self.event_bus = event_bus
         self.executor_callback = executor_callback
         self.config = config or BenchmarkRunConfig()
+        self._log_session = log_session
 
         # Инициализация random seed для воспроизводимости
         random.seed(self.config.seed)
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.app_logger:
+            return self._log_session.app_logger
+        return logging.getLogger(__name__)
 
     async def run(
         self,
@@ -101,7 +111,7 @@ class BenchmarkRunner:
         RETURNS:
         - List[BenchmarkRunResult]: результаты запусков
         """
-        _logger.info(
+        self._get_logger().info(
             "Запуск бенчмарка для версии %s (%d сценариев)",
             version.id, len(scenarios),
             extra={"event_type": LogEventType.SYSTEM_INIT}
@@ -116,7 +126,7 @@ class BenchmarkRunner:
         # Проверка воспроизводимости
         variance = self._calculate_variance(results)
         if variance > 0.05:
-            _logger.warning(
+            self._get_logger().warning(
                 "Высокая вариативность результатов: %.3f", variance,
                 extra={"event_type": LogEventType.WARNING}
             )
@@ -160,7 +170,7 @@ class BenchmarkRunner:
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
 
-            _logger.error(
+            self._get_logger().error(
                 "Ошибка выполнения сценария %s: %s", scenario.id, e,
                 extra={"event_type": LogEventType.SYSTEM_ERROR}
             )

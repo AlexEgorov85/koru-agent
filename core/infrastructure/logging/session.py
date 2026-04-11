@@ -149,6 +149,55 @@ class LoggingSession:
         self._setup_console_handler()
         self._handlers_setup = True
 
+    def get_component_logger(self, component_name: str) -> logging.Logger:
+        """
+        Создаёт или возвращает логгер для компонента.
+
+        Все компоненты пишут в общий файл components.log через StreamHandler
+        с фильтрацией EventTypeFilter (как infra/app логи).
+
+        ARGS:
+        - component_name: Имя компонента (например, "skill.planning", "tool.sql")
+
+        RETURNS:
+        - logging.Logger: Настроенный логгер с файловым хендлером
+        """
+        if not self._handlers_setup:
+            self.setup_context_loggers()
+
+        logger_name = f"component.{component_name}"
+        logger = logging.getLogger(logger_name)
+
+        # Если хендлеры ещё не добавлены — добавляем
+        if not logger.handlers:
+            logger.setLevel(logging.DEBUG)
+            logger.propagate = False  # Не дублировать в root
+
+            # Файловый хендлер — общий для всех компонентов
+            components_log = self.base_dir / "components.log"
+            file_handler = logging.FileHandler(components_log, encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            from core.infrastructure.logging.session import _LogFileFormatter
+            file_handler.setFormatter(_LogFileFormatter())
+            logger.addHandler(file_handler)
+
+            # Консольный хендлер с фильтрацией (копия из _setup_console_handler)
+            self._add_console_handler(logger)
+
+        return logger
+
+    def _add_console_handler(self, logger: logging.Logger) -> None:
+        """Добавляет консольный хендлер с фильтрацией."""
+        from core.infrastructure.logging.handlers import EventTypeFilter
+        import sys
+        console = logging.StreamHandler(sys.stdout)
+        console.setLevel(self.config.console.level)
+        console.setFormatter(logging.Formatter("%(levelname)-7s | %(message)s"))
+        allowed_events = getattr(self.config.console, "allowed_terminal_events", None)
+        if allowed_events:
+            console.addFilter(EventTypeFilter(allowed_events))
+        logger.addHandler(console)
+
     def create_agent_logger(self, agent_id: str) -> logging.Logger:
         """
         Создаёт логгер для сессии агента.

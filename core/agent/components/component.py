@@ -40,32 +40,25 @@ from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
 
 
 # =============================================================================
-# LOGGING MIXIN - СТАНДАРТНЫЙ LOGGING + LOGEVENTTYPE
+# LOGGING MIXIN V2 - LOGGING ЧЕРЕЗ LOGGINGSESSION
 # =============================================================================
 
 class LoggingMixinV2:
     """
     Миксин логирования с автоматическим префиксом [ComponentType:Name].
 
-    ИНТЕГРАЦИЯ СО СТАНДАРТНЫМ LOGGING:
-    - Все логи идут через стандартный logging.getLogger()
-    - Автоматический префикс [ComponentType:Name] в каждом сообщении
-    - Обязательный extra={"event_type": LogEventType.XXX} в каждом вызове
-    - Контекст session_id/agent_id через LoggerAdapter extra
-
-    USAGE:
-    ```python
-    class Component(LoggingMixinV2):
-        def __init__(self, name, component_type):
-            super().__init__(component_name=name, component_type=component_type)
-            self._log_info("Компонент создан", event_type=LogEventType.SYSTEM_INIT)
-    ```
+    АРХИТЕКТУРА:
+    - Логгер создаётся через LoggingSession.get_component_logger()
+    - Файловый хендлер: components.log
+    - Консольный хендлер: с EventTypeFilter
+    - Все записи содержат extra={"event_type": LogEventType.XXX}
     """
 
     def __init__(
         self,
         component_name: str = "unknown",
         component_type: str = "component",
+        log_session=None,
     ):
         """
         Инициализация логгера.
@@ -73,13 +66,19 @@ class LoggingMixinV2:
         ARGS:
         - component_name: Имя компонента
         - component_type: Тип компонента (skill/service/tool/handler)
+        - log_session: LoggingSession для создания логгера
         """
         self._component_name = component_name
         self._component_type = component_type
         self._log_prefix = f"[{component_type.capitalize()}:{component_name}]"
-        
-        # Создаём logger с именем компонента для идентификации
-        self._logger = logging.getLogger(f"{component_type}.{component_name}")
+        self._log_session = log_session
+
+        # Создаём логгер через LoggingSession (имеет файловые хендлеры)
+        if log_session is not None:
+            self._logger = log_session.get_component_logger(f"{component_type}.{component_name}")
+        else:
+            # Fallback: обычный logging.getLogger (без файловых хендлеров)
+            self._logger = logging.getLogger(f"{component_type}.{component_name}")
 
     def _format_log_message(self, message: str) -> str:
         """Добавляет префикс компонента к сообщению."""
@@ -133,7 +132,7 @@ class LoggingMixinV2:
     def _log_error(self, message: str, event_type: LogEventType = LogEventType.ERROR, exc_info: bool = False, **extra_data):
         """
         Логирование уровня ERROR.
-        
+
         ARGS:
         - message: Сообщение
         - event_type: Тип события для фильтрации в консоли
@@ -146,6 +145,32 @@ class LoggingMixinV2:
             extra={"event_type": event_type, **extra_data},
             exc_info=exc_info
         )
+
+    def _log_sync(self, level: str, message: str, exception: Optional[Exception] = None, **extra_data):
+        """
+        Универсальный метод логирования для синхронного использования.
+
+        ARGS:
+        - level: Уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: Сообщение
+        - exception: Исключение для traceback (опционально)
+        - extra_data: Дополнительные данные для extra
+        """
+        formatted_message = self._format_log_message(message)
+        event_type_map = {
+            'info': LogEventType.INFO,
+            'debug': LogEventType.DEBUG,
+            'warning': LogEventType.WARNING,
+            'error': LogEventType.ERROR,
+        }
+        event_type = event_type_map.get(level, LogEventType.INFO)
+        extra = {"event_type": event_type, **extra_data}
+
+        if level == 'error' and exception:
+            self._logger.exception(formatted_message, extra=extra)
+        else:
+            log_func = getattr(self._logger, level, self._logger.info)
+            log_func(formatted_message, extra=extra)
 
 
 # =============================================================================
@@ -222,11 +247,19 @@ class Component(ComponentLifecycle, LoggingMixinV2, ABC):
         # Инициализация ComponentLifecycle
         ComponentLifecycle.__init__(self, name)
 
+        # Получаем log_session из application_context
+        log_session = None
+        if application_context is not None:
+            infra = getattr(application_context, 'infrastructure_context', None)
+            if infra is not None:
+                log_session = getattr(infra, 'log_session', None)
+
         # Инициализация LoggingMixinV2
         LoggingMixinV2.__init__(
             self,
             component_name=name,
             component_type=component_type,
+            log_session=log_session,
         )
 
         # Валидация обязательных параметров
@@ -263,6 +296,51 @@ class Component(ComponentLifecycle, LoggingMixinV2, ABC):
     def description(self) -> str:
         """Описание компонента."""
         return f"Компонент {self.name} ({self._component_type})"
+
+    @property
+    def application_context(self):
+        """Доступ к ApplicationContext (только для чтения)."""
+        return self._application_context
+
+    @application_context.setter
+    def application_context(self, value):
+        """Установка ApplicationContext."""
+        self._application_context = value
+
+    async def _publish_with_context(self, event_type: str, data: Dict[str, Any] = None, source: str = None):
+        """
+        Публикация события через event_bus (если доступен).
+
+        ARGS:
+        - event_type: Тип события
+        - data: Данные события
+        - source: Источник события
+        """
+        try:
+            if self._application_context is not None:
+                infra = getattr(self._application_context, 'infrastructure_context', None)
+                if infra is not None:
+                    event_bus = getattr(infra, 'event_bus', None)
+                    if event_bus is not None:
+                        await event_bus.publish(event_type, data=data, session_id=getattr(infra, 'id', 'unknown'))
+        except Exception:
+            # Тихое игнорирование ошибок публикации — не критично
+            pass
+
+    def _safe_log_sync(self, level: str, message: str, **kwargs):
+        """
+        Безопасный синхронный вызов логирования.
+
+        ARGS:
+        - level: Уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: Сообщение
+        - kwargs: Дополнительные параметры
+        """
+        try:
+            self._log_sync(level, message, **kwargs)
+        except Exception:
+            # Тихое игнорирование ошибок логирования
+            pass
     
     async def initialize(self) -> bool:
         """

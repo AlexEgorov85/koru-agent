@@ -1,8 +1,12 @@
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from core.application_context.application_context import ApplicationContext
-from core.components.services.service import Service
 import re
+import logging
+from core.infrastructure.logging.event_types import LogEventType
+
+log = logging.getLogger(__name__)
+
 
 @dataclass
 class ExecutionError:
@@ -12,37 +16,29 @@ class ExecutionError:
     parameters: Dict[str, Any]
     db_error_type: str  # syntax_error, permission_error, schema_error, timeout_error, other_error
 
-class SQLErrorAnalyzer(Service):
+
+class SQLErrorAnalyzer:
     """
     Анализатор ошибок выполнения SQL-запросов.
-    
+
     ФУНКЦИОНАЛЬНОСТЬ:
     1. Классификация типа ошибки (синтаксис, семантика, права доступа)
     2. Извлечение информации о таблицах, вызвавших ошибку
     3. Формирование рекомендаций по исправлению
     4. Определение возможности автоматической коррекции
     """
-    
-    @property
-    def description(self) -> str:
-        return "Анализатор ошибок выполнения SQL-запросов"
-    
+
     def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
-        from core.config.component_config import ComponentConfig
-        # Создаем минимальный ComponentConfig, если не передан
-        if component_config is None:
-            component_config = ComponentConfig(
-                variant_id="sql_error_analyzer_default",
-                prompt_versions={},
-                input_contract_versions={},
-                output_contract_versions={}
-            )
-        super().__init__(
-            name="sql_error_analyzer",
-            component_config=component_config,
-            executor=executor,
-            application_context=application_context
-        )
+        """
+        Инициализация анализатора ошибок.
+
+        ПАРАМЕТРЫ:
+        - application_context: ApplicationContext
+        - component_config: ComponentConfig (не используется, для совместимости)
+        - executor: ActionExecutor (не используется, для совместимости)
+        """
+        self.application_context = application_context
+        self.executor = executor
         self.error_patterns = {
             "syntax_error": [
                 r"syntax error",
@@ -75,7 +71,7 @@ class SQLErrorAnalyzer(Service):
     
     async def initialize(self) -> bool:
         """Инициализация анализатора ошибок"""
-        self._log_info("SQLErrorAnalyzer успешно инициализирован")
+        log.info("SQLErrorAnalyzer успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
         return True
 
     async def execute(self, input_data: Any) -> Any:
@@ -85,7 +81,7 @@ class SQLErrorAnalyzer(Service):
 
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""
-        self._log_info("Завершение работы SQLErrorAnalyzer")
+        log.info("Завершение работы SQLErrorAnalyzer", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
     
     async def analyze(self, error: ExecutionError) -> Dict[str, Any]:
         """

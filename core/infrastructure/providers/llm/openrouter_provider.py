@@ -22,13 +22,17 @@ import asyncio
 import time
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from openai import OpenAI, AsyncOpenAI
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
 from core.infrastructure.logging.event_types import LogEventType
+
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
+
 from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
@@ -40,8 +44,6 @@ from pydantic import BaseModel, Field
 
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
-
-_logger = logging.getLogger(__name__)
 
 
 class OpenRouterConfig(BaseModel):
@@ -60,7 +62,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
     Использует OpenAI Python библиотеку (AsyncOpenAI).
     """
 
-    def __init__(self, config, model_name: str = None):
+    def __init__(self, config, model_name: str = None, log_session: Optional['LoggingSession'] = None):
         if isinstance(config, dict):
             config_obj = OpenRouterConfig(**config)
         else:
@@ -72,6 +74,13 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         self.config_obj = config_obj
         self._client: Optional[AsyncOpenAI] = None
         self._last_request_time = 0.0
+        self._log_session = log_session
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.infra_logger:
+            return self._log_session.infra_logger
+        return logging.getLogger(__name__)
 
     async def initialize(self) -> bool:
         """Инициализация OpenAI клиента."""
@@ -94,13 +103,13 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             self.health_status = LLMHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
-            _logger.info("OpenRouter провайдер инициализирован: %s", self.model_name, extra={"event_type": LogEventType.LLM_RESPONSE})
+            self._get_logger().info("OpenRouter провайдер инициализирован: %s", self.model_name, extra={"event_type": LogEventType.LLM_RESPONSE})
             return True
 
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            _logger.error("Ошибка инициализации OpenRouter провайдера: %s\n%s", str(e), tb, extra={"event_type": LogEventType.LLM_ERROR})
+            self._get_logger().error("Ошибка инициализации OpenRouter провайдера: %s\n%s", str(e), tb, extra={"event_type": LogEventType.LLM_ERROR})
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
 
@@ -112,7 +121,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             self._client = None
             self.is_initialized = False
         except Exception as e:
-            _logger.error("Ошибка при завершении OpenRouter провайдера: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
+            self._get_logger().error("Ошибка при завершении OpenRouter провайдера: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
 
     async def health_check(self) -> Dict[str, Any]:
         """Проверка здоровья через тестовый запрос."""
@@ -178,7 +187,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 # Задержка между попытками
                 if attempt > 1:
                     wait_time = 5 * attempt
-                    _logger.info("⏳ [OPENROUTER] Retry %d/%d, жду %ds...", attempt, max_retries, wait_time, extra={"event_type": LogEventType.LLM_RESPONSE})
+                    self._get_logger().info("⏳ [OPENROUTER] Retry %d/%d, жду %ds...", attempt, max_retries, wait_time, extra={"event_type": LogEventType.LLM_RESPONSE})
                     await asyncio.sleep(wait_time)
 
                 # Вызов через OpenAI клиент — ТОЧНО как в примере пользователя
@@ -201,7 +210,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                     # Если контент пустой — это ошибка free-модели
                     if not content or not content.strip():
                         if attempt < max_retries:
-                            _logger.warning("⚠️ [OPENROUTER] Empty response (attempt %d/%d)", attempt, max_retries, extra={"event_type": LogEventType.WARNING})
+                            self._get_logger().warning("⚠️ [OPENROUTER] Empty response (attempt %d/%d)", attempt, max_retries, extra={"event_type": LogEventType.WARNING})
                             continue
                         else:
                             return LLMResponse(
@@ -215,7 +224,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
 
                     # Успешный ответ
                     if attempt > 1:
-                        _logger.info("✅ [OPENROUTER] Успешный ответ с попытки %d", attempt, extra={"event_type": LogEventType.LLM_RESPONSE})
+                        self._get_logger().info("✅ [OPENROUTER] Успешный ответ с попытки %d", attempt, extra={"event_type": LogEventType.LLM_RESPONSE})
 
                     return LLMResponse(
                         content=content,
@@ -237,7 +246,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
 
             except Exception as e:
                 last_error = str(e)
-                _logger.error("❌ [OPENROUTER] Ошибка: %s", last_error, extra={"event_type": LogEventType.LLM_ERROR})
+                self._get_logger().error("❌ [OPENROUTER] Ошибка: %s", last_error, extra={"event_type": LogEventType.LLM_ERROR})
                 
                 if attempt < max_retries:
                     wait_time = 10 * attempt

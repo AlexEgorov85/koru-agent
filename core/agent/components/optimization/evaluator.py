@@ -8,7 +8,7 @@ Evaluator - система оценки качества промптов.
 - Селекция лучшей версии
 """
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass
 
 from core.components.benchmarks.benchmark_models import (
@@ -19,7 +19,8 @@ from core.components.benchmarks.benchmark_models import (
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging.event_types import LogEventType
 
-_logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
 
 
 @dataclass
@@ -65,7 +66,8 @@ class Evaluator:
     def __init__(
         self,
         event_bus: UnifiedEventBus,
-        config: Optional[EvaluationConfig] = None
+        config: Optional[EvaluationConfig] = None,
+        log_session: Optional['LoggingSession'] = None
     ):
         """
         Инициализация Evaluator.
@@ -73,9 +75,17 @@ class Evaluator:
         ARGS:
         - event_bus: шина событий
         - config: конфигурация
+        - log_session: сессия логирования
         """
         self.event_bus = event_bus
         self.config = config or EvaluationConfig()
+        self._log_session = log_session
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.app_logger:
+            return self._log_session.app_logger
+        return logging.getLogger(__name__)
 
     def evaluate(
         self,

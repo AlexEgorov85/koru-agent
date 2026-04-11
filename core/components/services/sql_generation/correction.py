@@ -1,59 +1,50 @@
 from typing import Dict, Any, Optional
 from core.application_context.application_context import ApplicationContext
-from core.components.services.service import Service
 from core.models.sql_schemas import SQLCorrectionInput, SQLCorrectionOutput
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
+import logging
+from core.infrastructure.logging.event_types import LogEventType
 
-class SQLCorrectionEngine(Service):
+log = logging.getLogger(__name__)
+
+
+class SQLCorrectionEngine:
     """
     Движок коррекции SQL-запросов на основе анализа ошибок.
-    
+
     ФУНКЦИОНАЛЬНОСТЬ:
     1. Применение стратегий коррекции в зависимости от типа ошибки
     2. Генерация исправленного запроса с сохранением логики
     3. Проверка корректности исправленного запроса
     4. Оценка уверенности в исправлении
     """
-    
-    @property
-    def description(self) -> str:
-        return "Движок коррекции SQL-запросов"
-    
+
     def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
-        from core.config.component_config import ComponentConfig
-        # Создаем минимальный ComponentConfig, если не передан
-        if component_config is None:
-            component_config = ComponentConfig(
-                variant_id="sql_correction_engine_default",
-                prompt_versions={},
-                input_contract_versions={},
-                output_contract_versions={}
-            )
-        super().__init__(
-            name="sql_correction_engine",
-            component_config=component_config,
-            executor=executor,
-            application_context=application_context
-        )
+        """
+        Инициализация движка коррекции.
+
+        ПАРАМЕТРЫ:
+        - application_context: ApplicationContext
+        - component_config: ComponentConfig (не используется, для совместимости)
+        - executor: ActionExecutor (не используется, для совместимости)
+        """
+        self.application_context = application_context
+        self.executor = executor
         self.error_analyzer = SQLErrorAnalyzer(
             application_context,
             executor=executor
         )
-    
+
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""
         await self.error_analyzer.initialize()
-        self._log_info("SQLCorrectionEngine успешно инициализирован")
+        log.info("SQLCorrectionEngine успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
         return True
-    
-    async def execute(self, input_data: Any) -> Any:
-        """Выполнение коррекции - в данном случае не используется напрямую"""
-        raise NotImplementedError("SQLCorrectionEngine не поддерживает прямое выполнение")
-    
+
     async def shutdown(self) -> None:
         """Завершение работы движка коррекции"""
         await self.error_analyzer.shutdown()
-        self._log_info("Завершение работы SQLCorrectionEngine")
+        log.info("Завершение работы SQLCorrectionEngine", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
     
     async def correct_query(self, correction_input: SQLCorrectionInput) -> SQLCorrectionOutput:
         """

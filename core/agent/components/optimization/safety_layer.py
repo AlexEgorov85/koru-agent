@@ -8,7 +8,7 @@ SafetyLayer - защита от деградации качества.
 - Гарантия regression rate = 0
 """
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass
 from enum import Enum
 
@@ -16,7 +16,8 @@ from core.components.benchmarks.benchmark_models import EvaluationResult, Prompt
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging.event_types import LogEventType
 
-_logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
 
 
 class SafetyCheckType(Enum):
@@ -88,7 +89,8 @@ class SafetyLayer:
     def __init__(
         self,
         event_bus: UnifiedEventBus,
-        config: Optional[SafetyConfig] = None
+        config: Optional[SafetyConfig] = None,
+        log_session: Optional['LoggingSession'] = None
     ):
         """
         Инициализация SafetyLayer.
@@ -96,14 +98,22 @@ class SafetyLayer:
         ARGS:
         - event_bus: шина событий
         - config: конфигурация
+        - log_session: сессия логирования
         """
         self.event_bus = event_bus
         self.config = config or SafetyConfig()
+        self._log_session = log_session
 
         # Счётчики для статистики
         self._checks_passed = 0
         self._checks_failed = 0
         self._regressions_prevented = 0
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.app_logger:
+            return self._log_session.app_logger
+        return logging.getLogger(__name__)
 
     async def check(
         self,
@@ -120,7 +130,7 @@ class SafetyLayer:
         RETURNS:
         - Tuple[bool, List[SafetyCheck]]: (безопасно ли, список проверок)
         """
-        _logger.info(
+        self._get_logger().info(
             f"Проверка безопасности для {candidate.version_id}",
             extra={"event_type": LogEventType.TOOL_CALL}
         )
@@ -190,7 +200,7 @@ class SafetyLayer:
 
         if all_passed:
             self._checks_passed += 1
-            _logger.info(
+            self._get_logger().info(
                 f"Проверка безопасности пройдена для {candidate.version_id}",
                 extra={"event_type": LogEventType.TOOL_CALL}
             )
@@ -198,7 +208,7 @@ class SafetyLayer:
             self._checks_failed += 1
             failed_checks = [c for c in checks if not c.passed]
 
-            _logger.warning(
+            self._get_logger().warning(
                 f"Проверка безопасности НЕ пройдена для {candidate.version_id}. "
                 f"Провалены: {[c.check_type.value for c in failed_checks]}",
                 extra={"event_type": LogEventType.WARNING}
