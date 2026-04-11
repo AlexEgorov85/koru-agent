@@ -21,9 +21,10 @@ from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
     LLMHealthStatus,
+    StructuredOutputConfig,
     RawLLMResponse
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 
 class StructuredOutputError(Exception):
@@ -117,7 +118,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # set_call_context() наследуется из базового класса
 
     def _get_logger(self) -> logging.Logger:
-        """Получение логгера из log_session."""
+        """Получение логгера из log_session или fallback."""
         if self._log_session and self._log_session.infra_logger:
             return self._log_session.infra_logger
         return logging.getLogger(__name__)
@@ -127,8 +128,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         Асинхронная инициализация LLM инстанса.
         """
         try:
-            logger = self._get_logger()
-            logger.info("Загрузка модели из: %s", self.model_path, extra={"event_type": LogEventType.LLM_RESPONSE})
+            self._get_logger().info("Загрузка модели из: %s", self.model_path, extra={"event_type": LogEventType.LLM_RESPONSE})
             start_time = time.time()
 
             # Инициализация Llama.cpp инстанса
@@ -257,15 +257,29 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - Схема добавляется в system_prompt или user prompt
         - Формат зависит от возможностей модели
 
-ПАРАМЕТРЫ:
-         - schema_def: JSON Schema определения ответа
+        ПАРАМЕТРЫ:
+        - schema_def: JSON Schema определения ответа
 
         ВОЗВРАЩАЕТ:
-         - str: Текст промпта с инструкцией и схемой
-"""
+        - str: Текст промпта с инструкцией и схемой
+        """
         import json
         
-        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
+        # Упрощаем схему — убираем лишние поля для экономии токенов
+        simplified_schema = {
+            "type": "object",
+            "properties": {},
+            "required": schema_def.get("required", [])
+        }
+        
+        # Копируем только основные поля
+        for prop_name, prop_def in schema_def.get("properties", {}).items():
+            simplified_schema["properties"][prop_name] = {
+                "type": prop_def.get("type", "string"),
+                "description": prop_def.get("description", "")
+            }
+        
+        schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
         
         # Формируем строгую инструкцию с акцентом на JSON-only вывод
         schema_prompt = (
@@ -299,14 +313,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - Схема добавляется в system_prompt или user prompt
         - Provider сам решает формат промпта
         """
-        self._get_logger().info(
-            f"🔵 [LLM] === ВХОД В _generate_impl === | "
-            f"prompt_len={len(request.prompt)} | "
-            f"structured_output={hasattr(request, 'structured_output') and request.structured_output is not None} | "
-            f"self.llm={'loaded' if self.llm else 'NOT loaded'} | "
-            f"self.is_initialized={self.is_initialized}",
-            extra={"event_type": LogEventType.LLM_CALL}
-        )
+        self._get_logger().info("🔵 [LLM] _generate_impl started: prompt_len=%d, structured_output=%s", len(request.prompt), hasattr(request, 'structured_output') and request.structured_output is not None, extra={"event_type": LogEventType.LLM_RESPONSE})
 
         if not self.is_initialized or not self.llm:
             self._get_logger().warning("LLM не инициализирован! Вызываем initialize()...", extra={"event_type": LogEventType.WARNING})
@@ -327,19 +334,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             system_prompt = system_prompt + "\n\n" + schema_prompt
 
             self._get_logger().info("🔵 [LLM] Схема добавлена в system_prompt (длина: %d символов)", len(schema_prompt), extra={"event_type": LogEventType.LLM_RESPONSE})
-            
-            # Логируем ПОЛНЫЙ промпт (system + schema + user, только в файл)
-            self._get_logger().debug(
-                f"\n{'=' * 80}\n"
-                f"📋 FULL PROMPT TO LLM (LlamaCppProvider)\n"
-                f"{'=' * 80}\n"
-                f"=== SYSTEM (со схемой, len={len(system_prompt)}) ===\n"
-                f"{system_prompt}\n\n"
-                f"=== USER (len={len(prompt)}) ===\n"
-                f"{prompt}\n"
-                f"{'=' * 80}",
-                extra={"event_type": LogEventType.DEBUG}
-            )
+            self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug("\n=== SYSTEM (со схемой) ===", extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug(system_prompt, extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug("\n=== USER ===", extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug(prompt, extra={"event_type": LogEventType.DEBUG})
+            self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
         else:
             max_tokens = request.max_tokens
 
@@ -408,23 +410,101 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
 
-                # Логируем ПОЛНЫЙ ответ (только в файл, DEBUG)
-                self._get_logger().debug(
-                    f"\n{'=' * 80}\n"
-                    f"💬 RESPONSE (LlamaCppProvider)\n"
-                    f"{'=' * 80}\n"
-                    f"{generated_text}\n"
-                    f"{'=' * 80}",
-                    extra={"event_type": LogEventType.DEBUG}
-                )
+                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+                self._get_logger().debug("💬 RESPONSE (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
+                self._get_logger().debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
+                self._get_logger().debug(generated_text, extra={"event_type": LogEventType.DEBUG})
+                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
                 self._get_logger().info("🔵 [LLM] generated_text: %d символов", len(generated_text), extra={"event_type": LogEventType.LLM_RESPONSE})
                 self._get_logger().info("🔵 [LLM] finish_reason: %s", finish_reason, extra={"event_type": LogEventType.LLM_RESPONSE})
             else:
                 generated_text = ''
                 finish_reason = 'error'
-                self._get_logger().warning("⚠️ [LLM] choices empty!", extra={"event_type": LogEventType.WARNING})
+                self._get_logger().warning("⚠️ [LLM] choices пуст!", extra={"event_type": LogEventType.WARNING})
 
-            # Provider returns raw text only, JSON parsing is orchestrator's responsibility
+            # === ОБРАБОТКА STRUCTURED OUTPUT ===
+            if hasattr(request, 'structured_output') and request.structured_output:
+                self._get_logger().info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
+
+                # Логирование сырого ответа
+                self._get_logger().info("🔵 [LLM] Raw response: %s...", generated_text[:100], extra={"event_type": LogEventType.LLM_RESPONSE})
+
+                try:
+                    json_content = self._extract_json_from_response(generated_text)
+
+                    self._get_logger().debug("🔵 JSON извлечён: %s...", json_content[:100], extra={"event_type": LogEventType.DEBUG})
+                    parsed_json = json.loads(json_content)
+                    self._get_logger().info("✅ JSON распарсен: ключи=%s", list(parsed_json.keys()), extra={"event_type": LogEventType.LLM_RESPONSE})
+
+                    # ✅ Сохраняем JSON в raw_response.content И в content для совместимости
+                    # ✅ parsed_content=None — оркестратор создаст Pydantic модель
+                    response = LLMResponse(
+                        content=json_content,  # ← ВАЖНО: для fallback чтения!
+                        parsed_content=None,  # ← Оркестратор заполнит
+                        raw_response=RawLLMResponse(
+                            content=json_content,  # ← JSON строка для валидации
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason=finish_reason,
+                            metadata={"parsed_json": parsed_json}  # ← dict для отладки
+                        ),
+                        model=self.model_name,
+                        tokens_used=usage.get('total_tokens', 0),
+                        generation_time=time.time() - start_time,
+                        parsing_attempts=1,
+                        validation_errors=[]
+                    )
+
+                    self._get_logger().info("✅ LLMResponse создан (JSON в raw_response.content)", extra={"event_type": LogEventType.LLM_RESPONSE})
+
+                    self._update_metrics(response.generation_time)
+
+                    return response
+
+                except json.JSONDecodeError as json_err:
+                    # ❌ Ошибка парсинга JSON — возвращаем LLMResponse с ошибкой
+                    self._get_logger().error("❌ Structured output JSON parse error: %s", json_err, extra={"event_type": LogEventType.LLM_ERROR})
+                    
+                    return LLMResponse(
+                        parsed_content=None,
+                        raw_response=RawLLMResponse(
+                            content=generated_text,  # ← Сырой текст
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason="error"
+                        ),
+                        model=self.model_name,
+                        parsing_attempts=1,
+                        validation_errors=[{
+                            "error": "json_parse_error",
+                            "message": str(json_err)
+                        }]
+                    )
+                    
+                except Exception as struct_err:
+                    # ❌ Другая ошибка — возвращаем LLMResponse с ошибкой
+                    self._get_logger().error("❌ Structured output error: %s", struct_err, extra={"event_type": LogEventType.LLM_ERROR})
+                    
+                    return LLMResponse(
+                        parsed_content=None,
+                        raw_response=RawLLMResponse(
+                            content=generated_text,
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason="error"
+                        ),
+                        model=self.model_name,
+                        parsing_attempts=1,
+                        validation_errors=[{
+                            "error": "exception",
+                            "message": str(struct_err)
+                        }]
+                    )
+
+            # ❌ УДАЛЕНО: Возврат LLMResponse для structured output
             # ТЕПЕРЬ: Всегда возвращаем LLMResponse для структурированных запросов
             self._get_logger().error("❌ [LLM] Structured output запрос, но не удалось сгенерировать ответ", extra={"event_type": LogEventType.LLM_ERROR})
             
@@ -492,7 +572,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         request = LLMRequest(
             prompt=prompt,
             temperature=temperature,
-            max_tokens=max_tokens or self.config_obj.max_tokens,
+            max_tokens=max_tokens or self.config.get('max_tokens', 512),
             stop_sequences=stop_sequences
         )
 
@@ -535,7 +615,13 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # Выполняем генерацию
         response = await self._generate_impl(request)
 
-        return response.content
+        # Извлекаем и парсим JSON
+        content = response.content
+
+        # Пытаемся найти JSON в ответе
+        json_content = self._extract_json_from_response(content)
+
+        return json.loads(json_content)
 
     async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
         """
@@ -579,3 +665,63 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         prompt_parts.append("<|assistant|>")
 
         return "\n".join(prompt_parts)
+
+    def _extract_json_from_response(self, content: str) -> str:
+        """
+        Извлечь JSON из ответа LLM.
+
+        LLM часто добавляют текст до/после JSON или оборачивают в markdown блоки.
+        """
+        import re
+        
+        # 1. Сначала ищем JSON внутри markdown блока ```json ... ```
+        json_block_pattern = r'```json\s*\n?(.*?)\n?```'
+        matches = re.findall(json_block_pattern, content, re.DOTALL)
+        if matches:
+            # Берём последний блок (обычно там самый полный JSON)
+            return matches[-1].strip()
+        
+        # 2. Ищем JSON внутри обычного markdown блока ``` ... ```
+        code_block_pattern = r'```\s*\n?(.*?)\n?```'
+        matches = re.findall(code_block_pattern, content, re.DOTALL)
+        if matches:
+            for block in reversed(matches):
+                block = block.strip()
+                if block.startswith('{') and block.endswith('}'):
+                    try:
+                        json.loads(block)
+                        return block
+                    except json.JSONDecodeError:
+                        continue
+        
+        # 3. Ищем JSON по скобкам
+        start = content.find('{')
+        end = content.rfind('}') + 1
+
+        if start != -1 and end > start:
+            candidate = content[start:end]
+            # Проверяем что это валидный JSON
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                # Ищем следующий JSON объект
+                pos = start + 1
+                while pos < len(content):
+                    next_start = content.find('{', pos)
+                    if next_start == -1:
+                        break
+                    next_end = content.rfind('}', pos) + 1
+                    if next_end <= next_start:
+                        break
+                    candidate = content[next_start:next_end]
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except json.JSONDecodeError:
+                        pos = next_start + 1
+                # Если ничего не найдено, возвращаем первый кандидат
+                return candidate
+
+        # 4. Если не найдено, возвращаем как есть
+        return content.strip()
