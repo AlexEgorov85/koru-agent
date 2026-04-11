@@ -6,72 +6,82 @@ ARCHITECTURE:
 - Содержит только специфичную логику инструментов
 - Поддержка операций через operations
 - Устранено дублирование с BaseSkill/BaseService
+- Логирование через стандартный logging (НЕ через event_bus)
 
 USAGE:
 ```python
 class MyTool(Tool):
-    def __init__(self, name, config, executor, event_bus):
+    def __init__(self, name, config, executor):
         super().__init__(
             name=name,
             component_config=config,
-            executor=executor,
-            event_bus=event_bus
+            executor=executor
         )
-    
+
     async def _execute_impl(self, capability, parameters, context):
         # Бизнес-логика инструмента
         return {"result": "done"}
 ```
 """
 from typing import List, Any, Optional, Dict
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 from core.models.data.capability import Capability
 from core.config.component_config import ComponentConfig
 from core.agent.components.component import Component
 
 
+# =============================================================================
+# БАЗОВЫЕ КЛАССЫ ДЛЯ ИНСТРУМЕНТОВ
+# =============================================================================
+
+class ToolInput(ABC):
+    """Абстрактный класс для входных данных инструмента."""
+    pass
+
+class ToolOutput(ABC):
+    """Абстрактный класс для выходных данных инструмента."""
+    pass
+
+
 class Tool(Component):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ИНСТРУМЕНТОВ.
-    
+
     ОСОБЕННОСТИ:
     - Обеспечивает единый интерфейс для всех инструментов
     - Предоставляет базовую функциональность логирования
     - Поддерживает операции через operations
     - Определяет общую структуру инициализации и жизненного цикла
     """
-    
+
     @property
     @abstractmethod
     def description(self) -> str:
         """Описание назначения инструмента."""
         pass
-    
+
     def __init__(
         self,
         name: str,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus: Any,
         application_context: Optional[Any] = None
     ):
         """
         Инициализация инструмента.
-        
+
         ARGS:
         - name: Имя инструмента
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
-        - application_context: ApplicationContext (DEPRECATED)
+        - application_context: ApplicationContext (опционально)
         """
         super().__init__(
             name=name,
             component_type="tool",
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
             application_context=application_context
         )
     

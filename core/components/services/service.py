@@ -6,24 +6,24 @@ ARCHITECTURE:
 - Содержит только специфичную логику сервисов
 - Поддержка зависимостей через DEPENDENCIES
 - Устранено дублирование с BaseSkill/BaseTool
+- Логирование через стандартный logging (НЕ через event_bus)
 
 USAGE:
 ```python
 class MyService(Service):
     DEPENDENCIES = ["database", "cache"]
-    
-    def __init__(self, name, config, executor, event_bus):
+
+    def __init__(self, name, config, executor):
         super().__init__(
             name=name,
             component_config=config,
-            executor=executor,
-            event_bus=event_bus
+            executor=executor
         )
-    
+
     async def _custom_initialize(self) -> bool:
         # Специфичная инициализация сервиса
         return True
-    
+
     async def _execute_impl(self, capability, parameters, context):
         # Бизнес-логика сервиса
         return {"result": "done"}
@@ -39,47 +39,44 @@ from core.agent.components.component import Component
 class Service(Component):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ИНФРАСТРУКТУРНЫХ СЕРВИСОВ.
-    
+
     ОСОБЕННОСТИ:
     - Обеспечивает единый интерфейс для всех сервисов
     - Предоставляет базовую функциональность логирования
     - Поддерживает декларацию зависимостей через DEPENDENCIES
     - Определяет общую структуру инициализации и жизненного цикла
     """
-    
+
     # Явная декларация зависимостей на уровне КЛАССА
     DEPENDENCIES: ClassVar[List[str]] = []
-    
+
     @property
     @abstractmethod
     def description(self) -> str:
         """Описание назначения сервиса."""
         pass
-    
+
     def __init__(
         self,
         name: str,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus: Any,
         application_context: Optional[Any] = None
     ):
         """
         Инициализация сервиса.
-        
+
         ARGS:
         - name: Имя сервиса
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
-        - application_context: ApplicationContext (DEPRECATED)
+        - application_context: ApplicationContext (опционально)
         """
         super().__init__(
             name=name,
             component_type="service",
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
             application_context=application_context
         )
         

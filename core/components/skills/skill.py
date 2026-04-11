@@ -5,21 +5,21 @@ ARCHITECTURE:
 - Тонкая оболочка над Component
 - Содержит только специфичную логику навыков
 - Устранено дублирование с BaseService/BaseTool
+- Логирование через стандартный logging (НЕ через event_bus)
 
 USAGE:
 ```python
 class MySkill(Skill):
-    def __init__(self, name, config, executor, event_bus):
+    def __init__(self, name, config, executor):
         super().__init__(
             name=name,
             component_config=config,
-            executor=executor,
-            event_bus=event_bus
+            executor=executor
         )
-    
+
     def get_capabilities(self) -> List[Capability]:
         return [...]
-    
+
     async def _execute_impl(self, capability, parameters, context):
         # Бизнес-логика навыка
         return {"result": "done"}
@@ -36,38 +36,35 @@ from core.agent.components.component import Component
 class Skill(Component):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ НАВЫКОВ.
-    
+
     АРХИТЕКТУРНАЯ РОЛЬ:
     - Skill = "как думать и что делать"
     - Capability = "что именно можно сделать"
-    
+
     Один Skill может иметь несколько Capability.
     """
-    
+
     def __init__(
         self,
         name: str,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus: Any,
         application_context: Optional[Any] = None
     ):
         """
         Инициализация навыка.
-        
+
         ARGS:
         - name: Имя навыка
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
-        - application_context: ApplicationContext (DEPRECATED)
+        - application_context: ApplicationContext (опционально)
         """
         super().__init__(
             name=name,
             component_type="skill",
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
             application_context=application_context
         )
     
