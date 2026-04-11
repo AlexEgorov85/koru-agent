@@ -14,13 +14,18 @@ FEATURES:
 - Санитизация путей
 """
 import json
+import logging
 import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.models.enums.common_enums import ComponentType
+
+
+_logger = logging.getLogger(__name__)
 
 
 T = TypeVar('T')
@@ -62,45 +67,11 @@ class VersionedStorage(ABC, Generic[T]):
         """
         self.storage_dir = storage_dir.resolve()
         self._validate_directory()
-        
-        # Инициализация логгера
-        if event_bus is not None:
-            from core.infrastructure.logging import EventBusLogger
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component=self.__class__.__name__)
-            self._use_event_logging = True
-        else:
-            import logging
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-            self._use_event_logging = False
-        
-        self._log_info(f"{self.__class__.__name__} инициализировано: {self.storage_dir}")
 
-    def _log_info(self, message: str, *args, **kwargs):
-        """Информационное сообщение."""
-        if self._use_event_logging:
-            self.logger.info_sync(message, *args, **kwargs)
-        else:
-            self.logger.info(message, *args, **kwargs)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-    def _log_warning(self, message: str, *args, **kwargs):
-        """Предупреждение."""
-        if self._use_event_logging:
-            self.logger.warning_sync(message, *args, **kwargs)
-        else:
-            self.logger.warning(message, *args, **kwargs)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-    def _log_error(self, message: str, *args, **kwargs):
-        """Ошибка."""
-        if self._use_event_logging:
-            self.logger.error_sync(message, *args, **kwargs)
-        else:
-            self.logger.error(message, *args, **kwargs)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        _logger.info(
+            f"{self.__class__.__name__} инициализировано: {self.storage_dir}",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
+        )
 
     def _validate_directory(self) -> None:
         """Валидация директории хранилища."""
