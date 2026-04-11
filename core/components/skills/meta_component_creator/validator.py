@@ -30,9 +30,9 @@ SAFE_IMPORTS_PREFIXES = {
 }
 
 TYPE_BASE_CLASSES = {
-    "skill": "BaseSkill",
-    "tool": "BaseTool",
-    "service": "BaseService",
+    "skill": "Skill",
+    "tool": "Tool",
+    "service": "Service",
     "behavior": "BaseBehaviorPattern",
 }
 

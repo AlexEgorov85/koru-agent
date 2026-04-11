@@ -2,8 +2,8 @@
 Skills module - содержит реализацию навыков агента.
 """
 
-from .base_skill import BaseSkill
+from .skill import Skill
 
 __all__ = [
-    'BaseSkill'
+    'Skill'
 ]

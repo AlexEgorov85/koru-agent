@@ -8,7 +8,7 @@
 ```python
 from core.infrastructure.interfaces.ports import DatabasePort, LLMPort
 
-class BookLibrarySkill(BaseSkill):
+class BookLibrarySkill(Skill):
     def __init__(
         self,
         name: str,

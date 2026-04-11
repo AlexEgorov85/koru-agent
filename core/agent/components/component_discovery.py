@@ -8,11 +8,11 @@
 - Поддержка hot-reload: повторный scan обновляет кэш
 
 СТРУКТУРА ОБНАРУЖЕНИЯ:
-- Skills: core/components/skills/{name}/skill.py -> {Name}Skill(BaseSkill)
-- Tools: core/components/tools/{name}_tool.py -> {Name}Tool(BaseTool)
-- Services (dir): core/components/services/{name}/service.py -> {Name}Service(BaseService)
-- Services (file): core/components/services/{name}.py -> {Name}Service(BaseService)
-- Behaviors: core/agent/behaviors/{name}/pattern.py -> {Name}Pattern(BaseBehaviorPattern)
+- Skills: core/components/skills/{name}/skill.py -> {Name}Skill(Skill)
+- Tools: core/components/tools/{name}_tool.py -> {Name}Tool(Tool)
+- Services (dir): core/components/services/{name}/service.py -> {Name}Service(Service)
+- Services (file): core/components/services/{name}.py -> {Name}Service(Service)
+- Behaviors: core/agent/behaviors/{name}/pattern.py -> {Name}Pattern(Component)
 """
 import importlib
 import sys
@@ -20,14 +20,14 @@ from pathlib import Path
 from typing import Dict, Type, Any, Optional, Set
 from dataclasses import dataclass, field
 
-from core.agent.components.base_component import BaseComponent
+from core.agent.components.component import Component
 
 
 BASE_CLASS_NAMES: Set[str] = {
-    "BaseComponent",
-    "BaseSkill",
-    "BaseTool",
-    "BaseService",
+    "Component",
+    "Skill",
+    "Tool",
+    "Service",
     "BaseBehaviorPattern",
 }
 
@@ -39,7 +39,7 @@ class ComponentEntry:
     name: str
     module_name: str
     class_name: str
-    class_ref: Type[BaseComponent]
+    class_ref: Type[Component]
     file_path: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -352,13 +352,13 @@ class ComponentDiscovery:
         module_name: str,
         name: str,
         suffix: str,
-    ) -> Optional[Type[BaseComponent]]:
+    ) -> Optional[Type[Component]]:
         """
         Загрузка класса компонента из модуля.
 
         Стратегия приоритетов:
         1. Точное имя: {PascalCaseName}{Suffix} (не базовый класс)
-        2. Первый конкретный класс, наследующий BaseComponent
+        2. Первый конкретный класс, наследующий Component
         """
         try:
             if module_name in sys.modules:
@@ -426,9 +426,9 @@ class ComponentDiscovery:
         try:
             if not isinstance(cls, type):
                 return False
-            if not issubclass(cls, BaseComponent):
+            if not issubclass(cls, Component):
                 return False
-            if cls is BaseComponent:
+            if cls is Component:
                 return False
             if cls.__name__ in BASE_CLASS_NAMES:
                 return False

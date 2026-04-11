@@ -158,7 +158,7 @@ class ApplicationContext(BaseSystemContext):
         factory = ComponentFactory(self.infrastructure_context)
         return factory._resolve_component_class(component_type.value, name)
 
-    async def _create_component(self, component_type: ComponentType, name: str, config: Any, executor: 'ActionExecutor') -> 'BaseComponent':
+    async def _create_component(self, component_type: ComponentType, name: str, config: Any, executor: 'ActionExecutor') -> 'Component':
         """ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента."""
         factory = ComponentFactory(self.infrastructure_context)
         component_type_str = component_type.value
@@ -214,7 +214,7 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
 
-        # [REFACTOR ResourceLoader] Ресурсы уже загружены в InfrastructureContext
+        # Ресурсы уже загружены в InfrastructureContext
         # ResourceLoader отсканировал ФС и закэшировал все промпты/контракты
         # ComponentFactory будет брать их напрямую через resource_loader.get_component_resources()
         self.log.info(
@@ -582,7 +582,7 @@ class ApplicationContext(BaseSystemContext):
             f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} healthy"})
         return health_report
 
-    def get_behavior_pattern(self, name: str) -> Optional['BaseComponent']:
+    def get_behavior_pattern(self, name: str) -> Optional['Component']:
         return self.components.get(ComponentType.BEHAVIOR, name)
 
     def get_service(self, name: str) -> Optional[Any]:
@@ -592,7 +592,7 @@ class ApplicationContext(BaseSystemContext):
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
         """Валидация версий в зависимости от профиля и prompt_loading_config.
 
-        [REFACTOR ResourceLoader] Ресурсы уже загружены и валидированы в ResourceLoader.
+        Ресурсы уже загружены и валидированы в ResourceLoader.
         Проверяем только наличие запрошенных версий.
         """
         from core.errors.exceptions import ComponentInitializationError
@@ -901,7 +901,7 @@ class ApplicationContext(BaseSystemContext):
                 await self._publish(EventType.ERROR, {"message": f"Ошибка при завершении LLMOrchestrator: {e}"})
             self.llm_orchestrator = None
 
-        # [REFACTOR ResourceLoader] DataRepository удалён, ресурсы в ResourceLoader
+        # DataRepository удалён, ресурсы в ResourceLoader
         # ResourceLoader не требует shutdown — только кэш в памяти
 
         # Очистка ресурсов из LifecycleManager для возможности повторной регистрации
