@@ -422,88 +422,9 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             else:
                 generated_text = ''
                 finish_reason = 'error'
-                self._get_logger().warning("⚠️ [LLM] choices пуст!", extra={"event_type": LogEventType.WARNING})
+                self._get_logger().warning("⚠️ [LLM] choices empty!", extra={"event_type": LogEventType.WARNING})
 
-            # === ОБРАБОТКА STRUCTURED OUTPUT ===
-            if hasattr(request, 'structured_output') and request.structured_output:
-                self._get_logger().info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
-
-                try:
-                    json_content = self._extract_json_from_response(generated_text)
-
-                    self._get_logger().debug("🔵 JSON извлечён: %s", json_content, extra={"event_type": LogEventType.DEBUG})
-                    parsed_json = json.loads(json_content)
-                    self._get_logger().info("✅ JSON распарсен: ключи=%s", list(parsed_json.keys()), extra={"event_type": LogEventType.LLM_RESPONSE})
-
-                    # ✅ Сохраняем JSON в raw_response.content И в content для совместимости
-                    # ✅ parsed_content=None — оркестратор создаст Pydantic модель
-                    response = LLMResponse(
-                        content=json_content,  # ← ВАЖНО: для fallback чтения!
-                        parsed_content=None,  # ← Оркестратор заполнит
-                        raw_response=RawLLMResponse(
-                            content=json_content,  # ← JSON строка для валидации
-                            model=self.model_name,
-                            tokens_used=usage.get('total_tokens', 0),
-                            generation_time=time.time() - start_time,
-                            finish_reason=finish_reason,
-                            metadata={"parsed_json": parsed_json}  # ← dict для отладки
-                        ),
-                        model=self.model_name,
-                        tokens_used=usage.get('total_tokens', 0),
-                        generation_time=time.time() - start_time,
-                        parsing_attempts=1,
-                        validation_errors=[]
-                    )
-
-                    self._get_logger().info("✅ LLMResponse создан (JSON в raw_response.content)", extra={"event_type": LogEventType.LLM_RESPONSE})
-
-                    self._update_metrics(response.generation_time)
-
-                    return response
-
-                except json.JSONDecodeError as json_err:
-                    # ❌ Ошибка парсинга JSON — возвращаем LLMResponse с ошибкой
-                    self._get_logger().error("❌ Structured output JSON parse error: %s", json_err, extra={"event_type": LogEventType.LLM_ERROR})
-                    
-                    return LLMResponse(
-                        parsed_content=None,
-                        raw_response=RawLLMResponse(
-                            content=generated_text,  # ← Сырой текст
-                            model=self.model_name,
-                            tokens_used=usage.get('total_tokens', 0),
-                            generation_time=time.time() - start_time,
-                            finish_reason="error"
-                        ),
-                        model=self.model_name,
-                        parsing_attempts=1,
-                        validation_errors=[{
-                            "error": "json_parse_error",
-                            "message": str(json_err)
-                        }]
-                    )
-                    
-                except Exception as struct_err:
-                    # ❌ Другая ошибка — возвращаем LLMResponse с ошибкой
-                    self._get_logger().error("❌ Structured output error: %s", struct_err, extra={"event_type": LogEventType.LLM_ERROR})
-                    
-                    return LLMResponse(
-                        parsed_content=None,
-                        raw_response=RawLLMResponse(
-                            content=generated_text,
-                            model=self.model_name,
-                            tokens_used=usage.get('total_tokens', 0),
-                            generation_time=time.time() - start_time,
-                            finish_reason="error"
-                        ),
-                        model=self.model_name,
-                        parsing_attempts=1,
-                        validation_errors=[{
-                            "error": "exception",
-                            "message": str(struct_err)
-                        }]
-                    )
-
-            # ❌ УДАЛЕНО: Возврат LLMResponse для structured output
+            # Provider returns raw text only, JSON parsing is orchestrator's responsibility
             # ТЕПЕРЬ: Всегда возвращаем LLMResponse для структурированных запросов
             self._get_logger().error("❌ [LLM] Structured output запрос, но не удалось сгенерировать ответ", extra={"event_type": LogEventType.LLM_ERROR})
             
@@ -614,13 +535,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # Выполняем генерацию
         response = await self._generate_impl(request)
 
-        # Извлекаем и парсим JSON
-        content = response.content
-
-        # Пытаемся найти JSON в ответе
-        json_content = self._extract_json_from_response(content)
-
-        return json.loads(json_content)
+        return response.content
 
     async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
         """
@@ -664,12 +579,3 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         prompt_parts.append("<|assistant|>")
 
         return "\n".join(prompt_parts)
-
-    def _extract_json_from_response(self, content: str) -> str:
-        """
-        Извлечь JSON из ответа LLM.
-
-        ДЕЛЕГИРОВАНИЕ: Использует общую функцию из json_parser.py
-        """
-        from core.infrastructure.providers.llm.json_parser import extract_json_from_response
-        return extract_json_from_response(content)
