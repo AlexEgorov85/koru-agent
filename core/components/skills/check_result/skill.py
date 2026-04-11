@@ -252,30 +252,24 @@ class CheckResultSkill(Skill):
 
     async def _publish_metrics(
         self,
-        event_type,
-        capability_name: str,
+        capability,
         success: bool,
         execution_time_ms: float,
-        tokens_used: int = 0,
-        error: Optional[str] = None,
-        error_type: Optional[str] = None,
-        error_category: Optional[str] = None,
-        execution_type: Optional[str] = None,
-        rows_returned: int = 0,
-        script_name: Optional[str] = None,
-        result: Optional[dict] = None
+        execution_context: Optional[Any] = None,
+        **extra_data
     ) -> None:
         """Публикация метрик выполнения навыка в EventBus."""
+        capability_name = capability.name if hasattr(capability, 'name') else str(capability)
         await self._publish_with_context(
             event_type="check_result.metrics",
             data={
                 "capability_name": capability_name,
                 "success": success,
                 "execution_time_ms": execution_time_ms,
-                "execution_type": execution_type,
-                "rows_returned": rows_returned,
-                "script_name": script_name,
-                "error": error
+                "execution_type": extra_data.get("execution_type", "unknown"),
+                "rows_returned": extra_data.get("rows_returned", 0),
+                "script_name": extra_data.get("script_name"),
+                "error": extra_data.get("error")
             },
             source=self.name
         )

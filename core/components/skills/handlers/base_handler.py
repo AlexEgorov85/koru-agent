@@ -113,7 +113,21 @@ class SkillHandler(Component, ABC):
         raise NotImplementedError(
             f"Хендлер {self.__class__.__name__} не реализует ни _execute_impl, ни execute()"
         )
-    
+
+    async def log_info(self, message: str, event_type=None, **extra_data):
+        """Логирование информационного сообщения."""
+        if event_type is None:
+            from core.infrastructure.logging.event_types import LogEventType
+            event_type = LogEventType.INFO
+        self._log_info(message, event_type=event_type, **extra_data)
+
+    async def log_warning(self, message: str, event_type=None, **extra_data):
+        """Логирование предупреждения."""
+        if event_type is None:
+            from core.infrastructure.logging.event_types import LogEventType
+            event_type = LogEventType.WARNING
+        self._log_warning(message, event_type=event_type, **extra_data)
+
     # === ОБЩИЕ УТИЛИТЫ ДЛЯ ВСЕХ ХЕНДЛЕРОВ ===
     
     def get_input_schema(self) -> Optional[Type[BaseModel]]:

@@ -51,15 +51,10 @@ class JsonParseResult(BaseModel):
             "raw_input": self.raw_input,
             "extracted_json": self.extracted_json,
             "parsed_data": self.parsed_data,
+            "pydantic_model": self.pydantic_model,
             "error_type": self.error_type,
             "error_message": self.error_message,
             "error_details": self.error_details,
             "processing_steps": self.processing_steps
         }
-        # Сериализуем Pydantic модель если есть
-        if self.pydantic_model is not None:
-            if hasattr(self.pydantic_model, "model_dump"):
-                result["pydantic_model_data"] = self.pydantic_model.model_dump()
-            else:
-                result["pydantic_model_data"] = str(self.pydantic_model)
         return result

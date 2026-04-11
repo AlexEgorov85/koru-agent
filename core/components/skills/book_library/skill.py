@@ -16,7 +16,7 @@
 """
 import sys
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 from pydantic import BaseModel
 import yaml
@@ -351,30 +351,24 @@ class BookLibrarySkill(Skill):
 
     async def _publish_metrics(
         self,
-        event_type,
-        capability_name: str,
+        capability,
         success: bool,
         execution_time_ms: float,
-        tokens_used: int = 0,
-        error: Optional[str] = None,
-        error_type: Optional[str] = None,
-        error_category: Optional[str] = None,
-        execution_type: Optional[str] = None,
-        rows_returned: int = 0,
-        script_name: Optional[str] = None,
-        result: Optional[dict] = None
+        execution_context: Optional[Any] = None,
+        **extra_data
     ):
         """Публикация метрик выполнения через EventBus."""
         from core.components.skills.book_library.metrics import publish_book_library_metrics
+        capability_name = capability.name if hasattr(capability, 'name') else str(capability)
         await publish_book_library_metrics(
             logger=None,
             capability_name=capability_name,
             success=success,
             execution_time_ms=execution_time_ms,
-            execution_type=execution_type,
-            rows_returned=rows_returned,
-            script_name=script_name,
-            error=error
+            execution_type=extra_data.get("execution_type", "unknown"),
+            rows_returned=extra_data.get("rows_returned", 0),
+            script_name=extra_data.get("script_name"),
+            error=extra_data.get("error")
         )
 
 
