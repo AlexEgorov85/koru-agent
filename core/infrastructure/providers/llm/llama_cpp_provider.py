@@ -263,7 +263,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         ВОЗВРАЩАЕТ:
         - str: Текст промпта с инструкцией и схемой
         """
-        import json
+import json  # noqa: F401 - используется для generate_structured
         
         schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
         
