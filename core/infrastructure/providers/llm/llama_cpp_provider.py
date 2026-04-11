@@ -117,11 +117,17 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # Контекст вызова теперь управляется в BaseLLMProvider
         # set_call_context() наследуется из базового класса
 
-    def _get_logger(self) -> logging.Logger:
-        """Получение логгера из log_session или fallback."""
+    def _get_logger(self) -> logging.LoggerAdapter:
+        """Получение логгера с компонентом через LoggerAdapter."""
         if self._log_session and self._log_session.infra_logger:
-            return self._log_session.infra_logger
-        return logging.getLogger(__name__)
+            base_logger = self._log_session.infra_logger
+        else:
+            base_logger = logging.getLogger(__name__)
+        
+        return logging.LoggerAdapter(
+            base_logger,
+            extra={"component": "LlamaCppProvider"}
+        )
 
     async def initialize(self) -> bool:
         """

@@ -54,17 +54,17 @@ from core.config.logging_config import LoggingConfig
 
 
 class _LogFileFormatter(logging.Formatter):
-    """Форматтер для файловых логов с поддержкой event_type.
+    """Форматтер для файловых логов с поддержкой event_type и component.
 
     Формат:
-    %(asctime)s | %(levelname)-8s | %(event_type)s | %(name)s | %(message)s
+    %(asctime)s | %(levelname)-8s | %(event_type)s | %(component)s | %(message)s
 
-    Если event_type не указан — выводится прочерк.
+    Если event_type/component не указаны — выводится прочерк.
     """
 
     def __init__(self):
         super().__init__(
-            fmt="%(asctime)s | %(levelname)-8s | %(event_type)-20s | %(name)s | %(message)s",
+            fmt="%(asctime)s | %(levelname)-8s | %(event_type)-20s | %(component)-30s | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S,%f",
         )
 
@@ -77,7 +77,7 @@ class _LogFileFormatter(logging.Formatter):
         return dt.isoformat(timespec="milliseconds")
 
     def format(self, record):
-        """Форматирование записи с подстановкой event_type."""
+        """Форматирование записи с подстановкой event_type и component."""
         # Подставляем event_type из extra или прочерк
         event_type = getattr(record, "event_type", None)
         if event_type is not None:
@@ -85,6 +85,20 @@ class _LogFileFormatter(logging.Formatter):
             record.event_type = event_type.value if hasattr(event_type, "value") else str(event_type)
         else:
             record.event_type = "-"
+
+        # Подставляем component из extra или прочерк
+        component = getattr(record, "component", None)
+        if component is None:
+            # Пытаемся определить component из logger name
+            # Например "component.behavior.react_pattern" -> "behavior.react_pattern"
+            name = getattr(record, "name", "")
+            if name.startswith("component."):
+                record.component = name[len("component."):]
+            elif name:
+                record.component = name
+            else:
+                record.component = "-"
+        # Если component уже задан в extra — используем его
         return super().format(record)
 
 

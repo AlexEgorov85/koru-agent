@@ -244,8 +244,8 @@ class LLMOrchestrator:
         # Задачи фоновой очистки
         self._cleanup_task: Optional[asyncio.Task] = None
 
-        # Логгер
-        self._logger: Optional[logging.Logger] = None
+        # Логгер с компонентом (LoggerAdapter)
+        self._logger: Optional[logging.LoggerAdapter] = None
 
         # Флаг работы
         self._running = False
@@ -264,11 +264,17 @@ class LLMOrchestrator:
         - bool: True если успешно
         """
         try:
-            # Создание логгера из log_session если доступен
+            # Создание логгера с компонентом через LoggerAdapter
             if self._log_session is not None and hasattr(self._log_session, 'infra_logger'):
-                self._logger = self._log_session.infra_logger
+                base_logger = self._log_session.infra_logger
             else:
-                self._logger = logging.getLogger("core.infrastructure.providers.llm.llm_orchestrator")
+                base_logger = logging.getLogger("core.infrastructure.providers.llm.llm_orchestrator")
+
+            # Обёртка для автоматического добавления component
+            self._logger = logging.LoggerAdapter(
+                base_logger,
+                extra={"component": "LLMOrchestrator"}
+            )
 
             # Запуск фоновой задачи очистки
             self._running = True
