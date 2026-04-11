@@ -178,15 +178,14 @@ class Component(ComponentLifecycle, LoggingMixinV2, ABC):
     ПРИМЕР ИСПОЛЬЗОВАНИЯ:
     ```python
     class MySkill(Component):
-        def __init__(self, name, config, executor, event_bus):
+        def __init__(self, name, config, executor):
             super().__init__(
                 name=name,
                 component_type="skill",
                 component_config=config,
-                executor=executor,
-                event_bus=event_bus
+                executor=executor
             )
-        
+
         async def _execute_impl(self, capability, parameters, context):
             # Ваша бизнес-логика здесь
             return {"result": "done"}
