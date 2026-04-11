@@ -160,6 +160,10 @@ class ComponentFactory:
         if 'application_context' in params:
             kwargs['application_context'] = application_context
 
+        # Передаём log_session для логирования компонентов
+        if 'log_session' in params:
+            kwargs['log_session'] = self._infrastructure_context.log_session
+
         # event_bus БОЛЬШЕ не передаётся — компоненты используют стандартный logging
         
         # 7. Специальная обработка для behavior patterns

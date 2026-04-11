@@ -187,10 +187,17 @@ class ApplicationContext(BaseSystemContext):
             self.llm_orchestrator = LLMOrchestrator(
                 event_bus=self.infrastructure_context.event_bus,
                 cleanup_interval=600.0,
-                max_pending_calls=100
+                max_pending_calls=100,
+                log_session=self.infrastructure_context.log_session
             )
             self.log.info("Вызов llm_orchestrator.initialize()...", extra={"event_type": LogEventType.SYSTEM_INIT})
-            await self.llm_orchestrator.initialize()
+            init_success = await self.llm_orchestrator.initialize()
+            if not init_success:
+                from core.errors.exceptions import ComponentInitializationError
+                raise ComponentInitializationError(
+                    "LLMOrchestrator вернул False при инициализации. Проверьте логи.",
+                    component="llm_orchestrator"
+                )
             self.log.info("LLMOrchestrator инициализирован успешно!", extra={"event_type": LogEventType.SYSTEM_READY})
         except Exception as e:
             self.log.error(f"Ошибка инициализации LLMOrchestrator: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})

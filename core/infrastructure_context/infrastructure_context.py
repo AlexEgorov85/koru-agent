@@ -273,7 +273,8 @@ class InfrastructureContext:
 
                         provider = self.llm_provider_factory.create_provider(
                             provider_type=provider_type,
-                            config=config_obj
+                            config=config_obj,
+                            log_session=self.log_session
                         )
 
                         await self.lifecycle_manager.register_resource(
@@ -316,7 +317,8 @@ class InfrastructureContext:
 
                     provider = self.db_provider_factory.create_provider(
                         provider_type=provider_type,
-                        config=config_obj
+                        config=config_obj,
+                        log_session=self.log_session
                     )
 
                     # Регистрация в LifecycleManager

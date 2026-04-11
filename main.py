@@ -71,10 +71,10 @@ async def run_agent(
     await infrastructure_context.initialize()
 
     session_id = str(infrastructure_context.id)
-    # Создаём логгер для агента через LoggingSession
-    agent_logger = infrastructure_context.log_session.create_agent_logger(agent_id="agent_001")
 
     # Простая async-обёртка для логирования
+    # Логгер агента создаётся ТОЛЬКО в AgentRuntime (runtime.py:82)
+    # Здесь используем app_logger для общих сообщений сессии
     class SessionLogger:
         """Async-обёртка для стандартного logging.Logger."""
         def __init__(self, logger: logging.Logger):
@@ -103,7 +103,7 @@ async def run_agent(
         def error_sync(self, message: str):
             self._logger.error(message, extra={"event_type": LogEventType.ERROR})
 
-    session_logger = SessionLogger(agent_logger)
+    session_logger = SessionLogger(infrastructure_context.log_session.app_logger)
 
     session_info = infrastructure_context.session_handler.get_session_info()
 

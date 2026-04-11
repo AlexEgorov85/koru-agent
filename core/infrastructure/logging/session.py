@@ -8,8 +8,13 @@ LoggingSession — единая точка управления файловым
 │  ├── base_dir: logs/2026-04-10_14-30-00/                      │
 │  ├── agents_dir: logs/.../agents/                             │
 │  ├── infra_logger: logging.Logger → infra_context.log         │
-│  ├── app_logger: logging.Logger → app_context.log             │
-│  └── create_agent_logger() → logging.Logger → agents/{ts}.log │
+│  └── app_logger: logging.Logger → app_context.log             │
+│                                                               │
+│  Компоненты (через get_component_logger):                     │
+│    → app_context.log (сервисы, скиллы, инструменты)           │
+│                                                               │
+│  Агенты (через create_agent_logger):                           │
+│    → agents/{timestamp}.log (ОДИН файл на сессию)             │
 └───────────────────────────────────────────────────────────────┘
 
 FEATURES:
@@ -153,8 +158,7 @@ class LoggingSession:
         """
         Создаёт или возвращает логгер для компонента.
 
-        Все компоненты пишут в общий файл components.log через StreamHandler
-        с фильтрацией EventTypeFilter (как infra/app логи).
+        Все компоненты пишут в app_context.log (единый файл приложения).
 
         ARGS:
         - component_name: Имя компонента (например, "skill.planning", "tool.sql")
@@ -173,9 +177,9 @@ class LoggingSession:
             logger.setLevel(logging.DEBUG)
             logger.propagate = False  # Не дублировать в root
 
-            # Файловый хендлер — общий для всех компонентов
-            components_log = self.base_dir / "components.log"
-            file_handler = logging.FileHandler(components_log, encoding="utf-8")
+            # Файловый хендлер — пишем в app_context.log
+            app_log_path = self.base_dir / "app_context.log"
+            file_handler = logging.FileHandler(app_log_path, encoding="utf-8")
             file_handler.setLevel(logging.DEBUG)
             from core.infrastructure.logging.session import _LogFileFormatter
             file_handler.setFormatter(_LogFileFormatter())
@@ -205,6 +209,9 @@ class LoggingSession:
         ПРАВИЛО: 1 сессия = 1 файл.
         Файл: agents/{timestamp}.log
 
+        ВАЖНО: Если логгер для agent_id уже существует — возвращается он.
+        Это предотвращает создание дублирующих файлов при повторном вызове.
+
         ARGS:
         - agent_id: Уникальный идентификатор агента
 
@@ -213,6 +220,10 @@ class LoggingSession:
         """
         if not self._handlers_setup:
             self.setup_context_loggers()
+
+        # Если логгер уже существует — возвращаем его (предотвращаем дубли)
+        if agent_id in self._agent_loggers:
+            return self._agent_loggers[agent_id]
 
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_path = self.agents_dir / f"{ts}.log"
