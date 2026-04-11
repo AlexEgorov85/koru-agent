@@ -318,3 +318,75 @@ def select_test_cases(benchmark: Dict[str, Any], level: str = "all", limit: int 
         test_cases = test_cases[:limit]
 
     return test_cases
+
+
+# ---------------------------------------------------------------------------
+# Оптимизация: загрузка вопросов и построение сценариев
+# ---------------------------------------------------------------------------
+
+def load_first_n_questions(benchmark_file: str, n: int) -> list:
+    """Загрузка первых N вопросов из бенчмарка."""
+    import json
+    from pathlib import Path
+
+    benchmark_path = Path(benchmark_file)
+    if not benchmark_path.exists():
+        print(f"❌ Бенчмарк не найден: {benchmark_file}")
+        return []
+
+    with open(benchmark_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    questions = []
+    for level_name, level_data in data.get("levels", {}).items():
+        for tc in level_data.get("test_cases", []):
+            if len(questions) >= n:
+                return questions
+            questions.append({
+                "id": tc.get("id", f"{level_name}_{len(questions)}"),
+                "name": tc.get("name", ""),
+                "input": tc.get("input", ""),
+                "expected_output": tc.get("expected_output", {}),
+                "level": level_name,
+            })
+    return questions
+
+
+def build_scenarios_from_questions(questions: list, event_bus):
+    """Построение BenchmarkScenario из списка вопросов."""
+    from core.components.benchmarks.benchmark_models import (
+        BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType,
+    )
+
+    scenarios = []
+    for q in questions:
+        expected = ExpectedOutput(
+            content=q["expected_output"],
+            criteria=[
+                EvaluationCriterion(
+                    name="accuracy",
+                    evaluation_type=EvaluationType.SEMANTIC,
+                    weight=1.0,
+                    threshold=0.8,
+                )
+            ],
+        )
+        scenario = BenchmarkScenario(
+            id=q["id"],
+            name=q["name"],
+            description=f"Бенчмарк: {q['level']}",
+            goal=q["input"],
+            expected_output=expected,
+            criteria=[
+                EvaluationCriterion(
+                    name="accuracy",
+                    evaluation_type=EvaluationType.SEMANTIC,
+                    weight=1.0,
+                    threshold=0.8,
+                )
+            ],
+            timeout_seconds=60,
+            metadata={"level": q["level"]},
+        )
+        scenarios.append(scenario)
+    return scenarios

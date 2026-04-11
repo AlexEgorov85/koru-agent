@@ -13,13 +13,25 @@ scripts/
 
 ## CLI утилиты (`cli/`)
 
-| Скрипт | Назначение | Пример использования |
-|--------|------------|---------------------|
-| `promptctl.py` | Управление промптами | `python scripts/cli/promptctl.py --help` |
-| `run_benchmark.py` | Запуск бенчмарков | `python scripts/cli/run_benchmark.py -c planning.create_plan -v v1.0.0` |
-| `run_optimization.py` | Оптимизация промптов | `python scripts/cli/run_optimization.py -c planning.create_plan -m accuracy` |
+Все CLI-команды доступны через единый интерфейс `koru`:
 
-**Важно:** Тесты импортируют эти скрипты как `from scripts.cli.run_optimization import ...`
+```bash
+python -m scripts.cli.koru --help
+```
+
+| Команда | Назначение | Пример |
+|---------|------------|--------|
+| `koru bench run` | Запуск реального агента на бенчмарке | `koru bench run --level sql --limit 5` |
+| `koru bench generate` | Генерация бенчмарка из БД | `koru bench generate` |
+| `koru bench compare` | Сравнение результатов | `koru bench compare r1.json r2.json` |
+| `koru bench history` | История запусков | `koru bench history` |
+| `koru bench optimize` | Оптимизация через orchestrator | `koru bench optimize --size 2 --mode accuracy` |
+| `koru prompt create` | Создать промпт-черновик | `koru prompt create --capability X --version v1.0.0` |
+| `koru prompt promote` | Продвинуть в активные | `koru prompt promote --capability X --version v1.0.0` |
+| `koru prompt archive` | Архивировать | `koru prompt archive --capability X --version v1.0.0` |
+| `koru prompt status` | Статус всех промптов | `koru prompt status` |
+
+Общие утилиты вынесены в `scripts/cli/_utils.py` для переиспользования.
 
 ---
 
@@ -56,15 +68,25 @@ scripts/
 ### Запуск CLI утилит
 
 ```bash
-# Бенчмарк
-python scripts/cli/run_benchmark.py --capability planning.create_plan --version v1.0.0
+# Бенчмарк — запуск
+python -m scripts.cli.koru bench run --level sql
+python -m scripts.cli.koru bench run -g "Какие книги написал Пушкин?"
+python -m scripts.cli.koru bench run --limit 5
+
+# Бенчмарк — генерация
+python -m scripts.cli.koru bench generate
+
+# Бенчмарк — сравнение и история
+python -m scripts.cli.koru bench compare results1.json results2.json
+python -m scripts.cli.koru bench history
 
 # Оптимизация
-python scripts/cli/run_optimization.py --capability planning.create_plan --metric accuracy --target 0.95
+python -m scripts.cli.koru bench optimize --size 2 --mode accuracy
 
 # Управление промптами
-python scripts/cli/promptctl.py list
-python scripts/cli/promptctl.py get planning.create_plan v1.0.0
+python -m scripts.cli.koru prompt create --capability X --version v1.0.0
+python -m scripts.cli.koru prompt promote --capability X --version v1.0.0
+python -m scripts.cli.koru prompt status
 ```
 
 ### Запуск скриптов обслуживания
@@ -112,9 +134,15 @@ python scripts/validation/check_yaml_syntax.py
 
 ## Удалённые скрипты
 
-Следующие одноразовые скрипты были удалены:
-- Скрипты миграции данных (organize_data_*, move_files_*, create_*)
-- Скрипты исправления registry (fix_registry_*, update_registry_*)
-- Отладочные тесты (debug_*, test_*, verify_*)
+Следующие скрипты были объединены в единый CLI `koru.py`:
+- `run_benchmark.py` → `koru bench run`
+- `run_real_agent_benchmark.py` → `koru bench run`
+- `run_orchestrator_benchmark.py` → `koru bench optimize`
+- `run_optimization.py` → `koru bench optimize`
+- `run_auto_optimization.py` → `koru bench optimize`
+- `compare_benchmarks.py` → `koru bench compare`
+- `generate_agent_benchmark.py` → `koru bench generate`
+- `generate_benchmark_from_db.py` → `koru bench generate`
+- `promptctl.py` → `koru prompt create/promote/archive/status`
 
-Эти скрипты выполняли одноразовые задачи и больше не нужны.
+Также удалены одноразовые скрипты миграции, исправления registry и отладочные тесты.

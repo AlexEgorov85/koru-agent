@@ -502,9 +502,7 @@ async def cmd_bench_history(args) -> int:
 
 async def cmd_bench_optimize(args) -> int:
     """Запуск оптимизации через OptimizationOrchestrator."""
-    from scripts.cli.run_orchestrator_benchmark import (
-        load_first_n_questions, build_scenarios_from_questions,
-    )
+    from scripts.cli._utils import load_first_n_questions, build_scenarios_from_questions
 
     questions = load_first_n_questions(args.benchmark_file, args.size)
     if not questions:

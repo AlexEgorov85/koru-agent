@@ -2,10 +2,7 @@
 Скрипты koru-agent.
 
 Этот модуль предоставляет CLI утилиты и скрипты обслуживания.
+
+Все CLI-команды доступны через единый интерфейс:
+    python -m scripts.cli.koru --help
 """
-
-# Импорты для обратной совместимости с тестами
-from scripts.cli import run_benchmark
-from scripts.cli import run_optimization
-
-__all__ = ['run_benchmark', 'run_optimization']

@@ -12,9 +12,8 @@
     validator = BenchmarkValidator()
 
 СКРИПТЫ (не импортировать отсюда):
-    - scripts/cli/generate_agent_benchmark.py — генерация бенчмарков
-    - scripts/cli/generate_benchmark_from_db.py — генерация из БД
-    - scripts/cli/compare_benchmarks.py — сравнение результатов
+    python -m scripts.cli.koru bench generate — генерация бенчмарков из БД
+    python -m scripts.cli.koru bench compare — сравнение результатов
 """
 from core.components.benchmarks.benchmark_models import (
     # Модели оценки
