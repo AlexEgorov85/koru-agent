@@ -188,7 +188,8 @@ class ApplicationContext(BaseSystemContext):
                 event_bus=self.infrastructure_context.event_bus,
                 cleanup_interval=600.0,
                 max_pending_calls=100,
-                log_session=self.infrastructure_context.log_session
+                log_session=self.infrastructure_context.log_session,
+                executor=executor  # ✅ Передаём executor
             )
             self.log.info("Вызов llm_orchestrator.initialize()...", extra={"event_type": LogEventType.SYSTEM_INIT})
             init_success = await self.llm_orchestrator.initialize()

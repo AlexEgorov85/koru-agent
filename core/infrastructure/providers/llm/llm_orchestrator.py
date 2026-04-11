@@ -208,7 +208,8 @@ class LLMOrchestrator:
         event_bus: UnifiedEventBus,
         cleanup_interval: float = 600.0,
         max_pending_calls: int = 100,
-        log_session=None
+        log_session=None,
+        executor: Any = None  # ✅ Добавлен параметр executor
     ):
         """
         Инициализация оркестратора.
@@ -218,9 +219,10 @@ class LLMOrchestrator:
         - cleanup_interval: Интервал очистки старых записей (секунды)
         - max_pending_calls: Максимальное количество ожидающих вызовов
         - log_session: LoggingSession для привязки логгера к инфраструктурным логам
+        - executor: ActionExecutor для вызова сервисов (например, json_parsing)
 
         АРХИТЕКТУРА (Вариант A):
-        - executor НЕ создаётся — провайдеры сами управляют потоками
+        - Провайдеры сами управляют потоками (run_in_executor внутри провайдера)
         - Оркестратор только маршрутизирует, логирует и собирает метрики
         """
         self._event_bus = event_bus
@@ -228,6 +230,7 @@ class LLMOrchestrator:
         self._max_pending_calls = max_pending_calls
         self._max_workers = 1  # Не используется напрямую (провайдеры управляют потоками)
         self._log_session = log_session
+        self.executor = executor  # ✅ Сохраняем executor
 
         # model_name для обратной совместимости
         self.model_name = "unknown"
