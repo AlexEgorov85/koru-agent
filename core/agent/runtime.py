@@ -199,41 +199,44 @@ class AgentRuntime:
 
         # Получаем доступные capability
         available_caps = await self._get_available_capabilities()
-        await event_bus.publish(EventType.INFO, {"message": f"📦 Доступно capability: {len(available_caps)}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+        self.log.info(f"📦 Доступно capability: {len(available_caps)}", extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Цикл выполнения
         executed_steps = 0
         for step in range(self.max_steps):
-            await event_bus.publish(EventType.AGENT_THINKING, {
-                "message": "🤔 Анализирую запрос и выбираю следующее действие...",
-                "step": step + 1,
-                "max_steps": self.max_steps
-            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
-            
-            await event_bus.publish(EventType.INFO, {
-                "message": f"{'='*60}\n📍 ШАГ {step + 1}/{self.max_steps}\n{'='*60}"
-            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
-            
+            self.log.info(
+                f"📍 ШАГ {step + 1}/{self.max_steps}",
+                extra={"event_type": LogEventType.STEP_STARTED}
+            )
+            self.log.info(
+                "🤔 Анализирую запрос и выбираю следующее действие...",
+                extra={"event_type": LogEventType.AGENT_THINKING}
+            )
+
             # Pattern решает
-            await event_bus.publish(EventType.INFO, {"message": "🧠 Pattern.decide()..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+            self.log.info("🧠 Pattern.decide()...", extra={"event_type": LogEventType.AGENT_DECISION})
             decision = await pattern.decide(
                 session_context=self.session_context,
                 available_capabilities=available_caps
             )
-            await event_bus.publish(EventType.INFO, {
-                "message": f"✅ Pattern вернул: type={decision.type.value}" +
-                          (f", action={decision.action}" if decision.action else "") +
-                          (f"\n   reasoning: {decision.reasoning}..." if decision.reasoning else "")
-            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+            decision_msg = (
+                f"✅ Pattern вернул: type={decision.type.value}"
+                + (f", action={decision.action}" if decision.action else "")
+                + (f", reasoning: {decision.reasoning}" if decision.reasoning else "")
+            )
+            self.log.info(decision_msg, extra={"event_type": LogEventType.AGENT_DECISION})
 
-            await event_bus.publish(EventType.AGENT_THINKING, {
-                "message": f"🎯 Выбрано действие: {decision.action}",
-                "reasoning": decision.reasoning,
-                "step": step + 1
-            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+            self.log.info(
+                f"🎯 Выбрано действие: {decision.action}",
+                extra={"event_type": LogEventType.AGENT_DECISION}
+            )
             
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
+                self.log.info(
+                    f"Завершение: {decision.reasoning[:100] if decision.reasoning else 'готов'}",
+                    extra={"event_type": LogEventType.AGENT_STOP}
+                )
                 # Сохраняем диалог в историю
                 final_answer = decision.reasoning or ""
                 if decision.result and decision.result.data:
@@ -248,6 +251,10 @@ class AgentRuntime:
 
             # Pattern решил FAIL?
             if decision.type == DecisionType.FAIL:
+                self.log.error(
+                    f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
+                    extra={"event_type": LogEventType.AGENT_STOP}
+                )
                 # Сохраняем диалог даже при ошибке
                 self.session_context.commit_turn(
                     user_query=self.goal,
@@ -259,12 +266,14 @@ class AgentRuntime:
 
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
-                await event_bus.publish(EventType.AGENT_THINKING, {
-                    "message": f"⚙️ Запускаю {decision.action} с параметрами: {decision.parameters or {}}",
-                    "step": step + 1
-                }, session_id=self.session_context.session_id, agent_id=self.agent_id)
-                
-                await event_bus.publish(EventType.INFO, {"message": f"⚙️ Executor.execute({decision.action})..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                self.log.info(
+                    f"⚙️ Запускаю {decision.action} с параметрами: {decision.parameters or {}}",
+                    extra={"event_type": LogEventType.TOOL_CALL}
+                )
+                self.log.info(
+                    f"⚙️ Executor.execute({decision.action})...",
+                    extra={"event_type": LogEventType.TOOL_CALL}
+                )
 
                 # Публикуем детали выбран capability
                 await event_bus.publish(
@@ -323,9 +332,10 @@ class AgentRuntime:
                     observation_item_id = self.session_context.data_context.add_item(observation_item)
                     observation_item_ids = [observation_item_id]
                     items_count_after = self.session_context.data_context.count()
-                    await event_bus.publish(EventType.INFO, {
-                        "message": f"📝 Сохранено observation: item_id={observation_item_id}, items_before={items_count_before}, items_after={items_count_after}"
-                    }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                    self.log.info(
+                        f"📝 Сохранено observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
+                        extra={"event_type": LogEventType.STEP_COMPLETED}
+                    )
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1

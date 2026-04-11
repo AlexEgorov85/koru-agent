@@ -497,6 +497,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         Component.__init__(
             self,
             name=component_name,
+            component_type="behavior",
             application_context=application_context,
             component_config=component_config,
             executor=executor,
@@ -570,9 +571,9 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         """Регистрирует все схемы из input_contracts в validator."""
         if not hasattr(self, 'schema_validator') or not self.schema_validator:
             return
-            
-        print(f"[DEBUG] input_contracts keys: {list(self.input_contracts.keys())}")
-            
+
+        self._log_debug(f"input_contracts keys: {list(self.input_contracts.keys())}")
+
         registered = 0
         for cap_name, contract_class in self.input_contracts.items():
             try:
@@ -596,8 +597,8 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
                             self.schema_validator.register_capability_schema(base_name, schema_dict)
                         registered += 1
             except Exception as e:
-                print(f"[DEBUG] Error registering {cap_name}: {e}")
-        print(f"[DEBUG] Total schemas registered: {registered}")
+                self._log_error(f"Error registering {cap_name}: {e}")
+        self._log_debug(f"Total schemas registered: {registered}")
     
     async def analyze_context(
         self,

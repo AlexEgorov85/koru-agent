@@ -1162,7 +1162,7 @@ class ActionExecutor:
                     session_id=context.session_id,
                     agent_id=context.agent_id
                 )
-                print(f"[ActionExecutor] ✓ Опубликовано executor.tool_result: {action_name}", flush=True)
+                self._log_debug(f"Опубликовано executor.tool_result: {action_name}")
 
             return result
 
@@ -1229,7 +1229,7 @@ class ActionExecutor:
                     session_id=context.session_id,
                     agent_id=context.agent_id
                 )
-                print(f"[ActionExecutor] ✓ Опубликовано executor.component_result: {action_name}", flush=True)
+                self._log_debug(f"Опубликовано executor.component_result: {action_name}")
 
             return result
 

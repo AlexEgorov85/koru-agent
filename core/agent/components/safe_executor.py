@@ -35,9 +35,10 @@ from core.agent.components.error_classifier import ErrorClassifier
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
+from core.infrastructure.logging.event_types import LogEventType
 
 
-_logger = logging.getLogger(__name__)
+_module_logger = logging.getLogger(__name__)
 
 
 class SafeExecutor:
@@ -121,6 +122,11 @@ class SafeExecutor:
         3. При других ошибках — запись в FailureMemory и возврат failure
         4. Pattern сам читает failures и принимает решения
         """
+        _module_logger.debug(
+            f"SafeExecutor.execute: {capability_name}",
+            extra={"event_type": LogEventType.DEBUG}
+        )
+
         last_error: Optional[Exception] = None
         retry_count = 0
 
@@ -154,6 +160,11 @@ class SafeExecutor:
                     capability=capability_name,
                     error_type=error_type,
                     timestamp=datetime.now()
+                )
+
+                _module_logger.warning(
+                    f"Ошибка {error_type.value}: {capability_name} (attempt {attempt + 1}/{self.max_retries}): {e}",
+                    extra={"event_type": LogEventType.WARNING}
                 )
 
                 # Retry ТОЛЬКО для TRANSIENT ошибок

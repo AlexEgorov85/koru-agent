@@ -165,6 +165,11 @@ class ReActPattern(BaseBehaviorPattern):
             )
             
             try:
+                self._log_info(
+                    f"🔮 LLM вызов (temperature=0.3, max_tokens=2000, structured_output)",
+                    event_type=LogEventType.LLM_CALL
+                )
+
                 # Извлекаем данные для трассировки из session_context
                 step_number = None
                 if hasattr(session_context, 'step_context') and session_context.step_context:
@@ -186,11 +191,16 @@ class ReActPattern(BaseBehaviorPattern):
                 )
 
             if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
+                self._log_error("❌ LLM ответ пустой или не распарсен", event_type=LogEventType.LLM_ERROR)
                 return self.fallback_strategy.create_error(
                     "llm_call_failed", available_capabilities
                 )
-            
+
             reasoning_result = result.parsed_content
+            self._log_info(
+                f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')[:80]}...)",
+                event_type=LogEventType.LLM_RESPONSE
+            )
             
             # Сохраняем размышление
             thought = getattr(reasoning_result, "thought", "") or ""
