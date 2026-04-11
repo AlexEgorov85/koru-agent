@@ -1,6 +1,7 @@
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType, Decision
 from core.agent.behaviors.services import FallbackStrategyService
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
@@ -19,7 +20,7 @@ class EvaluationPattern(BaseBehaviorPattern):
     - LLM вызовы через LLMOrchestrator (как в ReActPattern)
     """
 
-    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None, event_bus = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
 
         ПАРАМЕТРЫ:
@@ -27,9 +28,8 @@ class EvaluationPattern(BaseBehaviorPattern):
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
         """
-        super().__init__(component_name, component_config, application_context, executor, event_bus)
+        super().__init__(component_name, component_config, application_context, executor)
 
         # System prompt для оценки (загружается из реестра)
         self.system_prompt_template: Optional[str] = None
@@ -59,26 +59,21 @@ class EvaluationPattern(BaseBehaviorPattern):
             return self.application_context.llm_orchestrator
         return None
 
-    async def _log(self, level: str, message: str, **extra_data):
-        """Универсальный метод логирования через EventBusLogger."""
-        if self.event_bus_logger is None:
-            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.logging import EventBusLogger
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger = EventBusLogger(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    event_bus=self.application_context.infrastructure_context.event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component="evaluation_pattern"
-                )
+    def _log_debug(self, message: str, **kwargs):
+        """Отладочное логирование."""
+        self._safe_log_sync("debug", message, **kwargs)
 
-        if self.event_bus_logger:
-            log_method = getattr(self.event_bus_logger, level, None)
-            if log_method:
-                await log_method(message, **extra_data)
+    def _log_info(self, message: str, **kwargs):
+        """Информационное логирование."""
+        self._safe_log_sync("info", message, **kwargs)
+
+    def _log_warning(self, message: str, **kwargs):
+        """Предупреждение."""
+        self._safe_log_sync("warning", message, **kwargs)
+
+    def _log_error(self, message: str, **kwargs):
+        """Логирование ошибки."""
+        self._safe_log_sync("error", message, **kwargs)
 
     async def _log_self_improvement_thinking(
         self,
@@ -91,32 +86,10 @@ class EvaluationPattern(BaseBehaviorPattern):
         **kwargs
     ):
         """Логирование размышления (запрос + ответ от LLM) для самообучения."""
-        if self.event_bus_logger is None:
-            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.logging import EventBusLogger
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger = EventBusLogger(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    event_bus=self.application_context.infrastructure_context.event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component="evaluation_pattern"
-                )
-
-        if self.event_bus_logger and hasattr(self.event_bus_logger, 'log_self_improvement_thinking'):
-            await self.event_bus_logger.log_self_improvement_thinking(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                phase=phase,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response=response,
-                success=success,
-                error=error,
-                **kwargs
-            )
+        event_type = LogEventType.LLM_RESPONSE if success else LogEventType.LLM_ERROR
+        status = "успешно" if success else f"ошибка: {error}"
+        msg = f"[Самообучение] {phase}: {status}"
+        self._log_info(msg, extra={"event_type": event_type})
 
     async def _load_evaluation_resources(self) -> bool:
         """Загружает system prompt для оценки из автоматически разделённых промптов.
@@ -152,8 +125,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             return self.system_prompt_template is not None
         except Exception as e:
-            self.logger.error(f"Ошибка загрузки system prompt: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка загрузки system prompt: {e}")
             return False
 
     def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
@@ -260,7 +232,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             )
 
             # 2. Логирование начала оценки
-            await self._log("info", f"🔍 Оценка достижения цели: {goal}.")
+            self._log_info(f"🔍 Оценка достижения цели: {goal}.")
 
             # Получаем LLM провайдер через executor (REFACTOR: требуется миграция на executor.execute_action)
             llm_result = await self.executor.execute_action(
@@ -283,7 +255,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             # Используем результат от executor.execute_action()
             if not llm_result.status.name == "COMPLETED":
                 error_msg = f"LLM evaluation failed: {llm_result.error}"
-                await self._log("error", error_msg)
+                self._log_error(error_msg)
                 await self._log_self_improvement_thinking(
                     phase="evaluation",
                     system_prompt=self.system_prompt_template,
@@ -313,7 +285,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             # Логирование успешной оценки
             confidence_val = result.confidence if hasattr(result, 'confidence') else result.get('confidence', 0)
-            await self._log("info", f"✅ Оценка завершена: confidence={confidence_val:.2f}")
+            self._log_info(f"✅ Оценка завершена: confidence={confidence_val:.2f}")
 
             # Принятие решения на основе оценки
             # ✅ Используем атрибуты модели вместо dict.get()
@@ -324,19 +296,19 @@ class EvaluationPattern(BaseBehaviorPattern):
             reasoning = result.reasoning if hasattr(result, 'reasoning') else result.get("reasoning", "")
 
             if achieved or (confidence > 0.8 and not partial_progress):
-                await self._log("info", f"🎯 Цель достигнута: {summary}")
+                self._log_info(f"🎯 Цель достигнута: {summary}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
                     reason=f"goal_achieved: {summary}"
                 )
             elif confidence < 0.3:
-                await self._log("warning", f"⚠️ Низкая уверенность: {reasoning}")
+                self._log_warning(f"⚠️ Низкая уверенность: {reasoning}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.FAIL,
                     reason=f"low_confidence: {reasoning}"
                 )
             else:
-                await self._log("info", f"🔄 Продолжаем выполнение: {summary}")
+                self._log_info(f"🔄 Продолжаем выполнение: {summary}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.CONTINUE,
                     reason=f"continue_execution: {summary}"
@@ -344,7 +316,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
         except Exception as e:
             error_msg = f"Ошибка при оценке цели: {e}"
-            await self._log("error", error_msg, exc_info=True)
+            self._log_error(error_msg)
 
             return BehaviorDecision(
                 action=BehaviorDecisionType.FAIL,

@@ -12,7 +12,7 @@ from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
 from core.agent.strategies.react.schema_validator import SchemaValidator
 from core.agent.strategies.react.utils import analyze_context
-from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest
 from core.agent.behaviors.services import FallbackStrategyService
@@ -29,14 +29,13 @@ class ReActPattern(BaseBehaviorPattern):
         component_name: str,
         component_config=None,
         application_context=None,
-        executor=None,
-        event_bus=None
+        executor=None
     ):
-        super().__init__(component_name, component_config, application_context, executor, event_bus)
-        
+        super().__init__(component_name, component_config, application_context, executor)
+
         self.error_count = 0
         self.max_consecutive_errors = 3
-        
+
         self.schema_validator = SchemaValidator()
         self.fallback_strategy = FallbackStrategyService()
 
@@ -142,20 +141,14 @@ class ReActPattern(BaseBehaviorPattern):
                     context, available_capabilities, "orchestrator_not_available"
                 )
 
-            # Получаем event_bus для логирования
-            event_bus = self.application_context.infrastructure_context.event_bus
-
             # Получаем провайдер из инфраструктурного контекста
             provider = self.llm_provider
 
             if provider is None:
-                print("❌ [ReActPattern] LLM provider is None! Available resources:")
-                if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                    infra = self.application_context.infrastructure_context
-                    if hasattr(infra, 'resource_registry'):
-                        print(f"   Registry keys: {infra.resource_registry.get_all_names()}")
-                    if hasattr(infra, 'lifecycle_manager'):
-                        print(f"   Lifecycle resources: {list(infra.lifecycle_manager._resources.keys())}")
+                self._log_error(
+                    f"LLM provider is None! "
+                    f"Registry keys: {getattr(getattr(getattr(self.application_context, 'infrastructure_context', None), 'resource_registry', None), 'get_all_names', lambda: [])()}"
+                )
                 return self._handle_error("llm_provider_not_available", available_capabilities)
 
             llm_request = LLMRequest(

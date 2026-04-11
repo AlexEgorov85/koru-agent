@@ -7,16 +7,16 @@ Capabilities:
 - analyze: LLM анализ (герои, темы, etc.)
 - query: SQL запрос к базе книг
 """
-import asyncio
 from typing import Optional, Dict, Any, List
-from core.components.tools.base_tool import BaseTool
+from core.components.tools.tool import Tool
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.types.vector_types import VectorSearchResult, VectorQuery
 from core.models.types.analysis import AnalysisResult
+from core.infrastructure.logging.event_types import LogEventType
 
 
-class VectorBooksTool(BaseTool):
+class VectorBooksTool(Tool):
     """
     Универсальный инструмент для работы с книгами.
 
@@ -30,22 +30,16 @@ class VectorBooksTool(BaseTool):
     def __init__(
         self,
         name: str,
-        application_context: ApplicationContext,
-        component_config: Optional[ComponentConfig] = None,
-        executor=None,
-        event_bus=None,
-        **kwargs
+        component_config: ComponentConfig,
+        executor,
+        application_context: Optional[ApplicationContext] = None
     ):
-        # Вызываем родительский конструктор с event_bus
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
-            **kwargs
+            application_context=application_context
         )
-        # EventBusLogger инициализируется в LoggingMixin автоматически
         
         # ← НОВОЕ: Инициализация атрибутов инфраструктуры
         self._embedding_provider = None
@@ -79,8 +73,8 @@ class VectorBooksTool(BaseTool):
     
     async def shutdown(self):
         """Закрытие инструмента."""
-        pass
-    
+        await super().shutdown()
+
     async def _execute_impl(
         self,
         capability: 'Capability',
@@ -114,11 +108,9 @@ class VectorBooksTool(BaseTool):
             params_dict = parameters
 
         # Получаем инфраструктуру (загружаем embedding если нужно)
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"VectorBooksTool: getting infrastructure...")
+        self._log_debug(f"VectorBooksTool: getting infrastructure...", event_type=LogEventType.DEBUG)
         self._get_infrastructure()
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}")
+        self._log_debug(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}", event_type=LogEventType.DEBUG)
 
         # Выполняем async операцию напрямую (используем Pydantic модели)
         if operation == "search":
@@ -126,8 +118,7 @@ class VectorBooksTool(BaseTool):
             top_k = params_dict.get('top_k', 10)
             min_score = params_dict.get('min_score', 0.5)
             source = params_dict.get('source', 'books')
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}, source={source}")
+            self._log_debug(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=LogEventType.DEBUG)
 
             return await self._search(query=query, top_k=top_k, min_score=min_score, source=source)
 
@@ -154,8 +145,7 @@ class VectorBooksTool(BaseTool):
 
         else:
             error_msg = f"Unknown operation: {operation}"
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(error_msg)
+            self._log_error(error_msg, event_type=LogEventType.ERROR)
             return {"error": error_msg}
     
     async def _search(
@@ -174,27 +164,22 @@ class VectorBooksTool(BaseTool):
         import numpy as np
         start_time = time.time()
 
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"⏱️ [_search] START | query='{query[:50]}...'")
+        self._log_debug(f"[_search] START | query='{query[:50]}...'", event_type=LogEventType.DEBUG)
 
         try:
-            # 1. Генерируем вектор через _embedding_provider (уже инициализирован с правильным путём)
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Using embedding provider...")
+            # 1. Генерируем вектор через _embedding_provider
+            self._log_debug(f"[_search] Using embedding provider...", event_type=LogEventType.DEBUG)
 
             if not self._embedding_provider:
                 return {"error": "Embedding provider not initialized", "search_type": "error"}
 
             embedding_start = time.time()
             query_vector_list = await self._embedding_provider.generate([query])
-            # query_vector_list = [[0.1, 0.2, ...]] (batch of 1)
             query_vector = np.array(query_vector_list[0], dtype=np.float32) if query_vector_list else None
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Embedding done: {time.time() - embedding_start:.2f}s")
+            self._log_debug(f"[_search] Embedding done", event_type=LogEventType.DEBUG)
 
             # 2. Получаем FAISS индекс через метод доступа
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Getting FAISS...")
+            self._log_debug(f"[_search] Getting FAISS...", event_type=LogEventType.DEBUG)
 
             infra = self.application_context.infrastructure_context
             faiss = infra.get_faiss_provider(source)
@@ -212,14 +197,11 @@ class VectorBooksTool(BaseTool):
                 )
 
             # 3. Поиск в FAISS (напрямую как в тесте)
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Searching FAISS ({count} vectors)...")
+            self._log_debug(f"[_search] Searching FAISS ({count} vectors)...", event_type=LogEventType.DEBUG)
 
             faiss_search_start = time.time()
-            # Передаём вектор как list (FAISS ожидает 1D array)
             faiss_results = await faiss.search(query_vector.tolist() if query_vector is not None else [], top_k=top_k)
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] FAISS done: {time.time() - faiss_search_start:.2f}s | results={len(faiss_results)}")
+            self._log_debug(f"[_search] FAISS done | results={len(faiss_results)}", event_type=LogEventType.DEBUG)
 
             # 4. Преобразуем результаты
             results = []
@@ -237,8 +219,7 @@ class VectorBooksTool(BaseTool):
                 })
 
             total_time = time.time() - start_time
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] COMPLETE: {total_time:.2f}s, found={len(results)}")
+            self._log_debug(f"[_search] COMPLETE: {total_time:.2f}s, found={len(results)}", event_type=LogEventType.DEBUG)
 
             # Возвращаем только поля из output контракта (additionalProperties: false)
             return {
@@ -247,11 +228,9 @@ class VectorBooksTool(BaseTool):
             }
 
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"⏱️ [_search] ERROR: {e}")
+            self._log_error(f"[_search] ERROR: {e}", event_type=LogEventType.ERROR)
             import traceback
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"Traceback: {traceback.format_exc()}")
+            self._log_error(f"Traceback: {traceback.format_exc()}", event_type=LogEventType.ERROR)
 
             # ❌ УДАЛЕНО: Fallback на SQL при любой ошибке
             # ✅ ТЕПЕРЬ: Выбрасываем VectorSearchError

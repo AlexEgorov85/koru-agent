@@ -20,7 +20,7 @@ class PlanningPattern(BaseBehaviorPattern):
     # Явная декларация зависимостей
     DEPENDENCIES = ["prompt_service", "contract_service"]
 
-    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None, event_bus = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
 
         ПАРАМЕТРЫ:
@@ -28,9 +28,8 @@ class PlanningPattern(BaseBehaviorPattern):
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
         """
-        super().__init__(component_name, component_config, application_context, executor, event_bus)
+        super().__init__(component_name, component_config, application_context, executor)
 
     async def decide(
         self,

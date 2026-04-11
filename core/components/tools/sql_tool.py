@@ -6,16 +6,15 @@
 - Использует изолированные кэши, предзагруженные через ComponentConfig
 - Поддержка sandbox режима для безопасного выполнения запросов
 """
-import asyncio
 import time
 from dataclasses import dataclass
 from typing import Dict, Optional, Any
 
-from core.components.tools.base_tool import BaseTool, ToolInput, ToolOutput
+from core.components.tools.tool import Tool, ToolInput, ToolOutput
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.enums.common_enums import ResourceType
-from core.utils.async_utils import safe_async_call
+from core.infrastructure.logging.event_types import LogEventType
 
 
 @dataclass
@@ -33,23 +32,26 @@ class SQLToolOutput(ToolOutput):
     execution_time: float
 
 
-class SQLTool(BaseTool):
+class SQLTool(Tool):
     """Инструмент для выполнения SQL-запросов с четким контрактом и поддержкой изолированных кэшей."""
 
     @property
     def description(self) -> str:
         return "Выполнение SQL-запросов к базе данных с поддержкой изолированных кэшей и sandbox режима"
 
-    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, event_bus=None, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        component_config: ComponentConfig,
+        executor,
+        application_context: Optional[ApplicationContext] = None
+    ):
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
-            **kwargs
+            application_context=application_context
         )
-        # EventBusLogger инициализируется в LoggingMixin автоматически
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (не требует подключения к БД)."""
@@ -58,8 +60,7 @@ class SQLTool(BaseTool):
 
     async def shutdown(self) -> None:
         """Корректное завершение работы (базовая реализация)."""
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"Базовое завершение работы для инструмента {self.name}")
+        self._log_debug(f"Завершение работы для инструмента {self.name}", event_type=LogEventType.DEBUG)
 
     def _is_write_query(self, sql: str) -> bool:
         """Проверяет, является ли SQL-запрос write-операцией."""
@@ -89,8 +90,7 @@ class SQLTool(BaseTool):
             if db_resources:
                 return db_resources[0].instance
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"Ошибка получения DB провайдера: {e}")
+            self._log_error(f"Ошибка получения DB провайдера: {e}", event_type=LogEventType.ERROR)
         return None
 
     async def _execute_impl(
@@ -117,11 +117,7 @@ class SQLTool(BaseTool):
                     "max_rows": input_data.max_rows
                 })
             except Exception as e:
-                if self.event_bus_logger:
-                    self.event_bus_logger.error_sync(f"Валидация входных данных не пройдена: {e}")
-                else:
-                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self._log_error(f"Валидация входных данных не пройдена: {e}", event_type=LogEventType.ERROR)
                 return {
                     "rows": [],
                     "columns": [],
@@ -134,8 +130,7 @@ class SQLTool(BaseTool):
         # Получаем DB провайдер из инфраструктуры (stateless подход)
         db_provider = self._get_db_provider()
         if not db_provider:
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync("DB провайдер не найден в infrastructure_context")
+            self._log_error("DB провайдер не найден в infrastructure_context", event_type=LogEventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
@@ -145,6 +140,7 @@ class SQLTool(BaseTool):
 
         # Проверка sandbox-режима
         if not self.component_config.side_effects_enabled and self._is_write_query(input_data.sql):
+            self._log_warning(f"Sandbox режим: отклонён write-запрос", event_type=LogEventType.WARNING)
             return {
                 "rows": [],
                 "columns": [],
@@ -159,8 +155,7 @@ class SQLTool(BaseTool):
                 params=input_data.parameters
             )
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"Ошибка выполнения SQL: {e}")
+            self._log_error(f"Ошибка выполнения SQL: {e}", event_type=LogEventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
@@ -184,11 +179,7 @@ class SQLTool(BaseTool):
                 from dataclasses import asdict
                 output_schema.model_validate(output)
             except Exception as e:
-                if self.event_bus_logger:
-                    self.event_bus_logger.error_sync(f"Валидация выходных данных не пройдена: {e}")
-                else:
-                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self._log_error(f"Валидация выходных данных не пройдена: {e}", event_type=LogEventType.ERROR)
                 return {
                     "rows": [],
                     "columns": [],

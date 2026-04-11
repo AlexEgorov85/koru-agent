@@ -2,22 +2,24 @@
 Базовый класс для всех паттернов поведения (Behavior Patterns).
 
 АРХИТЕКТУРА:
-- Наследуется от BaseComponent для единого интерфейса
-- Использует методы BaseComponent.get_prompt/get_input_contract/get_output_contract
+- Наследуется от Component для единого интерфейса
+- Использует методы Component.get_prompt/get_input_contract/get_output_contract
 - Все паттерны (ReAct, Planning, Evaluation, Fallback) наследуются от этого класса
 - Предоставляет общие сервисы: PromptBuilderService, CapabilityResolverService
+- Логирование через стандартный logging + LogEventType (НЕ через EventBus)
 """
+import logging
 import typing
 from typing import Dict, Any, Optional, List, Type
 
 from pydantic import BaseModel
 
 from core.agent.behaviors.base import BehaviorPatternInterface, Decision, DecisionType
-from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
-from core.agent.components.base_component import BaseComponent
+from core.agent.components.base_component import Component
 from core.config.component_config import ComponentConfig
 from core.utils.async_utils import safe_async_call
 
@@ -463,11 +465,11 @@ class PromptBuilderService:
         ]
 
 
-class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
+class BaseBehaviorPattern(Component, BehaviorPatternInterface):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ПОВЕДЕНЧЕСКИХ ПАТТЕРНОВ.
 
-    НАСЛЕДУЕТСЯ ОТ BaseComponent ДЛЯ:
+    НАСЛЕДУЕТСЯ ОТ Component ДЛЯ:
     - Единого кэша промптов/контрактов
     - Единых методов доступа
     - Единой инициализации через component_config.resolved_*
@@ -485,7 +487,6 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         component_config: Optional[ComponentConfig] = None,
         application_context: 'ApplicationContext' = None,
         executor: 'ActionExecutor' = None,
-        event_bus = None  # ← Только для логирования
     ):
         """
         Инициализация базового паттерна.
@@ -493,13 +494,12 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         if not component_name:
             raise ValueError("component_name обязателен для инициализации паттерна")
 
-        BaseComponent.__init__(
+        Component.__init__(
             self,
             name=component_name,
             application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
         )
 
         # pattern_id для совместимости
@@ -512,25 +512,25 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     
     def get_prompt(self, key: str) -> Prompt:
         """
-        Получает промпт из кэша BaseComponent.
+        Получает промпт из кэша Component.
 
-        ДЕЛЕГИРУЕТ: BaseComponent.get_prompt()
+        ДЕЛЕГИРУЕТ: Component.get_prompt()
         """
         return super().get_prompt(key)
 
     def get_input_contract(self, key: str) -> Type[BaseModel]:
         """
-        Получает input контракт из кэша BaseComponent.
+        Получает input контракт из кэша Component.
 
-        ДЕЛЕГИРУЕТ: BaseComponent.get_input_contract()
+        ДЕЛЕГИРУЕТ: Component.get_input_contract()
         """
         return super().get_input_contract(key)
 
     def get_output_contract(self, key: str) -> Type[BaseModel]:
         """
-        Получает output контракт из кэша BaseComponent.
+        Получает output контракт из кэша Component.
 
-        ДЕЛЕГИРУЕТ: BaseComponent.get_output_contract()
+        ДЕЛЕГИРУЕТ: Component.get_output_contract()
         """
         return super().get_output_contract(key)
     
@@ -558,8 +558,8 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
 
         Промпты/контракты уже загружены в component_config.resolved_* на уровне ApplicationContext.
         """
-        # Вызываем инициализацию BaseComponent (загружает из component_config.resolved_*)
-        success = await BaseComponent.initialize(self)
+        # Вызываем инициализацию Component (загружает из component_config.resolved_*)
+        success = await Component.initialize(self)
         
         # Регистрируем схемы после загрузки контрактов
         self._register_all_schemas()
@@ -617,10 +617,9 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
 
-    def _get_event_type_for_success(self) -> EventType:
+    def _get_event_type_for_success(self) -> LogEventType:
         """Возвращает тип события для успешного выполнения паттерна."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.AGENT_STARTED
+        return LogEventType.AGENT_START
 
     def _execute_impl(
         self,
@@ -632,13 +631,13 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         Реализация бизнес-логики паттерна поведения (СИНХРОННАЯ).
 
         ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ напрямую — они генерируют решения через generate_decision().
-        Этот метод предоставляет интерфейс для BaseComponent.execute().
+        Этот метод предоставляет интерфейс для Component.execute().
 
-        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в Component.execute()
         Здесь только бизнес-логика.
         """
         # Паттерны поведения работают через generate_decision()
-        # Этот метод предоставляет совместимость с интерфейсом BaseComponent
+        # Этот метод предоставляет совместимость с интерфейсом Component
 
         # Извлекаем session_context из execution_context
         session_context = None
