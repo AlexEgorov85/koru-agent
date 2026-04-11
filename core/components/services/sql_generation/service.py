@@ -315,7 +315,7 @@ class SQLGenerationService(Service):
                     raw_text = llm_result2.data if isinstance(llm_result2.data, str) else str(llm_result2.data)
 
                 # Логируем сырой ответ
-                self._log_debug(f"Fallback LLM response (first 500 chars): {raw_text[:500]}")
+                self._log_debug(f"Fallback LLM response: {raw_text}")
 
                 if not raw_text or len(raw_text.strip()) < 10:
                     raise ValueError(

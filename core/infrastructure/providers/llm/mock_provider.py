@@ -139,7 +139,7 @@ class MockLLMProvider(BaseLLMProvider):
         start_time = time.time()
 
         self.log.debug("Mock выполнение запроса: %s",
-                       request.prompt[:100],
+                       request.prompt,
                        extra={"event_type": LogEventType.LLM_CALL})
 
         # Публикация события LLM_CALL_STARTED

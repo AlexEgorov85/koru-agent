@@ -427,12 +427,12 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 self._get_logger().info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
 
                 # Логирование сырого ответа
-                self._get_logger().info("🔵 [LLM] Raw response: %s...", generated_text[:100], extra={"event_type": LogEventType.LLM_RESPONSE})
+                self._get_logger().info("🔵 [LLM] Raw response: %s", generated_text, extra={"event_type": LogEventType.LLM_RESPONSE})
 
                 try:
                     json_content = self._extract_json_from_response(generated_text)
 
-                    self._get_logger().debug("🔵 JSON извлечён: %s...", json_content[:100], extra={"event_type": LogEventType.DEBUG})
+                    self._get_logger().debug("🔵 JSON извлечён: %s", json_content, extra={"event_type": LogEventType.DEBUG})
                     parsed_json = json.loads(json_content)
                     self._get_logger().info("✅ JSON распарсен: ключи=%s", list(parsed_json.keys()), extra={"event_type": LogEventType.LLM_RESPONSE})
 
