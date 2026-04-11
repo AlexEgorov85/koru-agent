@@ -32,12 +32,6 @@ class BaseLLMProvider(BaseProvider, ABC):
     4. Наблюдаемость: Автоматическое логирование и метрики
     5. Отказоустойчивость: Грациозная деградация при ошибках
 
-    ИЗМЕНЕНИЯ (2026-03-05):
-    - УДАЛЕНО: generate_structured() — перенесён в LLMOrchestrator
-    - УДАЛЕНО: _generate_structured_impl() — не используется
-    - УДАЛЕНО: _parse_and_validate_structured_response() — в json_parser.py
-    - УДАЛЕНО: _publish_*_event() — дублируют LLMOrchestrator
-    - УДАЛЕНО: generate_for_capability() — устаревший метод
 
     ИСПОЛЬЗОВАНИЕ:
     # Для структурированной генерации используйте LLMOrchestrator:
