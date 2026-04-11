@@ -69,20 +69,29 @@ class ActionExecutor:
             return self._log_session.app_logger
         return _module_logger
 
-    def _log_debug(self, msg: str, *args, **kwargs):
+    def _log_debug(self, msg: str, *args, event_type=None, **kwargs):
         """Отладочное логирование."""
         logger = self._get_executor_logger()
-        logger.debug(msg, extra={"event_type": LogEventType.DEBUG}, *args, **kwargs)
+        extra = kwargs.pop("extra", {})
+        if event_type:
+            extra["event_type"] = event_type
+        logger.debug(msg, *args, extra=extra, **kwargs)
 
-    def _log_info(self, msg: str, *args, **kwargs):
+    def _log_info(self, msg: str, *args, event_type=None, **kwargs):
         """Информационное логирование."""
         logger = self._get_executor_logger()
-        logger.info(msg, *args, **kwargs)
+        extra = kwargs.pop("extra", {})
+        if event_type:
+            extra["event_type"] = event_type
+        logger.info(msg, *args, extra=extra, **kwargs)
 
-    def _log_error(self, msg: str, *args, **kwargs):
+    def _log_error(self, msg: str, *args, event_type=None, exc_info=False, **kwargs):
         """Логирование ошибок."""
         logger = self._get_executor_logger()
-        logger.error(msg, *args, **kwargs)
+        extra = kwargs.pop("extra", {})
+        if event_type:
+            extra["event_type"] = event_type
+        logger.error(msg, *args, extra=extra, exc_info=exc_info, **kwargs)
     
     async def execute_action(
         self,
