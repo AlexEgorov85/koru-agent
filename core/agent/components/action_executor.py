@@ -55,15 +55,34 @@ class ActionExecutor:
     def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
         self._event_bus = None
+        self._log_session = None
         try:
             if hasattr(application_context, 'infrastructure_context'):
                 self._event_bus = getattr(application_context.infrastructure_context, 'event_bus', None)
+                self._log_session = getattr(application_context.infrastructure_context, 'log_session', None)
         except Exception:
             pass
 
+    def _get_executor_logger(self):
+        """Получить логгер для ActionExecutor."""
+        if self._log_session is not None:
+            return self._log_session.app_logger
+        return _module_logger
+
     def _log_debug(self, msg: str, *args, **kwargs):
         """Отладочное логирование."""
-        _module_logger.debug(msg, extra={"event_type": LogEventType.DEBUG}, *args, **kwargs)
+        logger = self._get_executor_logger()
+        logger.debug(msg, extra={"event_type": LogEventType.DEBUG}, *args, **kwargs)
+
+    def _log_info(self, msg: str, *args, **kwargs):
+        """Информационное логирование."""
+        logger = self._get_executor_logger()
+        logger.info(msg, *args, **kwargs)
+
+    def _log_error(self, msg: str, *args, **kwargs):
+        """Логирование ошибок."""
+        logger = self._get_executor_logger()
+        logger.error(msg, *args, **kwargs)
     
     async def execute_action(
         self,
@@ -74,7 +93,15 @@ class ActionExecutor:
         """
         Выполнение действия через ActionExecutor.
         """
-        self._log_debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
+        # Детальное логирование запуска действия
+        self._log_info(
+            f"⚙️ [Executor.execute_action] Запуск действия: {action_name}",
+            event_type=LogEventType.TOOL_CALL
+        )
+        self._log_debug(
+            f"🔵 [Executor.execute_action] Параметры: {parameters}",
+            event_type=LogEventType.TOOL_CALL
+        )
 
         try:
             # 1. Обработка действий контекста (context.*)
@@ -93,12 +120,21 @@ class ActionExecutor:
             target_component, component_type = self._resolve_component_for_action(action_name)
 
             if not target_component:
+                self._log_error(
+                    f"❌ [Executor.execute_action] Компонент для действия '{action_name}' не найден",
+                    event_type=LogEventType.TOOL_ERROR
+                )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
                     error=f"Компонент для действия '{action_name}' не найден"
                 )
 
-            # 4. Проверяем, что компонент инициализирован
+            self._log_debug(
+                f"📦 [Executor.execute_action] Компонент найден: {target_component.name} (тип={component_type})",
+                event_type=LogEventType.TOOL_CALL
+            )
+
+            # 5. Проверяем, что компонент инициализирован
             if not hasattr(target_component, '_initialized') or not target_component._initialized:
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
@@ -108,13 +144,31 @@ class ActionExecutor:
             # 5. Выполняем компонент в зависимости от типа
             if component_type == "service":
                 # Сервисы: вызываем метод напрямую по имени действия
-                return await self._execute_service_action(target_component, action_name, parameters, context)
+                result = await self._execute_service_action(target_component, action_name, parameters, context)
             elif component_type == "tool":
                 # Инструменты: вызываем метод напрямую по имени действия
-                return await self._execute_tool_action(target_component, action_name, parameters, context)
+                result = await self._execute_tool_action(target_component, action_name, parameters, context)
             else:
                 # Навыки и behavior: используем capability
-                return await self._execute_skill_or_behavior_action(target_component, action_name, parameters, context)
+                result = await self._execute_skill_or_behavior_action(target_component, action_name, parameters, context)
+
+            # Логируем результат выполнения
+            if result.status == ExecutionStatus.COMPLETED:
+                self._log_info(
+                    f"✅ [Executor.execute_action] Действие {action_name} выполнено успешно",
+                    event_type=LogEventType.TOOL_RESULT
+                )
+                self._log_debug(
+                    f"🟢 [Executor.execute_action] Результат {action_name}: {str(result.data) if result.data else 'None'}",
+                    event_type=LogEventType.TOOL_RESULT
+                )
+            else:
+                self._log_error(
+                    f"❌ [Executor.execute_action] Действие {action_name} завершилось с ошибкой: {result.error}",
+                    event_type=LogEventType.TOOL_ERROR
+                )
+
+            return result
 
         except Exception as e:
             _module_logger.error(

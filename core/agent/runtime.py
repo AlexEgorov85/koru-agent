@@ -234,7 +234,7 @@ class AgentRuntime:
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
                 self.log.info(
-                    f"Завершение: {decision.reasoning[:100] if decision.reasoning else 'готов'}",
+                    f"Завершение: {decision.reasoning if decision.reasoning else 'готов'}",
                     extra={"event_type": LogEventType.AGENT_STOP}
                 )
                 # Сохраняем диалог в историю

@@ -102,15 +102,32 @@ class ReActPattern(BaseBehaviorPattern):
         """Генерация решения через LLM."""
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-            
+
+            # Логируем входные параметры
+            self._log_debug(
+                f"📥 [ReAct.decide] Входные параметры: "
+                f"session_id={session_context.session_id}, "
+                f"goal={session_context.goal}, "
+                f"caps={len(available_capabilities)}",
+                event_type=LogEventType.AGENT_DECISION
+            )
+
             # Берём промпт и контракт (загружены в initialize())
             system_prompt = self.get_prompt("behavior.react.think.system")
             user_prompt = self.get_prompt("behavior.react.think.user")
             output_contract = self.get_output_contract("behavior.react.think")
-            
+
             # Извлекаем content из Prompt объекта
             system = system_prompt.content if system_prompt else ""
             user = user_prompt.content if user_prompt else ""
+
+            # Логируем загруженные промпты
+            self._log_debug(
+                f"📋 [ReAct.decide] Промпты загружены: "
+                f"system={len(system) if system else 0} симв., "
+                f"user={len(user) if user else 0} симв.",
+                event_type=LogEventType.LLM_CALL
+            )
             
             # Schema из контракта (model_json_schema - метод класса, не экземпляра)
             schema = None
@@ -132,6 +149,12 @@ class ReActPattern(BaseBehaviorPattern):
                 session_context=session_context,
                 pattern_id="react",
                 application_context=self.application_context
+            )
+
+            # Логируем финальный промпт (DEBUG — только в файл)
+            self._log_debug(
+                f"🔵 [ReAct.decide] Финальный промпт (len={len(full_prompt)}):\n{full_prompt}",
+                event_type=LogEventType.LLM_CALL
             )
             
             # Вызов LLM
@@ -203,16 +226,32 @@ class ReActPattern(BaseBehaviorPattern):
 
             reasoning_result = result.parsed_content
             self._log_info(
-                f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')[:80]}...)",
+                f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')})",
                 event_type=LogEventType.LLM_RESPONSE
             )
-            
+
+            # Логируем полное решение (DEBUG — только в файл)
+            self._log_debug(
+                f"🟢 [ReAct.decide] Полное решение LLM:\n{reasoning_result.model_dump_json(indent=2) if hasattr(reasoning_result, 'model_dump_json') else str(reasoning_result)}",
+                event_type=LogEventType.AGENT_DECISION
+            )
+
             # Сохраняем размышление
             thought = getattr(reasoning_result, "thought", "") or ""
             session_context.record_decision(decision_data="reasoning", reasoning=thought)
-            
+
             # Принятие решения
             decision = await self._make_decision(reasoning_result, available_capabilities)
+
+            # Логируем финальное решение агента
+            self._log_info(
+                f"🎯 [ReAct.decide] Финальное решение: "
+                f"type={decision.type.value}, "
+                f"action={decision.action or 'N/A'}, "
+                f"params={list((decision.parameters or {}).keys())}, "
+                f"reasoning={decision.reasoning or 'N/A'}",
+                event_type=LogEventType.AGENT_DECISION
+            )
             
             self.error_count = 0
             return decision
