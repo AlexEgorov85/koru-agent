@@ -37,7 +37,13 @@ class AgentFactory:
         - application_context: Прикладной контекст для использования
         """
         self.application_context = application_context
-        self._logger = logging.getLogger(__name__)
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session infra."""
+        infra = self.application_context.infrastructure_context
+        if infra.log_session and infra.log_session.app_logger:
+            return infra.log_session.app_logger
+        return logging.getLogger(__name__)
 
     async def create_agent(
         self,
@@ -79,7 +85,7 @@ class AgentFactory:
             agent_config=config
         )
 
-        self._logger.info(
+        self._get_logger().info(
             f"Создан агент с ID {app_context.id}. Версии: из конфигурации",
             extra={"event_type": LogEventType.SYSTEM_INIT}
         )
