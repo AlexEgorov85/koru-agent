@@ -12,7 +12,7 @@
 
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin для управления состояниями
-- Использует LoggingMixinV2 для логирования через стандартный logging
+- ComponentLogger: логирование через LoggingSession + LogEventType
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 
 ПРЕИМУЩЕСТВА ПЕРЕД СТАРЫМ ПОДХОДОМ:
@@ -43,9 +43,9 @@ from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
 # LOGGING MIXIN V2 - LOGGING ЧЕРЕЗ LOGGINGSESSION
 # =============================================================================
 
-class LoggingMixinV2:
+class ComponentLogger:
     """
-    Миксин логирования с автоматическим префиксом [ComponentType:Name].
+    Логгер компонента с автоматическим префиксом [ComponentType:Name].
 
     АРХИТЕКТУРА:
     - Логгер создаётся через LoggingSession.get_component_logger()
@@ -177,7 +177,7 @@ class LoggingMixinV2:
 # UNIVERSAL COMPONENT
 # =============================================================================
 
-class Component(ComponentLifecycle, LoggingMixinV2, ABC):
+class Component(ComponentLifecycle, ComponentLogger, ABC):
     """
     УНИВЕРСАЛЬНЫЙ БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ КОМПОНЕНТОВ.
     
@@ -254,8 +254,8 @@ class Component(ComponentLifecycle, LoggingMixinV2, ABC):
             if infra is not None:
                 log_session = getattr(infra, 'log_session', None)
 
-        # Инициализация LoggingMixinV2
-        LoggingMixinV2.__init__(
+        # Инициализация ComponentLogger
+        ComponentLogger.__init__(
             self,
             component_name=name,
             component_type=component_type,
