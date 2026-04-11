@@ -23,6 +23,7 @@ safe_executor = SafeExecutor(
 result = await safe_executor.execute(...)
 """
 import asyncio
+import logging
 import random
 from datetime import datetime
 from typing import Optional, Any
@@ -34,6 +35,9 @@ from core.agent.components.error_classifier import ErrorClassifier
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
+
+
+_logger = logging.getLogger(__name__)
 
 
 class SafeExecutor:
@@ -93,9 +97,6 @@ class SafeExecutor:
         self.max_delay = max_delay
         self.jitter = jitter
         self.error_classifier = ErrorClassifier()
-        
-        # ← НОВОЕ: Логирование через executor.event_bus_logger
-        self._event_bus_logger = getattr(executor, '_event_bus_logger', None)
     
     async def execute(
         self,
@@ -247,40 +248,7 @@ class SafeExecutor:
             metadata=metadata,
             error_category=error_category
         )
-    
-    async def _log_error(
-        self,
-        capability_name: str,
-        error: Exception,
-        error_type: ErrorType,
-        attempt: int
-    ):
-        """
-        ← НОВОЕ: Логирование ошибки.
-        
-        ПАРАМЕТРЫ:
-        - capability_name: имя capability
-        - error: исключение
-        - error_type: тип ошибки
-        - attempt: номер попытки
-        """
-        if self._event_bus_logger:
-            log_message = (
-                f"Ошибка выполнения {capability_name}: {type(error).__name__}: {str(error)} | "
-                f"Тип: {error_type.value} | Попытка: {attempt + 1}/{self.max_retries}"
-            )
-            
-            # Логирование по уровню серьезности
-            if error_type == ErrorType.FATAL:
-                await self._event_bus_logger.error(log_message)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            elif error_type == ErrorType.VALIDATION:
-                await self._event_bus_logger.warning(log_message)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                await self._event_bus_logger.info(log_message)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-    
+
     def get_failure_memory(self) -> FailureMemory:
         """
         Получить FailureMemory для внешней проверки.
