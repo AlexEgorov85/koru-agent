@@ -7,6 +7,8 @@ BenchmarkRunner - воспроизводимое тестирование про
 - Обеспечение воспроизводимости (variance < 0.05)
 - Сбор метрик выполнения
 """
+import asyncio
+import logging
 import random
 import hashlib
 from datetime import datetime
@@ -18,9 +20,9 @@ from core.components.benchmarks.benchmark_models import (
     PromptVersion,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -80,14 +82,6 @@ class BenchmarkRunner:
         self.event_bus = event_bus
         self.executor_callback = executor_callback
         self.config = config or BenchmarkRunConfig()
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="BenchmarkRunner"
-        )
 
         # Инициализация random seed для воспроизводимости
         random.seed(self.config.seed)
@@ -107,11 +101,10 @@ class BenchmarkRunner:
         RETURNS:
         - List[BenchmarkRunResult]: результаты запусков
         """
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Запуск бенчмарка для версии {version.id} "
-            f"({len(scenarios)} сценариев)"
+        _logger.info(
+            "Запуск бенчмарка для версии %s (%d сценариев)",
+            version.id, len(scenarios),
+            extra={"event_type": LogEventType.SYSTEM_INIT}
         )
 
         results = []
@@ -123,10 +116,9 @@ class BenchmarkRunner:
         # Проверка воспроизводимости
         variance = self._calculate_variance(results)
         if variance > 0.05:
-            await self.event_bus_logger.warning(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Высокая вариативность результатов: {variance:.3f}"
+            _logger.warning(
+                "Высокая вариативность результатов: %.3f", variance,
+                extra={"event_type": LogEventType.WARNING}
             )
 
         return results
@@ -168,10 +160,9 @@ class BenchmarkRunner:
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
 
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Ошибка выполнения сценария {scenario.id}: {e}"
+            _logger.error(
+                "Ошибка выполнения сценария %s: %s", scenario.id, e,
+                extra={"event_type": LogEventType.SYSTEM_ERROR}
             )
 
             return BenchmarkRunResult(
@@ -336,6 +327,3 @@ class BenchmarkRunner:
         """Получение конфигурации"""
         return self.config
 
-
-# Import asyncio for retry logic
-import asyncio

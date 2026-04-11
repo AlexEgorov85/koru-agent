@@ -20,10 +20,10 @@ async def publish_book_library_metrics(
     error: Optional[str] = None
 ) -> None:
     """
-    Публикация метрик выполнения BookLibrarySkill через EventBus.
+    Публикация метрик выполнения BookLibrarySkill через стандартный logging.
 
     ARGS:
-    - logger: event_bus_logger для публикации событий
+    - logger: логгер для публикации событий
     - capability_name: имя capability
     - success: флаг успеха выполнения
     - execution_time_ms: время выполнения в миллисекундах
