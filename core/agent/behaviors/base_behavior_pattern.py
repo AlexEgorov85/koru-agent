@@ -19,7 +19,7 @@ from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
-from core.agent.components.base_component import Component
+from core.agent.components.component import Component
 from core.config.component_config import ComponentConfig
 from core.utils.async_utils import safe_async_call
 
