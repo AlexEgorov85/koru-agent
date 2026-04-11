@@ -19,13 +19,12 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from pydantic import BaseModel
 
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.enums.common_enums import ExecutionStatus
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.components.skills.base_skill import BaseSkill
+from core.components.skills.skill import Skill
 from core.config.component_config import ComponentConfig
 from core.application_context.application_context import ApplicationContext
 from core.agent.components.action_executor import ActionExecutor
@@ -43,7 +42,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(C
 TABLES_CONFIG_PATH = os.path.join(PROJECT_ROOT, "data", "skills", "check_result", "tables.yaml")
 
 
-class CheckResultSkill(BaseSkill):
+class CheckResultSkill(Skill):
     """
     Навык проверки результатов.
 
@@ -66,17 +65,15 @@ class CheckResultSkill(BaseSkill):
     def __init__(
         self,
         name: str,
-        application_context: ApplicationContext,
         component_config: ComponentConfig,
         executor: ActionExecutor,
-        event_bus = None
+        application_context: ApplicationContext = None,
     ):
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         self._handlers: Dict[str, Any] = {}
@@ -220,8 +217,8 @@ class CheckResultSkill(BaseSkill):
         """Получение конфигурации таблиц (для использования в handlers)"""
         return self._tables_config
 
-    def _get_event_type_for_success(self) -> EventType:
-        return EventType.SKILL_EXECUTED
+    def _get_event_type_for_success(self) -> str:
+        return "skill.check_result.executed"
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -288,7 +285,6 @@ def create_check_result_skill(
     application_context: ApplicationContext,
     component_config: ComponentConfig,
     executor: ActionExecutor,
-    event_bus=None
 ) -> CheckResultSkill:
     """Фабрика для создания экземпляра CheckResultSkill."""
     return CheckResultSkill(
@@ -296,5 +292,4 @@ def create_check_result_skill(
         application_context=application_context,
         component_config=component_config,
         executor=executor,
-        event_bus=event_bus
     )

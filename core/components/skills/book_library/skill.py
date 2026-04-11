@@ -21,13 +21,12 @@ from pathlib import Path
 from pydantic import BaseModel
 import yaml
 
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 
 # Добавим путь к корню проекта
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.components.skills.base_skill import BaseSkill
+from core.components.skills.skill import Skill
 from core.config.component_config import ComponentConfig
 from core.application_context.application_context import ApplicationContext
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
@@ -39,6 +38,7 @@ from core.components.skills.book_library.handlers import (
     ListScriptsHandler,
     SemanticSearchHandler,
 )
+from core.infrastructure.logging.event_types import LogEventType
 
 
 BOOK_LIBRARY_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +50,7 @@ TABLES_CONFIG_PATH = os.path.join(PROJECT_ROOT, "data", "skills", "book_library"
 # НАВЫК BOOK_LIBRARY
 # ============================================================================
 
-class BookLibrarySkill(BaseSkill):
+class BookLibrarySkill(Skill):
     """
     Навык для работы с библиотекой книг.
 
@@ -75,28 +75,21 @@ class BookLibrarySkill(BaseSkill):
     def __init__(
         self,
         name: str,
-        application_context: ApplicationContext,
         component_config: ComponentConfig,
         executor: ActionExecutor,
-        event_bus = None
+        application_context: ApplicationContext = None,
     ):
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         self._scripts_registry: Optional[Dict[str, Any]] = None
 
         # Инициализация обработчиков
         self._handlers = {}
-
-        if self.event_bus_logger is None:
-            self._print_fallback = True
-        else:
-            self._print_fallback = False
 
     def get_capabilities(self) -> List[Capability]:
         """
@@ -165,44 +158,33 @@ class BookLibrarySkill(BaseSkill):
             from .scripts_registry import get_all_scripts
             self._scripts_registry = get_all_scripts()
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка загрузки реестра скриптов: {e}", event_type=LogEventType.ERROR)
             self._scripts_registry = {}
 
         # Инициализация обработчиков
-        event_bus = getattr(self, 'event_bus', None) or getattr(self, '_event_bus', None)
         self._handlers = {
             "book_library.search_books": SearchBooksHandler(
                 name="search_books",
                 component_config=self.component_config,
                 executor=self.executor,
-                event_bus=event_bus,
                 skill=self
             ),
             "book_library.execute_script": ExecuteScriptHandler(
                 name="execute_script",
                 component_config=self.component_config,
                 executor=self.executor,
-                event_bus=event_bus,
                 skill=self
             ),
             "book_library.list_scripts": ListScriptsHandler(
                 name="list_scripts",
                 component_config=self.component_config,
                 executor=self.executor,
-                event_bus=event_bus,
                 skill=self
             ),
             "book_library.semantic_search": SemanticSearchHandler(
                 name="semantic_search",
                 component_config=self.component_config,
                 executor=self.executor,
-                event_bus=event_bus,
                 skill=self
             ),
         }
@@ -326,9 +308,9 @@ class BookLibrarySkill(BaseSkill):
         """Получение конфигурации таблиц (для использования в handlers)"""
         return self._tables_config
 
-    def _get_event_type_for_success(self) -> EventType:
+    def _get_event_type_for_success(self) -> str:
         """Возвращает тип события для успешного выполнения навыка библиотеки."""
-        return EventType.SKILL_EXECUTED
+        return "skill.book_library.executed"
 
     async def _execute_impl(
         self,
@@ -385,7 +367,7 @@ class BookLibrarySkill(BaseSkill):
         """Публикация метрик выполнения через EventBus."""
         from core.components.skills.book_library.metrics import publish_book_library_metrics
         await publish_book_library_metrics(
-            logger=self.event_bus_logger,
+            logger=None,
             capability_name=capability_name,
             success=success,
             execution_time_ms=execution_time_ms,

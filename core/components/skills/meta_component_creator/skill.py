@@ -16,7 +16,7 @@ CAPABILITIES:
 """
 from typing import Dict, Any, List, Optional
 
-from core.components.skills.base_skill import BaseSkill
+from core.components.skills.skill import Skill
 from core.components.skills.meta_component_creator.validator import ComponentValidator
 from core.components.skills.meta_component_creator.dynamic_loader import (
     DynamicComponentLoader,
@@ -34,23 +34,21 @@ from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 
 
-class MetaComponentCreator(BaseSkill):
+class MetaComponentCreator(Skill):
     """Мета-навык для создания, исправления и ревью компонентов любого типа."""
 
     def __init__(
         self,
         name: str,
-        application_context: ApplicationContext,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus: Any = None,
+        application_context: ApplicationContext = None,
     ):
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
+            application_context=application_context,
         )
         self._validator = ComponentValidator()
         self._loader: Optional[DynamicComponentLoader] = None
@@ -512,22 +510,22 @@ class MetaComponentCreator(BaseSkill):
 
         type_instructions = {
             "skill": (
-                "Навык (Skill): наследуй BaseSkill из core.services.skills.base_skill. "
-                "Файл: skill.py в core/services/skills/{name}/. "
+                "Навык (Skill): наследуй Skill из core.components.skills.skill. "
+                "Файл: skill.py в core/components/skills/{name}/. "
                 "Используй self.executor.execute_action для внешних вызовов. "
                 "Возвращай Dict из _execute_impl."
             ),
             "tool": (
-                "Инструмент (Tool): наследуй BaseTool из core.services.tools.base_tool. "
-                "Файл: {name}_tool.py в core/services/tools/. "
+                "Инструмент (Tool): наследуй Tool из core.components.tools.tool. "
+                "Файл: {name}_tool.py в core/components/tools/. "
                 "Определи {Name}ToolInput(ToolInput) и {Name}ToolOutput(ToolOutput). "
                 "_execute_impl — синхронный. Прямая работа с инфраструктурой."
             ),
             "service": (
-                "Сервис (Service): наследуй BaseService из core.services.base_service. "
-                "Файл: service.py в core/services/{name}/. "
+                "Сервис (Service): наследуй Service из core.components.services.service. "
+                "Файл: service.py в core/components/services/{name}/. "
                 "Может иметь DEPENDENCIES = [...]. "
-                "Определи {Name}ServiceInput(ServiceInput) и {Name}ServiceOutput(ServiceOutput)."
+                "Определи {Name}ServiceInput и {Name}ServiceOutput как обычные Pydantic-модели."
             ),
             "behavior": (
                 "Поведение (Behavior): наследуй BaseBehaviorPattern из core.agent.behaviors.base_behavior_pattern. "

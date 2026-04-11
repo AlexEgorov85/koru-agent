@@ -14,18 +14,15 @@ import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.session_context.base_session_context import BaseSessionContext
-from core.components.skills.base_skill import BaseSkill
+from core.components.skills.skill import Skill
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
 
 
-class FinalAnswerSkill(BaseSkill):
+class FinalAnswerSkill(Skill):
     """
     Навык для генерации финального ответа на основе всего контекста сессии.
 
@@ -50,22 +47,19 @@ class FinalAnswerSkill(BaseSkill):
     def __init__(
         self,
         name: str,
-        application_context: Any,
         component_config: ComponentConfig,
         executor: Any,
-        event_bus = None
+        application_context: Any = None,
     ):
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         # Кэш для скриптов реестра
         self._scripts_registry = None
-        # event_bus_logger будет инициализирован в BaseComponent.__init__()
 
     def get_capabilities(self) -> List[Capability]:
         """
@@ -105,32 +99,22 @@ class FinalAnswerSkill(BaseSkill):
 
         # Проверяем промпт и схемы (без логирования - только ошибки)
         if capability_name not in self.prompts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Критический промпт {capability_name} не загружен")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                return False
+            self._log_error(f"Критический промпт {capability_name} не загружен", event_type=LogEventType.ERROR)
+            return False
 
         if capability_name not in self.input_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Входная схема {capability_name} не загружена")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                return False
+            self._log_error(f"Входная схема {capability_name} не загружена", event_type=LogEventType.ERROR)
+            return False
 
         if capability_name not in self.output_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Выходная схема {capability_name} не загружена")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                return False
+            self._log_error(f"Выходная схема {capability_name} не загружена", event_type=LogEventType.ERROR)
+            return False
 
         return True
 
-    def _get_event_type_for_success(self) -> EventType:
+    def _get_event_type_for_success(self) -> str:
         """Возвращает тип события для успешного выполнения навыка финального ответа."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.SKILL_EXECUTED
+        return "skill.final_answer.executed"
 
     async def _execute_impl(
         self,
@@ -172,13 +156,11 @@ class FinalAnswerSkill(BaseSkill):
             return result.data
         
         # ❌ Не возвращаем {} — это маскирует ошибку!
-        if self.event_bus_logger:
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                "❌ _generate_final_answer вернул ExecutionResult с пустым data. "
-                "Это указывает на ошибку генерации финального ответа."
-            )
+        self._log_error(
+            "❌ _generate_final_answer вернул ExecutionResult с пустым data. "
+            "Это указывает на ошибку генерации финального ответа.",
+            event_type=LogEventType.ERROR
+        )
         
         # Возвращаем явный fallback с предупреждением
         return {
@@ -219,11 +201,11 @@ class FinalAnswerSkill(BaseSkill):
         dialogue_history_str = ""
         if session_context and hasattr(session_context, 'dialogue_history'):
             dialogue_history_str = session_context.dialogue_history.format_for_prompt()
-            if self.event_bus_logger and dialogue_history_str:
-                await self.event_bus_logger.debug(
-                    f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов"
+            if dialogue_history_str:
+                self._log_debug(
+                    f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов",
+                    event_type=LogEventType.DEBUG
                 )
-
         # Обработка параметров (могут быть Pydantic моделью или dict)
         from pydantic import BaseModel
         if isinstance(parameters, BaseModel):
@@ -302,15 +284,13 @@ class FinalAnswerSkill(BaseSkill):
                 debug_msg += " - IS NONE"
             elif isinstance(sc, ExecCtx):
                 debug_msg += " - IS NESTED ExecutionContext!"
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(debug_msg)
-                if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
-                    sc = execution_context.session_context
-                    await self.event_bus_logger.debug(
-                        f"session_id={getattr(sc, 'session_id', 'unknown')}, "
-                        f"items={sc.data_context.count() if hasattr(sc, 'data_context') else 'N/A'}"
-                    )
-
+            self._log_debug(debug_msg, event_type=LogEventType.DEBUG)
+            if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
+                sc = execution_context.session_context
+                self._log_debug(
+                    f"session_id={getattr(sc, 'session_id', 'unknown')}, "
+                    f"items={sc.data_context.count() if hasattr(sc, 'data_context') else 'N/A'}"
+                )
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.data:
                 all_items = all_items_result.data.get("items", {})
 
@@ -366,9 +346,7 @@ class FinalAnswerSkill(BaseSkill):
                                 "result": str(item_content.get("result", "")) if item_content.get("result") else ""
                             })
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.warning(f"Не удалось получить items из контекста: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_warning(f"Не удалось получить items из контекста: {e}", event_type=LogEventType.WARNING)
             # Продолжаем с пустыми списками
 
         # Получаем шаги выполнения через executor
@@ -433,9 +411,7 @@ class FinalAnswerSkill(BaseSkill):
                             "result": serialize_for_prompt(result_data) if result_data else ""
                         })
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_warning(f"Не удалось получить step history: {e}", event_type=LogEventType.WARNING)
             # Продолжаем с пустыми шагами
 
         # Получение промпта из кэша (через BaseComponent.get_prompt)
@@ -446,26 +422,29 @@ class FinalAnswerSkill(BaseSkill):
         system_prompt_obj = self.get_prompt("final_answer.generate.system")
 
         # DEBUG: Проверяем что загруено в компонент
-        if self.event_bus_logger:
-            all_prompt_keys = list(self.prompts.keys())
-            await self.event_bus_logger.debug(
-                f"[DEBUG final_answer] Загруженные промпты: {all_prompt_keys}"
+        all_prompt_keys = list(self.prompts.keys())
+        self._log_debug(
+            f"[DEBUG final_answer] Загруженные промпты: {all_prompt_keys}",
+            event_type=LogEventType.DEBUG
+        )
+        self._log_debug(
+            f"[DEBUG final_answer] prompt_obj: {'НАЙДЕН' if prompt_obj else 'НЕ НАЙДЕН'}",
+            event_type=LogEventType.DEBUG
+        )
+        self._log_debug(
+            f"[DEBUG final_answer] system_prompt_obj: {'НАЙДЕН' if system_prompt_obj else 'НЕ НАЙДЕН'}",
+            event_type=LogEventType.DEBUG
+        )
+        if system_prompt_obj:
+            self._log_debug(
+                f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content}...",
+                event_type=LogEventType.DEBUG
             )
-            await self.event_bus_logger.debug(
-                f"[DEBUG final_answer] prompt_obj: {'НАЙДЕН' if prompt_obj else 'НЕ НАЙДЕН'}"
+        else:
+            self._log_warning(
+                "[DEBUG final_answer] СИСТЕМНЫЙ ПРОМПТ НЕ ЗАГРУЖЕН!",
+                event_type=LogEventType.WARNING
             )
-            await self.event_bus_logger.debug(
-                f"[DEBUG final_answer] system_prompt_obj: {'НАЙДЕН' if system_prompt_obj else 'НЕ НАЙДЕН'}"
-            )
-            if system_prompt_obj:
-                await self.event_bus_logger.debug(
-                    f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content}..."
-                )
-            else:
-                await self.event_bus_logger.warning(
-                    "[DEBUG final_answer] СИСТЕМНЫЙ ПРОМПТ НЕ ЗАГРУЖЕН!"
-                )
-
         if not prompt_obj:
             from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
@@ -505,18 +484,15 @@ class FinalAnswerSkill(BaseSkill):
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}", event_type=LogEventType.INFO)
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
             # Используем системный промпт из файла
             if system_prompt_obj and system_prompt_obj.content:
                 system_prompt = system_prompt_obj.content
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(
-                        f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ системный промпт из файла (длина: {len(system_prompt)})"
+                self._log_info(
+                        f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ системный промпт из файла (длина: {len(system_prompt)})",
+                        event_type=LogEventType.INFO
                     )
             else:
                 import json
@@ -525,18 +501,16 @@ class FinalAnswerSkill(BaseSkill):
                     "Никакого текста до или после JSON.\n"
                     f"Ожидаемая схема: {json.dumps(output_schema, ensure_ascii=False, indent=2) if output_schema else '{}'}"
                 )
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(
+                self._log_warning(
                         f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ FALLBACK системный промпт! "
                         f"system_prompt_obj={system_prompt_obj}, "
-                        f"has_content={bool(system_prompt_obj and system_prompt_obj.content)}"
+                        f"has_content={bool(system_prompt_obj and system_prompt_obj.content)}",
+                        event_type=LogEventType.WARNING
                     )
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(
-                    f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt}..."
+            self._log_debug(
+                    f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt}...",
+                    event_type=LogEventType.DEBUG
                 )
-
             llm_result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
                 parameters={
@@ -560,9 +534,7 @@ class FinalAnswerSkill(BaseSkill):
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self._log_error(f"LLM structured output ошибка: {error_msg}", event_type=LogEventType.ERROR)
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные
@@ -582,11 +554,9 @@ class FinalAnswerSkill(BaseSkill):
                 parsed_response = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
+            self._log_info(
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})",
+                    event_type=LogEventType.INFO
                 )
 
             # Формирование финального результата через динамическую Pydantic модель из контракта
@@ -608,8 +578,7 @@ class FinalAnswerSkill(BaseSkill):
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
             if not final_answer_val and sources_val:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}")
+                self._log_debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}", event_type=LogEventType.DEBUG)
                 # Извлекаем названия книг из sources
                 book_titles = []
                 for source in sources_val:
@@ -627,12 +596,9 @@ class FinalAnswerSkill(BaseSkill):
                     count = len(book_titles)
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val}")
+                    self._log_info(f"FALLBACK: сгенерирован ответ: {final_answer_val}", event_type=LogEventType.INFO)
             elif not final_answer_val:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
-
+                self._log_warning(f"FALLBACK: final_answer пустой, sources={sources_val}", event_type=LogEventType.WARNING)
             # Формируем результат через динамическую Pydantic модель из контракта
             result_dict = {
                 "final_answer": final_answer_val,
@@ -652,8 +618,7 @@ class FinalAnswerSkill(BaseSkill):
                 try:
                     result_data = output_schema(**result_dict)
                 except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.warning(f"Ошибка создания Pydantic модели: {e}, используем dict")
+                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=LogEventType.WARNING)
                     result_data = result_dict
             else:
                 result_data = result_dict
@@ -670,9 +635,7 @@ class FinalAnswerSkill(BaseSkill):
             )
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка вызова LLM: {str(e)}", event_type=LogEventType.ERROR)
             # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
             from core.errors.exceptions import SkillExecutionError

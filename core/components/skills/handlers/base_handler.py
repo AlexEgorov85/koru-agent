@@ -50,7 +50,6 @@ class SkillHandler(Component, ABC):
         name: Optional[str] = None,
         component_config: Optional[ComponentConfig] = None,
         executor: Optional[ActionExecutor] = None,
-        event_bus: Optional[Any] = None,
         skill: Optional[Any] = None,
         application_context: Optional[Any] = None
     ):
@@ -58,29 +57,24 @@ class SkillHandler(Component, ABC):
         Инициализация хендлера.
 
         ОБРАТНАЯ СОВМЕСТИМОСТЬ: Если вызван как SkillHandler(skill) —
-        берёт component_config, executor, event_bus из skill.
+        берёт component_config, executor, application_context из skill.
 
         ARGS:
         - name: Имя хендлера (обычно capability_name)
         - component_config: Конфигурация компонента
         - executor: ActionExecutor для взаимодействия
-        - event_bus: EventBusInterface для логирования
         - skill: Родительский навык
-        - application_context: ApplicationContext (DEPRECATED)
+        - application_context: ApplicationContext
         """
         # Обратная совместимость: SkillHandler(skill) — когда передан 1 позиционный аргумент
-        if name is not None and component_config is None and executor is None and event_bus is None and skill is None:
+        if name is not None and component_config is None and executor is None and skill is None:
             skill = name
             if hasattr(skill, 'component_config'):
                 component_config = skill.component_config
             if hasattr(skill, 'executor'):
                 executor = skill.executor
-            if hasattr(skill, 'event_bus'):
-                event_bus = skill.event_bus
-            elif hasattr(skill, '_event_bus'):
-                event_bus = skill._event_bus
-            elif hasattr(skill, 'application_context') and skill.application_context:
-                event_bus = getattr(skill.application_context.infrastructure_context, 'event_bus', None)
+            if hasattr(skill, 'application_context'):
+                application_context = skill.application_context
             name = getattr(self, 'capability_name', None) or getattr(skill, 'name', 'handler')
 
         super().__init__(
@@ -88,7 +82,6 @@ class SkillHandler(Component, ABC):
             component_type="handler",
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
             application_context=application_context
         )
         

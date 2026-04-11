@@ -15,16 +15,13 @@ import re
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from core.components.skills.base_skill import BaseSkill
-from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
 
 
-class DataAnalysisSkill(BaseSkill):
+class DataAnalysisSkill(Skill):
     """Навык для анализа сырых данных по шагу и ответа на вопросы."""
 
     @property
@@ -40,17 +37,15 @@ class DataAnalysisSkill(BaseSkill):
     def __init__(
         self,
         name: str,
-        application_context: Any,
         component_config: Any,
         executor: Any,
-        event_bus = None
+        application_context: Any = None,
     ):
         super().__init__(
-            name,
-            application_context,
+            name=name,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
     def get_capabilities(self) -> List[Capability]:
@@ -77,38 +72,19 @@ class DataAnalysisSkill(BaseSkill):
 
         # Проверяем наличие необходимых ресурсов
         if "data_analysis.analyze_step_data" not in self.prompts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_warning("Промпт для data_analysis.analyze_step_data не загружен", event_type=LogEventType.WARNING)
 
         if "data_analysis.analyze_step_data" not in self.input_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_warning("Входная схема для data_analysis.analyze_step_data не загружена", event_type=LogEventType.WARNING)
 
         if "data_analysis.analyze_step_data" not in self.output_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_warning("Выходная схема для data_analysis.analyze_step_data не загружена", event_type=LogEventType.WARNING)
 
         return True
 
-    def _get_event_type_for_success(self) -> EventType:
+    def _get_event_type_for_success(self) -> str:
         """Возвращает тип события для успешного выполнения навыка анализа данных."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.SKILL_EXECUTED
+        return "skill.data_analysis.executed"
 
     async def _execute_impl(
         self,
@@ -154,10 +130,7 @@ class DataAnalysisSkill(BaseSkill):
         from pydantic import BaseModel
         if isinstance(params, BaseModel):
             # params уже валидированная модель — используем напрямую
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_debug(f"Получены типизированные параметры: {type(params).__name__}", event_type=LogEventType.DEBUG)
         else:
             # Fallback для обратной совместимости
             input_schema = self.get_input_contract("data_analysis.analyze_step_data")
@@ -166,13 +139,7 @@ class DataAnalysisSkill(BaseSkill):
                     validated_params = input_schema.model_validate(params)
                     params = validated_params
                 except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    else:
-                        self.logger.error(f"Ошибка валидации параметров: {e}")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self._log_error(f"Ошибка валидации параметров: {e}", event_type=LogEventType.ERROR)
                     # ❌ УДАЛЕНО: ExecutionResult.failure
                     # ✅ ТЕПЕРЬ: Выбрасываем ValidationError
                     from core.errors.exceptions import ValidationError
@@ -190,13 +157,7 @@ class DataAnalysisSkill(BaseSkill):
                 config=analysis_config
             )
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.error(f"Ошибка загрузки данных: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка загрузки данных: {e}", event_type=LogEventType.ERROR)
             # ❌ УДАЛЕНО: ExecutionResult.failure
             # ✅ ТЕПЕРЬ: Выбрасываем DataError
             from core.errors.exceptions import DataError
@@ -277,17 +238,10 @@ class DataAnalysisSkill(BaseSkill):
             answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
-                )
-            else:
-                self.logger.info(
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
-                )
+            self._log_info(
+                f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})",
+                event_type=LogEventType.INFO
+            )
 
             # 9. Добавление метаданных
             answer_data["metadata"] = answer_data.get("metadata", {})
@@ -305,13 +259,7 @@ class DataAnalysisSkill(BaseSkill):
                     validated_result = output_schema.model_validate(answer_data)
                     answer_data = validated_result  # ← Сохраняем модель!
                 except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    else:
-                        self.logger.error(f"Ошибка валидации результата: {e}")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self._log_error(f"Ошибка валидации результата: {e}", event_type=LogEventType.ERROR)
             else:
                 # Fallback на dict если схема не загружена
                 pass
@@ -329,13 +277,7 @@ class DataAnalysisSkill(BaseSkill):
             )
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка анализа: {e}", event_type=LogEventType.ERROR)
             # ❌ УДАЛЕНО: ExecutionResult.failure
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
             from core.errors.exceptions import SkillExecutionError
@@ -509,13 +451,7 @@ class DataAnalysisSkill(BaseSkill):
                 current_tokens += line_tokens
 
             if len(chunks) >= max_chunks:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(f"Достигнут лимит чанков ({max_chunks})")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                else:
-                    self.logger.warning(f"Достигнут лимит чанков ({max_chunks})")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self._log_warning(f"Достигнут лимит чанков ({max_chunks})", event_type=LogEventType.WARNING)
                 break
 
         if current_chunk:
