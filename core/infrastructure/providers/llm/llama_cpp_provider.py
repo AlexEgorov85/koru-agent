@@ -124,6 +124,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         else:
             base_logger = logging.getLogger(__name__)
         
+        # Возвращаем LoggerAdapter каждый раз (это безопасно)
         return logging.LoggerAdapter(
             base_logger,
             extra={"component": "LlamaCppProvider"}
@@ -134,7 +135,8 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         Асинхронная инициализация LLM инстанса.
         """
         try:
-            self._get_logger().info("Загрузка модели из: %s", self.model_path, extra={"event_type": LogEventType.LLM_RESPONSE})
+            logger = self._get_logger()
+            logger.info("Загрузка модели из: %s", self.model_path, extra={"event_type": LogEventType.LLM_RESPONSE})
             start_time = time.time()
 
             # Инициализация Llama.cpp инстанса

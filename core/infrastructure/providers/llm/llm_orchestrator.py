@@ -761,6 +761,13 @@ class LLMOrchestrator:
                             )
 
                         # Вызываем JsonParsingService через ActionExecutor
+                        # Создаём простой контекст для вызова сервиса
+                        from core.models.data.execution import ExecutionResult
+                        execution_context = ExecutionResult(
+                            data={},
+                            status="success"
+                        )
+
                         parse_result = await self.executor.execute_action(
                             action_name="json_parsing.parse_to_model",
                             parameters={
@@ -907,6 +914,13 @@ class LLMOrchestrator:
 
             # Валидация через JsonParsingService
             if request.structured_output and raw_content:
+                # Создаём контекст для вызова сервиса
+                from core.models.data.execution import ExecutionResult
+                execution_context = ExecutionResult(
+                    data={},
+                    status="success"
+                )
+
                 validation_result = await self.executor.execute_action(
                     action_name="json_parsing.parse_to_model",
                     parameters={
