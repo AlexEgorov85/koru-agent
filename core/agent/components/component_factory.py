@@ -46,8 +46,8 @@ class ComponentFactory:
         self._logger = logging.getLogger("component_factory")
 
     def _log_info(self, message: str):
-        """Информационное сообщение."""
-        self._logger.info(f"[ComponentFactory] {message}", extra={"event_type": LogEventType.SYSTEM_INIT})
+        """Информационное сообщение (только в файл)."""
+        self._logger.info(f"[ComponentFactory] {message}")
 
     def _log_error(self, message: str):
         """Ошибка."""

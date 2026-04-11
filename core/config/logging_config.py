@@ -20,7 +20,6 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic.config import ConfigDict
 from enum import Enum
 import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 # ============================================================
@@ -81,9 +80,30 @@ class ConsoleConfig(BaseModel):
     use_colors: bool = Field(default=True, description="Использовать цвета")
     use_icons: bool = Field(default=True, description="Использовать иконки")
     allowed_terminal_events: Optional[set] = Field(
-        default=None,
-        description="Разрешённые LogEventType для консоли (None = все с event_type)"
+        default_factory=lambda: _default_allowed_events(),
+        description="Разрешённые LogEventType для консоли (None = все)"
     )
+
+
+def _default_allowed_events():
+    """Дефолные события для терминала (ленивый импорт для избежания циклических импортов)."""
+    from core.infrastructure.logging.event_types import LogEventType
+    return {
+        LogEventType.USER_PROGRESS,
+        LogEventType.USER_RESULT,
+        LogEventType.USER_MESSAGE,
+        LogEventType.USER_QUESTION,
+        LogEventType.AGENT_START,
+        LogEventType.AGENT_STOP,
+        LogEventType.TOOL_CALL,
+        LogEventType.TOOL_RESULT,
+        LogEventType.TOOL_ERROR,
+        LogEventType.LLM_ERROR,
+        LogEventType.DB_ERROR,
+        LogEventType.WARNING,
+        LogEventType.ERROR,
+        LogEventType.CRITICAL,
+    }
 
 
 class FileConfig(BaseModel):
