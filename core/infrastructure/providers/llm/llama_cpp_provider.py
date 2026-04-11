@@ -265,21 +265,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         """
         import json
         
-        # Упрощаем схему — убираем лишние поля для экономии токенов
-        simplified_schema = {
-            "type": "object",
-            "properties": {},
-            "required": schema_def.get("required", [])
-        }
-        
-        # Копируем только основные поля
-        for prop_name, prop_def in schema_def.get("properties", {}).items():
-            simplified_schema["properties"][prop_name] = {
-                "type": prop_def.get("type", "string"),
-                "description": prop_def.get("description", "")
-            }
-        
-        schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
+        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
         
         # Формируем строгую инструкцию с акцентом на JSON-only вывод
         schema_prompt = (
@@ -572,7 +558,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         request = LLMRequest(
             prompt=prompt,
             temperature=temperature,
-            max_tokens=max_tokens or self.config.get('max_tokens', 512),
+            max_tokens=max_tokens or self.config_obj.max_tokens,
             stop_sequences=stop_sequences
         )
 
