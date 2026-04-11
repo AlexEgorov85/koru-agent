@@ -361,11 +361,11 @@ class AppConfig(BaseSettings):
     # === АВТО-ОБНАРУЖЕНИЕ (discovery режим) ===
 
     @classmethod
-    def from_discovery(cls, profile: str = "prod", data_dir: str = "data", discovery=None):
+    def from_discovery(cls, profile: str = "prod", data_dir: str = "data"):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
 
-        [REFACTOR ResourceLoader] Профиль определяет разрешённые статусы:
+        Профиль определяет разрешённые статусы:
         - prod → только status: active
         - sandbox → status: active + draft
         - dev → status: active + draft + inactive

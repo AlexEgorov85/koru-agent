@@ -352,7 +352,6 @@ async def run_baseline_benchmark(
     app_config = AppConfig.from_discovery(
         profile="prod",
         data_dir="data",
-        discovery=infra_context.resource_discovery,
     )
 
     prod_context = ApplicationContext(
@@ -389,7 +388,6 @@ async def create_sandbox_context(
     app_config = AppConfig.from_discovery(
         profile="sandbox",
         data_dir="data",
-        discovery=infra_context.resource_discovery,
     )
 
     sandbox = ApplicationContext(

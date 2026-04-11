@@ -59,8 +59,7 @@ class BookLibraryRealTest:
             infrastructure_context=self.infra,
             config=AppConfig.from_discovery(
                 profile=self.profile,
-                data_dir='data',
-                discovery=self.infra.resource_discovery
+                data_dir='data'
             ),
             profile=self.profile
         )

@@ -89,8 +89,7 @@ async def init_contexts(profile: str = "prod", data_dir: str = "data"):
 
     app_config = AppConfig.from_discovery(
         profile=profile,
-        data_dir=data_dir,
-        discovery=_infra_ctx.resource_discovery
+        data_dir=data_dir
     )
     _app_ctx = ApplicationContext(
         infrastructure_context=_infra_ctx,

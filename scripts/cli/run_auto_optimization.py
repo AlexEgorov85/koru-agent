@@ -285,8 +285,7 @@ async def create_sandbox_with_prompt(
     
     app_config = AppConfig.from_discovery(
         profile="sandbox",
-        data_dir="data",
-        discovery=infra_context.resource_discovery
+        data_dir="data"
     )
     
     if prompt_overrides:

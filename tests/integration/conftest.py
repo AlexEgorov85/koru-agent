@@ -53,8 +53,7 @@ async def app_context(infrastructure):
     """
     app_config = AppConfig.from_discovery(
         profile="dev",
-        data_dir=infrastructure.config.data_dir,
-        discovery=infrastructure.resource_discovery
+        data_dir=infrastructure.config.data_dir
     )
     ctx = ApplicationContext(
         infrastructure_context=infrastructure,
