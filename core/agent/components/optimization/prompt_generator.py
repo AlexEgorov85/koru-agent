@@ -9,6 +9,7 @@ PromptGenerator - умная генерация промптов с страте
 - Генерация на основе root causes и examples (v2)
 """
 import hashlib
+import logging
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
@@ -20,9 +21,9 @@ from core.components.benchmarks.benchmark_models import (
     FailureAnalysis,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
+
+_logger = logging.getLogger(__name__)
 
 from .root_cause_analyzer import RootCause
 from .example_extractor import Example, ErrorExample
@@ -78,14 +79,6 @@ class PromptGenerator:
         self.event_bus = event_bus
         self.llm_callback = llm_callback
         self.config = config or GenerationConfig()
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="PromptGenerator"
-        )
 
         # История генераций для отслеживания diversity
         self._generation_history: List[Dict[str, Any]] = []
@@ -105,10 +98,9 @@ class PromptGenerator:
         RETURNS:
         - List[PromptVersion]: список кандидатов
         """
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Генерация кандидатов на основе {parent.id}"
+        _logger.info(
+            f"Генерация кандидатов на основе {parent.id}",
+            extra={"event_type": LogEventType.TOOL_CALL}
         )
 
         candidates = []
@@ -129,10 +121,9 @@ class PromptGenerator:
         # Проверка diversity
         candidates = self._ensure_diversity(candidates)
 
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Сгенерировано {len(candidates)} кандидатов"
+        _logger.info(
+            f"Сгенерировано {len(candidates)} кандидатов",
+            extra={"event_type": LogEventType.TOOL_CALL}
         )
 
         return candidates[:self.config.max_candidates]
@@ -221,10 +212,9 @@ class PromptGenerator:
             return new_version
 
         except Exception as e:
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Ошибка генерации кандидата: {e}"
+            _logger.error(
+                f"Ошибка генерации кандидата: {e}",
+                extra={"event_type": LogEventType.ERROR}
             )
             return None
 
@@ -531,10 +521,9 @@ class PromptGenerator:
         RETURNS:
         - List[PromptVersion]: список улучшенных кандидатов
         """
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Генерация улучшений на основе {len(root_causes)} root causes"
+        _logger.info(
+            f"Генерация улучшений на основе {len(root_causes)} root causes",
+            extra={"event_type": LogEventType.TOOL_CALL}
         )
 
         candidates = []
@@ -580,10 +569,9 @@ class PromptGenerator:
             candidates = self._ensure_diversity(candidates)
         print(f"  🔍 [PromptGen] After diversity: {len(candidates)} candidates")
 
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Сгенерировано {len(candidates)} улучшенных кандидатов"
+        _logger.info(
+            f"Сгенерировано {len(candidates)} улучшенных кандидатов",
+            extra={"event_type": LogEventType.TOOL_CALL}
         )
 
         return candidates[:self.config.max_candidates]

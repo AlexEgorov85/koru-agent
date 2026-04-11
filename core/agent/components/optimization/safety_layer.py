@@ -7,15 +7,16 @@ SafetyLayer - защита от деградации качества.
 - Проверка на SQL ошибки и инъекции
 - Гарантия regression rate = 0
 """
+import logging
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
 from core.components.benchmarks.benchmark_models import EvaluationResult, PromptVersion
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
+
+_logger = logging.getLogger(__name__)
 
 
 class SafetyCheckType(Enum):
@@ -98,14 +99,6 @@ class SafetyLayer:
         """
         self.event_bus = event_bus
         self.config = config or SafetyConfig()
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="SafetyLayer"
-        )
 
         # Счётчики для статистики
         self._checks_passed = 0
@@ -127,10 +120,9 @@ class SafetyLayer:
         RETURNS:
         - Tuple[bool, List[SafetyCheck]]: (безопасно ли, список проверок)
         """
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Проверка безопасности для {candidate.version_id}"
+        _logger.info(
+            f"Проверка безопасности для {candidate.version_id}",
+            extra={"event_type": LogEventType.TOOL_CALL}
         )
 
         checks = []
@@ -198,20 +190,18 @@ class SafetyLayer:
 
         if all_passed:
             self._checks_passed += 1
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Проверка безопасности пройдена для {candidate.version_id}"
+            _logger.info(
+                f"Проверка безопасности пройдена для {candidate.version_id}",
+                extra={"event_type": LogEventType.TOOL_CALL}
             )
         else:
             self._checks_failed += 1
             failed_checks = [c for c in checks if not c.passed]
-            
-            await self.event_bus_logger.warning(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+            _logger.warning(
                 f"Проверка безопасности НЕ пройдена для {candidate.version_id}. "
-                f"Провалены: {[c.check_type.value for c in failed_checks]}"
+                f"Провалены: {[c.check_type.value for c in failed_checks]}",
+                extra={"event_type": LogEventType.WARNING}
             )
 
             # Счётчик предотвращённых регрессий

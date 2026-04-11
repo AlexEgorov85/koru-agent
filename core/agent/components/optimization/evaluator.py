@@ -7,6 +7,7 @@ Evaluator - система оценки качества промптов.
 - Сравнение версий
 - Селекция лучшей версии
 """
+import logging
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 
@@ -16,9 +17,9 @@ from core.components.benchmarks.benchmark_models import (
     BenchmarkRunResult,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -75,14 +76,6 @@ class Evaluator:
         """
         self.event_bus = event_bus
         self.config = config or EvaluationConfig()
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="Evaluator"
-        )
 
     def evaluate(
         self,

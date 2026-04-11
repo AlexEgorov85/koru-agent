@@ -6,11 +6,13 @@ import asyncio
 import time
 import json
 import re
+import logging
 from typing import Dict, Any, Optional, Type, List
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
@@ -72,6 +74,8 @@ class LlamaCppConfig(BaseModel):
 # Для обратной совместимости с существующим кодом
 MockLlamaCppConfig = LlamaCppConfig
 
+_logger = logging.getLogger(__name__)
+
 
 class LlamaCppProvider(BaseLLMProvider, LLMInterface):
     """
@@ -106,9 +110,6 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         self.llm = None
         self._executor = None  # ThreadPoolExecutor для LLM вызовов
 
-        # event_bus_logger будет инициализирован в initialize()
-        self.event_bus_logger = None
-
         # Контекст вызова теперь управляется в BaseLLMProvider
         # set_call_context() наследуется из базового класса
 
@@ -117,28 +118,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         Асинхронная инициализация LLM инстанса.
         """
         try:
-            # Инициализация event_bus_logger если ещё не создан
-            if self.event_bus_logger is None:
-                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-                from core.infrastructure.logging import EventBusLogger
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                try:
-                    event_bus = get_event_bus()
-                    self.event_bus_logger = EventBusLogger(event_bus, "system", "llm_provider", self.__class__.__name__)
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                except:
-                    self.event_bus_logger = type('obj', (object,), {
-                        'info': lambda *args, **kwargs: None,
-                        'debug': lambda *args, **kwargs: None,
-                        'warning': lambda *args, **kwargs: None,
-                        'error': lambda *args, **kwargs: None
-                    })()
-
-            await self.event_bus_logger.info(f"Загрузка модели из: {self.model_path}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.info("Загрузка модели из: %s", self.model_path, extra={"event_type": LogEventType.LLM_RESPONSE})
             start_time = time.time()
 
             # Инициализация Llama.cpp инстанса
@@ -165,50 +145,32 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 self.last_health_check = time.time()
 
                 init_time = time.time() - start_time
-                await self.event_bus_logger.info(f"Llama.cpp провайдер успешно инициализирован за {init_time:.2f} секунд")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.info(f"Контекст: {self.n_ctx}, потоки: {self.n_threads}, executor workers: 2")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.info("Llama.cpp провайдер успешно инициализирован за %.2f секунд", init_time, extra={"event_type": LogEventType.LLM_RESPONSE})
+                _logger.info("Контекст: %d, потоки: %d, executor workers: 2", self.n_ctx, self.n_threads, extra={"event_type": LogEventType.LLM_RESPONSE})
 
                 return True
             else:
-                await self.event_bus_logger.error("Не удалось инициализировать LLM инстанс")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.error("Не удалось инициализировать LLM инстанс", extra={"event_type": LogEventType.LLM_ERROR})
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
 
         except ImportError as e:
-            await self.event_bus_logger.error(f"Ошибка импорта llama-cpp-python: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error("Установите с помощью: pip install llama-cpp-python")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.error("Ошибка импорта llama-cpp-python: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
+            _logger.error("Установите с помощью: pip install llama-cpp-python", extra={"event_type": LogEventType.LLM_ERROR})
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
         except ValueError as e:
             if "not enough values to unpack" in str(e):
-                await self.event_bus_logger.error(f"Проблема с установкой llama-cpp-python: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.error("Проблема с установкой llama-cpp-python: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
+                _logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python", extra={"event_type": LogEventType.LLM_ERROR})
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
             else:
-                await self.event_bus_logger.error(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.error("Ошибка инициализации Llama.cpp провайдера: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.error("Ошибка инициализации Llama.cpp провайдера: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
 
@@ -217,29 +179,21 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         Корректное завершение работы провайдера.
         """
         try:
-            await self.event_bus_logger.info("Завершение работы Llama.cpp провайдера...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.info("Завершение работы Llama.cpp провайдера...", extra={"event_type": LogEventType.LLM_RESPONSE})
 
             # Остановка ThreadPoolExecutor
             if self._executor:
                 self._executor.shutdown(wait=False)
                 self._executor = None
-                await self.event_bus_logger.debug("ThreadPoolExecutor остановлен")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.debug("ThreadPoolExecutor остановлен", extra={"event_type": LogEventType.DEBUG})
 
             # В llama-cpp-python нет явного метода для освобождения ресурсов
             # Но можно обнулить ссылку на модель
             self.llm = None
             self.is_initialized = False
-            await self.event_bus_logger.info("Llama.cpp провайдер успешно завершен")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.info("Llama.cpp провайдер успешно завершен", extra={"event_type": LogEventType.LLM_RESPONSE})
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка при завершении работы Llama.cpp провайдера: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.error("Ошибка при завершении работы Llama.cpp провайдера: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -276,9 +230,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             }
 
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка health check для Llama.cpp: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.error("Ошибка health check для Llama.cpp: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
             return {
                 "status": LLMHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -333,7 +285,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             "\nПример правильного ответа:\n"
             '{"field1": "value1", "field2": 42}\n'
         )
-        
+
         return schema_prompt
 
     async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
@@ -351,13 +303,10 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - Схема добавляется в system_prompt или user prompt
         - Provider сам решает формат промпта
         """
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"🔵 [LLM] _generate_impl started: prompt_len={len(request.prompt)}, structured_output={hasattr(request, 'structured_output') and request.structured_output is not None}")
+        _logger.info("🔵 [LLM] _generate_impl started: prompt_len=%d, structured_output=%s", len(request.prompt), hasattr(request, 'structured_output') and request.structured_output is not None, extra={"event_type": LogEventType.LLM_RESPONSE})
 
         if not self.is_initialized or not self.llm:
-            await self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.warning("LLM не инициализирован! Вызываем initialize()...", extra={"event_type": LogEventType.WARNING})
             await self.initialize()
 
         start_time = time.time()
@@ -369,31 +318,26 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # ✅ Если есть structured_output — добавляем схему в промпт
         if hasattr(request, 'structured_output') and request.structured_output:
             max_tokens = min(request.max_tokens, 4000)
-            msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(msg)
+            _logger.info("🔵 [LLM] Structured output активирован: model=%s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
 
             schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
             system_prompt = system_prompt + "\n\n" + schema_prompt
 
-            msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(msg)
-                await self.event_bus_logger.debug("\n" + "=" * 80)
-                await self.event_bus_logger.debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)")
-                await self.event_bus_logger.debug("=" * 80)
-                await self.event_bus_logger.debug("\n=== SYSTEM (со схемой) ===")
-                await self.event_bus_logger.debug(system_prompt)
-                await self.event_bus_logger.debug("\n=== USER ===")
-                await self.event_bus_logger.debug(prompt)
-                await self.event_bus_logger.debug("\n" + "=" * 80)
+            _logger.info("🔵 [LLM] Схема добавлена в system_prompt (длина: %d символов)", len(schema_prompt), extra={"event_type": LogEventType.LLM_RESPONSE})
+            _logger.debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+            _logger.debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
+            _logger.debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
+            _logger.debug("\n=== SYSTEM (со схемой) ===", extra={"event_type": LogEventType.DEBUG})
+            _logger.debug(system_prompt, extra={"event_type": LogEventType.DEBUG})
+            _logger.debug("\n=== USER ===", extra={"event_type": LogEventType.DEBUG})
+            _logger.debug(prompt, extra={"event_type": LogEventType.DEBUG})
+            _logger.debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
         else:
             max_tokens = request.max_tokens
 
         # Проверка что модель инициализирована
         if not self.llm:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("⚠️ [LLM] Модель не инициализирована! Вызываем initialize()...")
+            _logger.warning("⚠️ [LLM] Модель не инициализирована! Вызываем initialize()...", extra={"event_type": LogEventType.WARNING})
             await self.initialize()
 
         # Создаем executor если не создан
@@ -450,45 +394,37 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             usage = response.get('usage', {})
 
             msg = f"🔵 [LLM] Получен ответ: choices={len(choices)}"
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(msg)
+            _logger.info(msg, extra={"event_type": LogEventType.LLM_RESPONSE})
 
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
 
-                if self.event_bus_logger:
-                    await self.event_bus_logger.debug("\n" + "=" * 80)
-                    await self.event_bus_logger.debug("💬 RESPONSE (LlamaCppProvider)")
-                    await self.event_bus_logger.debug("=" * 80)
-                    await self.event_bus_logger.debug(generated_text)
-                    await self.event_bus_logger.debug("\n" + "=" * 80)
-                    await self.event_bus_logger.info(f"🔵 [LLM] generated_text: {len(generated_text)} символов")
-                    await self.event_bus_logger.info(f"🔵 [LLM] finish_reason: {finish_reason}")
+                _logger.debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+                _logger.debug("💬 RESPONSE (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
+                _logger.debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
+                _logger.debug(generated_text, extra={"event_type": LogEventType.DEBUG})
+                _logger.debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+                _logger.info("🔵 [LLM] generated_text: %d символов", len(generated_text), extra={"event_type": LogEventType.LLM_RESPONSE})
+                _logger.info("🔵 [LLM] finish_reason: %s", finish_reason, extra={"event_type": LogEventType.LLM_RESPONSE})
             else:
                 generated_text = ''
                 finish_reason = 'error'
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("⚠️ [LLM] choices пуст!")
+                _logger.warning("⚠️ [LLM] choices пуст!", extra={"event_type": LogEventType.WARNING})
 
             # === ОБРАБОТКА STRUCTURED OUTPUT ===
             if hasattr(request, 'structured_output') and request.structured_output:
-                msg = f"🔵 Structured output запрошен: {request.structured_output.output_model}"
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(msg)
-                
+                _logger.info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
+
                 # Логирование сырого ответа
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"🔵 [LLM] Raw response: {generated_text}...")
+                _logger.info("🔵 [LLM] Raw response: %s...", generated_text[:100], extra={"event_type": LogEventType.LLM_RESPONSE})
 
                 try:
                     json_content = self._extract_json_from_response(generated_text)
 
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.debug(f"🔵 JSON извлечён: {json_content}...")
+                    _logger.debug("🔵 JSON извлечён: %s...", json_content[:100], extra={"event_type": LogEventType.DEBUG})
                     parsed_json = json.loads(json_content)
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
+                    _logger.info("✅ JSON распарсен: ключи=%s", list(parsed_json.keys()), extra={"event_type": LogEventType.LLM_RESPONSE})
 
                     # ✅ Сохраняем JSON в raw_response.content И в content для совместимости
                     # ✅ parsed_content=None — оркестратор создаст Pydantic модель
@@ -510,8 +446,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                         validation_errors=[]
                     )
 
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"✅ LLMResponse создан (JSON в raw_response.content)")
+                    _logger.info("✅ LLMResponse создан (JSON в raw_response.content)", extra={"event_type": LogEventType.LLM_RESPONSE})
 
                     self._update_metrics(response.generation_time)
 
@@ -519,8 +454,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
 
                 except json.JSONDecodeError as json_err:
                     # ❌ Ошибка парсинга JSON — возвращаем LLMResponse с ошибкой
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"❌ Structured output JSON parse error: {json_err}")
+                    _logger.error("❌ Structured output JSON parse error: %s", json_err, extra={"event_type": LogEventType.LLM_ERROR})
                     
                     return LLMResponse(
                         parsed_content=None,
@@ -541,8 +475,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                     
                 except Exception as struct_err:
                     # ❌ Другая ошибка — возвращаем LLMResponse с ошибкой
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"❌ Structured output error: {struct_err}")
+                    _logger.error("❌ Structured output error: %s", struct_err, extra={"event_type": LogEventType.LLM_ERROR})
                     
                     return LLMResponse(
                         parsed_content=None,
@@ -563,8 +496,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
 
             # ❌ УДАЛЕНО: Возврат LLMResponse для structured output
             # ТЕПЕРЬ: Всегда возвращаем LLMResponse для структурированных запросов
-            if self.event_bus_logger:
-                await self.event_bus_logger.error("❌ [LLM] Structured output запрос, но не удалось сгенерировать ответ")
+            _logger.error("❌ [LLM] Structured output запрос, но не удалось сгенерировать ответ", extra={"event_type": LogEventType.LLM_ERROR})
             
             return LLMResponse(
                 parsed_content=None,
@@ -606,9 +538,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         try:
             yield self
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _logger.error("Ошибка в сессии Llama.cpp: %s", str(e), extra={"event_type": LogEventType.LLM_ERROR})
             raise
 
     # Методы для совместимости с LLMInterface

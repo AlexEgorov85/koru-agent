@@ -8,6 +8,7 @@ VersionManager - управление версиями промптов.
 - Поддержка parent_id для всех версий
 - Возможность отката к предыдущим версиям
 """
+import logging
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
@@ -15,9 +16,9 @@ from dataclasses import dataclass, field
 
 from core.components.benchmarks.benchmark_models import PromptVersion, MutationType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -63,14 +64,6 @@ class VersionManager:
         - event_bus: шина событий
         """
         self.event_bus = event_bus
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="VersionManager"
-        )
 
         # Реестры по capability
         self._registries: Dict[str, VersionRegistry] = {}
@@ -90,11 +83,10 @@ class VersionManager:
             # Проверка есть ли уже версии для этого capability
             registry = self._get_registry(version.capability)
             if registry.versions:
-                await self.event_bus_logger.warning(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                _logger.warning(
                     f"Версия {version.id} не имеет parent_id, "
-                    f"но существуют другие версии"
+                    f"но существуют другие версии",
+                    extra={"event_type": LogEventType.WARNING}
                 )
 
         # Получение или создание реестра
@@ -103,11 +95,10 @@ class VersionManager:
         # Регистрация
         registry.versions[version.id] = version
 
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        _logger.info(
             f"Зарегистрирована версия {version.id} "
-            f"для {version.capability}"
+            f"для {version.capability}",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -129,10 +120,9 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if version_id not in registry.versions:
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Версия {version_id} не найдена для {capability}"
+            _logger.error(
+                f"Версия {version_id} не найдена для {capability}",
+                extra={"event_type": LogEventType.ERROR}
             )
             return False
 
@@ -148,10 +138,9 @@ class VersionManager:
         version.status = 'active'
         registry.active_version_id = version_id
 
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Версия {version_id} продвинута в active для {capability}"
+        _logger.info(
+            f"Версия {version_id} продвинута в active для {capability}",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -174,10 +163,9 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if version_id not in registry.versions:
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Версия {version_id} не найдена для {capability}"
+            _logger.error(
+                f"Версия {version_id} не найдена для {capability}",
+                extra={"event_type": LogEventType.ERROR}
             )
             return False
 
@@ -185,10 +173,9 @@ class VersionManager:
 
         # Нельзя отклонить active версию
         if version.status == 'active':
-            await self.event_bus_logger.warning(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Нельзя отклонить active версию {version_id}"
+            _logger.warning(
+                f"Нельзя отклонить active версию {version_id}",
+                extra={"event_type": LogEventType.WARNING}
             )
             return False
 
@@ -197,10 +184,9 @@ class VersionManager:
         version.metadata['rejection_reason'] = reason
         version.metadata['rejected_at'] = datetime.now().isoformat()
 
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Версия {version_id} отклонена: {reason}"
+        _logger.info(
+            f"Версия {version_id} отклонена: {reason}",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -302,10 +288,9 @@ class VersionManager:
         registry = self._get_registry(capability)
 
         if target_version_id not in registry.versions:
-            await self.event_bus_logger.error(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Версия {target_version_id} не найдена для {capability}"
+            _logger.error(
+                f"Версия {target_version_id} не найдена для {capability}",
+                extra={"event_type": LogEventType.ERROR}
             )
             return False
 
@@ -313,10 +298,9 @@ class VersionManager:
 
         # Проверка что версия не rejected
         if target.status == 'rejected':
-            await self.event_bus_logger.warning(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Нельзя откатиться к rejected версии {target_version_id}"
+            _logger.warning(
+                f"Нельзя откатиться к rejected версии {target_version_id}",
+                extra={"event_type": LogEventType.WARNING}
             )
             return False
 
