@@ -94,6 +94,54 @@ class JsonParsingService(Service):
             )
             raise ValueError(f"Неизвестное действие: {capability}")
 
+    async def extract_json(self, content: str) -> Dict[str, Any]:
+        """
+        Публичный API для извлечения JSON из текста.
+        
+        ARGS:
+        - content: str — текст ответа LLM
+        
+        RETURNS:
+        - {"status": "success", "extracted_json": str} или ошибка
+        """
+        return await self._action_extract_json({"content": content})
+    
+    async def parse_json(self, raw: str) -> Dict[str, Any]:
+        """
+        Публичный API для парсинга JSON строки.
+        
+        ARGS:
+        - raw: str — JSON строка
+        
+        RETURNS:
+        - {"status": "success", "parsed_data": dict} или ошибка
+        """
+        return await self._action_parse_json({"raw": raw})
+    
+    async def parse_to_model(
+        self,
+        raw_response: str,
+        schema_def: Optional[Dict[str, Any]] = None,
+        model_name: str = "DynamicModel"
+    ) -> Dict[str, Any]:
+        """
+        Публичный API для полного цикла: extract → parse → Pydantic модель.
+        
+        ARGS:
+        - raw_response: str — сырой ответ от LLM
+        - schema_def: dict — JSON Schema для валидации
+        - model_name: str — имя создаваемой модели
+        
+        RETURNS:
+        - {"status": "success", "parsed_data": dict, "pydantic_model_data": dict} или ошибка
+        """
+        parameters = {
+            "raw_response": raw_response,
+            "schema_def": schema_def or {},
+            "model_name": model_name
+        }
+        return await self._action_parse_to_model(parameters)
+    
     async def _action_extract_json(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
         Действие: извлечь JSON из текста (markdown, braces, brackets).

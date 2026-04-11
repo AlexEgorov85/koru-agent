@@ -58,7 +58,17 @@ schema_data:
       type: array
       items:
         type: object
-      description: Альтернативные действия
+        properties:
+          next_action:
+            type: string
+          reasoning:
+            type: string
+          parameters:
+            type: object
+            additionalProperties: true
+          expected_outcome:
+            type: string
+      description: Альтернативные действия (массив объектов с полями next_action, reasoning, parameters, expected_outcome)
     stop_condition:
       type: boolean
       description: Флаг завершения работы
