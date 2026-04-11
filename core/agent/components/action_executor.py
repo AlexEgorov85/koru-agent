@@ -1093,6 +1093,11 @@ class ActionExecutor:
             )
 
         except Exception as e:
+            _module_logger.error(
+                f"Ошибка сервиса '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             if self._event_bus:
                 await self._event_bus.publish(
                     event_type="executor.service_error",
@@ -1167,6 +1172,11 @@ class ActionExecutor:
             return result
 
         except Exception as e:
+            _module_logger.error(
+                f"Ошибка инструмента '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             if self._event_bus:
                 await self._event_bus.publish(
                     event_type="executor.tool_error",
@@ -1234,6 +1244,11 @@ class ActionExecutor:
             return result
 
         except Exception as e:
+            _module_logger.error(
+                f"Ошибка компонента '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             if self._event_bus:
                 await self._event_bus.publish(
                     event_type="executor.component_error",

@@ -186,6 +186,11 @@ class ReActPattern(BaseBehaviorPattern):
                     use_native_structured_output=False
                 )
             except Exception as e:
+                self._log_error(
+                    f"❌ Исключение при LLM вызове: {type(e).__name__}: {e}",
+                    event_type=LogEventType.LLM_ERROR,
+                    exc_info=True
+                )
                 return self.fallback_strategy.create_error(
                     f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
                 )
@@ -213,6 +218,10 @@ class ReActPattern(BaseBehaviorPattern):
             return decision
             
         except Exception as e:
+            self._log_error(
+                f"❌ Критическая ошибка в ReActPattern.generate_decision: {e}",
+                exc_info=True
+            )
             return self._handle_error(str(e), available_capabilities)
 
     async def _make_decision(

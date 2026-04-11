@@ -26,7 +26,10 @@ import asyncio
 import logging
 import random
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.infrastructure.logging.session import LoggingSession
 
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.common_enums import ErrorCategory, ErrorType
@@ -36,9 +39,6 @@ from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
 from core.infrastructure.logging.event_types import LogEventType
-
-
-_module_logger = logging.getLogger(__name__)
 
 
 class SafeExecutor:
@@ -78,7 +78,8 @@ class SafeExecutor:
         max_retries: int = 3,
         base_delay: float = 0.5,
         max_delay: float = 5.0,
-        jitter: bool = True
+        jitter: bool = True,
+        log_session: Optional['LoggingSession'] = None
     ):
         """
         Инициализация безопасного исполнителя.
@@ -90,6 +91,7 @@ class SafeExecutor:
         - base_delay: базовая задержка (сек) для экспоненциального увеличения
         - max_delay: максимальная задержка (сек)
         - jitter: применять ли случайное изменение задержки
+        - log_session: сессия логирования
         """
         self.executor = executor
         self.failure_memory = failure_memory
@@ -98,6 +100,13 @@ class SafeExecutor:
         self.max_delay = max_delay
         self.jitter = jitter
         self.error_classifier = ErrorClassifier()
+        self._log_session = log_session
+
+    def _get_logger(self) -> logging.Logger:
+        """Получение логгера из log_session или fallback."""
+        if self._log_session and self._log_session.app_logger:
+            return self._log_session.app_logger
+        return logging.getLogger(__name__)
     
     async def execute(
         self,
@@ -122,7 +131,7 @@ class SafeExecutor:
         3. При других ошибках — запись в FailureMemory и возврат failure
         4. Pattern сам читает failures и принимает решения
         """
-        _module_logger.debug(
+        self._get_logger().debug(
             f"SafeExecutor.execute: {capability_name}",
             extra={"event_type": LogEventType.DEBUG}
         )
@@ -162,9 +171,10 @@ class SafeExecutor:
                     timestamp=datetime.now()
                 )
 
-                _module_logger.warning(
+                self._get_logger().warning(
                     f"Ошибка {error_type.value}: {capability_name} (attempt {attempt + 1}/{self.max_retries}): {e}",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": LogEventType.WARNING},
+                    exc_info=True
                 )
 
                 # Retry ТОЛЬКО для TRANSIENT ошибок

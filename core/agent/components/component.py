@@ -323,9 +323,9 @@ class Component(ComponentLifecycle, LoggingMixinV2, ABC):
                     event_bus = getattr(infra, 'event_bus', None)
                     if event_bus is not None:
                         await event_bus.publish(event_type, data=data, session_id=getattr(infra, 'id', 'unknown'))
-        except Exception:
-            # Тихое игнорирование ошибок публикации — не критично
-            pass
+        except Exception as e:
+            # Тихое игнорирование ошибок публикации — не критично, но логируем для отладки
+            self._logger.debug(f"_publish_with_context ошибка: {e}")
 
     def _safe_log_sync(self, level: str, message: str, **kwargs):
         """

@@ -597,7 +597,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
                             self.schema_validator.register_capability_schema(base_name, schema_dict)
                         registered += 1
             except Exception as e:
-                self._log_error(f"Error registering {cap_name}: {e}")
+                self._log_error(f"Error registering {cap_name}: {e}", exc_info=True)
         self._log_debug(f"Total schemas registered: {registered}")
     
     async def analyze_context(

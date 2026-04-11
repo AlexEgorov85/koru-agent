@@ -125,7 +125,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             return self.system_prompt_template is not None
         except Exception as e:
-            self._log_error(f"Ошибка загрузки system prompt: {e}")
+            self._log_error(f"Ошибка загрузки system prompt: {e}", exc_info=True)
             return False
 
     def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
@@ -316,7 +316,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
         except Exception as e:
             error_msg = f"Ошибка при оценке цели: {e}"
-            self._log_error(error_msg)
+            self._log_error(error_msg, exc_info=True)
 
             return BehaviorDecision(
                 action=BehaviorDecisionType.FAIL,
