@@ -13,11 +13,15 @@
 - Generic тип T для data позволяет сохранять тип модели
 """
 import asyncio
+import logging
 from typing import Dict, Any, Optional
 
 from core.components.services.validation_service import ValidationService
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
+
+_module_logger = logging.getLogger(__name__)
 
 
 class ExecutionContext:
@@ -51,31 +55,15 @@ class ActionExecutor:
     def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
         self._event_bus = None
-        self._event_bus_logger = None
         try:
             if hasattr(application_context, 'infrastructure_context'):
                 self._event_bus = getattr(application_context.infrastructure_context, 'event_bus', None)
-                self._event_bus_logger = getattr(application_context.infrastructure_context, 'event_bus_logger', None)
         except Exception:
             pass
 
-    @property
-    def logger(self):
-        """Обратная совместимость - возвращает event_bus_logger."""
-        return self._event_bus_logger
-
     def _log_debug(self, msg: str, *args, **kwargs):
         """Отладочное логирование."""
-        if self._event_bus_logger:
-            try:
-                loop = asyncio.get_running_loop()
-                if loop.is_running():
-                    asyncio.create_task(self._event_bus_logger.debug(msg, *args, **kwargs))
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                else:
-                    self._event_bus_logger.debug_sync(msg, *args, **kwargs)
-            except RuntimeError:
-                self._event_bus_logger.debug_sync(msg, *args, **kwargs)
+        _module_logger.debug(msg, extra={"event_type": LogEventType.DEBUG}, *args, **kwargs)
     
     async def execute_action(
         self,
@@ -129,16 +117,11 @@ class ActionExecutor:
                 return await self._execute_skill_or_behavior_action(target_component, action_name, parameters, context)
 
         except Exception as e:
-            if self._event_bus_logger:
-                try:
-                    loop = asyncio.get_running_loop()
-                    if loop.is_running():
-                        asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True))
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    else:
-                        self._event_bus_logger.error_sync(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
-                except RuntimeError:
-                    self._event_bus_logger.error_sync(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
+            _module_logger.error(
+                f"Ошибка выполнения действия '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -249,23 +232,11 @@ class ActionExecutor:
                     error=f"Неизвестное действие контекста: {action_name}"
                 )
         except Exception as e:
-            if self._event_bus_logger:
-                try:
-                    error_msg = f"Ошибка выполнения действия контекста '{action_name}': {e}"
-                    if asyncio.iscoroutinefunction(self._event_bus_logger.error):
-                        if threading.current_thread() == threading.main_thread():
-                            asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        else:
-                            loop = asyncio.new_event_loop()
-                            loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            loop.close()
-                    else:
-                        self._event_bus_logger.error(error_msg, exc_info=True)
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                except Exception:
-                    pass
+            _module_logger.error(
+                f"Ошибка выполнения действия контекста '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка действия контекста: {str(e)}"
@@ -693,23 +664,11 @@ class ActionExecutor:
                     error=f"Неизвестное действие валидации: {action_name}"
                 )
         except Exception as e:
-            if self._event_bus_logger:
-                try:
-                    error_msg = f"Ошибка валидации '{action_name}': {e}"
-                    if asyncio.iscoroutinefunction(self._event_bus_logger.error):
-                        if threading.current_thread() == threading.main_thread():
-                            asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        else:
-                            loop = asyncio.new_event_loop()
-                            loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            loop.close()
-                    else:
-                        self._event_bus_logger.error(error_msg, exc_info=True)
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                except Exception:
-                    pass
+            _module_logger.error(
+                f"Ошибка валидации '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка валидации: {str(e)}"
@@ -874,9 +833,11 @@ class ActionExecutor:
                 )
 
         except Exception as e:
-            if self._event_bus_logger:
-                await self._event_bus_logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            _module_logger.error(
+                f"Ошибка LLM действия '{action_name}': {e}",
+                extra={"event_type": LogEventType.ERROR},
+                exc_info=True
+            )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)

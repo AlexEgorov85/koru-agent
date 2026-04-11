@@ -5,15 +5,14 @@
 - Валидацию согласованности версий до создания агента
 - Использование существующего ApplicationContext
 """
+import logging
 from typing import Optional, List
 from enum import Enum
 
 from core.application_context.application_context import ApplicationContext
 from core.agent.runtime import AgentRuntime
 from core.config.agent_config import AgentConfig
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.logging.event_types import LogEventType
 
 
 class ProfileType(Enum):
@@ -38,23 +37,7 @@ class AgentFactory:
         - application_context: Прикладной контекст для использования
         """
         self.application_context = application_context
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger."""
-        # Используем infrastructure_context напрямую (это правильный путь для Factory)
-        if hasattr(self.application_context, 'infrastructure_context'):
-            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    event_bus, 
-                    session_id="system", 
-                    agent_id="system",
-                    component="AgentFactory"
-                )
+        self._logger = logging.getLogger(__name__)
 
     async def create_agent(
         self,
@@ -96,13 +79,10 @@ class AgentFactory:
             agent_config=config
         )
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Создан агент с ID {app_context.id}. "
-                f"Версии: из конфигурации"
-            )
+        self._logger.info(
+            f"Создан агент с ID {app_context.id}. Версии: из конфигурации",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
+        )
 
         return agent
 

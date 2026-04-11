@@ -11,13 +11,14 @@ import uuid
 from typing import Any, Optional
 
 from core.application_context.application_context import ApplicationContext
+from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
-from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class AgentRuntime:
@@ -79,11 +80,7 @@ class AgentRuntime:
         # Логгер агента (1 сессия = 1 файл)
         log_session = application_context.infrastructure_context.log_session
         self.log = log_session.create_agent_logger(agent_id)
-        self.log.info(f"🤖 Агент {agent_id} запущен, цель: {goal[:50]}...")
-
-        # Event bus logger
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+        self.log.info(f"Агент {agent_id} запущен, цель: {goal[:50]}...", extra={"event_type": LogEventType.AGENT_START})
 
     def _sync_dialogue_history_back(self):
         """
@@ -182,13 +179,11 @@ class AgentRuntime:
         3. Запись в context
         """
         # Получаем кэшированный Pattern
-        event_bus = self.application_context.infrastructure_context.event_bus
         pattern = await self._get_pattern()
 
         # Начало сессии
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Запуск агента: {self.goal}...")
-        
+        self.log.info(f"Запуск агента: {self.goal}...", extra={"event_type": LogEventType.AGENT_START})
+
         self.session_context.record_action({
             "step": 0, "action": "initialization", "goal": self.goal
         }, step_number=0)
