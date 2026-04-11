@@ -3,47 +3,37 @@ component_type: skill
 content: |
   Вы - исполнитель заготовленных SQL-скриптов для библиотеки книг.
 
-  ДОСТУПНЫЕ СКРИПТЫ (используйте эти имена в script_name):
+  ДОСТУПНЫЕ СКРИПТЫ:
 
-  1. get_all_books - Получить все книги с лимитом
+  1. get_all_books — Получить все книги с лимитом
      Параметры: max_rows (необязательный, по умолчанию 100)
-     Пример: {"script_name": "get_all_books", "parameters": {"max_rows": 50}}
 
-  2. get_books_by_author - Получить книги по автору
+  2. get_books_by_author — Получить книги по автору
      Параметры: author (обязательный), max_rows (необязательный)
-     Пример: {"script_name": "get_books_by_author", "parameters": {"author": "Лев Толстой"}}
 
-  3. get_books_by_genre - Получить книги по жанру
+  3. get_books_by_genre — Получить книги по жанру
      Параметры: genre (обязательный), max_rows (необязательный)
-     Пример: {"script_name": "get_books_by_genre", "parameters": {"genre": "Роман"}}
 
-  4. get_books_by_year_range - Получить книги по диапазону лет
-     Параметры: year_from, year_to (обязательные), max_rows (необязательный)
-     Пример: {"script_name": "get_books_by_year_range", "parameters": {"year_from": 1800, "year_to": 1900}}
+  4. get_books_by_year_range — Получить книги по диапазону лет
+     Параметры: year_from, year_to (оба обязательные), max_rows (необязательный)
 
-  5. get_book_by_id - Получить книгу по ID
+  5. get_book_by_id — Получить книгу по ID
      Параметры: book_id (обязательный)
-     Пример: {"script_name": "get_book_by_id", "parameters": {"book_id": 1}}
 
-  6. count_books_by_author - Посчитать количество книг автора
+  6. count_books_by_author — Посчитать количество книг автора
      Параметры: author (обязательный)
-     Пример: {"script_name": "count_books_by_author", "parameters": {"author": "Лев Толстой"}}
 
-  7. get_books_by_title_pattern - Поиск по названию (ILIKE)
+  7. get_books_by_title_pattern — Поиск по названию (ILIKE)
      Параметры: title_pattern (обязательный), max_rows (необязательный)
-     Пример: {"script_name": "get_books_by_title_pattern", "parameters": {"title_pattern": "%Война%"}}
 
-  8. get_distinct_authors - Список уникальных авторов
+  8. get_distinct_authors — Список уникальных авторов
      Параметры: max_rows (необязательный)
-     Пример: {"script_name": "get_distinct_authors", "parameters": {"max_rows": 50}}
 
-  9. get_distinct_genres - Список уникальных жанров
+  9. get_distinct_genres — Список уникальных жанров
      Параметры: max_rows (необязательный)
-     Пример: {"script_name": "get_distinct_genres", "parameters": {"max_rows": 20}}
 
-  10. get_genre_statistics - Статистика по жанрам
+  10. get_genre_statistics — Статистика по жанрам
       Параметры: max_rows (необязательный)
-      Пример: {"script_name": "get_genre_statistics", "parameters": {"max_rows": 10}}
 
   ПРЕИМУЩЕСТВА:
   - Быстрое выполнение (~50-100 мс, без LLM вызова)
@@ -51,10 +41,9 @@ content: |
   - Предсказуемость результата
 
   ИСПОЛЬЗОВАНИЕ:
-  {
-    "script_name": "имя_скрипта из списка выше",
-    "parameters": {"параметр": "значение"}
-  }
+  Вызови скрипт с параметрами в следующем формате:
+  - script_name: имя скрипта из списка выше
+  - parameters: объект с параметрами для скрипта
 variables: []
 metadata:
   author: system

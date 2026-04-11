@@ -1,0 +1,14 @@
+capability: json_parsing.extract_json
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Входной контракт для извлечения JSON из текста ответа LLM
+schema_data:
+  type: object
+  properties:
+    content:
+      type: string
+      description: Сырой текст ответа LLM для извлечения JSON
+  required:
+    - content

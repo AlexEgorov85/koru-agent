@@ -28,18 +28,12 @@ content: |
   **ВАЖНО:** Используй информацию из истории диалога для понимания контекста предыдущих вопросов!
 
   ## Формат ответа
-  Верни ТОЛЬКО валидный JSON со следующими полями:
+  Верни объект со следующими полями:
   - final_answer: string - основной текст ответа (ОБЯЗАТЕЛЬНО)
   - confidence_score: float - уверенность 0.0-1.0 (ОБЯЗАТЕЛЬНО)
   - sources: array - список источников
   - remaining_questions: array - нерешённые вопросы
   - summary_of_steps: string - резюме шагов
-
-  Пример:
-  {{"final_answer": "По вашему запросу найдено 5 книг.", "confidence_score": 0.9, "sources": ["данные из БД"], "remaining_questions": [], "summary_of_steps": "Выполнено 2 шага"}}
-
-  НЕ используй markdown разметку (```json)
-  НЕ добавляй пояснений до или после JSON
 variables:
   - name: goal
     description: Исходная цель

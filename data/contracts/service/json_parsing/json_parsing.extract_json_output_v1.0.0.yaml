@@ -1,0 +1,28 @@
+capability: json_parsing.extract_json
+version: v1.0.0
+status: active
+component_type: service
+direction: output
+description: Выходной контракт для извлечённого JSON
+schema_data:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Статус парсинга (success или extract_error)
+    extracted_json:
+      type: string
+      description: Извлечённая JSON строка без markdown-обёртки
+    error_type:
+      type: string
+      description: Тип ошибки если извлечение не удалось
+    error_message:
+      type: string
+      description: Человекочитаемое описание ошибки
+    processing_steps:
+      type: array
+      description: Трассировка шагов извлечения для отладки
+      items:
+        type: string
+  required:
+    - status

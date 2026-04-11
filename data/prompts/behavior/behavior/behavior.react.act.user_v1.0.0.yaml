@@ -49,79 +49,34 @@ content: |
   5. При ошибке валидации — верни понятное сообщение
 
   === ФОРМАТ ОТВЕТА ===
-  Верни результат в формате JSON:
-  {
-    "action_name": "имя_выбранного_инструмента",
-    "action_parameters": {
-      "param1": "значение1",
-      "param2": "значение2"
-    },
-    "reasoning": "Краткое обоснование выбора этого действия",
-    "expected_outcome": "Ожидаемый результат выполнения"
-  }
+  Верни результат в формате JSON со следующими полями:
+  - action_name: имя выбранного инструмента
+  - action_parameters: объект с параметрами для вызова инструмента
+  - reasoning: краткое обоснование выбора действия
+  - expected_outcome: ожидаемый результат выполнения
 
-  === ПРИМЕРЫ ===
-  Пример 1 (поиск книг по автору через execute_script):
-  Thought: "Нужно найти книги автора Александр Пушкин"
-  Available tools: [book_library.search_books, book_library.execute_script]
-  Решение: Выбрать book_library.execute_script с script_name=get_books_by_author
-  Формат параметров (плоская структура):
-  {
-    "script_name": "get_books_by_author",
-    "author": "Александр Пушкин",
-    "max_rows": 20
-  }
+  === ИНСТРУКЦИИ ДЛЯ book_library.execute_script ===
+  Передавай параметры в ПЛОСКОМ формате (все параметры на верхнем уровне):
+  - script_name: имя скрипта
+  - author: имя автора (если нужно)
+  - genre: жанр (если нужно)
+  - year_from: год ОТ (если нужно)
+  - year_to: год ДО (если нужно)
+  - book_id: ID книги (если нужно)
+  - title_pattern: шаблон названия (если нужно)
+  - max_rows: лимит результатов (опционально, по умолчанию 100)
 
-  Пример 2 (поиск книг по названию через execute_script):
-  Thought: "Нужно найти книги со словом 'Война' в названии"
-  Available tools: [book_library.execute_script]
-  Решение: Выбрать book_library.execute_script с script_name=get_books_by_title_pattern
-  Формат параметров (плоская структура):
-  {
-    "script_name": "get_books_by_title_pattern",
-    "title_pattern": "%Война%",
-    "max_rows": 10
-  }
-
-  Пример 3 (получить все книги через execute_script):
-  Thought: "Нужно показать все доступные книги из библиотеки"
-  Available tools: [book_library.execute_script]
-  Решение: Выбрать book_library.execute_script с script_name=get_all_books
-  Формат параметров (плоская структура):
-  {
-    "script_name": "get_all_books",
-    "max_rows": 50
-  }
-
-  Пример 4 (анализ данных шага):
-  Thought: "Требуется проанализировать данные шага и ответить на вопрос"
-  Available tools: [data_analysis.analyze_step_data]
-  Решение: Выбрать data_analysis.analyze_step_data с параметрами step_id и question
-
-   === ВАЖНО ДЛЯ book_library.execute_script ===
-   Передавай параметры в ПЛОСКОМ формате (все параметры на верхнем уровне):
-   {
-     "script_name": "имя_скрипта",
-     "author": "имя автора (если нужно)",
-     "genre": "жанр (если нужно)",
-     "year_from": год ОТ (если нужно, например: 1850 для 'книги после 1850')",
-     "year_to": год ДО (если нужно)",
-     "book_id": ID (если нужно)",
-     "title_pattern": "шаблон (если нужно)",
-     "max_rows": лимит (опционально, по умолчанию 100)
-   }
-   
-   Доступные скрипты:
-   - get_all_books - получить все книги (параметры: max_rows)
-   - get_books_by_author - книги по автору (параметры: author, max_rows)
-   - get_books_by_genre - книги по жанру (параметры: genre, max_rows)
-   - get_books_by_year_range - книги по диапазону лет (параметры: year_from, year_to - ОБА ОПЦИОНАЛЬНЫ! год_from=0 по умолчанию, year_to=9999 по умолчанию)
-   - get_book_by_id - книга по ID (параметры: book_id)
-   - count_books_by_author - количество книг автора (параметры: author)
-   - get_books_by_title_pattern - книги по шаблону названия (параметры: title_pattern, max_rows)
-   - get_distinct_authors - список уникальных авторов (параметры: max_rows)
-   - get_distinct_genres - список уникальных жанров (параметры: max_rows)
-   - get_genre_statistics - статистика по жанрам (параметры: max_rows)
+  Доступные скрипты:
+  - get_all_books — получить все книги
+  - get_books_by_author — книги по автору
+  - get_books_by_genre — книги по жанру
+  - get_books_by_year_range — книги по диапазону лет
+  - get_book_by_id — книга по ID
+  - count_books_by_author — количество книг автора
+  - get_books_by_title_pattern — книги по шаблону названия
+  - get_distinct_authors — список уникальных авторов
+  - get_distinct_genres — список уникальных жанров
+  - get_genre_statistics — статистика по жанрам
 
   === ВЫПОЛНЕНИЕ ===
   На основе предоставленного рассуждения и доступных инструментов выполни действие.

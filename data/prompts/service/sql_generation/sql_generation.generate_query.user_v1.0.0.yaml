@@ -10,9 +10,11 @@ content: |
 
   {table_schema}
 
-  Верни ТОЛЬКО JSON объект:
-
-  {"generated_sql": "...", "confidence_score": 0.9, "explanation": "...", "potential_issues": []}
+  Верни объект со следующими полями:
+  - generated_sql: сгенерированный SQL-запрос
+  - confidence_score: уверенность в запросе (0.0-1.0)
+  - explanation: объяснение запроса
+  - potential_issues: потенциальные проблемы (массив строк)
 variables:
   - name: natural_language_request
     description: Запрос на естественном языке

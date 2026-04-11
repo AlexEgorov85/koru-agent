@@ -11,14 +11,12 @@ content: |
   context_summary: {context_summary}
   
   ## Инструкции
-  
-  Верни ответ в формате JSON:
-  {
-    "error_type": "pattern_failure",
-    "reason": "описание ошибки",
-    "can_retry": false,
-    "recommended_action": "описание рекомендуемого действия"
-  }
+
+  Верни объект со следующими полями:
+  - error_type: строка, тип ошибки (например "pattern_failure")
+  - reason: строка, описание ошибки
+  - can_retry: true/false, можно ли повторить попытку
+  - recommended_action: строка, описание рекомендуемого действия
 variables:
   - name: goal
     description: Цель текущего сессии

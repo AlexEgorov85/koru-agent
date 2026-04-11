@@ -50,43 +50,22 @@ content: |
   - ПУСТОЙ РЕЗУЛЬТАТ: действие выполнено, но данных нет
 
   === ФОРМАТ ОТВЕТА ===
-  Верни результат в формате JSON:
-  {
-    "status": "success|partial|error|empty",
-    "observation": "Краткое описание наблюдаемого результата",
-    "key_findings": [
-      "Важный факт 1",
-      "Важный факт 2"
-    ],
-    "data_quality": {
-      "completeness": 0.0-1.0,
-      "reliability": 0.0-1.0
-    },
-    "errors": ["Список ошибок, если есть"],
-    "next_step_suggestion": "Рекомендация для следующего шага",
-    "requires_additional_action": true/false
-  }
+  Верни результат в формате JSON со следующими полями:
+  - status: строка, одно из значений: "success", "partial", "error", "empty"
+  - observation: строка, краткое описание наблюдаемого результата
+  - key_findings: массив строк, важные факты из результата
+  - data_quality: объект с полями:
+    - completeness: число от 0.0 до 1.0, полнота данных
+    - reliability: число от 0.0 до 1.0, достоверность информации
+  - errors: массив строк, список ошибок (пустой если нет)
+  - next_step_suggestion: строка, рекомендация для следующего шага
+  - requires_additional_action: true/false, требуется ли дополнительное действие
 
-  === ПРИМЕРЫ ===
-  Пример 1 (успех):
-  Action: book_library.execute_script(script_name=get_books_by_author, author="Лев Толстой")
-  Result: {"rows": [{"title": "Война и мир", ...}, ...], "rowcount": 3}
-  Observation: "Найдено 3 книги автора Лев Толстой"
-  Status: success
-
-  Пример 2 (ошибка):
-  Action: sql_query.execute(sql="SELECT * FROM invalid_table")
-  Result: {"error": "table invalid_table does not exist"}
-  Observation: "Ошибка выполнения SQL: таблица не существует"
-  Status: error
-  Next step: "Требуется коррекция запроса или проверка схемы БД"
-
-  Пример 3 (пустой результат):
-  Action: book_library.search_books(query="Несуществующий автор")
-  Result: {"rows": [], "rowcount": 0}
-  Observation: "По запросу не найдено результатов"
-  Status: empty
-  Next step: "Попробовать альтернативный запрос или сообщить об отсутствии данных"
+  === КРИТЕРИИ ОЦЕНКИ СТАТУСА ===
+  - success: действие выполнено, данные получены в полном объёме
+  - partial: действие выполнено, но данных недостаточно
+  - error: действие не выполнено, есть ошибка
+  - empty: действие выполнено, но данных нет (пустой результат)
 
   === ВЫПОЛНЕНИЕ ===
   Проанализируй результат выполненного действия и подготовь структурированное наблюдение.

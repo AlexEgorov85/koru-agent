@@ -1,0 +1,36 @@
+capability: json_parsing.parse_to_model
+version: v1.0.0
+status: active
+component_type: service
+direction: output
+description: Выходной контракт для результата создания Pydantic модели
+schema_data:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Статус операции (success, extract_error, parse_error, validation_error, model_error)
+    parsed_data:
+      type: object
+      description: Распарсенные данные до валидации схемой
+    pydantic_model_data:
+      type: object
+      description: Данные валидированной Pydantic модели (сериализованные)
+    error_type:
+      type: string
+      description: Тип ошибки если операция не удалась
+    error_message:
+      type: string
+      description: Человекочитаемое описание ошибки
+    error_details:
+      type: array
+      description: Детали ошибок валидации Pydantic (loc, msg, type)
+      items:
+        type: object
+    processing_steps:
+      type: array
+      description: Полная трассировка всех шагов парсинга для отладки
+      items:
+        type: string
+  required:
+    - status

@@ -1,0 +1,14 @@
+capability: json_parsing.parse_json
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Входной контракт для парсинга JSON строки
+schema_data:
+  type: object
+  properties:
+    raw:
+      type: string
+      description: JSON строка для парсинга
+  required:
+    - raw
