@@ -35,6 +35,35 @@ python -m scripts.cli.koru --help
 
 ---
 
+## Векторная индексация (`vector/`)
+
+Все операции индексации — через единый скрипт `indexer.py`:
+
+```bash
+# Создать пустые индексы для всех источников
+python -m scripts.vector.indexer init
+
+# Индексация авторов
+python -m scripts.vector.indexer authors
+
+# Индексация книг (по заголовкам)
+python -m scripts.vector.indexer books
+
+# Полная индексация книг (с чанками содержимого)
+python -m scripts.vector.indexer books --full
+
+# Произвольная таблица
+python -m scripts.vector.indexer table --table "Lib.genres" --column "name" --source genres
+```
+
+**Удалённые скрипты** (функциональность перенесена в `indexer.py`):
+- `index_authors.py` → `indexer authors`
+- `index_books.py` → `indexer books`
+- `rebuild_books_index.py` → `indexer books --full`
+- `initial_indexing.py` → `indexer init`
+
+---
+
 ## Обслуживание (`maintenance/`)
 
 | Скрипт | Назначение |

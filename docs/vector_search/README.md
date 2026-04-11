@@ -44,7 +44,7 @@
 | Скрипт | Назначение |
 |--------|------------|
 | `scripts/vector/check_vector_status.py` | Проверка состояния индексов |
-| `scripts/vector/initial_indexing.py` | Первичная индексация книг |
+| `scripts/vector/indexer.py` | **Универсальный индексатор** (заменяет все старые скрипты) |
 
 ---
 
@@ -88,7 +88,13 @@
 → `python scripts/vector/check_vector_status.py`
 
 ### Хочу проиндексировать книги
-→ `python scripts/vector/initial_indexing.py`
+→ `python -m scripts.vector.indexer books`
+
+### Хочу проиндексировать авторов
+→ `python -m scripts.vector.indexer authors`
+
+### Хочу создать пустые индексы
+→ `python -m scripts.vector.indexer init`
 
 ---
 
