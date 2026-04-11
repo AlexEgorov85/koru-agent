@@ -63,16 +63,18 @@ LoggingSession (создаётся при инициализации InfraContex
 
 ### В компонентах (skills, services, tools, behaviors)
 
-Компоненты наследуют `LoggingMixinV2` через `Component`:
+Компоненты наследуют `ComponentLogger` через `Component`:
 
 ```python
 class MySkill(Skill):
     async def _execute_impl(self, capability, parameters, context):
-        self._log_info("Начало выполнения", event_type=LogEventType.USER_PROGRESS)
-        self._log_debug(f"Параметры: {parameters}")           # только файл
-        self._log_warning("Превышен лимит")                   # терминал + файл
-        self._log_error(f"Ошибка: {e}", exc_info=True)        # терминал + файл + stack
+        self.log.info("Начало выполнения", extra={"event_type": LogEventType.USER_PROGRESS})
+        self.log.debug(f"Параметры: {parameters}")           # только файл
+        self.log.warning("Превышен лимит")                   # терминал + файл
+        self.log.error(f"Ошибка: {e}", exc_info=True)        # терминал + файл + stack
 ```
+
+Компоненты получают логгер через `LoggingSession.get_component_logger()` или через `application_context.infrastructure_context.log_session`. Все компоненты, унаследованные от `Component`, уже имеют атрибут `self.log`. Логи компонентов записываются в `components.log`.
 
 ### В инфраструктуре
 
@@ -92,15 +94,15 @@ log.error(f"Критическая ошибка: {e}", extra={"event_type": LogE
 ```python
 class AgentRuntime:
     async def _run_async(self):
-        self.log.info(f"🚀 Запуск агента: {self.goal}...",
+        self.log.info(f"Запуск агента: {self.goal}...",
                       extra={"event_type": LogEventType.AGENT_START})
 
         for step in range(self.max_steps):
-            self.log.info(f"📍 ШАГ {step + 1}/{self.max_steps}",
+            self.log.info(f"ШАГ {step + 1}/{self.max_steps}",
                           extra={"event_type": LogEventType.STEP_STARTED})
 
             decision = await pattern.decide(...)
-            self.log.info(f"✅ Pattern вернул: {decision.type.value}",
+            self.log.info(f"Pattern вернул: {decision.type.value}",
                           extra={"event_type": LogEventType.AGENT_DECISION})
 ```
 
@@ -113,6 +115,7 @@ logs/
 └── 2026-04-11_15-57-18/                    # Генерируется один раз при запуске
     ├── infra_context.log                   # Инфраструктура (провайдеры, БД, LLM)
     ├── app_context.log                     # Приложение (компоненты, сервисы)
+    ├── components.log                      # Логи всех компонентов (skills, tools, behaviors)
     └── agents/
         ├── 2026-04-11_15-58-00.log         # Сессия агента #1
         └── 2026-04-11_16-02-30.log         # Сессия агента #2
@@ -170,12 +173,13 @@ config = LoggingConfig(
 
 1. **Все `except Exception`** должны иметь `exc_info=True`
 2. **Никаких `pass`** в `except Exception` — минимум warning
-3. **Никаких `EventBusLogger`** — только `self.log` + `LogEventType`
+3. **Никаких `event_bus_logger`** — только `self.log` + `LogEventType`
 4. **Никаких `print()`** — только logging
 5. **`logging.getLogger()`** — только в `__init__` компонентов, НЕ в runtime
 6. **Формат сообщений** — `%s` вместо f-strings в `log.info/error()` (производительность)
 7. **Консоль фильтруется** — только события из `allowed_terminal_events`
 8. **Файловые логи пишут всё** — без фильтрации
+9. **Правильный паттерн:** `self.log.info(..., extra={"event_type": LogEventType.XXX})`
 
 ---
 

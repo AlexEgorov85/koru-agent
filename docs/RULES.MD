@@ -8,7 +8,7 @@
 > - v5.36.0: Добавлены рекомендации по промптам и контрактам, исправлены ошибки в final_answer
 > - v5.4.0: Обновлена архитектура загрузки промптов и контрактов (ResourcePreloader)
 > - v5.3.0: Исправлены ошибки в документации, добавлены новые секции
-> - v5.2.0: Удалён избыточный LoggingMixin, логирование напрямую в BaseComponent
+> - v5.2.0: Введён `ComponentLogger` — логирование через стандартный `logging` с `LogEventType`
 
 ---
 
@@ -34,7 +34,7 @@
 |---------|----------|--------|
 | **Используй BaseComponent** | Все навыки, инструменты, сервисы наследуются от `BaseComponent` | `class MySkill(BaseSkill)` |
 | **Используй ActionExecutor** | Взаимодействие между компонентами ТОЛЬКО через executor | `await self.executor.execute_action(...)` |
-| **Используй EventBusLogger** | Логирование ТОЛЬКО через `self.event_bus_logger` | `await self.event_bus_logger.info(...)` |
+| **Используй стандартный logging** | Логирование через `self.log` + `extra={"event_type": LogEventType.XXX}` | `self.log.info("Message", extra={"event_type": LogEventType.INFO})` |
 | **Используй ComponentConfig** | Конфигурация версий через `component_config` | `self.component_config.prompt_versions` |
 
 ### 2. Изоляция Компонентов
@@ -117,8 +117,8 @@ prompt = data_repository.get_prompt(cap, ver)  ← Из кэша, 0 обраще
 |---------|----------|
 | **Компоненты не знают о версиях** | Версии определяются в `AppConfig` через `from_discovery(profile)` |
 | **Профиль управляет загрузкой** | `prod` = active, `sandbox` = active + draft, `dev` = все статусы |
-| **Единая точка загрузки** | `DataRepository` загружает всё один раз при старте |
-| **ComponentFactory заполняет resolved_*** | Factory вызывает `ResourcePreloader` перед созданием компонента |
+| **Единая точка загрузки** | `ResourceLoader` загружает всё один раз при старте |
+| **ComponentFactory заполняет resolved_*** | Factory вызывает `ResourceLoader.get_component_resources()` |
 | **Компонент получает готовые ресурсы** | `self.prompts`, `self.input_contracts` уже загружены |
 
 **Иерархия конфигурации:**
@@ -139,23 +139,15 @@ ComponentConfig                ← Генерируется из AppConfig
 ┌──────────────────────────────────────────────────────────────┐
 │  AppConfig.from_discovery(profile='prod')                    │
 │  → Загружает llm_providers, db_providers из YAML            │
-│  → Сканирует ФС, фильтрует по статусу (active для prod)      │
+│  → ResourceLoader сканирует ФС, фильтрует по статусу         │
 │  → Возвращает {prompt_versions, input_contract_versions...} │
-└──────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  DataRepository.initialize(app_config)                       │
-│  → Загружает ВСЕ метаданные в индексы (Prompt, Contract)     │
-│  → Валидирует статусы версий против профиля                 │
-│  → Проверяет соответствие конфигурации и ФС                 │
 └──────────────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  ComponentFactory.create_component()                         │
 │  → Берёт component_config из AppConfig                       │
-│  → Вызывает ResourcePreloader.preload_for_component()        │
+│  → Вызывает ResourceLoader.get_component_resources()         │
 │  → Заполняет component_config.resolved_*                     │
 │  → Создаёт компонент с готовыми ресурсами                    │
 └──────────────────────────────────────────────────────────────┘
@@ -269,9 +261,8 @@ class ComponentFactory:
 
 | Класс | Файл | Назначение |
 |-------|------|------------|
-| `DataRepository` | `core/application/data_repository.py` | Централизованный репозиторий промптов и контрактов |
-| `ComponentRegistry` | `core/application/registry/component_registry.py` | Реестр компонентов |
-| `ResourceDiscovery` | `core/infrastructure/discovery/resource_discovery.py` | Авто-обнаружение ресурсов |
+| `ResourceLoader` | `core/infrastructure/loading/resource_loader.py` | ЕДИНЫЙ загрузчик промптов и контрактов |
+| `ComponentRegistry` | `core/agent/components/component_registry.py` | Реестр компонентов |
 
 ### Модели Данных
 
@@ -339,13 +330,13 @@ async def initialize(self) -> bool:
     success = await super().initialize()
     if not success:
         return False
-    
+
     # 2. Загрузи дополнительные ресурсы (если нужно)
     # self.prompts и self.input_contracts уже загружены!
-    
+
     # 3. Логирование
-    await self.event_bus_logger.info(f"{self.name} инициализирован")
-    
+    self.log.info(f"{self.name} инициализирован", extra={"event_type": LogEventType.SYSTEM_INIT})
+
     return True
 ```
 
@@ -496,37 +487,63 @@ await self.executor.execute_action(
 ### 1. Логирование
 
 **АРХИТЕКТУРА:**
-- `BaseComponent` использует `EventBusLogger` напрямую (без посредников)
-- `LoggingMixin` **НЕ используется** (удалён как избыточная абстракция)
-- Логирование реализовано методами в `BaseComponent`: `_init_event_bus_logger()`, `_safe_log_sync()`
+- Все компоненты наследуют `ComponentLogger` через `Component`
+- Логгер (`self.log`) — экземпляр стандартного `logging.Logger`, получаемый из `LoggingSession.get_component_logger()`
+- Источник: `application_context.infrastructure_context.log_session` → `get_component_logger(component_id)`
+- Все логи пишутся в `components.log` + выводятся в консоль через `EventTypeFilter`
+- **Каждый вызов ОБЯЗАН** иметь `extra={"event_type": LogEventType.XXX}` — записи без `event_type` НЕ попадают в терминал
 
 **НЕ ДЕЛАЙ:**
 ```python
-# ❌ ЗАПРЕЩЕНО: Стандартный logging
-import logging
-logger = logging.getLogger(__name__)
-logger.info("Message")
+# ❌ ЗАПРЕЩЕНО: EventBusLogger (удалён)
+await self.event_bus_logger.info("Message")
 
 # ❌ ЗАПРЕЩЕНО: Print
 print("Debug message")
 
-# ❌ ЗАПРЕЩЕНО: Создавать свои миксины для логирования
-class MyLoggingMixin: ...  # Уже есть в BaseComponent
+# ❌ ЗАПРЕЩЕНО: Прямой logging.getLogger() без LoggingSession
+import logging
+logger = logging.getLogger(__name__)
+logger.info("Message")
 ```
 
 **ДЕЛАЙ:**
 ```python
-# ✅ ПРАВИЛЬНО: EventBusLogger
-await self.event_bus_logger.info("Сообщение")
-await self.event_bus_logger.debug("Отладка", extra={"key": "value"})
-await self.event_bus_logger.warning("Предупреждение")
-await self.event_bus_logger.error("Ошибка", exc_info=True)
+from core.infrastructure.logging.event_types import LogEventType
 
-# ✅ ПРАВИЛЬНО: Синхронная версия (во время инициализации)
-self.event_bus_logger.info_sync("Сообщение")
+# ✅ ПРАВИЛЬНО: self.log + LogEventType
+self.log.info("Сообщение", extra={"event_type": LogEventType.INFO})
+self.log.debug("Отладка", extra={"event_type": LogEventType.DEBUG})
+self.log.warning("Предупреждение", extra={"event_type": LogEventType.WARNING})
+self.log.error("Ошибка", extra={"event_type": LogEventType.ERROR}, exc_info=True)
 
-# ✅ ПРАВИЛЬНО: Использовать методы BaseComponent
-self._safe_log_sync("info", "Сообщение")  # Безопасный синхронный лог
+# ✅ ПРАВИЛЬНО: С контекстом выполнения
+self.log.info("Начало обработки", extra={"event_type": LogEventType.STEP_STARTED})
+self.log.info("Обработка завершена", extra={"event_type": LogEventType.STEP_COMPLETED})
+```
+
+**Доступные типы событий (`LogEventType`):**
+
+| Категория | Типы |
+|-----------|------|
+| Пользователь | `USER_PROGRESS`, `USER_RESULT`, `USER_MESSAGE`, `USER_QUESTION` |
+| Агент | `AGENT_START`, `AGENT_STOP`, `AGENT_THINKING`, `AGENT_DECISION` |
+| План | `PLAN_CREATED`, `PLAN_UPDATED` |
+| Шаг | `STEP_STARTED`, `STEP_COMPLETED` |
+| Инструмент | `TOOL_CALL`, `TOOL_RESULT`, `TOOL_ERROR` |
+| LLM | `LLM_CALL`, `LLM_RESPONSE`, `LLM_ERROR` |
+| БД | `DB_QUERY`, `DB_RESULT`, `DB_ERROR` |
+| Система | `SYSTEM_INIT`, `SYSTEM_READY`, `SYSTEM_SHUTDOWN`, `SYSTEM_ERROR` |
+| Общие | `INFO`, `DEBUG`, `WARNING`, `ERROR`, `CRITICAL` |
+
+**Структура файлов логов:**
+```
+logs/
+└── 2026-04-10_14-30-00/
+    ├── infra_context.log          # Инфраструктура (провайдеры, БД, LLM)
+    ├── app_context.log            # Приложение (компоненты, сервисы)
+    └── agents/
+        └── 2026-04-10_14-31-12.log  # Сессия агента
 ```
 
 ### 2. Метрики
@@ -665,7 +682,7 @@ await self.executor.execute_action(
 
 - [ ] Наследуется от `BaseComponent` (или `BaseSkill`/`BaseTool`/`BaseService`)
 - [ ] Взаимодействие через `ActionExecutor` (нет прямого доступа к компонентам)
-- [ ] Логирование через `EventBusLogger` (нет `logging` или `print`)
+- [ ] Логирование через `self.log` + `LogEventType` (нет `EventBusLogger` или `print`)
 - [ ] `_execute_impl` возвращает данные (не `ExecutionResult`)
 - [ ] Есть input и output контракты в `data/contracts/`
 - [ ] Есть промпт в `data/prompts/` (если требуется LLM)
@@ -1023,7 +1040,8 @@ await self.executor.execute_action(
 
 **A:** Нет. Используй:
 ```python
-await self.event_bus_logger.debug("Сообщение", extra={"key": "value"})
+from core.infrastructure.logging.event_types import LogEventType
+self.log.debug("Сообщение", extra={"event_type": LogEventType.DEBUG})
 ```
 
 ### Q: Как добавить новую зависимость компонента?
@@ -1048,12 +1066,10 @@ self.ensure_ready()  # Бросит RuntimeError если не готов
 
 ### Q: Можно ли создать миксин для логирования?
 
-**A:** Нет, это избыточно. `BaseComponent` уже содержит всю необходимую логику:
-- `_init_event_bus_logger()` — инициализация логгера
-- `_create_dummy_logger()` — fallback для тестов
-- `_safe_log_sync()` — безопасное синхронное логирование
-
-`LoggingMixin` был удалён в v5.2.0 как избыточная абстракция.
+**A:** Нет, это избыточно. Все компоненты наследуют `ComponentLogger`, который предоставляет `self.log`:
+- `self.log` — стандартный `logging.Logger` из `LoggingSession.get_component_logger()`
+- Каждый вызов должен иметь `extra={"event_type": LogEventType.XXX}`
+- `EventBusLogger`, `_safe_log_sync`, `_init_event_bus_logger` — удалены
 
 ---
 
