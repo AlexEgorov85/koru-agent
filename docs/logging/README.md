@@ -1,339 +1,198 @@
-# 📋 Система логирования koru-agent
+# Система логирования koru-agent
 
 ## Обзор
 
-Единая система логирования для koru-agent, обеспечивающая:
-- **Централизованное управление** логами через LogManager
-- **Быстрый поиск** сессий через LogIndexer (< 100мс)
-- **Автоматическую ротацию** и очистку старых логов
-- **Структурированный формат** JSONL для машинного чтения
-- **Трассировку LLM вызовов** через correlation_id
+Единая система логирования, основанная на **стандартном `logging` Python** с расширением через `extra={"event_type": LogEventType.XXX}`.
+
+**Принципы:**
+- **1 запуск = 1 директория логов** (`logs/{timestamp}/`)
+- **1 сессия агента = 1 файл лога** (`logs/{ts}/agents/{ts}.log`)
+- **Консоль фильтруется** — только 14 разрешённых типов событий
+- **Файлы пишут всё** — без фильтрации
+- **Никаких EventBusLogger** — только стандартный `logging`
+- **Никаких `print()`** в core коде
 
 ---
 
-## 🔗 Correlation ID для трассировки LLM вызовов
-
-### Архитектура
+## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Компоненты (Patterns/Skills)              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ ReActPattern │  │PlanningSkill │  │FinalAnswer   │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-│         └─────────────────┴─────────────────┘              │
-│                           │                                │
-│                           ▼                                │
-│                  ┌─────────────────┐                       │
-│                  │  LLMRequest     │                       │
-│                  │  (без correlation_id) │                 │
-│                  └────────┬────────┘                       │
-└───────────────────────────┼─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Infrastructure Layer (Providers)                │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              BaseLLMProvider                          │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  generate_structured(request):                 │  │  │
-│  │  │    1. correlation_id = uuid.uuid4() ✅         │  │  │
-│  │  │    2. Publish LLM_PROMPT_GENERATED             │  │  │
-│  │  │    3. Вызов LLM (_generate_structured_impl)    │  │  │
-│  │  │    4. Publish LLM_RESPONSE_RECEIVED            │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+LoggingSession (создаётся при инициализации InfraContext)
+├── infra_logger  → logs/{ts}/infra_context.log
+├── app_logger    → logs/{ts}/app_context.log
+└── create_agent_logger(agent_id)
+    └── logs/{ts}/agents/{ts}.log
+
+Консоль (stdout):
+  Фильтр: EventTypeFilter(14 разрешённых событий)
+  Формат: "%(levelname)-7s | %(message)s"
 ```
 
-### Принцип работы
+### Ключевые файлы
 
-1. **Генерация**: `correlation_id` генерируется в `BaseLLMProvider.generate_structured()` автоматически
-2. **Публикация**: Один ID используется для обоих событий:
-   - `LLM_PROMPT_GENERATED` — перед вызовом LLM
-   - `LLM_RESPONSE_RECEIVED` — после получения ответа
-3. **Трассировка**: Позволяет связать промпт и ответ в единый запрос
+| Файл | Назначение |
+|------|-----------|
+| `core/infrastructure/logging/session.py` | `LoggingSession` — ядро, создаёт директорию и хендлеры |
+| `core/infrastructure/logging/event_types.py` | `LogEventType` — enum типов событий |
+| `core/infrastructure/logging/handlers.py` | `EventTypeFilter` — фильтр для терминала |
+| `core/config/logging_config.py` | `LoggingConfig`, `ConsoleConfig` — конфигурация |
 
-### Преимущества
+---
 
-| Аспект | Значение |
-|--------|----------|
-| **Инкапсуляция** | Паттерны не знают о correlation_id |
-| **Консистентность** | Единая логика для всех провайдеров |
-| **Отсутствие дублирования** | Генерация только в базовом классе |
-| **Автоматическое наследование** | Все провайдеры получают бесплатно |
+## Типы событий (LogEventType)
 
-### Пример использования
+| Категория | События | Терминал |
+|-----------|---------|----------|
+| **Пользователь** | `USER_PROGRESS`, `USER_RESULT`, `USER_MESSAGE`, `USER_QUESTION` | ✅ |
+| **Агент** | `AGENT_START`, `AGENT_STOP` | ✅ |
+| | `AGENT_THINKING`, `AGENT_DECISION` | ❌ (файл) |
+| **Шаги** | `STEP_STARTED`, `STEP_COMPLETED` | ❌ (файл) |
+| **Инструменты** | `TOOL_CALL`, `TOOL_RESULT`, `TOOL_ERROR` | ✅ |
+| **LLM** | `LLM_CALL`, `LLM_RESPONSE` | ❌ (файл) |
+| | `LLM_ERROR` | ✅ |
+| **БД** | `DB_ERROR` | ✅ |
+| **Система** | `SYSTEM_INIT`, `SYSTEM_READY`, `SYSTEM_SHUTDOWN` | ❌ (файл) |
+| **Уровни** | `WARNING`, `ERROR`, `CRITICAL` | ✅ |
+| | `INFO`, `DEBUG` | ❌ (файл) |
+
+Записи **без** `event_type` **НЕ попадают** в терминал — только в файлы.
+
+---
+
+## Как использовать
+
+### В компонентах (skills, services, tools, behaviors)
+
+Компоненты наследуют `LoggingMixinV2` через `Component`:
 
 ```python
-# Компонент вызывает LLM — correlation_id генерируется автоматически
-llm_provider.set_call_context(
-    event_bus=event_bus,
-    session_id="session_123",
-    agent_id="agent_456",
-    component="react_pattern",
-    phase="think"
-)
-
-# correlation_id будет сгенерирован внутри generate_structured()
-response = await llm_provider.generate_structured(request)
-
-# События опубликованы с одинаковым correlation_id:
-# - LLM_PROMPT_GENERATED(correlation_id="uuid-123")
-# - LLM_RESPONSE_RECEIVED(correlation_id="uuid-123")
+class MySkill(Skill):
+    async def _execute_impl(self, capability, parameters, context):
+        self._log_info("Начало выполнения", event_type=LogEventType.USER_PROGRESS)
+        self._log_debug(f"Параметры: {parameters}")           # только файл
+        self._log_warning("Превышен лимит")                   # терминал + файл
+        self._log_error(f"Ошибка: {e}", exc_info=True)        # терминал + файл + stack
 ```
 
-### Поиск по correlation_id
+### В инфраструктуре
 
-```bash
-# Найти все события с correlation_id
-python scripts/logs/find_by_correlation.py --correlation-id uuid-123
+```python
+import logging
+from core.infrastructure.logging.event_types import LogEventType
 
-# Найти пару промпт-ответ
-python scripts/logs/find_llm_pair.py --session-id abc123 --phase think
+log = logging.getLogger(__name__)
+
+log.info("Инициализация...", extra={"event_type": LogEventType.SYSTEM_INIT})
+log.warning("Превышен лимит", extra={"event_type": LogEventType.WARNING})
+log.error(f"Критическая ошибка: {e}", extra={"event_type": LogEventType.CRITICAL}, exc_info=True)
+```
+
+### Цикл агента (runtime)
+
+```python
+class AgentRuntime:
+    async def _run_async(self):
+        self.log.info(f"🚀 Запуск агента: {self.goal}...",
+                      extra={"event_type": LogEventType.AGENT_START})
+
+        for step in range(self.max_steps):
+            self.log.info(f"📍 ШАГ {step + 1}/{self.max_steps}",
+                          extra={"event_type": LogEventType.STEP_STARTED})
+
+            decision = await pattern.decide(...)
+            self.log.info(f"✅ Pattern вернул: {decision.type.value}",
+                          extra={"event_type": LogEventType.AGENT_DECISION})
 ```
 
 ---
 
-## 📁 Структура папок
+## Структура файлов логов
 
 ```
 logs/
-├── active/                        ← Активные логи (текущий день)
-│   ├── agent.log                  ← symlink на последний agent_*.log
-│   ├── sessions/
-│   │   └── latest.log             ← symlink на последнюю сессию
-│   └── llm/
-│       └── latest.jsonl           ← symlink на последний LLM лог
-│
-├── archive/                       ← Архив по датам
-│   ├── 2026/
-│   │   ├── 02/
-│   │   │   ├── agent_2026-02-27.log
-│   │   │   ├── sessions/
-│   │   │   │   └── 2026-02-27_11-56-38_session_abc123.log
-│   │   │   └── llm/
-│   │   │       └── 2026-02-27_session_abc123.jsonl
-│   │   └── 01/
-│   └── 2025/
-│
-├── indexed/                       ← Индексы для поиска
-│   ├── sessions_index.jsonl       ← {session_id, timestamp, path}
-│   └── agents_index.jsonl         ← {agent_id, session_ids[]}
-│
-└── config/
-    ├── retention_policy.yaml      ← Политика хранения
-    └── format_spec.yaml           ← Спецификация форматов
+└── 2026-04-11_15-57-18/                    # Генерируется один раз при запуске
+    ├── infra_context.log                   # Инфраструктура (провайдеры, БД, LLM)
+    ├── app_context.log                     # Приложение (компоненты, сервисы)
+    └── agents/
+        ├── 2026-04-11_15-58-00.log         # Сессия агента #1
+        └── 2026-04-11_16-02-30.log         # Сессия агента #2
+```
+
+### Формат записи в файле
+
+```
+2026-04-11 15:57:29,995 | INFO     | SYSTEM_INIT          | app.context | Ресурсы загружены через ResourceLoader (профиль=prod)
+2026-04-11 15:57:30,001 | INFO     | SYSTEM_INIT          | app.context | Создание LLMOrchestrator...
+2026-04-11 15:57:30,001 | INFO     | SYSTEM_READY         | app.context | LLMOrchestrator инициализирован успешно!
+2026-04-11 15:57:30,149 | ERROR    | ERROR                | app.context | Ошибка создания service.contract_service: No module named...
+                                    Traceback (most recent call last):
+                                      File "...", line 219, in initialize
+                                        component = await self._create_component(...)
+                                      ...
 ```
 
 ---
 
-## 🚀 Быстрый старт
+## Конфигурация
 
-### Инициализация системы
-
-```python
-from core.infrastructure.logging import init_logging_system, shutdown_logging_system
-
-# Инициализация
-await init_logging_system()
-
-# ... использование ...
-
-# Завершение
-await shutdown_logging_system()
-```
-
-### Логирование сессии
+### Консольный вывод
 
 ```python
-from core.infrastructure.logging import get_session_logger
+from core.config.logging_config import LoggingConfig, ConsoleConfig
+from core.infrastructure.logging.event_types import LogEventType
 
-# Получение логгера сессии
-logger = get_session_logger(session_id)
-
-# Начало сессии
-await logger.start(goal="Найти книги Пушкина")
-
-# Логирование LLM вызовов
-await logger.log_llm_prompt(
-    component="react_pattern",
-    phase="think",
-    system_prompt="...",
-    user_prompt="..."
+config = LoggingConfig(
+    console=ConsoleConfig(
+        allowed_terminal_events={
+            LogEventType.USER_PROGRESS,
+            LogEventType.USER_RESULT,
+            LogEventType.AGENT_START,
+            LogEventType.AGENT_STOP,
+            LogEventType.TOOL_CALL,
+            LogEventType.TOOL_RESULT,
+            LogEventType.TOOL_ERROR,
+            LogEventType.WARNING,
+            LogEventType.ERROR,
+        }
+    )
 )
-
-await logger.log_llm_response(
-    component="react_pattern",
-    phase="think",
-    response="...",
-    tokens=350,
-    latency_ms=1666
-)
-
-# Логирование шага
-await logger.log_step(
-    step_number=1,
-    capability="book_library.search_books",
-    success=True,
-    latency_ms=670
-)
-
-# Завершение сессии
-await logger.end(success=True, result="Книги найдены")
 ```
+
+**Дефолтный набор** (14 событий):
+- Пользователь: `USER_PROGRESS`, `USER_RESULT`, `USER_MESSAGE`, `USER_QUESTION`
+- Агент: `AGENT_START`, `AGENT_STOP`
+- Инструменты: `TOOL_CALL`, `TOOL_RESULT`, `TOOL_ERROR`
+- Ошибки: `LLM_ERROR`, `DB_ERROR`, `WARNING`, `ERROR`, `CRITICAL`
 
 ---
 
-## 🔍 Поиск логов
+## Правила логирования
 
-### Найти последнюю сессию
-
-```python
-from core.infrastructure.logging import get_latest_session
-
-session = await get_latest_session()
-print(f"Session: {session.session_id}")
-print(f"Path: {session.path}")
-```
-
-### Найти сессию по ID
-
-```python
-from core.infrastructure.logging import find_session
-
-session = await find_session("abc123")
-```
-
-### Найти все LLM вызовы сессии
-
-```python
-from core.infrastructure.logging import get_session_llm_calls
-
-calls = await get_session_llm_calls("abc123")
-for call in calls:
-    print(f"{call['component']}/{call['phase']}: {call['type']}")
-```
-
-### Найти последний LLM вызов
-
-```python
-from core.infrastructure.logging import get_last_llm_call
-
-call = await get_last_llm_call("abc123", phase="think")
-print(f"Prompt: {call['system_prompt'][:100]}...")
-```
+1. **Все `except Exception`** должны иметь `exc_info=True`
+2. **Никаких `pass`** в `except Exception` — минимум warning
+3. **Никаких `EventBusLogger`** — только `self.log` + `LogEventType`
+4. **Никаких `print()`** — только logging
+5. **`logging.getLogger()`** — только в `__init__` компонентов, НЕ в runtime
+6. **Формат сообщений** — `%s` вместо f-strings в `log.info/error()` (производительность)
+7. **Консоль фильтруется** — только события из `allowed_terminal_events`
+8. **Файловые логи пишут всё** — без фильтрации
 
 ---
 
-## 🛠️ CLI утилиты
+## Что было раньше (устарело)
 
-| Утилита | Описание |
-|---------|----------|
-| `find_latest_session.py` | Найти последнюю сессию |
-| `find_session.py` | Найти сессию по ID/агенту/goal |
-| `find_last_llm.py` | Найти последний LLM вызов |
-| `cleanup_old_logs.py` | Очистка старых логов |
-| `check_log_size.py` | Проверка размера логов |
-| `rebuild_index.py` | Перестроить индекс |
-| `export_session.py` | Экспорт сессии в JSON |
-
-### Примеры использования
-
-```bash
-# Найти последнюю сессию
-python scripts/logs/find_latest_session.py
-
-# Найти сессию по ID
-python scripts/logs/find_session.py --session-id abc123
-
-# Найти сессии агента
-python scripts/logs/find_session.py --agent-id agent_001 --latest
-
-# Найти последний LLM вызов
-python scripts/logs/find_last_llm.py --session-id abc123 --phase think
-
-# Очистить логи старше 30 дней (dry-run)
-python scripts/logs/cleanup_old_logs.py --days 30 --dry-run
-
-# Проверить размер логов
-python scripts/logs/check_log_size.py
-
-# Перестроить индекс
-python scripts/logs/rebuild_index.py
-
-# Экспорт сессии
-python scripts/logs/export_session.py --session-id abc123 --output session.json
-```
+| Было | Стало |
+|------|-------|
+| `EventBusLogger` | `logging.getLogger()` + `extra={"event_type": ...}` |
+| `event_bus.publish(EventType.LOG_INFO, ...)` для логов | `log.info(..., extra={"event_type": LogEventType.INFO})` |
+| `print()` | `self._log_info()` / `self._log_debug()` |
+| `LogManager` / `LogIndexer` | `LoggingSession` + стандартный `logging` |
+| JSONL формат | Текстовый формат с `event_type` |
 
 ---
 
-## 📊 Форматы логов
+## Связанные документы
 
-### Агент (текстовый)
-
-```
-2026-02-27T11:56:38.526 | INFO  | koru.agent | 🚀 Agent started | session=abc123
-2026-02-27T11:56:41.456 | ERROR | koru.agent | ❌ Error occurred | session=abc123, error=TimeoutError
-```
-
-### Сессия (JSONL)
-
-```jsonl
-{"timestamp":"2026-02-27T11:56:38.526Z","type":"session_started","session_id":"abc123","agent_id":"agent_001","goal":"Найти книги Пушкина"}
-{"timestamp":"2026-02-27T11:56:41.456Z","type":"step_executed","session_id":"abc123","step_number":1,"capability":"book_library.search_books","success":true,"latency_ms":670}
-{"timestamp":"2026-02-27T11:56:45.789Z","type":"session_completed","session_id":"abc123","steps":5,"total_time_ms":7263,"success":true}
-```
-
-### LLM вызовы (JSONL)
-
-```jsonl
-{"timestamp":"2026-02-27T11:56:39.123Z","type":"llm_prompt","session_id":"abc123","component":"react_pattern","phase":"think","system_prompt":"...","user_prompt":"...","prompt_length":1250}
-{"timestamp":"2026-02-27T11:56:40.789Z","type":"llm_response","session_id":"abc123","component":"react_pattern","phase":"think","tokens":350,"latency_ms":1666}
-```
-
----
-
-## ⚙️ Конфигурация
-
-### Политика хранения
-
-```yaml
-logging:
-  retention:
-    active_days: 7          # Хранить в active/
-    archive_months: 12      # Хранить в archive/
-    max_size_mb: 100        # Макс размер файла
-    max_files_per_day: 100  # Макс файлов в день
-```
-
-### Индексация
-
-```yaml
-logging:
-  indexing:
-    enabled: true
-    index_sessions: true
-    index_agents: true
-    update_interval_sec: 60
-```
-
----
-
-## 📈 Метрики
-
-| Метрика | Значение |
-|---------|----------|
-| Время поиска сессии | < 100 мс |
-| Время записи лога | < 10 мс |
-| Экономия места | ×3 (убрано дублирование) |
-
----
-
-## 📚 Документы
-
-- [Форматы логов](formats.md)
-- [Структура папок](structure.md)
-- [CLI утилиты](cli.md)
-- [Политика хранения](retention.md)
+- [Архитектура логирования](ARCHITECTURE.md) — детальная архитектура
+- [План миграции логирования](../plans/logging_migration_plan.md) — статус миграции
+- [AGENTS.md](../../AGENTS.md) — раздел 5: правила логирования
