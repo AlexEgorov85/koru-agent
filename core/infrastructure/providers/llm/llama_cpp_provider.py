@@ -313,7 +313,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - Схема добавляется в system_prompt или user prompt
         - Provider сам решает формат промпта
         """
-        self._get_logger().info("🔵 [LLM] _generate_impl started: prompt_len=%d, structured_output=%s", len(request.prompt), hasattr(request, 'structured_output') and request.structured_output is not None, extra={"event_type": LogEventType.LLM_RESPONSE})
+        self._get_logger().info(
+            f"🔵 [LLM] === ВХОД В _generate_impl === | "
+            f"prompt_len={len(request.prompt)} | "
+            f"structured_output={hasattr(request, 'structured_output') and request.structured_output is not None} | "
+            f"self.llm={'loaded' if self.llm else 'NOT loaded'} | "
+            f"self.is_initialized={self.is_initialized}",
+            extra={"event_type": LogEventType.LLM_CALL}
+        )
 
         if not self.is_initialized or not self.llm:
             self._get_logger().warning("LLM не инициализирован! Вызываем initialize()...", extra={"event_type": LogEventType.WARNING})

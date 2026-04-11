@@ -1207,6 +1207,15 @@ class LLMOrchestrator:
             record.start_time = start_time
 
         try:
+            # Логирование ПЕРЕД вызовом провайдера (чтобы понять где блокировка)
+            if self._logger:
+                self._logger.info(
+                    f"🚀 Вызов провайдера _generate_impl | provider={type(provider).__name__} | "
+                    f"is_initialized={getattr(provider, 'is_initialized', 'unknown')} | "
+                    f"has_llm={hasattr(provider, 'llm') and provider.llm is not None}",
+                    extra={"event_type": LogEventType.LLM_CALL}
+                )
+
             # Вызываем провайдер напрямую — он сам управляет потоком
             result = await provider._generate_impl(request)
 
