@@ -88,7 +88,6 @@ python -m scripts.vector.indexer table --table "Lib.genres" --column "name" --so
 | `check_registry.py` | Проверка конфигурации registry |
 | `check_yaml_syntax.py` | Проверка синтаксиса YAML файлов |
 | `analyze_library_schema.py` | Анализ схемы библиотеки |
-| `fix_behavior_prompts.py` | Исправление промптов поведения |
 
 ---
 
@@ -174,4 +173,8 @@ python scripts/validation/check_yaml_syntax.py
 - `generate_benchmark_from_db.py` → `koru bench generate`
 - `promptctl.py` → `koru prompt create/promote/archive/status`
 
-Также удалены одноразовые скрипты миграции, исправления registry и отладочные тесты.
+Также удалены одноразовые скрипты:
+- `fix_encoding.py` — исправление mojibake (задача выполнена)
+- `remove_bom.py` — удаление BOM из файлов (задача выполнена)
+- `migrate_logs.py` — миграция старой структуры логов (задача выполнена)
+- `fix_behavior_prompts.py` — исправление YAML промптов (задача выполнена)
