@@ -334,14 +334,19 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             system_prompt = system_prompt + "\n\n" + schema_prompt
 
             self._get_logger().info("🔵 [LLM] Схема добавлена в system_prompt (длина: %d символов)", len(schema_prompt), extra={"event_type": LogEventType.LLM_RESPONSE})
-            self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug("\n=== SYSTEM (со схемой) ===", extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug(system_prompt, extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug("\n=== USER ===", extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug(prompt, extra={"event_type": LogEventType.DEBUG})
-            self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+            
+            # Логируем ПОЛНЫЙ промпт (system + schema + user, только в файл)
+            self._get_logger().debug(
+                f"\n{'=' * 80}\n"
+                f"📋 FULL PROMPT TO LLM (LlamaCppProvider)\n"
+                f"{'=' * 80}\n"
+                f"=== SYSTEM (со схемой, len={len(system_prompt)}) ===\n"
+                f"{system_prompt}\n\n"
+                f"=== USER (len={len(prompt)}) ===\n"
+                f"{prompt}\n"
+                f"{'=' * 80}",
+                extra={"event_type": LogEventType.DEBUG}
+            )
         else:
             max_tokens = request.max_tokens
 
@@ -410,11 +415,15 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
 
-                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("💬 RESPONSE (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug(generated_text, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+                # Логируем ПОЛНЫЙ ответ (только в файл, DEBUG)
+                self._get_logger().debug(
+                    f"\n{'=' * 80}\n"
+                    f"💬 RESPONSE (LlamaCppProvider)\n"
+                    f"{'=' * 80}\n"
+                    f"{generated_text}\n"
+                    f"{'=' * 80}",
+                    extra={"event_type": LogEventType.DEBUG}
+                )
                 self._get_logger().info("🔵 [LLM] generated_text: %d символов", len(generated_text), extra={"event_type": LogEventType.LLM_RESPONSE})
                 self._get_logger().info("🔵 [LLM] finish_reason: %s", finish_reason, extra={"event_type": LogEventType.LLM_RESPONSE})
             else:
@@ -425,9 +434,6 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             # === ОБРАБОТКА STRUCTURED OUTPUT ===
             if hasattr(request, 'structured_output') and request.structured_output:
                 self._get_logger().info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
-
-                # Логирование сырого ответа
-                self._get_logger().info("🔵 [LLM] Raw response: %s", generated_text, extra={"event_type": LogEventType.LLM_RESPONSE})
 
                 try:
                     json_content = self._extract_json_from_response(generated_text)

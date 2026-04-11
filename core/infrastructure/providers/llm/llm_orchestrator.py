@@ -664,11 +664,15 @@ class LLMOrchestrator:
                     extra={"event_type": LogEventType.LLM_RESPONSE}
                 )
 
-                # Логируем сырой ответ для отладки
+                # Логируем ПОЛНЫЙ сырой ответ (только в файл, DEBUG)
                 if hasattr(response, 'raw_response') and response.raw_response:
                     raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
                     self._logger.info(
-                        f"🔵 [STRUCTURED] Raw response: {raw_content}...",
+                        f"🔵 [STRUCTURED] Raw response summary: len={len(raw_content)}",
+                        extra={"event_type": LogEventType.LLM_RESPONSE}
+                    )
+                    self._logger.debug(
+                        f"🔵 [STRUCTURED] === RAW LLM RESPONSE ===\n{raw_content}",
                         extra={"event_type": LogEventType.LLM_RESPONSE}
                     )
 

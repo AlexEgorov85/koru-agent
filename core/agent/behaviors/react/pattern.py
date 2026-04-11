@@ -139,7 +139,7 @@ class ReActPattern(BaseBehaviorPattern):
             
             if not system or not user:
                 return self._handle_error("prompts_not_loaded", available_capabilities)
-            
+
             # Рендеринг промпта через build_reasoning_prompt
             full_prompt = self.prompt_builder.build_reasoning_prompt(
                 context_analysis=context,
@@ -151,9 +151,12 @@ class ReActPattern(BaseBehaviorPattern):
                 application_context=self.application_context
             )
 
-            # Логируем финальный промпт (DEBUG — только в файл)
+            # Логируем ПОЛНЫЙ запрос ПЕРЕД вызовом LLM (только в файл)
             self._log_debug(
-                f"🔵 [ReAct.decide] Финальный промпт (len={len(full_prompt)}):\n{full_prompt}",
+                f"🔵 [ReAct.decide] === ПОЛНЫЙ ЗАПРОС К LLM ===\n"
+                f"--- System Prompt (len={len(system)}) ---\n{system}\n\n"
+                f"--- User Prompt (рендер, len={len(full_prompt)}) ---\n{full_prompt}\n\n"
+                f"--- Output Schema (JSON Schema) ---\n{schema}",
                 event_type=LogEventType.LLM_CALL
             )
             
@@ -230,10 +233,15 @@ class ReActPattern(BaseBehaviorPattern):
                 event_type=LogEventType.LLM_RESPONSE
             )
 
-            # Логируем полное решение (DEBUG — только в файл)
+            # Логируем ПОЛНЫЙ ответ LLM (сырой + распарсенный, только в файл)
+            raw_content = getattr(result, 'raw_response', None)
+            raw_text = getattr(raw_content, 'content', '') if raw_content else ''
             self._log_debug(
-                f"🟢 [ReAct.decide] Полное решение LLM:\n{reasoning_result.model_dump_json(indent=2) if hasattr(reasoning_result, 'model_dump_json') else str(reasoning_result)}",
-                event_type=LogEventType.AGENT_DECISION
+                f"🟢 [ReAct.decide] === ПОЛНЫЙ ОТВЕТ ОТ LLM ===\n"
+                f"--- Raw Response (len={len(raw_text)}) ---\n{raw_text}\n\n"
+                f"--- Parsed Content (Pydantic модель) ---\n"
+                f"{reasoning_result.model_dump_json(indent=2) if hasattr(reasoning_result, 'model_dump_json') else str(reasoning_result)}",
+                event_type=LogEventType.LLM_RESPONSE
             )
 
             # Сохраняем размышление
