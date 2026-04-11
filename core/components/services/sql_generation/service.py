@@ -1,12 +1,16 @@
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
+from core.components.services.service import Service
 from abc import ABC
 from core.utils.async_utils import safe_async_call
+import logging
+from core.infrastructure.logging.event_types import LogEventType
+
+log = logging.getLogger(__name__)
 
 
 # Конкретная реализация ServiceOutput для SQLGenerationService
-class SQLGenerationServiceOutput(BaseServiceOutput):
+class SQLGenerationServiceOutput:
     def __init__(self, data: Dict[str, Any]):
         self.data = data
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
@@ -18,13 +22,6 @@ from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
 
 
-from core.models.sql_schemas import (
-    SQLGenerationInput, SQLGenerationOutput,
-)
-from pydantic import Field
-from typing import List
-
-
 class SQLGenerationResult(BaseModel):
     """Результат генерации с метаданными для анализа ошибок"""
     sql: str = ""
@@ -34,7 +31,7 @@ class SQLGenerationResult(BaseModel):
     safety_score: float = 0.0
     generation_id: str = ""
 
-class SQLGenerationService(BaseService):
+class SQLGenerationService(Service):
     """
     Централизованный сервис генерации и коррекции безопасных SQL-запросов.
 
@@ -50,7 +47,7 @@ class SQLGenerationService(BaseService):
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
 
-    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # NO FALLBACK: ComponentConfig должен быть передан извне
         # Если не передан - это ошибка конфигурации
@@ -59,13 +56,12 @@ class SQLGenerationService(BaseService):
                 f"SQLGenerationService требует component_config! "
                 f"Проверьте что компонент инициализируется через ComponentFactory"
             )
-        
+
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
@@ -84,8 +80,7 @@ class SQLGenerationService(BaseService):
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(
                 self.application_context,
-                executor=self.executor,
-                event_bus=self._event_bus
+                executor=self.executor
             )
             if not await self.error_analyzer.initialize():
                 await self._publish_with_context(
@@ -98,16 +93,12 @@ class SQLGenerationService(BaseService):
             # Инициализация движка коррекции
             self.correction_engine = SQLCorrectionEngine(
                 self.application_context,
-                executor=self.executor,
-                event_bus=self._event_bus
+                executor=self.executor
             )
 
             return True
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
             return False
 
     async def _load_service_prompts(self):
@@ -119,11 +110,6 @@ class SQLGenerationService(BaseService):
     def get_required_prompt_names(self):
         """Возвращает список имен промптов, необходимых для сервиса"""
         return ["sql_generation.generate_safe_query", "sql_generation.correct_query"]
-
-    def _get_event_type_for_success(self) -> 'EventType':
-        """Возвращает тип события для успешного выполнения сервиса генерации SQL."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,
@@ -164,10 +150,7 @@ class SQLGenerationService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
@@ -272,13 +255,8 @@ class SQLGenerationService(BaseService):
             prompt = prompt.replace(placeholder, str(var_value))
 
         # Логирование для отладки
-        if self.event_bus_logger:
-            await self.event_bus_logger.debug(f"SQL Generation prompt length: {len(prompt)}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.debug(f"SQL Generation prompt: {prompt}.")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self._log_debug(f"SQL Generation prompt length: {len(prompt)}")
+        self._log_debug(f"SQL Generation prompt: {prompt}.")
 
         try:
             # 4. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR
@@ -311,10 +289,9 @@ class SQLGenerationService(BaseService):
                 errors = llm_result.error if hasattr(llm_result, 'error') else 'unknown error'
 
                 # Логируем ошибку structured output
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(
-                        f"⚠️ Structured output не удался: {errors}. Пробуем fallback..."
-                    )
+                self._log_warning(
+                    f"Structured output не удался: {errors}. Пробуем fallback..."
+                )
 
                 # FALLBACK: пробуем обычный llm.generate с ручным парсингом JSON
                 llm_result2 = await self.executor.execute_action(
@@ -338,10 +315,7 @@ class SQLGenerationService(BaseService):
                     raw_text = llm_result2.data if isinstance(llm_result2.data, str) else str(llm_result2.data)
 
                 # Логируем сырой ответ
-                if self.event_bus_logger:
-                    await self.event_bus_logger.debug(
-                        f"🔍 Fallback LLM response (first 500 chars): {raw_text[:500]}"
-                    )
+                self._log_debug(f"Fallback LLM response (first 500 chars): {raw_text[:500]}")
 
                 if not raw_text or len(raw_text.strip()) < 10:
                     raise ValueError(
@@ -382,8 +356,7 @@ class SQLGenerationService(BaseService):
                 if json_candidate:
                     try:
                         output = json.loads(json_candidate)
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.info(f"✅ Fallback JSON распарсен успешно")
+                        self._log_info(f"Fallback JSON распарсен успешно")
                     except json.JSONDecodeError as e:
                         raise ValueError(f"Failed to parse JSON from LLM response: {e}")
                 else:
@@ -411,10 +384,7 @@ class SQLGenerationService(BaseService):
             # Валидация SQL через безопасный метод
             generated_sql = getattr(output, 'generated_sql', None) or (output.get('generated_sql') if isinstance(output, dict) else None)
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(
-                    f"Extracted SQL: {generated_sql}"
-                )
+            self._log_debug(f"Extracted SQL: {generated_sql}")
 
             validated = await self._validate_sql_safely(generated_sql, {})
 
@@ -480,12 +450,9 @@ class SQLGenerationService(BaseService):
 
             except Exception as e:
                 last_error = e
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        f"SQL generation attempt {attempt + 1} failed: {str(e)}"
-                    )
+                self._log_warning(
+                    f"SQL generation attempt {attempt + 1} failed: {str(e)}"
+                )
 
                 if self.correction_engine and attempt < max_correction_attempts - 1:
                     try:
@@ -510,16 +477,10 @@ class SQLGenerationService(BaseService):
 
                         corrected = await self.correction_engine.correct_query(correction_input)
 
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.info(f"Applied correction: {corrected.corrected_sql}")
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        self._log_info(f"Applied correction: {corrected.corrected_sql}")
 
                     except Exception as correction_error:
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.warning(f"Correction failed: {str(correction_error)}")
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        self._log_warning(f"Correction failed: {str(correction_error)}")
 
         from core.errors.exceptions import SQLValidationError
         raise SQLValidationError(

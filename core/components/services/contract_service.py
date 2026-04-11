@@ -7,12 +7,12 @@
 - Кэш контрактов изолирован в рамках экземпляра сервиса
 """
 from typing import Dict, Tuple, Optional, Any
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 from core.config.component_config import ComponentConfig
 from core.models.errors.version_not_found import VersionNotFoundError
 
 
-class ContractService(BaseService):
+class ContractService(Service):
     """
     Сервис контрактов с ИЗОЛИРОВАННЫМ кэшем.
     Создаётся НОВЫЙ экземпляр для каждого ApplicationContext.
@@ -27,16 +27,14 @@ class ContractService(BaseService):
         name: str = "contract_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None,
-        event_bus = None  # ← Только для логирования
+        executor = None
     ):
         # Call the parent constructor with proper parameters - передаём component_config явно
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
         # Кэш: {(capability, direction): schema}
         self.contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
@@ -69,17 +67,17 @@ class ContractService(BaseService):
 
             # Логируем отсутствующие контракты (но не блокируем инициализацию)
             if missing_contracts:
-                self.event_bus_logger.warning_sync(
+                self._log_warning(
                     f"Отсутствуют контракты в предзагруженных ресурсах: {missing_contracts}"
                 )
 
             self._initialized = True
-            self.event_bus_logger.info_sync(
+            self._log_info(
                 f"ContractService инициализирован: загружено {len(self.contracts)} контрактов"
             )
             return True
         except Exception as e:
-            self.event_bus_logger.error_sync(f"Ошибка инициализации ContractService: {e}")
+            self._log_error(f"Ошибка инициализации ContractService: {e}")
             return False
 
     def get_contract(self, capability_name: str, direction: str) -> Dict:
@@ -129,11 +127,6 @@ class ContractService(BaseService):
             )
 
         return self.contracts[key]
-
-    def _get_event_type_for_success(self) -> 'EventType':
-        """Возвращает тип события для успешного выполнения сервиса контрактов."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,

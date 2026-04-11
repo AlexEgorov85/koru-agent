@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from core.application_context.application_context import ApplicationContext
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 import re
 
 @dataclass
@@ -12,7 +12,7 @@ class ExecutionError:
     parameters: Dict[str, Any]
     db_error_type: str  # syntax_error, permission_error, schema_error, timeout_error, other_error
 
-class SQLErrorAnalyzer(BaseService):
+class SQLErrorAnalyzer(Service):
     """
     Анализатор ошибок выполнения SQL-запросов.
     
@@ -27,7 +27,7 @@ class SQLErrorAnalyzer(BaseService):
     def description(self) -> str:
         return "Анализатор ошибок выполнения SQL-запросов"
     
-    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -39,10 +39,9 @@ class SQLErrorAnalyzer(BaseService):
             )
         super().__init__(
             name="sql_error_analyzer",
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
         self.error_patterns = {
             "syntax_error": [
@@ -76,19 +75,17 @@ class SQLErrorAnalyzer(BaseService):
     
     async def initialize(self) -> bool:
         """Инициализация анализатора ошибок"""
-        if self.event_bus_logger:
-            self.event_bus_logger.info_sync("SQLErrorAnalyzer успешно инициализирован")
+        self._log_info("SQLErrorAnalyzer успешно инициализирован")
         return True
 
-    async def execute(self, input_data: ServiceInput) -> ServiceOutput:
+    async def execute(self, input_data: Any) -> Any:
         """Выполнение анализа ошибки - в данном случае не используется напрямую"""
         # Этот метод не используется напрямую, так как анализатор ошибок используется через метод analyze
         raise NotImplementedError("SQLErrorAnalyzer не поддерживает прямое выполнение. Используйте метод analyze()")
 
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""
-        if self.event_bus_logger:
-            self.event_bus_logger.info_sync("Завершение работы SQLErrorAnalyzer")
+        self._log_info("Завершение работы SQLErrorAnalyzer")
     
     async def analyze(self, error: ExecutionError) -> Dict[str, Any]:
         """

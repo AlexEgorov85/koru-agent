@@ -1,12 +1,11 @@
 from typing import Dict, Any, Optional, List
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
-from core.components.services.base_service import BaseService
+from core.components.services.service import Service
 from core.application_context.application_context import ApplicationContext
 from core.models.enums.common_enums import ResourceType
 
 
-class TableDescriptionService(BaseService):
+class TableDescriptionService(Service):
     """
     Сервис получения описания структуры таблиц из БД.
 
@@ -18,7 +17,7 @@ class TableDescriptionService(BaseService):
     def description(self) -> str:
         return "Сервис получения описания структуры таблиц из БД"
 
-    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         if component_config is None:
             component_config = ComponentConfig(
@@ -29,10 +28,9 @@ class TableDescriptionService(BaseService):
             )
         super().__init__(
             name=name or "table_description_service",
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
     async def _custom_initialize(self) -> bool:
@@ -50,16 +48,13 @@ class TableDescriptionService(BaseService):
             "examples": []
         }
 
-    def _get_event_type_for_success(self) -> EventType:
-        return EventType.PROVIDER_REGISTERED
-
     def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
-        from core.infrastructure.event_bus.unified_event_bus import safe_async_call
+        from core.utils.async_utils import safe_async_call
         metadata = safe_async_call(self.get_table_metadata(
             schema_name=parameters.get("schema_name", ""),
             table_name=parameters.get("table_name", ""),

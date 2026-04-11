@@ -1,19 +1,19 @@
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 from core.application_context.application_context import ApplicationContext
 import re
 import sqlparse
 
 
-class SQLValidatorServiceInput(ServiceInput):
+class SQLValidatorServiceInput:
     """Входные данные для SQLValidatorService"""
     def __init__(self, sql_query: str, parameters: Dict[str, Any] = None):
         self.sql_query = sql_query
         self.parameters = parameters or {}
 
 
-class SQLValidatorServiceOutput(ServiceOutput):
+class SQLValidatorServiceOutput:
     """Выходные данные для SQLValidatorService"""
     def __init__(self, is_valid: bool, validation_errors: List[str] = None, sanitized_query: str = "", parameters: Dict[str, Any] = None):
         self.is_valid = is_valid
@@ -31,7 +31,7 @@ class ValidatedSQL(BaseModel):
     safety_score: float = 0.0
 
 
-class SQLValidatorService(BaseService):
+class SQLValidatorService(Service):
     """
     Сервис для валидации SQL-запросов.
 
@@ -46,7 +46,7 @@ class SQLValidatorService(BaseService):
     def description(self) -> str:
         return "Сервис для валидации SQL-запросов с проверкой безопасности и параметризацией"
 
-    def __init__(self, application_context: ApplicationContext, name: str = "sql_validator_service", component_config=None, executor=None, allowed_operations: List[str] = None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext, name: str = "sql_validator_service", component_config=None, executor=None, allowed_operations: List[str] = None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -58,10 +58,9 @@ class SQLValidatorService(BaseService):
             )
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
@@ -82,24 +81,13 @@ class SQLValidatorService(BaseService):
     async def _custom_initialize(self) -> bool:
         """Инициализация сервиса"""
         try:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
-                )
+            self._log_info(
+                f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
+            )
             return True
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
             return False
-
-    def _get_event_type_for_success(self) -> 'EventType':
-        """Возвращает тип события для успешного выполнения сервиса валидации SQL."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,
@@ -306,14 +294,9 @@ class SQLValidatorService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._log_error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.info("Завершение работы SQLValidatorService")              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+        self._log_info("Завершение работы SQLValidatorService")

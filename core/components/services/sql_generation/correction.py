@@ -1,10 +1,10 @@
 from typing import Dict, Any, Optional
 from core.application_context.application_context import ApplicationContext
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 from core.models.sql_schemas import SQLCorrectionInput, SQLCorrectionOutput
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 
-class SQLCorrectionEngine(BaseService):
+class SQLCorrectionEngine(Service):
     """
     Движок коррекции SQL-запросов на основе анализа ошибок.
     
@@ -19,7 +19,7 @@ class SQLCorrectionEngine(BaseService):
     def description(self) -> str:
         return "Движок коррекции SQL-запросов"
     
-    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -31,33 +31,29 @@ class SQLCorrectionEngine(BaseService):
             )
         super().__init__(
             name="sql_correction_engine",
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
         self.error_analyzer = SQLErrorAnalyzer(
-            application_context, 
-            executor=executor,
-            event_bus=event_bus
+            application_context,
+            executor=executor
         )
     
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""
         await self.error_analyzer.initialize()
-        if self.event_bus_logger:
-            self.event_bus_logger.info_sync("SQLCorrectionEngine успешно инициализирован")
+        self._log_info("SQLCorrectionEngine успешно инициализирован")
         return True
     
-    async def execute(self, input_data: ServiceInput) -> ServiceOutput:
+    async def execute(self, input_data: Any) -> Any:
         """Выполнение коррекции - в данном случае не используется напрямую"""
         raise NotImplementedError("SQLCorrectionEngine не поддерживает прямое выполнение")
     
     async def shutdown(self) -> None:
         """Завершение работы движка коррекции"""
         await self.error_analyzer.shutdown()
-        if self.event_bus_logger:
-            self.event_bus_logger.info_sync("Завершение работы SQLCorrectionEngine")
+        self._log_info("Завершение работы SQLCorrectionEngine")
     
     async def correct_query(self, correction_input: SQLCorrectionInput) -> SQLCorrectionOutput:
         """

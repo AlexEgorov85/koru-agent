@@ -1,8 +1,7 @@
 import time
 from typing import Dict, Any, List, Optional
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 from core.models.types.db_types import DBQueryResult
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer
 from core.application_context.base_system_context import BaseSystemContext
@@ -11,7 +10,7 @@ from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
 
 
-class SQLQueryServiceInput(ServiceInput):
+class SQLQueryServiceInput:
     """Входные данные для SQLQueryService"""
     def __init__(self, user_question: str, tables: List[str], max_rows: int = 50, context: Optional[str] = None):
         self.user_question = user_question
@@ -20,14 +19,14 @@ class SQLQueryServiceInput(ServiceInput):
         self.context = context
 
 
-class SQLQueryServiceOutput(ServiceOutput):
+class SQLQueryServiceOutput:
     """Выходные данные для SQLQueryService"""
     def __init__(self, query_result: DBQueryResult, metadata: Dict[str, Any] = None):
         self.query_result = query_result
         self.metadata = metadata or {}
 
 
-class SQLQueryService(BaseService):
+class SQLQueryService(Service):
     """
     Сервис для безопасного выполнения SQL-запросов.
 
@@ -42,7 +41,7 @@ class SQLQueryService(BaseService):
     def description(self) -> str:
         return "Сервис для безопасного выполнения SQL-запросов с валидацией и параметризацией"
 
-    def __init__(self, application_context: ApplicationContext, name: str = "sql_query_service", component_config=None, executor=None, event_bus=None):
+    def __init__(self, application_context: ApplicationContext, name: str = "sql_query_service", component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -54,10 +53,9 @@ class SQLQueryService(BaseService):
             )
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
@@ -73,8 +71,7 @@ class SQLQueryService(BaseService):
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(
                 self.application_context,
-                executor=self.executor,
-                event_bus=self._event_bus
+                executor=self.executor
             )
             if not await self.error_analyzer.initialize():
                 await self._publish_with_context(
@@ -97,13 +94,6 @@ class SQLQueryService(BaseService):
                 source="sql_query"
             )
             return False
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return False
-
-    def _get_event_type_for_success(self) -> EventType:
-        """Возвращает тип события для успешного выполнения сервиса SQL-запросов."""
-        return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,

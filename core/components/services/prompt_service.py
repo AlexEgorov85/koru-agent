@@ -2,12 +2,12 @@
 Сервис промптов с изолированным кэшем.
 """
 from typing import Dict, Optional, Any
-from core.components.services.base_service import BaseService, ServiceInput, ServiceOutput
+from core.components.services.service import Service
 from core.config.component_config import ComponentConfig
 from core.models.errors.version_not_found import VersionNotFoundError
 
 
-class PromptService(BaseService):
+class PromptService(Service):
     """
     Сервис промптов с ИЗОЛИРОВАННЫМ кэшем.
     Создаётся НОВЫЙ экземпляр для каждого ApplicationContext.
@@ -22,16 +22,14 @@ class PromptService(BaseService):
         name: str = "prompt_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None,
-        event_bus = None  # ← Только для логирования
+        executor = None
     ):
         # Call the parent constructor with proper parameters
         super().__init__(
             name=name,
-            application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus
+            application_context=application_context
         )
         # Кэш: {capability: {version: prompt_obj}} - структура для совместимости с BaseComponent
         self.prompts: Dict[str, Dict[str, Any]] = {}  # ← Изолированный кэш!
@@ -61,15 +59,15 @@ class PromptService(BaseService):
                         self.prompts[capability] = {}
                     self.prompts[capability][version] = prompt_obj
                 else:
-                    self.event_bus_logger.warning_sync(f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
+                    self._log_warning(f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
 
             self._initialized = True
-            self.event_bus_logger.info_sync(
+            self._log_info(
                 f"PromptService инициализирован: загружено {len(self.prompts)} промптов"
             )
             return True
         except Exception as e:
-            self.event_bus_logger.error_sync(f"Ошибка инициализации PromptService: {e}")
+            self._log_error(f"Ошибка инициализации PromptService: {e}")
             return False
 
     def get_prompt(self, capability_name: str, version: Optional[str] = None) -> str:
@@ -126,17 +124,17 @@ class PromptService(BaseService):
         Совместимость с BaseComponent.
         """
         if not hasattr(component_config, 'prompt_versions'):
-            self.event_bus_logger.info_sync("Нет конфигурации промптов для предзагрузки")
+            self._log_info("Нет конфигурации промптов для предзагрузки")
             return True
 
         success = True
         # Используем внедрённый prompt_storage из BaseComponent
         storage = self.prompt_storage
-        
+
         if storage is None:
-            self.event_bus_logger.error_sync("prompt_storage не внедрён")
+            self._log_error("prompt_storage не внедрён")
             return False
-        
+
         for capability_name, version in component_config.prompt_versions.items():
             try:
                 # Загружаем промпт и помещаем его в кэш
@@ -148,10 +146,10 @@ class PromptService(BaseService):
 
                 self.prompts[capability_name][version] = prompt_obj
 
-                self.event_bus_logger.debug_sync(f"Предзагружен промпт {capability_name} версии {version}")
+                self._log_debug(f"Предзагружен промпт {capability_name} версии {version}")
 
             except Exception as e:
-                self.event_bus_logger.error_sync(f"Ошибка предзагрузки промпта {capability_name} версии {version}: {e}")
+                self._log_error(f"Ошибка предзагрузки промпта {capability_name} версии {version}: {e}")
                 success = False
 
         return success
@@ -214,11 +212,6 @@ class PromptService(BaseService):
                         return cached_item
 
         return None
-
-    def _get_event_type_for_success(self) -> 'EventType':
-        """Возвращает тип события для успешного выполнения сервиса промптов."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-        return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,
