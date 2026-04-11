@@ -288,15 +288,36 @@ class AgentRuntime:
                     agent_id=self.agent_id
                 )
 
-                result = await self.safe_executor.execute(
-                    capability_name=decision.action,
-                    parameters=decision.parameters or {},
-                    context=ExecutionContext(
-                        session_context=self.session_context,
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id
+                try:
+                    result = await self.safe_executor.execute(
+                        capability_name=decision.action,
+                        parameters=decision.parameters or {},
+                        context=ExecutionContext(
+                            session_context=self.session_context,
+                            session_id=self.session_context.session_id,
+                            agent_id=self.agent_id
+                        )
                     )
-                )
+
+                    # Логирование результата
+                    if result.status == ExecutionStatus.FAILED:
+                        self.log.error(
+                            f"❌ Действие {decision.action} завершилось с ошибкой: {result.error or 'неизвестная'}",
+                            extra={"event_type": LogEventType.TOOL_ERROR}
+                        )
+                    else:
+                        self.log.info(
+                            f"✅ Действие {decision.action} выполнено",
+                            extra={"event_type": LogEventType.TOOL_RESULT}
+                        )
+                except Exception as e:
+                    # SafeExecutor не должен выбрасывать, но на всякий случай
+                    self.log.error(
+                        f"❌ Исключение при выполнении {decision.action}: {e}",
+                        extra={"event_type": LogEventType.TOOL_ERROR},
+                        exc_info=True
+                    )
+                    result = ExecutionResult.failure(str(e))
 
                 # Публикуем детали выполненного действия
                 await event_bus.publish(
