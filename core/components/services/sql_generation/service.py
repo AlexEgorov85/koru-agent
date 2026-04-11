@@ -16,7 +16,7 @@ class SQLGenerationServiceOutput:
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 from core.components.services.sql_generation.correction import SQLCorrectionEngine
 from core.models.sql_schemas import (
-    SQLGenerationInput, SQLGenerationOutput,
+    SQLCorrectionInput, SQLGenerationInput, SQLGenerationOutput,
 )
 from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
@@ -308,7 +308,7 @@ class SQLGenerationService(Service):
                 if llm_result2.status != ExecutionStatus.COMPLETED or not llm_result2.data:
                     raise ValueError(f"SQL generation failed (both structured and fallback): {errors}")
 
-                # Парсим JSON вручную
+                # Парсим JSON через JsonParsingService
                 if isinstance(llm_result2.data, dict):
                     raw_text = llm_result2.data.get('content', '') or llm_result2.data.get('text', '') or llm_result2.data.get('response', '')
                 else:
@@ -324,44 +324,20 @@ class SQLGenerationService(Service):
                         f"Проверьте что модель загружена корректно и промпт содержит схему БД."
                     )
 
-                # Ищем JSON в ответе (улучшенный поиск для вложенных объектов)
-                import json, re
-                
-                json_candidate = None
-                
-                # Пробуем regex для markdown блоков
-                if not json_candidate:
-                    json_block_pattern = r'```json\s*\n?(.*?)\n?```'
-                    matches = re.findall(json_block_pattern, raw_text, re.DOTALL)
-                    if matches:
-                        json_candidate = matches[-1].strip()
-                
-                # Пробуем regex для обычного JSON
-                if not json_candidate:
-                    brace_count = 0
-                    start_idx = -1
-                    for i, char in enumerate(raw_text):
-                        if char == '{':
-                            if brace_count == 0:
-                                start_idx = i
-                            brace_count += 1
-                        elif char == '}':
-                            brace_count -= 1
-                            if brace_count == 0 and start_idx != -1:
-                                candidate = raw_text[start_idx:i+1]
-                                if '"generated_sql"' in candidate:
-                                    json_candidate = candidate
-                                    break
-                
-                if json_candidate:
-                    try:
-                        output = json.loads(json_candidate)
-                        self._log_info(f"Fallback JSON распарсен успешно")
-                    except json.JSONDecodeError as e:
-                        raise ValueError(f"Failed to parse JSON from LLM response: {e}")
+                # Используем JsonParsingService для извлечения и парсинга JSON
+                parse_result = await self.executor.execute_action(
+                    action_name="json_parsing.parse_json",
+                    parameters={"raw": raw_text},
+                    context=ExecutionContext()
+                )
+
+                if parse_result and parse_result.data and parse_result.data.get("status") == "success":
+                    output = parse_result.data.get("parsed_data", {})
+                    self._log_info(f"Fallback JSON распарсен через JsonParsingService")
                 else:
+                    error_msg = parse_result.data.get("error_message", "Unknown error") if parse_result and parse_result.data else "Unknown error"
                     raise ValueError(
-                        f"Could not find generated_sql in LLM response. "
+                        f"Could not parse JSON from LLM response: {error_msg}. "
                         f"Response length: {len(raw_text)} chars. "
                         f"First 300 chars: {raw_text[:300]}"
                     )

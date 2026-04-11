@@ -1,0 +1,103 @@
+component_name: json_parsing
+component_type: service
+version: v1.0.0
+description: "Единый сервис для парсинка JSON ответов LLM"
+
+input_contracts:
+  extract_json:
+    name: ExtractJsonInput
+    schema:
+      type: object
+      properties:
+        content:
+          type: string
+          description: "Текст ответа LLM для извлечения JSON"
+      required: ["content"]
+
+  parse_json:
+    name: ParseJsonInput
+    schema:
+      type: object
+      properties:
+        raw:
+          type: string
+          description: "JSON строка для парсинга"
+      required: ["raw"]
+
+  parse_to_model:
+    name: ParseToModelInput
+    schema:
+      type: object
+      properties:
+        raw_response:
+          type: string
+          description: "Сырой ответ от LLM"
+        schema_def:
+          type: object
+          description: "JSON Schema для валидации"
+        model_name:
+          type: string
+          description: "Имя создаваемой Pydantic модели"
+      required: ["raw_response"]
+
+output_contracts:
+  extract_json:
+    name: ExtractJsonOutput
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["success", "extract_error"]
+        extracted_json:
+          type: string
+        error_type:
+          type: string
+        error_message:
+          type: string
+        processing_steps:
+          type: array
+          items:
+            type: string
+
+  parse_json:
+    name: ParseJsonOutput
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["success", "parse_error"]
+        parsed_data:
+          type: object
+        error_type:
+          type: string
+        error_message:
+          type: string
+        error_details:
+          type: array
+        processing_steps:
+          type: array
+          items:
+            type: string
+
+  parse_to_model:
+    name: ParseToModelOutput
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["success", "extract_error", "parse_error", "validation_error", "model_error"]
+        parsed_data:
+          type: object
+        error_type:
+          type: string
+        error_message:
+          type: string
+        error_details:
+          type: array
+        processing_steps:
+          type: array
+          items:
+            type: string

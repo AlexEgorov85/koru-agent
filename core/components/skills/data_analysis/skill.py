@@ -491,17 +491,10 @@ class DataAnalysisSkill(Skill):
 
     def _parse_llm_response(self, content: str) -> Dict[str, Any]:
         """Парсинг JSON-ответа от LLM."""
-        try:
-            # Извлечение JSON из markdown-блоков
-            if "```json" in content:
-                json_str = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                json_str = content.split("```")[1].split("```")[0].strip()
-            else:
-                # Попытка найти JSON по скобкам
-                match = re.search(r'\{[\s\S]*\}', content)
-                json_str = match.group(0) if match else content.strip()
+        from core.infrastructure.providers.llm.json_parser import extract_json_from_response
 
+        try:
+            json_str = extract_json_from_response(content)
             return json.loads(json_str)
         except json.JSONDecodeError as e:
             self.logger.warning(f"Ошибка парсинга JSON: {e}")

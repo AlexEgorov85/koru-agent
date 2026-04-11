@@ -43,94 +43,12 @@ from core.models.types.llm_types import (
 )
 from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.providers.llm.json_parser import (
-    validate_structured_response
-)
 from core.errors.exceptions import StructuredOutputError
 
 
 # ========================================================================
-# Утилиты для динамического создания Pydantic моделей из JSON Schema
+# Статусы и модели вызовов
 # ========================================================================
-
-def _create_model_from_schema(
-    model_name: str,
-    schema: dict,
-    defs: dict
-) -> type:
-    """
-    Создаёт динамическую Pydantic модель из JSON Schema с поддержкой $ref.
-
-    ARGS:
-    - model_name: Имя создаваемой модели
-    - schema: JSON Schema (с properties, required, $defs)
-    - defs: Словарь определений ($defs) для разрешения $ref
-
-    RETURNS:
-    - Динамический класс Pydantic BaseModel
-    """
-    from pydantic import create_model
-
-    fields = {}
-    properties = schema.get("properties", {})
-    required = schema.get("required", [])
-
-    for field_name, field_def in properties.items():
-        field_type = _resolve_field_type(field_def, defs)
-        is_required = field_name in required
-        fields[field_name] = (field_type, ...) if is_required else (field_type, None)
-
-    return create_model(model_name, **fields)
-
-
-def _resolve_field_type(field_def: dict, defs: dict) -> type:
-    """
-    Рекурсивно разрешает тип поля из JSON Schema.
-
-    Поддерживает:
-    - Примитивы: string, integer, number, boolean
-    - Массивы: array с items (в т.ч. с $ref)
-    - Объекты: inline object с properties
-    - $ref: ссылки на определения в $defs
-    """
-    from pydantic import create_model
-
-    # $ref → разрешение ссылки
-    if "$ref" in field_def:
-        ref_path = field_def["$ref"]
-        # Формат: "#/$defs/ModelName" или "#/definitions/ModelName"
-        ref_name = ref_path.split("/")[-1]
-        if ref_name in defs:
-            nested_schema = defs[ref_name]
-            return _create_model_from_schema(ref_name, nested_schema, defs)
-        # Если определение не найдено — fallback на dict
-        return dict
-
-    json_type = field_def.get("type", "string")
-
-    # array → list[ItemType]
-    if json_type == "array":
-        items_schema = field_def.get("items")
-        if items_schema:
-            item_type = _resolve_field_type(items_schema, defs)
-            return list[item_type]
-        return list
-
-    # object inline → вложенная модель
-    if json_type == "object" and "properties" in field_def:
-        nested_model_name = field_def.get("title", "NestedObject")
-        return _create_model_from_schema(nested_model_name, field_def, defs)
-
-    # Примитивы
-    type_map = {
-        "string": str,
-        "integer": int,
-        "number": float,
-        "boolean": bool,
-        "array": list,
-        "object": dict,
-    }
-    return type_map.get(json_type, str)
 
 
 class CallStatus(str, Enum):
@@ -816,66 +734,125 @@ class LLMOrchestrator:
                         tokens_used=self._get_tokens_used(response)
                     )
 
-                # parsed_content=None — создаём Pydantic модель из JSON Schema
+                # parsed_content=None — используем JsonParsingService
                 if request.structured_output:
                     try:
-                        import json
-                        from pydantic import create_model
-                        from core.infrastructure.providers.llm.json_parser import extract_json_from_response
-
-                        # Логируем сырой JSON для отладки
-                        if self._logger:
-                            self._logger.info(
-                                f"🔵 [STRUCTURED] JSON для парсинга: {raw_content}...",
-                                extra={"event_type": LogEventType.LLM_RESPONSE}
-                            )
-
-                        # Извлекаем JSON из markdown-обёртки (если есть)
-                        cleaned_json = extract_json_from_response(raw_content)
-
-                        # Парсим JSON из строки
-                        json_data = json.loads(cleaned_json)
-                        
-                        if self._logger:
-                            self._logger.info(
-                                f"✅ [STRUCTURED] JSON распарсен: ключи={list(json_data.keys()) if isinstance(json_data, dict) else 'not a dict'}",
-                                extra={"event_type": LogEventType.LLM_RESPONSE}
-                            )
-                        
-                        # Создаём динамическую Pydantic модель из JSON Schema
                         schema = request.structured_output.schema_def
                         model_name = request.structured_output.output_model or "DynamicModel"
 
-                        # Создаём модель динаически с поддержкой вложенных объектов ($ref)
-                        defs = schema.get("$defs", {})
-                        DynamicModel = _create_model_from_schema(
-                            model_name, schema, defs
-                        )
-                        parsed_content = DynamicModel(**json_data)
-                        
+                        # Логируем начало парсинга
                         if self._logger:
                             self._logger.info(
-                                f"✅ [STRUCTURED] Создана Pydantic модель {model_name} из JSON",
+                                f"🔵 [STRUCTURED] Вызов json_parsing.parse_to_model: модель={model_name}",
                                 extra={"event_type": LogEventType.LLM_RESPONSE}
                             )
-                        
-                        return RetryAttempt(
-                            attempt_number=attempt_num,
-                            prompt=request.prompt,
-                            raw_response=raw_content,
-                            parsed_content=parsed_content,  # ← Pydantic модель!
-                            success=True,
-                            error_type=None,
-                            error_message=None,
-                            duration=duration,
-                            tokens_used=self._get_tokens_used(response)
+
+                        # Вызываем JsonParsingService через ActionExecutor
+                        parse_result = await self.executor.execute_action(
+                            action_name="json_parsing.parse_to_model",
+                            parameters={
+                                "raw_response": raw_content,
+                                "schema_def": schema,
+                                "model_name": model_name
+                            },
+                            context=execution_context
                         )
-                        
-                    except json.JSONDecodeError as json_err:
+
+                        # Анализируем результат
+                        if parse_result and parse_result.data:
+                            result_data = parse_result.data
+                            status = result_data.get("status", "unknown")
+
+                            if status == "success":
+                                pydantic_model = result_data.get("pydantic_model")
+                                if pydantic_model is not None:
+                                    steps = result_data.get("processing_steps", [])
+                                    if self._logger:
+                                        self._logger.info(
+                                            f"✅ [STRUCTURED] Pydantic модель {model_name} создана через JsonParsingService",
+                                            extra={"event_type": LogEventType.LLM_RESPONSE}
+                                        )
+                                    return RetryAttempt(
+                                        attempt_number=attempt_num,
+                                        prompt=request.prompt,
+                                        raw_response=raw_content,
+                                        parsed_content=pydantic_model,
+                                        success=True,
+                                        error_type=None,
+                                        error_message=None,
+                                        duration=duration,
+                                        tokens_used=self._get_tokens_used(response)
+                                    )
+                                else:
+                                    # Модель не создана но статус success (нет схемы)
+                                    parsed_data = result_data.get("parsed_data")
+                                    return RetryAttempt(
+                                        attempt_number=attempt_num,
+                                        prompt=request.prompt,
+                                        raw_response=raw_content,
+                                        parsed_content=None,
+                                        success=False,
+                                        error_type="no_model_created",
+                                        error_message="Pydantic модель не создана (возможно нет схемы)",
+                                        duration=duration,
+                                        tokens_used=self._get_tokens_used(response)
+                                    )
+                            else:
+                                # Ошибка парсинга
+                                error_type = result_data.get("error_type", "unknown")
+                                error_message = result_data.get("error_message", "Unknown error")
+                                error_details = result_data.get("error_details", [])
+                                steps = result_data.get("processing_steps", [])
+
+                                if self._logger:
+                                    self._logger.error(
+                                        f"❌ [STRUCTURED] JsonParsingService вернул ошибку: {error_type}: {error_message}",
+                                        extra={"event_type": LogEventType.LLM_ERROR}
+                                    )
+                                    if error_details:
+                                        for detail in error_details[:3]:  # Первые 3 ошибки
+                                            loc = detail.get("loc", [])
+                                            msg = detail.get("msg", "")
+                                            self._logger.error(
+                                                f"   - {'.'.join(str(x) for x in loc)}: {msg}",
+                                                extra={"event_type": LogEventType.LLM_ERROR}
+                                            )
+
+                                return RetryAttempt(
+                                    attempt_number=attempt_num,
+                                    prompt=request.prompt,
+                                    raw_response=raw_content,
+                                    parsed_content=None,
+                                    success=False,
+                                    error_type=error_type,
+                                    error_message=error_message,
+                                    duration=duration,
+                                    tokens_used=self._get_tokens_used(response)
+                                )
+                        else:
+                            if self._logger:
+                                self._logger.error(
+                                    f"❌ [STRUCTURED] JsonParsingService вернул пустой результат",
+                                    extra={"event_type": LogEventType.LLM_ERROR}
+                                )
+                            return RetryAttempt(
+                                attempt_number=attempt_num,
+                                prompt=request.prompt,
+                                raw_response=raw_content,
+                                parsed_content=None,
+                                success=False,
+                                error_type="empty_result",
+                                error_message="JsonParsingService вернул пустой результат",
+                                duration=duration,
+                                tokens_used=self._get_tokens_used(response)
+                            )
+
+                    except Exception as parse_err:
                         if self._logger:
                             self._logger.error(
-                                f"❌ [STRUCTURED] JSON parse error: {json_err}",
-                                extra={"event_type": LogEventType.LLM_ERROR}
+                                f"❌ [STRUCTURED] Исключение при вызове JsonParsingService: {type(parse_err).__name__}: {parse_err}",
+                                extra={"event_type": LogEventType.LLM_ERROR},
+                                exc_info=True
                             )
                         return RetryAttempt(
                             attempt_number=attempt_num,
@@ -883,26 +860,8 @@ class LLMOrchestrator:
                             raw_response=raw_content,
                             parsed_content=None,
                             success=False,
-                            error_type="json_error",
-                            error_message=str(json_err),
-                            duration=duration,
-                            tokens_used=self._get_tokens_used(response)
-                        )
-                        
-                    except Exception as model_err:
-                        if self._logger:
-                            self._logger.warning(
-                                f"⚠️ [STRUCTURED] Не удалось создать Pydantic модель: {model_err}",
-                                extra={"event_type": LogEventType.LLM_ERROR}
-                            )
-                        return RetryAttempt(
-                            attempt_number=attempt_num,
-                            prompt=request.prompt,
-                            raw_response=raw_content,
-                            parsed_content=None,
-                            success=False,
-                            error_type="validation_error",
-                            error_message=str(model_err),
+                            error_type="service_error",
+                            error_message=str(parse_err),
                             duration=duration,
                             tokens_used=self._get_tokens_used(response)
                         )
@@ -933,31 +892,68 @@ class LLMOrchestrator:
                     )
                 raw_content = response.content
 
-            validation_result = self._validate_structured_response(
-                raw_content=raw_content,
-                schema=request.structured_output.schema_def if request.structured_output else None
-            )
-
-            if validation_result["success"]:
-                return RetryAttempt(
-                    attempt_number=attempt_num,
-                    prompt=request.prompt,
-                    raw_response=raw_content,
-                    parsed_content=None,
-                    success=True,
-                    error_type=None,
-                    error_message=None,
-                    duration=duration,
-                    tokens_used=self._get_tokens_used(response)
+            # Валидация через JsonParsingService
+            if request.structured_output and raw_content:
+                validation_result = await self.executor.execute_action(
+                    action_name="json_parsing.parse_to_model",
+                    parameters={
+                        "raw_response": raw_content,
+                        "schema_def": request.structured_output.schema_def,
+                        "model_name": request.structured_output.output_model or "DynamicModel"
+                    },
+                    context=execution_context
                 )
+
+                if validation_result and validation_result.data and validation_result.data.get("status") == "success":
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=raw_content,
+                        parsed_content=validation_result.data.get("pydantic_model"),
+                        success=True,
+                        error_type=None,
+                        error_message=None,
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
+                else:
+                    error_data = validation_result.data if validation_result else {}
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=raw_content,
+                        success=False,
+                        error_type=error_data.get("error_type", "validation_failed"),
+                        error_message=error_data.get("error_message", "Validation failed"),
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
             else:
+                # Нет structured_output — просто парсим JSON
+                if raw_content:
+                    try:
+                        import json
+                        parsed = json.loads(raw_content)
+                        return RetryAttempt(
+                            attempt_number=attempt_num,
+                            prompt=request.prompt,
+                            raw_response=raw_content,
+                            parsed_content=None,
+                            success=True,
+                            error_type=None,
+                            error_message=None,
+                            duration=duration,
+                            tokens_used=self._get_tokens_used(response)
+                        )
+                    except json.JSONDecodeError:
+                        pass
                 return RetryAttempt(
                     attempt_number=attempt_num,
                     prompt=request.prompt,
                     raw_response=raw_content,
                     success=False,
-                    error_type=validation_result["error_type"],
-                    error_message=validation_result["error_message"],
+                    error_type="no_structured_output",
+                    error_message="structured_output не указан или пустой ответ",
                     duration=duration,
                     tokens_used=self._get_tokens_used(response)
                 )
@@ -985,27 +981,6 @@ class LLMOrchestrator:
                 error_message=str(e),
                 duration=duration
             )
-
-    def _validate_structured_response(
-        self,
-        raw_content: str,
-        schema: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """
-        Валидация структурированного ответа.
-        
-        ДЕЛЕГИРОВАНИЕ: Вызывает функции из json_parser.py
-        
-        ПРОВЕРКИ:
-        1. JSON парсинг
-        2. Соответствие схеме через Pydantic (если указана)
-        3. Полнота ответа (не обрезан ли)
-
-        ВОЗВРАЩАЕТ:
-        - Dict с полями: success, error_type, error_message, parsed
-        """
-        # Делегируем логику в json_parser
-        return validate_structured_response(raw_content, schema)
 
     async def _log_structured_start(
         self,

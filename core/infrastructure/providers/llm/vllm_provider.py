@@ -187,49 +187,8 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
     def _extract_json_from_response(self, content: str) -> str:
         """Извлечь JSON из ответа LLM."""
-        json_block_pattern = r'```json\s*\n?(.*?)\n?```'
-        matches = re.findall(json_block_pattern, content, re.DOTALL)
-        if matches:
-            return matches[-1].strip()
-
-        code_block_pattern = r'```\s*\n?(.*?)\n?```'
-        matches = re.findall(code_block_pattern, content, re.DOTALL)
-        if matches:
-            for block in reversed(matches):
-                block = block.strip()
-                if block.startswith('{') and block.endswith('}'):
-                    try:
-                        json.loads(block)
-                        return block
-                    except json.JSONDecodeError:
-                        continue
-
-        start = content.find('{')
-        end = content.rfind('}') + 1
-
-        if start != -1 and end > start:
-            candidate = content[start:end]
-            try:
-                json.loads(candidate)
-                return candidate
-            except json.JSONDecodeError:
-                pos = start + 1
-                while pos < len(content):
-                    next_start = content.find('{', pos)
-                    if next_start == -1:
-                        break
-                    next_end = content.rfind('}', pos) + 1
-                    if next_end <= next_start:
-                        break
-                    candidate = content[next_start:next_end]
-                    try:
-                        json.loads(candidate)
-                        return candidate
-                    except json.JSONDecodeError:
-                        pos = next_start + 1
-                return candidate
-
-        return content.strip()
+        from core.infrastructure.providers.llm.json_parser import extract_json_from_response
+        return extract_json_from_response(content)
 
     def _format_messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Форматировать сообщения в промпт для vLLM."""
