@@ -370,8 +370,12 @@ class ExecuteScriptHandler(SkillHandler):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="sql_query.execute",
-            parameters={"sql": sql, "parameters": sql_params},
+            action_name="service.sql_query_service.execute",
+            parameters={
+                "sql_query": sql,
+                "parameters": {str(i+1): val for i, val in enumerate(sql_params)},
+                "max_rows": 1000
+            },
             context=exec_context
         )
 

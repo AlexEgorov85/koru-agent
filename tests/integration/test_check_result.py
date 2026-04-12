@@ -1,23 +1,24 @@
 """
 Интеграционные тесты для CheckResult Skill.
 
+ПРЕДМЕТНАЯ ОБЛАСТЬ: Аудиторские проверки (audits, violations, audit_reports)
+
 ТЕСТЫ:
   check_result.execute_script (2):
-  - test_execute_script_exists: выполнение существующего скрипта
+  - test_execute_script_exists: выполнение существующего скрипта (get_all_audits)
   - test_execute_script_not_found: выполнение несуществующего скрипта (FAILED)
 
   check_result.generate_script (1):
-  - test_generate_script: генерация и выполнение SQL скрипта через LLM
+  - test_generate_script: генерация SQL скрипта через LLM
 
   Тесты ошибок (3):
   - test_generate_empty_query: пустой запрос
   - test_generate_invalid_query: некорректный запрос
-  - test_execute_missing_params: отсутствуют обязательные параметры
+  - test_execute_missing_params: отсутствует обязательный script_name
 
 ПРИНЦИПЫ:
 - Контексты поднимаются ОДИН РАЗ (scope="module")
-- Проверка логики: результаты содержат осмысленные данные
-- Реальные контексты, без моков
+- Реальное поведение, без моков
 - Тесты ошибок: проверка FAILED при невалидных входных данных
 """
 import pytest
@@ -75,13 +76,22 @@ def session():
     return SessionContext()
 
 
-def create_filled_session(goal: str = "Проверка результатов") -> SessionContext:
+def create_filled_session(goal: str = "Проверка результатов аудита") -> SessionContext:
     """Создаёт SessionContext с наполненными данными для CheckResult."""
     session = SessionContext(session_id="test_check_result_001", agent_id="test_agent_001")
     session.set_goal(goal)
 
+    # Актуальные скрипты из execute_script_handler.py
     session.record_observation(
-        {"result": "Доступны скрипты проверки", "scripts": ["get_all_books", "get_books_by_author", "count_books", "get_books_by_year_range", "get_books_by_genre"]},
+        {
+            "result": "Доступны скрипты проверки аудита",
+            "scripts": [
+                "get_all_audits", "get_audit_by_status", "get_audit_reports",
+                "get_report_items", "get_violations_by_audit", "get_violations_by_status",
+                "get_violations_by_severity", "get_overdue_violations",
+                "get_violations_by_responsible", "get_audit_statistics"
+            ]
+        },
         source="system",
         step_number=1
     )
@@ -92,12 +102,12 @@ def create_filled_session(goal: str = "Проверка результатов")
         skill_name="check_result",
         action_item_id=session.record_action({"action": "check_result", "goal": goal}),
         observation_item_ids=[],
-        summary=f"Проверка результатов: {goal}",
+        summary=f"Проверка результатов аудита: {goal}",
         status=ExecutionStatus.COMPLETED
     )
 
     session.dialogue_history.add_user_message(f"Проверь: {goal}")
-    session.dialogue_history.add_assistant_message("Выполняю проверку...")
+    session.dialogue_history.add_assistant_message("Выполняю проверку аудита...")
 
     return session
 
@@ -107,33 +117,35 @@ def create_filled_session(goal: str = "Проверка результатов")
 # ============================================================================
 
 class TestCheckResultSkillIntegration:
-    """CheckResult Skill — 3 теста."""
+    """CheckResult Skill — интеграционные тесты."""
 
     @pytest.mark.asyncio
     async def test_execute_script_exists(self, executor):
-        """Выполнение существующего скрипта проверки."""
-        session = create_filled_session(goal="Проверка количества книг")
+        """Выполнение существующего скрипта — get_all_audits (без обязательных параметров)."""
+        session = create_filled_session(goal="Получить все аудиторские проверки")
 
         result = await executor.execute_action(
             action_name="check_result.execute_script",
             parameters={
-                "script_name": "count_books",
+                "script_name": "get_all_audits",
                 "max_rows": 10
             },
             context=session
         )
 
         # Ожидаем успешное выполнение
-        assert result.status == ExecutionStatus.COMPLETED, f"Ожидался COMPLETED, но получил {result.status}: {result.error}"
+        assert result.status == ExecutionStatus.COMPLETED, \
+            f"Ожидался COMPLETED, но получил {result.status}: {result.error}"
+
         data = result.data if isinstance(result.data, dict) else result.data.model_dump()
 
         # Проверка: результат содержит данные
-        assert "rows" in data or "results" in data, f"Нет данных в результате: {data.keys()}"
+        assert "rows" in data, f"Нет 'rows' в результате: {data.keys()}"
 
-        results = data.get("rows") or data.get("results") or []
-        assert isinstance(results, list), "results должен быть списком"
-        assert result.data.get("script_name") == "count_books", "Неверное имя скрипта в результате"
-        print(f"✅ CheckResult: скрипт count_books выполнен ({len(results)} строк)")
+        rows = data.get("rows", [])
+        assert isinstance(rows, list), "rows должен быть списком"
+        assert data.get("script_name") == "get_all_audits", "Неверное имя скрипта"
+        print(f"✅ CheckResult: скрипт get_all_audits выполнен ({len(rows)} строк)")
 
     @pytest.mark.asyncio
     async def test_execute_script_not_found(self, executor):
@@ -150,7 +162,8 @@ class TestCheckResultSkillIntegration:
         )
 
         # Ожидаем FAILED — скрипт не существует
-        assert result.status == ExecutionStatus.FAILED, f"Ожидался FAILED, но получил {result.status}"
+        assert result.status == ExecutionStatus.FAILED, \
+            f"Ожидался FAILED, но получил {result.status}"
         assert result.error is not None, "Нет сообщения об ошибке"
         error_lower = result.error.lower()
         assert "script" in error_lower or "не найден" in error_lower, \
@@ -160,13 +173,13 @@ class TestCheckResultSkillIntegration:
     @pytest.mark.asyncio
     async def test_generate_script(self, executor):
         """Генерация SQL скрипта через LLM — проверяем что SQL сгенерирован."""
-        session = create_filled_session(goal="Генерация SQL запроса")
+        session = create_filled_session(goal="Генерация SQL запроса для аудита")
 
         result = await executor.execute_action(
             action_name="check_result.generate_script",
             parameters={
-                "query": "Показать всех авторов",
-                "schema_context": "books,authors",
+                "query": "Показать все аудиторские проверки",
+                "schema_context": "audits,violations",
                 "max_results": 5
             },
             context=session
@@ -184,9 +197,9 @@ class TestCheckResultSkillIntegration:
                 assert has_select, f"SQL не содержит SELECT: {sql}"
 
                 # Проверка: есть результаты выполнения (могут быть пустыми)
-                results = data.get("rows") or data.get("results") or data.get("data") or []
-                assert isinstance(results, list), "results должен быть списком"
-                print(f"✅ CheckResult: SQL сгенерирован и выполнен ({len(results)} строк)")
+                rows = data.get("rows") or data.get("results") or data.get("data") or []
+                assert isinstance(rows, list), "rows должен быть списком"
+                print(f"✅ CheckResult: SQL сгенерирован и выполнен ({len(rows)} строк)")
             else:
                 # Нет SQL — значит генерация не удалась
                 assert False, f"Нет сгенерированного SQL в результате: {data.keys()}"
@@ -197,7 +210,7 @@ class TestCheckResultSkillIntegration:
 
 
 class TestCheckResultSkillErrorHandling:
-    """Тесты ошибок CheckResult Skill — 3 теста."""
+    """Тесты ошибок CheckResult Skill."""
 
     @pytest.mark.asyncio
     async def test_generate_empty_query(self, executor):
@@ -254,7 +267,7 @@ class TestCheckResultSkillErrorHandling:
     async def test_execute_missing_params(self, executor):
         """Выполнение скрипта без обязательных параметров — должен вернуть FAILED."""
         session = create_filled_session(goal="Выполнение без параметров")
-        
+
         result = await executor.execute_action(
             action_name="check_result.execute_script",
             parameters={
@@ -269,5 +282,5 @@ class TestCheckResultSkillErrorHandling:
         error_lower = result.error.lower()
         assert "script_name" in error_lower or "required" in error_lower or "field" in error_lower, \
             f"Ошибка не связана с отсутствующим script_name: {result.error}"
-        
+
         print(f"✅ CheckResult: отсутствует script_name → FAILED")
