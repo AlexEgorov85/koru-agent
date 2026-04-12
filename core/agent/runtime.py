@@ -14,6 +14,7 @@ from core.application_context.application_context import ApplicationContext
 from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.models.enums.component_status import ComponentStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
@@ -167,8 +168,8 @@ class AgentRuntime:
             component_config=component_config,
             executor=self.executor
         )
-        
-        if str(self._pattern._state) == "ComponentState.CREATED":
+
+        if self._pattern._state == ComponentStatus.CREATED:
             await self._pattern.initialize()
 
     async def _run_async(self) -> ExecutionResult:

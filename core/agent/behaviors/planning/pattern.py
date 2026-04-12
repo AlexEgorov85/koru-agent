@@ -183,7 +183,7 @@ class PlanningPattern(BaseBehaviorPattern):
 
     def _is_plan_completed(self, execution_result: ExecutionResult) -> bool:
         """Проверка завершения всех шагов плана"""
-        if execution_result.status != ExecutionStatus.SUCCESS:
+        if execution_result.status != ExecutionStatus.COMPLETED:
             return False
 
         result_data = execution_result.result or {}
@@ -202,7 +202,7 @@ class PlanningPattern(BaseBehaviorPattern):
         3. Выбор подходящей capability для выполнения шага
         4. Формирование решения для выполнения
         """
-        if next_step_result.status != ExecutionStatus.SUCCESS:
+        if next_step_result.status != ExecutionStatus.COMPLETED:
             # Ошибка получения следующего шага — попытка коррекции плана
             return await self._handle_step_retrieval_error(session_context, context_analysis, next_step_result)
 

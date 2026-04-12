@@ -26,8 +26,8 @@ import logging
 
 from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.agent.components.lifecycle import ComponentState
 from core.models.enums.common_enums import ResourceType
+from core.models.enums.component_status import ComponentStatus
 
 
 class ManagedResource(Protocol):
@@ -75,7 +75,7 @@ class ResourceRecord:
     resource: Any
     resource_type: ResourceType
     dependencies: List[str] = field(default_factory=list)
-    status: ComponentState = ComponentState.PENDING
+    status: ComponentStatus = ComponentStatus.PENDING
     metadata: Dict[str, Any] = field(default_factory=dict)
     init_error: Optional[str] = None
     registered_at: datetime = field(default_factory=datetime.now)
@@ -284,7 +284,7 @@ class LifecycleManager:
                     if dep in results and not results[dep]
                 ]
                 if failed_deps:
-                    record.status = ComponentState.FAILED
+                    record.status = ComponentStatus.FAILED
                     record.init_error = f"Failed dependencies: {failed_deps}"
                     results[name] = False
                     self.log.error("Ресурс '%s' не инициализирован: failed зависимости %s",
@@ -292,7 +292,7 @@ class LifecycleManager:
                                    extra={"event_type": LogEventType.SYSTEM_ERROR})
                     continue
                 
-                record.status = ComponentState.INITIALIZING
+                record.status = ComponentStatus.INITIALIZING
                 
                 try:
                     if hasattr(record.resource, 'initialize') and callable(record.resource.initialize):
@@ -302,20 +302,20 @@ class LifecycleManager:
                         result = True
                     
                     if result:
-                        record.status = ComponentState.READY
+                        record.status = ComponentStatus.READY
                         record.initialized_at = datetime.now()
                         results[name] = True
                         self.log.debug("Ресурс '%s' успешно инициализирован", name,
                                        extra={"event_type": LogEventType.SYSTEM_INIT})
                     else:
-                        record.status = ComponentState.FAILED
+                        record.status = ComponentStatus.FAILED
                         record.init_error = "initialize returned False"
                         results[name] = False
                         self.log.error("Ресурс '%s' вернул False при инициализации", name,
                                        extra={"event_type": LogEventType.SYSTEM_ERROR})
                             
                 except Exception as e:
-                    record.status = ComponentState.FAILED
+                    record.status = ComponentStatus.FAILED
                     record.init_error = str(e)
                     results[name] = False
                     self.log.error("Ошибка инициализации ресурса '%s': %s",
@@ -409,9 +409,9 @@ class LifecycleManager:
             for name in shutdown_order:
                 record = self._resources[name]
                 
-                if record.status == ComponentState.PENDING:
+                if record.status == ComponentStatus.PENDING:
                     # Ресурс не был инициализирован, пропускаем
-                    record.status = ComponentState.SHUTDOWN
+                    record.status = ComponentStatus.SHUTDOWN
                     results[name] = True
                     continue
                 
@@ -419,7 +419,7 @@ class LifecycleManager:
                     if hasattr(record.resource, 'shutdown') and callable(record.resource.shutdown):
                         await record.resource.shutdown()
                     
-                    record.status = ComponentState.SHUTDOWN
+                    record.status = ComponentStatus.SHUTDOWN
                     results[name] = True
 
                     self.log.debug("Ресурс '%s' завершён", name,
@@ -605,7 +605,7 @@ class LifecycleManager:
         """Количество инициализированных ресурсов."""
         return sum(
             1 for record in self._resources.values() 
-            if record.status == ComponentState.READY
+            if record.status == ComponentStatus.READY
         )
 
     @property
@@ -756,13 +756,13 @@ class LifecycleManager:
         return result
 
     @property
-    def state(self) -> ComponentState:
+    def state(self) -> ComponentStatus:
         """Общее состояние менеджера."""
         if not self._initialized:
-            return ComponentState.CREATED
+            return ComponentStatus.CREATED
         if self._shutdown_in_progress:
-            return ComponentState.SHUTDOWN
-        return ComponentState.READY
+            return ComponentStatus.SHUTDOWN
+        return ComponentStatus.READY
 
     def get_components(self, component_type: ResourceType) -> List[Any]:
         """Получение всех компонентов определённого типа."""

@@ -22,23 +22,6 @@ class ComponentType(str, Enum):
     BEHAVIOR = "behavior"
 
 
-class ComponentStatus(str, Enum):
-    """
-    Статусы компонентов системы.
-
-    ИСПОЛЬЗОВАНИЕ:
-    status = ComponentStatus.ACTIVE
-    if status == ComponentStatus.ARCHIVED:
-        # обработка архивного компонента
-    """
-    DRAFT = "draft"
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    DEPRECATED = "deprecated"
-    ARCHIVED = "archived"
-    EXPERIMENTAL = "experimental"
-
-
 class ResourceType(str, Enum):
     """
     Типы ресурсов системы (ЕДИНЫЙ для всех модулей).

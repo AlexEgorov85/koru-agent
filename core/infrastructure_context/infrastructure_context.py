@@ -22,7 +22,7 @@ from core.infrastructure_context.lifecycle_manager import LifecycleManager
 from core.infrastructure_context.resource_registry import ResourceRegistry
 from core.components.services.metrics_publisher import MetricsPublisher
 
-from core.agent.components.lifecycle import ComponentState
+from core.models.enums.component_status import ComponentStatus
 from core.config.app_config import AppConfig
 from core.config.logging_config import LoggingConfig
 from core.infrastructure.logging.session import LoggingSession
@@ -127,15 +127,15 @@ class InfrastructureContext:
             return True
 
         # Проверка на предыдущую ошибку
-        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.FAILED:
+        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentStatus.FAILED:
             self.log.error("InfrastructureContext в состоянии FAILED",
                            extra={"event_type": LogEventType.SYSTEM_ERROR})
             return False
 
         # === ЭТАП 1: Базовая инициализация ===
-        import sys
-        sys.stdout.buffer.write("🚀 Инициализация инфраструктурного контекста...\n".encode('utf-8'))
-        sys.stdout.flush()
+        # Логгер ещё не создан — используем стандартный logging напрямую
+        _init_logger = logging.getLogger(__name__)
+        _init_logger.info("🚀 Инициализация инфраструктурного контекста...")
 
         # Настройка файловой системы логов (создаёт директорию и файлы контекстов)
         self.log_session.setup_context_loggers()
@@ -804,7 +804,7 @@ class InfrastructureContext:
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""
-        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.SHUTDOWN:
+        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentStatus.SHUTDOWN:
             self.log.warning("InfrastructureContext уже завершён",
                              extra={"event_type": LogEventType.WARNING})
             return
@@ -889,13 +889,13 @@ class InfrastructureContext:
     @property
     def is_failed(self) -> bool:
         """Проверка, завершилась ли инициализация ошибкой."""
-        return self.lifecycle_manager is not None and self.lifecycle_manager.state == ComponentState.FAILED
+        return self.lifecycle_manager is not None and self.lifecycle_manager.state == ComponentStatus.FAILED
     
     @property
-    def state(self) -> ComponentState:
+    def state(self) -> ComponentStatus:
         """Текущее состояние инфраструктурного контекста."""
         if self.lifecycle_manager is None:
-            return ComponentState.CREATED
+            return ComponentStatus.CREATED
         return self.lifecycle_manager.state
     
     def is_fully_initialized(self) -> bool:

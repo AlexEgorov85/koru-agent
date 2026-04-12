@@ -29,24 +29,26 @@ with ErrorContext("operation_name", logger, component="service") as ctx:
 Для управления жизненным циклом компонентов используйте:
 
 ```python
-from core.components.lifecycle import ComponentLifecycle, ComponentState
+from core.agent.components.lifecycle import ComponentLifecycle
+from core.models.enums.component_status import ComponentStatus
 
 class MyComponent(ComponentLifecycle):
     def __init__(self, name: str):
         super().__init__(name)
 
     async def initialize(self):
-        await self._transition_to(ComponentState.INITIALIZING)
+        await self._transition_to(ComponentStatus.INITIALIZING)
         try:
             await self._do_init()
-            await self._transition_to(ComponentState.READY)
+            await self._transition_to(ComponentStatus.READY)
         except Exception:
-            await self._transition_to(ComponentState.FAILED)
+            await self._transition_to(ComponentStatus.FAILED)
             raise
 ```
 
 **Файлы:**
-- `core/agent/components/lifecycle.py` — `ComponentLifecycle`, `ComponentState`
+- `core/agent/components/lifecycle.py` — `ComponentLifecycle`
+- `core/models/enums/component_status.py` — `ComponentStatus`
 - `core/agent/components/base_component.py` — `BaseComponent` (наследуется от `ComponentLifecycle`)
 
 ## 📚 Документация

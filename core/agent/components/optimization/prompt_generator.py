@@ -6,7 +6,7 @@ PromptGenerator - умная генерация промптов с страте
 - Применение стратегий мутаций (ADD_EXAMPLES, ADD_CONSTRAINTS, SIMPLIFY, ERROR_FIX)
 - Детерминированная генерация
 - Отслеживание parent версий и типов мутаций
-- Генерация на основе root causes и examples (v2)
+- Генерация на основе root causes и examples
 """
 import hashlib
 import logging
@@ -505,7 +505,7 @@ class PromptGenerator:
         }
 
     # ============================================================
-    # НОВЫЙ API (v2): Генерация на основе root causes и examples
+    # НОВЫЙ API: Генерация на основе root causes и examples
     # ============================================================
 
     async def generate_improvements(
@@ -518,7 +518,7 @@ class PromptGenerator:
         """
         Генерация улучшенных промптов на основе root causes и examples.
 
-        Это НОВЫЙ API v2 который использует:
+        Это API который использует:
         - RootCauseAnalyzer для понимания проблем
         - ExampleExtractor для few-shot примеров
 

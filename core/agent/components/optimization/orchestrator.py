@@ -50,8 +50,8 @@ from .scenario_builder import ScenarioBuilder
 from core.components.benchmarks.benchmark_runner import BenchmarkRunner
 
 
-class OrchestratorV2Config:
-    """Конфигурация OptimizationOrchestrator v2 с валидацией"""
+class OrchestratorConfig:
+    """Конфигурация OptimizationOrchestrator с валидацией"""
 
     def __init__(
         self,
@@ -123,10 +123,10 @@ class OptimizationOrchestrator:
         version_manager: VersionManager,
         safety_layer: SafetyLayer,
         event_bus: UnifiedEventBus,
-        config: Optional[OrchestratorV2Config] = None
+        config: Optional[OrchestratorConfig] = None
     ):
         """
-        Инициализация OptimizationOrchestrator v2.
+        Инициализация OptimizationOrchestrator.
 
         ARGS:
         - trace_collector: сборщик traces
@@ -153,7 +153,7 @@ class OptimizationOrchestrator:
         self.version_manager = version_manager
         self.safety_layer = safety_layer
         self.event_bus = event_bus
-        self.config = config or OrchestratorV2Config()
+        self.config = config or OrchestratorConfig()
 
         # Callback для выполнения промптов
         self.executor_callback: Optional[Callable[[str, str], Awaitable[Dict[str, Any]]]] = None

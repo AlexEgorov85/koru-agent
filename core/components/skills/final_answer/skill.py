@@ -459,18 +459,28 @@ class FinalAnswerSkill(Skill):
         include_steps_str = str(include_steps)
         include_evidence_str = str(include_evidence)
 
-        # Рендеринг промпта с переменными (используем метод из BaseComponent)
-        try:
-            rendered_prompt = self.render_prompt(
-                capability_name,
-                goal=goal,
-                dialogue_history=dialogue_history_str,
-                observations=observations_str,
-                steps_taken=steps_str,
-                format_type=format_type_str,
-                include_steps=include_steps_str,
-                include_evidence=include_evidence_str
+        # Рендеринг промпта с переменными
+        prompt_obj = self.get_prompt(capability_name)
+        if not prompt_obj or not hasattr(prompt_obj, 'content'):
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/skill/final_answer/",
+                component="final_answer"
             )
+        
+        prompt_template = prompt_obj.content
+        prompt_vars = {
+            "goal": goal,
+            "dialogue_history": dialogue_history_str,
+            "observations": observations_str,
+            "steps_taken": steps_str,
+            "format_type": format_type_str,
+            "include_steps": include_steps_str,
+            "include_evidence": include_evidence_str
+        }
+        
+        try:
+            rendered_prompt = self._render_prompt(prompt_template, prompt_vars)
         except Exception as e:
             from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
@@ -692,4 +702,23 @@ class FinalAnswerSkill(Skill):
 
     # ❌ УДАЛЕНО: _build_fallback_response
     # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError вместо fallback ответа
+
+    def _render_prompt(self, prompt: str, variables: Dict[str, Any]) -> str:
+        """Рендеринг промпта с подстановкой переменных."""
+        import re
+        result = prompt
+        for key, value in variables.items():
+            placeholder = "{{ " + key + " }}"
+            if isinstance(value, list):
+                formatted = "\n\n".join(str(v) for v in value)
+                result = result.replace("{% if " + key + " %}" + placeholder + "{% endif %}", formatted)
+                result = result.replace(placeholder, formatted)
+            elif isinstance(value, dict):
+                formatted = "\n".join(f"{k}: {v}" for k, v in value.items())
+                result = result.replace(placeholder, formatted)
+            else:
+                result = result.replace(placeholder, str(value))
+        
+        result = re.sub(r'\{%.*?%\}', '', result)
+        return result
 

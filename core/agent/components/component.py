@@ -35,12 +35,12 @@ from core.config.component_config import ComponentConfig
 from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.models.enums.common_enums import ComponentType
-from core.agent.components.lifecycle import ComponentLifecycle, ComponentState
+from core.agent.components.lifecycle import ComponentLifecycle
+from core.models.enums.component_status import ComponentStatus
 
 
 # =============================================================================
-# LOGGING MIXIN V2 - LOGGING ЧЕРЕЗ LOGGINGSESSION
+# LOGGING MIXIN - LOGGING ЧЕРЕЗ LOGGINGSESSION
 # =============================================================================
 
 class ComponentLogger:
@@ -361,12 +361,12 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         current_time = time.time()
 
         # Проверка: нельзя инициализировать повторно
-        if self._state == ComponentState.READY:
+        if self._state == ComponentStatus.READY:
             self._log_warning(f"Компонент уже инициализирован", event_type=LogEventType.SYSTEM_INIT)
             return True
 
         # Переход в состояние INITIALIZING
-        await self._transition_to(ComponentState.INITIALIZING)
+        await self._transition_to(ComponentStatus.INITIALIZING)
 
         # Лог о начале инициализации
         self._log_info("Начало инициализации", event_type=LogEventType.SYSTEM_INIT)
@@ -375,13 +375,13 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             # === ЭТАП 1: Предзагрузка ресурсов ===
             if not await self._preload_resources():
                 self._log_error("Предзагрузка ресурсов не удалась", event_type=LogEventType.SYSTEM_ERROR)
-                await self._transition_to(ComponentState.FAILED)
+                await self._transition_to(ComponentStatus.FAILED)
                 return False
 
             # === ЭТАП 2: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
                 self._log_error("Валидация загруженных ресурсов не пройдена", event_type=LogEventType.SYSTEM_ERROR)
-                await self._transition_to(ComponentState.FAILED)
+                await self._transition_to(ComponentStatus.FAILED)
                 return False
 
             # Успешная инициализация
@@ -394,14 +394,14 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             )
 
             # Переход в состояние READY
-            await self._transition_to(ComponentState.READY)
+            await self._transition_to(ComponentStatus.READY)
             self._initialized = True
 
             return True
 
         except Exception as e:
             self._log_error(f"Ошибка инициализации: {e}", event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
-            await self._transition_to(ComponentState.FAILED)
+            await self._transition_to(ComponentStatus.FAILED)
             return False
     
     async def _preload_resources(self) -> bool:
@@ -569,11 +569,9 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             )
             
             # Этап 6: Возврат результата
-            return ExecutionResult(
-                success=True,
+            return ExecutionResult.success(
                 data=validated_result,
-                status=ExecutionStatus.SUCCESS,
-                execution_time_ms=execution_time_ms
+                metadata={"execution_time_ms": execution_time_ms}
             )
         
         except Exception as e:
@@ -590,11 +588,9 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
                 execution_context=execution_context
             )
             
-            return ExecutionResult(
-                success=False,
+            return ExecutionResult.failure(
                 error=error_msg,
-                status=ExecutionStatus.FAILED,
-                execution_time_ms=execution_time_ms
+                metadata={"execution_time_ms": execution_time_ms}
             )
     
     async def _validate_input(
@@ -677,13 +673,13 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
 
     async def shutdown(self):
         """Завершение работы компонента."""
-        await self._transition_to(ComponentState.SHUTDOWN)
+        await self._transition_to(ComponentStatus.SHUTDOWN)
         self._log_info("Компонент завершил работу", event_type=LogEventType.SYSTEM_SHUTDOWN)
-    
+
     async def restart(self) -> bool:
         """Перезапуск компонента."""
         await self.shutdown()
-        self._state = ComponentState.CREATED
+        self._state = ComponentStatus.CREATED
         return await self.initialize()
     
     # Utility methods

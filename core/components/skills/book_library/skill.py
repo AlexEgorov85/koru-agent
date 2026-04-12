@@ -351,15 +351,15 @@ class BookLibrarySkill(Skill):
 
     async def _publish_metrics(
         self,
-        capability,
-        success: bool,
-        execution_time_ms: float,
+        capability: Optional[Any] = None,
+        success: bool = False,
+        execution_time_ms: float = 0.0,
         execution_context: Optional[Any] = None,
         **extra_data
     ):
         """Публикация метрик выполнения через EventBus."""
         from core.components.skills.book_library.metrics import publish_book_library_metrics
-        capability_name = capability.name if hasattr(capability, 'name') else str(capability)
+        capability_name = capability.name if capability and hasattr(capability, 'name') else extra_data.get('capability_name', str(capability) if capability else 'unknown')
         await publish_book_library_metrics(
             logger=None,
             capability_name=capability_name,

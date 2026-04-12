@@ -23,9 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union, TYPE_CHECKING
 
-from core.agent.components.policy import RetryPolicy
 from core.infrastructure.event_bus import (
     EventDomain,
     EventType,
@@ -230,7 +229,7 @@ class ErrorHandler:
     def __init__(
         self,
         event_bus=None,
-        retry_policy: Optional[RetryPolicy] = None
+        retry_policy: Optional['RetryPolicy'] = None
     ):
         """
         Инициализация обработчика ошибок.
@@ -239,6 +238,8 @@ class ErrorHandler:
         - event_bus: шина событий (опционально)
         - retry_policy: политика retry (опционально)
         """
+        from core.agent.components.policy import RetryPolicy
+
         self._event_bus = event_bus
         self._retry_policy = retry_policy or RetryPolicy()
 
@@ -716,7 +717,7 @@ class ErrorHandler:
         return decorator
 
     @property
-    def retry_policy(self) -> RetryPolicy:
+    def retry_policy(self) -> 'RetryPolicy':
         """Получить политику retry."""
         return self._retry_policy
 
@@ -772,7 +773,7 @@ def reset_error_handler() -> None:
     _global_error_handler = None
 
 
-def create_error_handler(event_bus=None, retry_policy: Optional[RetryPolicy] = None) -> ErrorHandler:
+def create_error_handler(event_bus=None, retry_policy: Optional['RetryPolicy'] = None) -> ErrorHandler:
     """
     Создать новый обработчик ошибок.
 

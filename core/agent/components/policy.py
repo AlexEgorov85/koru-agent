@@ -3,9 +3,14 @@
 
 СОДЕРЖИТ:
 - AgentPolicy: единая политика агента (ограничения + retry)
+- RetryPolicy: alias для обратной совместимости
 """
 import random
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Delay import to avoid circular imports
+    pass
 
 
 class AgentPolicy:
