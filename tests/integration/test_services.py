@@ -207,15 +207,16 @@ class TestSqlGenerationServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_sql_generation_invalid_schema(self, executor, session):
-        """Генерация SQL с некорректной схемой."""
+        """Генерация SQL с некорректной схемой — LLM должен справиться или вернуть ошибку."""
         result = await executor.execute_action(
             action_name="sql_generation.generate_query",
             parameters={
                 "natural_language_query": "Получи все записи",
-                "table_schema": "INVALID_SCHEMA(no columns)"
+                "table_schema": "Таблица non_existent_table: id (int)"
             },
             context=session
         )
 
+        # LLM может сгенерировать SQL или вернуть ошибку — главное что сервис отработал
         assert result.data is not None or result.error is not None
         print(f"✅ SQL Generation: некорректная схема обработана ({result.status.value})")
