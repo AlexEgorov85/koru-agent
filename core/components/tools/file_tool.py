@@ -9,12 +9,14 @@
 """
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 import aiofiles
 from core.components.tools.tool import Tool, ToolInput, ToolOutput
-from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.infrastructure.logging.event_types import LogEventType
+
+if TYPE_CHECKING:
+    from core.application_context.application_context import ApplicationContext
 
 
 class FileToolInput(ToolInput):

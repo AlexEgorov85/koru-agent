@@ -83,7 +83,8 @@ class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix='AGENT_LLM_',
         env_file='.env',
-        extra='ignore'
+        extra='ignore',
+        protected_namespaces=('settings_',),
     )
 
     provider: Literal["vllm", "llama", "openai", "anthropic", "gemini"] = Field(
@@ -547,7 +548,6 @@ class AppConfig(BaseSettings):
                 'sql_validator_service',
             ],
             'tool_configs': [
-                'file_tool',
                 'sql_tool',
             ],
         }
@@ -564,6 +564,13 @@ class AppConfig(BaseSettings):
 
         # Дополняем tool_configs из discovery данными (vector_books и т.д.)
         # component_prefixes уже содержит все компоненты из discovery
+
+        # Исключаем компоненты, которые не загрузятся (например, file_tool без aiofiles)
+        # Это временное решение — правильнее исправить file_tool
+        excluded_tools = {'file_tool'}
+        for tool_name in list(tool_configs.keys()):
+            if tool_name in excluded_tools:
+                del tool_configs[tool_name]
 
         return cls(
             config_id=f"app_config_{profile}_discovery",
