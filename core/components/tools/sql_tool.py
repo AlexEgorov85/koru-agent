@@ -104,26 +104,22 @@ class SQLTool(Tool):
 
         Теперь async-метод — можно вызывать db.execute_query напрямую через await.
         """
-        # Преобразуем параметры во входные данные
-        input_data = self._convert_params_to_input(parameters)
+        # Преобразуем параметры в dict (если это Pydantic-объект)
+        if hasattr(parameters, 'model_dump'):
+            params_dict = parameters.model_dump()
+        elif isinstance(parameters, dict):
+            params_dict = parameters
+        else:
+            self._log_error(f"Неподдерживаемый тип параметров: {type(parameters)}", event_type=LogEventType.ERROR)
+            return {
+                "rows": [],
+                "columns": [],
+                "rowcount": 0,
+                "execution_time": 0
+            }
 
-        # === ЭТАП 1: Валидация входных данных через схему ===
-        input_schema = self.get_input_contract("sql_tool.execute_query")
-        if input_schema:
-            try:
-                input_schema.model_validate({
-                    "sql": input_data.sql,
-                    "parameters": input_data.parameters,
-                    "max_rows": input_data.max_rows
-                })
-            except Exception as e:
-                self._log_error(f"Валидация входных данных не пройдена: {e}", event_type=LogEventType.ERROR)
-                return {
-                    "rows": [],
-                    "columns": [],
-                    "rowcount": 0,
-                    "execution_time": 0
-                }
+        # Преобразуем параметры во входные данные
+        input_data = self._convert_params_to_input(params_dict)
 
         start_time = time.time()
 
