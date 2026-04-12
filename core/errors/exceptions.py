@@ -275,18 +275,20 @@ class PromptNotFoundError(PromptError):
 
 class InfrastructureError(AgentBaseError):
     """Критическая ошибка инфраструктуры - требует немедленного внимания."""
-    def __init__(self, message: str, component: str = None, **kwargs):
-        metadata = kwargs.pop("metadata", {})
+    def __init__(self, message: str, component: str = None, metadata: Dict = None, **kwargs):
+        final_metadata = metadata or {}
         if component:
-            metadata["component"] = component
-        super().__init__(message, code="INFRASTRUCTURE_ERROR", metadata=metadata, **kwargs)
+            final_metadata["component"] = component
+        super().__init__(message, code="INFRASTRUCTURE_ERROR", metadata=final_metadata, **kwargs)
 
 
 class VectorSearchError(InfrastructureError):
     """Ошибка векторного поиска - не должна маскироваться fallback."""
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, component: str = None, **kwargs):
+        if component is None:
+            component = "vector_search"
         # InfrastructureError уже устанавливает code="INFRASTRUCTURE_ERROR"
-        super().__init__(message, component="vector_search", **kwargs)
+        super().__init__(message, component=component, **kwargs)
 
 
 class DataNotFoundError(AgentBaseError):
