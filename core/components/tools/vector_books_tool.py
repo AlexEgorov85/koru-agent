@@ -65,7 +65,8 @@ class VectorBooksTool(Tool):
                 from core.errors.exceptions import InfrastructureError
                 raise InfrastructureError(
                     "Embedding провайдер не инициализирован. "
-                    "Убедитесь что SentenceTransformersProvider настроен в InfrastructureContext."
+                    "Убедитесь что SentenceTransformersProvider настроен в InfrastructureContext.",
+                    component="vector_books_tool"
                 )
 
             from core.infrastructure.cache.analysis_cache import AnalysisCache

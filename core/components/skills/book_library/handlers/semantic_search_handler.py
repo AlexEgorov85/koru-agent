@@ -2,8 +2,9 @@ import time
 from typing import Dict, Any
 from pydantic import BaseModel
 
+from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
-from core.errors.exceptions import VectorSearchError, InfrastructureError
+from core.errors.exceptions import VectorSearchError
 from core.components.skills.handlers.base_handler import SkillHandler
 
 
@@ -104,21 +105,19 @@ class SemanticSearchHandler(SkillHandler):
             test_result = await self.executor.execute_action(
                 action_name="vector_books.search",
                 parameters={"query": "test", "top_k": 1},
-                context=exec_ctx
+                context=execution_context
             )
             if test_result.status != ExecutionStatus.COMPLETED:
-                raise InfrastructureError(
+                raise VectorSearchError(
                     "Vector Search для книг не инициализирован. "
-                    "Проверьте что FAISS индекс создан и vector_books доступен.",
-                    component="book_library.semantic_search"
+                    "Проверьте что FAISS индекс создан и vector_books доступен."
                 )
-        except InfrastructureError:
+        except VectorSearchError:
             raise
-        except Exception:
-            raise InfrastructureError(
-                "Vector Search для книг не инициализирован. "
-                "Проверьте что FAISS индекс создан и vector_books доступен.",
-                component="book_library.semantic_search"
+        except Exception as e:
+            raise VectorSearchError(
+                f"Vector Search для книг не инициализирован. "
+                f"Проверьте что FAISS индекс создан и vector_books доступен. Ошибка: {e}"
             )
 
     async def _execute_vector_search(
@@ -153,7 +152,7 @@ class SemanticSearchHandler(SkillHandler):
                     "top_k": top_k,
                     "min_score": min_score
                 },
-                context=exec_context
+                context=execution_context
             )
 
             if result.status != ExecutionStatus.COMPLETED:
