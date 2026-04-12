@@ -143,9 +143,9 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     import psycopg2
 
     config = get_config(profile="dev")
-    db_config = config.db_providers.get("books_db")
+    db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'books_db' не найден в конфигурации")
+        print("❌ DB провайдер 'default_db' не найден в конфигурации")
         return 1
 
     params = db_config.parameters
@@ -202,9 +202,9 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
     from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
     config = get_config(profile="dev")
-    db_config = config.db_providers.get("books_db")
+    db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'books_db' не найден")
+        print("❌ DB провайдер 'default_db' не найден")
         return 1
 
     params = db_config.parameters
@@ -270,78 +270,100 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
 
 
 async def index_books_full(embedding, faiss_provider, vs_config) -> int:
-    """Полная индексация книг — с чанками содержимого."""
-    from core.infrastructure.providers.vector.chunking_strategy import SemanticChunkingStrategy
-    from core.components.services.document_indexing_service import DocumentIndexingService
-
+    """Полная индексация книг — с главами из таблицы chapters."""
     print("=" * 60)
-    print("ПОЛНАЯ ИНДЕКСАЦИЯ КНИГ (с чанками)")
+    print("ПОЛНАЯ ИНДЕКСАЦИЯ КНИГ (с главами)")
     print("=" * 60)
 
     from core.config import get_config
     from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    import psycopg2
 
-    config = get_config(profile="dev", data_dir="data")
-
-    infra = InfrastructureContext(config)
-    await infra.initialize()
-
-    db_provider = infra.db_providers.get("books_db")
-    if not db_provider:
-        print("❌ DB провайдер 'books_db' не найден")
-        await infra.shutdown()
+    config = get_config(profile="dev")
+    db_config = config.db_providers.get("default_db")
+    if not db_config:
+        print("❌ DB провайдер 'default_db' не найден")
         return 1
 
-    # Chunking + DocumentIndexingService
-    chunking = SemanticChunkingStrategy(
-        embedding_model=embedding,
-        max_chunk_size=500,
-        chunk_overlap=50,
+    params = db_config.parameters
+    conn = psycopg2.connect(
+        host=params.get("host", "localhost"),
+        port=params.get("port", 5432),
+        database=params.get("database", "postgres"),
+        user=params.get("user", "postgres"),
+        password=params.get("password", ""),
     )
+    conn.autocommit = True
+    cursor = conn.cursor()
 
-    indexing_service = DocumentIndexingService(
-        sql_provider=db_provider,
-        faiss_provider=faiss_provider,
-        embedding_provider=embedding,
-        chunking_strategy=chunking,
-    )
+    # Получаем главы всех книг
+    cursor.execute("""
+        SELECT c.book_id, c.chapter_id, c.chapter_number, c.chapter_text
+        FROM "Lib".chapters c
+        ORDER BY c.book_id, c.chapter_number
+    """)
+    chapters = cursor.fetchall()
 
-    # Список книг
-    books_result = await db_provider.fetch("SELECT id, title, author FROM books ORDER BY id")
-    if not books_result:
-        print("❌ Книги не найдены в БД")
-        await infra.shutdown()
-        return 1
+    # Получаем информацию о книгах
+    cursor.execute("""
+        SELECT b.id, b.title, a.last_name, a.first_name
+        FROM "Lib".books b
+        JOIN "Lib".authors a ON b.author_id = a.id
+        ORDER BY b.id
+    """)
+    books_info = {row[0]: {"title": row[1], "author": f"{row[2]} {row[3]}"} for row in cursor.fetchall()}
 
-    print(f"Найдено книг: {len(books_result)}\n")
+    cursor.close()
+    conn.close()
 
-    total_chunks = 0
-    for book in books_result:
-        book_id = book["id"]
-        title = book["title"]
-        author = book["author"]
-        print(f"  📖 [{book_id}] {title} ({author})")
+    print(f"Найдено глав: {len(chapters)}")
+    print(f"Найдено книг: {len(books_info)}\n")
 
-        try:
-            result = await indexing_service.index_book(book_id)
-            if "error" in result:
-                print(f"     ❌ Ошибка: {result['error']}")
-            else:
-                chunks = result.get("chunks_indexed", 0)
-                total_chunks += chunks
-                print(f"     ✅ Чанков: {chunks}")
-        except Exception as e:
-            print(f"     ❌ Исключение: {e}")
+    all_vectors = []
+    all_metadata = []
+
+    for chapter in chapters:
+        book_id, chapter_id, chapter_number, chapter_text = chapter
+
+        if not chapter_text or not chapter_text.strip():
+            continue
+
+        book_info = books_info.get(book_id, {})
+        book_title = book_info.get("title", f"Book {book_id}")
+        book_author = book_info.get("author", "Unknown")
+
+        # Разбиваем главу на чанки если текст большой
+        chunk_size = vs_config.chunking.chunk_size
+        for i in range(0, len(chapter_text), chunk_size):
+            chunk = chapter_text[i:i + chunk_size]
+            if not chunk.strip():
+                continue
+
+            vector = await embedding.generate_single(chunk)
+            metadata = {
+                "chunk_id": f"book_{book_id}_chapter_{chapter_id}_chunk_{i // chunk_size}",
+                "document_id": f"book_{book_id}",
+                "book_id": book_id,
+                "chapter": chapter_number,
+                "chunk_index": i // chunk_size,
+                "content": chunk[:200]  # Первые 200 символов для отображения
+            }
+            all_vectors.append(vector)
+            all_metadata.append(metadata)
+
+        print(f"  📖 [{book_id}] {book_title} — глава {chapter_number}: {len(chapter_text)} символов")
+
+    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "books")
 
     print("\n" + "=" * 60)
     print("СТАТИСТИКА")
     print("=" * 60)
-    print(f"  Книг обработано: {len(books_result)}")
-    print(f"  Чанков проиндексировано: {total_chunks}")
-
-    await infra.shutdown()
+    print(f"  Книг: {len(books_info)}")
+    print(f"  Глав обработано: {len(chapters)}")
+    print(f"  Векторов проиндексировано: {len(all_vectors)}")
 
     print("\n" + "=" * 60)
     print("✅ ПОЛНАЯ ИНДЕКСАЦИЯ ЗАВЕРШЕНА!")
@@ -360,9 +382,9 @@ async def index_table(table: str, column: str, source: str, embedding, faiss_pro
     import psycopg2
 
     config = get_config(profile="dev")
-    db_config = config.db_providers.get("books_db")
+    db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'books_db' не найден")
+        print("❌ DB провайдер 'default_db' не найден")
         return 1
 
     params = db_config.parameters

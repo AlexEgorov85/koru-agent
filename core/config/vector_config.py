@@ -133,31 +133,28 @@ class VectorSearchConfig(BaseModel):
     enabled: bool = True  # ✅ Включено по умолчанию для production использования
     
     indexes: Dict[str, str] = {
-        "knowledge": "knowledge_index.faiss",
-        "history": "history_index.faiss",
-        "docs": "docs_index.faiss",
         "books": "books_index.faiss",
         "authors": "authors_index.faiss"
     }
-    
+
     faiss: FAISSConfig = Field(default_factory=FAISSConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     storage: VectorStorageConfig = Field(default_factory=VectorStorageConfig)
     cache: AnalysisCacheConfig = Field(default_factory=AnalysisCacheConfig)
-    
+
     default_top_k: int = 10
     max_top_k: int = 100
     default_min_score: float = 0.5
-    
+
     max_workers: int = 4
     timeout_seconds: float = 30.0
-    
+
     @field_validator('indexes')
     @classmethod
     def validate_indexes(cls, v):
         """Валидация индексов."""
-        required = {"knowledge", "history", "docs", "books", "authors"}
+        required = {"books", "authors"}
         if set(v.keys()) != required:
             raise ValueError(f"Indexes must include: {required}")
         return v

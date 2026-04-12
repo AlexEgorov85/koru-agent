@@ -61,9 +61,6 @@ vector_search:
     metric: IP
   indexes:
     books: books_index.faiss
-    docs: docs_index.faiss
-    history: history_index.faiss
-    knowledge: knowledge_index.faiss
     authors: authors_index.faiss
   storage:
     base_path: data/vector

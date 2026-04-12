@@ -2,10 +2,8 @@
 Модели данных для векторного поиска.
 
 Универсальные модели для работы с любым источником:
-- knowledge
-- history
-- docs
 - books
+- authors
 """
 
 from pydantic import BaseModel, Field, validator
@@ -117,7 +115,7 @@ class VectorDocument(BaseModel):
             "example": {
                 "content": "текст документа...",
                 "metadata": {"category": "technical"},
-                "source": "knowledge",
+                "source": "books",
                 "chunk_size": 500,
                 "chunk_overlap": 50
             }
