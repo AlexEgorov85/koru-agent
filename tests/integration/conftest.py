@@ -8,6 +8,7 @@
 - Те же условия, что в production (main.py)
 """
 import pytest
+import pytest_asyncio
 from pathlib import Path
 
 from core.config import get_config
@@ -25,17 +26,17 @@ from core.session_context.session_context import SessionContext
 def config():
     """
     Та же конфигурация, что и в main.py (profile='dev').
-    
+
     Кэшируется один раз на всю сессию тестов.
     """
     return get_config(profile='dev')
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def infrastructure(config):
     """
     Реальный InfrastructureContext.
-    
+
     Инициализируется для каждого теста, чтобы обеспечить изоляцию.
     """
     infra = InfrastructureContext(config)
@@ -44,11 +45,11 @@ async def infrastructure(config):
     await infra.shutdown()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def app_context(infrastructure):
     """
     Реальный ApplicationContext с авто-обнаружением ресурсов.
-    
+
     Использует тот же профиль и data_dir, что и infrastructure.
     """
     app_config = AppConfig.from_discovery(
@@ -79,7 +80,7 @@ def session_context():
 # ФИКСТУРЫ ДЛЯ ТЕСТОВ С БД
 # ============================================================================
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_transaction(infrastructure):
     """
     Транзакция с откатом для тестов, которые могут писать в БД.
