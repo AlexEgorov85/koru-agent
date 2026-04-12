@@ -137,16 +137,7 @@ class SkillHandler(Component, ABC):
     def get_output_schema(self) -> Optional[Type[BaseModel]]:
         """Получение выходной схемы контракта."""
         return self.get_output_contract(self.capability_name)
-    
-    def get_prompt(self) -> Optional[str]:
-        """Получение промпта для capability."""
-        prompt_obj = self.get_prompt(self.capability_name)
-        return prompt_obj.content if prompt_obj else None
-    
-    def get_prompt_with_contract(self) -> Optional[str]:
-        """Получение промпта для capability (метод для обратной совместимости)."""
-        return self.get_prompt()
-    
+
     async def publish_metrics(
         self,
         success: bool,
