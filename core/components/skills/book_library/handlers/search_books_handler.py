@@ -53,7 +53,8 @@ class SearchBooksHandler(SkillHandler):
         max_results_val = params.max_results if hasattr(params, 'max_results') else 10
 
         # 2. Получение промпта для генерации SQL
-        prompt_text = self.get_prompt()
+        prompt_obj = self.component_config.resolved_prompts.get(self.capability_name)
+        prompt_text = prompt_obj.content if prompt_obj else None
         if not prompt_text:
             raise ValueError("Промпт для поиска книг не найден")
 

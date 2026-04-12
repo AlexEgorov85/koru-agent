@@ -394,4 +394,4 @@ def create_book_library_skill(
     Returns:
         BookLibrarySkill: экземпляр навыка
     """
-    return BookLibrarySkill(name, application_context, component_config, executor)
+    return BookLibrarySkill(name, component_config, executor, application_context)
