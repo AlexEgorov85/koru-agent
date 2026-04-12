@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
@@ -137,3 +137,37 @@ class GenerateScriptHandler(SkillHandler):
             )
 
         return sql_query
+
+    async def _execute_sql(self, sql_query: str, max_results: int) -> Tuple[List[Any], float]:
+        """
+        Выполнение SQL запроса через sql_tool.
+
+        ARGS:
+        - sql_query: SQL запрос для выполнения
+        - max_results: максимальное количество возвращаемых строк
+
+        RETURNS:
+        - Tuple[list, float]: (строки результатов, время выполнения в секундах)
+        """
+        start_time = time.time()
+        exec_context = ExecutionContext()
+
+        result = await self.executor.execute_action(
+            action_name="sql_tool.execute",
+            parameters={
+                "sql": sql_query,
+                "max_rows": max_results
+            },
+            context=exec_context
+        )
+
+        execution_time = time.time() - start_time
+
+        if result.status == ExecutionStatus.COMPLETED and result.data:
+            data_dict = result.data.model_dump() if hasattr(result.data, 'model_dump') else result.data
+            if isinstance(data_dict, dict):
+                rows = data_dict.get('rows', []) or data_dict.get('data', [])
+                return rows, execution_time
+
+        await self.log_warning(f"SQL запрос не вернул результатов: {result.error}")
+        return [], execution_time
