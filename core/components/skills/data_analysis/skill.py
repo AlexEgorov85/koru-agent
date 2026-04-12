@@ -14,6 +14,7 @@ import json
 import re
 from typing import List, Dict, Any, Optional
 from pathlib import Path
+from pydantic import BaseModel
 
 from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
@@ -108,14 +109,20 @@ class DataAnalysisSkill(Skill):
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
         
         # Вызываем обработчик capability
-        return await capability_handlers[capability.name](parameters)
+        return await capability_handlers[capability.name](parameters, execution_context)
 
-    async def _analyze_step_data(self, params: Dict[str, Any]) -> ExecutionResult:
+    async def _analyze_step_data(self, params: Dict[str, Any], execution_context: Any) -> ExecutionResult:
         """
         Основная логика анализа данных шага.
 
+        АРХИТЕКТУРА:
+        1. Берём сырые данные из SessionContext (по step_id)
+        2. Fallback: parameters.data_source если в контексте нет
+        3. Анализируем через LLM
+
         Args:
             params: Параметры анализа
+            execution_context: ExecutionContext с SessionContext
 
         Returns:
             Словарь с результатом анализа
@@ -123,14 +130,10 @@ class DataAnalysisSkill(Skill):
         start_time = time.time()
 
         # 1. Валидация входных параметров
-        # ✅ ПРИМЕЧАНИЕ: BaseComponent.execute() уже валидировал параметры через validate_input_typed()
-        # params уже может быть Pydantic моделью DataAnalysisInput
         from pydantic import BaseModel
         if isinstance(params, BaseModel):
-            # params уже валидированная модель — используем напрямую
             self._log_debug(f"Получены типизированные параметры: {type(params).__name__}", event_type=LogEventType.DEBUG)
         else:
-            # Fallback для обратной совместимости
             input_schema = self.get_input_contract("data_analysis.analyze_step_data")
             if input_schema:
                 try:
@@ -138,31 +141,55 @@ class DataAnalysisSkill(Skill):
                     params = validated_params
                 except Exception as e:
                     self._log_error(f"Ошибка валидации параметров: {e}", event_type=LogEventType.ERROR)
-                    # ❌ УДАЛЕНО: ExecutionResult.failure
-                    # ✅ ТЕПЕРЬ: Выбрасываем ValidationError
                     from core.errors.exceptions import ValidationError
                     raise ValidationError(f"Неверные параметры: {str(e)}")
 
-        step_id = params.get("step_id") if not isinstance(params, BaseModel) else getattr(params, 'step_id', None)
-        question = params.get("question") if not isinstance(params, BaseModel) else getattr(params, 'question', None)
-        data_source = params.get("data_source", {}) if not isinstance(params, BaseModel) else getattr(params, 'data_source', {})
-        analysis_config = params.get("analysis_config", {}) if not isinstance(params, BaseModel) else getattr(params, 'analysis_config', {})
+        step_id = params.step_id if isinstance(params, BaseModel) else params.get("step_id")
+        question = params.question if isinstance(params, BaseModel) else params.get("question")
+        analysis_config = params.analysis_config if isinstance(params, BaseModel) else params.get("analysis_config", {})
 
-        # 2. Загрузка данных
-        try:
-            raw_data, data_metadata = await self._load_data(
-                data_source=data_source,
-                config=analysis_config
-            )
-        except Exception as e:
-            self._log_error(f"Ошибка загрузки данных: {e}", event_type=LogEventType.ERROR)
-            # ❌ УДАЛЕНО: ExecutionResult.failure
-            # ✅ ТЕПЕРЬ: Выбрасываем DataError
+        if isinstance(analysis_config, BaseModel):
+            analysis_config = analysis_config.model_dump()
+
+        # 2. Загрузка данных: ПРИОРИТЕТ — SessionContext, fallback — parameters
+        raw_data = None
+        data_metadata = {}
+
+        # 2a. Пробуем взять данные из SessionContext
+        session_ctx = getattr(execution_context, 'session_context', None)
+        if session_ctx and step_id:
+            raw_data, data_metadata = self._load_data_from_context(step_id, session_ctx)
+
+        # 2b. Fallback: parameters.data_source
+        if not raw_data:
+            data_source = params.data_source if isinstance(params, BaseModel) else params.get("data_source", {})
+            if isinstance(data_source, BaseModel):
+                data_source = data_source.model_dump()
+
+            if data_source:
+                try:
+                    raw_data, data_metadata = await self._load_data(
+                        data_source=data_source,
+                        config=analysis_config
+                    )
+                except Exception as e:
+                    self._log_error(f"Ошибка загрузки данных: {e}", event_type=LogEventType.ERROR)
+                    source_type = data_source.get("type") if isinstance(data_source, dict) else getattr(data_source, 'type', 'unknown')
+                    from core.errors.exceptions import DataError
+                    raise DataError(
+                        f"Не удалось загрузить данные: {str(e)}. "
+                        f"Проверьте что источник данных доступен и содержит данные.",
+                        source=source_type
+                    )
+
+        # 2c. Если данных нет вообще
+        if not raw_data:
             from core.errors.exceptions import DataError
             raise DataError(
-                f"Не удалось загрузить данные: {str(e)}. "
-                f"Проверьте что источник данных доступен и содержит данные.",
-                source=data_source.get("type", "unknown")
+                f"Нет данных для анализа. "
+                f"Убедитесь что шаг {step_id} содержит observation с сырыми данными "
+                f"или передайте data_source в parameters.",
+                source="none"
             )
 
         # 3. Чанкинг при необходимости
@@ -176,7 +203,6 @@ class DataAnalysisSkill(Skill):
         prompt_vars = {
             "step_id": step_id,
             "question": question,
-            "data_source": data_source,
             "aggregation_method": analysis_config.get("aggregation_method", "summary")
         }
 
@@ -188,15 +214,13 @@ class DataAnalysisSkill(Skill):
         # 5. Получение промпта
         prompt_obj = self.get_prompt("data_analysis.analyze_step_data")
         if not prompt_obj:
-            # ❌ УДАЛЕНО: ExecutionResult.failure
-            # ✅ ТЕПЕРЬ: Выбрасываем PromptNotFoundError
             from core.errors.exceptions import PromptNotFoundError
             raise PromptNotFoundError(
                 prompt="data_analysis.analyze_step_data",
                 message="Промпт для анализа данных не найден. Проверьте что промпт загружен в репозиторий."
             )
 
-        rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
+        rendered_prompt = self._render_prompt(prompt_obj.content, prompt_vars)
 
         # 6. Получаем схему выхода для structured output
         output_schema = self.get_output_contract("data_analysis.analyze_step_data")
@@ -233,7 +257,12 @@ class DataAnalysisSkill(Skill):
                 )
 
             # 8. Получаем структурированные данные (Pydantic model_dump())
-            answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            if hasattr(llm_result.result, 'model_dump'):
+                answer_data = llm_result.result.model_dump()
+            elif hasattr(llm_result.result, 'dict'):
+                answer_data = llm_result.result.dict()
+            else:
+                answer_data = llm_result.result if llm_result.result else {}
 
             # Логирование успешного structured output
             self._log_info(
@@ -242,25 +271,18 @@ class DataAnalysisSkill(Skill):
             )
 
             # 9. Добавление метаданных
-            answer_data["metadata"] = answer_data.get("metadata", {})
-            answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-            answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0
-            answer_data["metadata"]["processing_time_ms"] = (time.time() - start_time) * 1000
-            answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
-            answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
-            answer_data["metadata"]["structured_output"] = True
+            answer_data["metadata"] = answer_data.get("metadata", {}) if isinstance(answer_data, dict) else {}
+            if isinstance(answer_data, dict):
+                answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
+                answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0
+                answer_data["metadata"]["processing_time_ms"] = (time.time() - start_time) * 1000
+                answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
+                answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
+                answer_data["metadata"]["structured_output"] = True
 
             # 10. Валидация выхода (уже валидно через structured output)
-            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
-            if output_schema:
-                try:
-                    validated_result = output_schema.model_validate(answer_data)
-                    answer_data = validated_result  # ← Сохраняем модель!
-                except Exception as e:
-                    self._log_error(f"Ошибка валидации результата: {e}", event_type=LogEventType.ERROR)
-            else:
-                # Fallback на dict если схема не загружена
-                pass
+            # Пропускаем повторную валидацию, так как structured output уже проверил данные
+            pass
 
             # Возвращаем ExecutionResult с side_effect=True
             return ExecutionResult.success(
@@ -289,13 +311,76 @@ class DataAnalysisSkill(Skill):
     # Методы загрузки данных
     # ─────────────────────────────────────────────────────────────────
 
+    def _load_data_from_context(self, step_id: str, session_ctx) -> tuple:
+        """
+        Загрузка сырых данных шага из SessionContext.
+
+        АЛГОРИТМ:
+        1. Найти observation по step_id (в additional_data.step_id или step_number)
+        2. Извлечь content (raw data)
+        3. Вернуть как строку
+
+        ВОЗВРАЩАЕТ:
+        - (raw_data: str, metadata: dict) или (None, {}) если данных нет
+        """
+        if not hasattr(session_ctx, 'data_context'):
+            self._log_debug("SessionContext не имеет data_context", event_type=LogEventType.DEBUG)
+            return None, {}
+
+        # Ищем observation по step_id
+        items = session_ctx.data_context.get_all_items()
+        for item in items:
+            meta = item.metadata
+            if not meta:
+                continue
+
+            # Проверяем match по step_id
+            add_data = meta.additional_data or {}
+            meta_step_id = add_data.get("step_id")
+            meta_step_number = meta.step_number
+
+            if meta_step_id == step_id or str(meta_step_number) == str(step_id):
+                content = item.content
+                if content:
+                    # content может быть dict или str
+                    if isinstance(content, dict):
+                        # Извлекаем сырые данные из observation
+                        raw = content.get("content", content.get("raw_data", content.get("data", "")))
+                        if not raw and "rows" in content:
+                            # Конвертируем rows в CSV
+                            rows = content["rows"]
+                            if rows:
+                                cols = list(rows[0].keys())
+                                lines = [",".join(str(c) for c in cols)]
+                                for row in rows:
+                                    lines.append(",".join(str(v) for v in row.values()))
+                                raw = "\n".join(lines)
+                        content = raw
+                    if content and len(str(content)) > 0:
+                        data_str = str(content)
+                        metadata = {
+                            "source_type": "session_context",
+                            "step_id": step_id,
+                            "size_mb": len(data_str.encode('utf-8')) / (1024 * 1024)
+                        }
+                        self._log_info(
+                            f"Данные загруены из SessionContext: step={step_id}, {len(data_str)} символов",
+                            event_type=LogEventType.INFO
+                        )
+                        return data_str, metadata
+
+        self._log_debug(f"Данные для step_id={step_id} не найдены в SessionContext", event_type=LogEventType.DEBUG)
+        return None, {}
+
     async def _load_data(
         self,
-        data_source: Dict[str, Any],
-        config: Dict[str, Any]
+        data_source: Any,
+        config: Any
     ) -> tuple:
         """Загрузка данных из указанного источника."""
-        source_type = data_source.get("type")
+        source_type = data_source.get("type") if isinstance(data_source, dict) else getattr(data_source, 'type', None)
+        if not source_type:
+            raise ValueError("Не указан тип источника данных (type)")
         metadata = {"source_type": source_type}
 
         if source_type == "database":
@@ -436,20 +521,32 @@ class DataAnalysisSkill(Skill):
     # ─────────────────────────────────────────────────────────────────
 
     def _render_prompt(self, prompt: str, variables: Dict[str, Any]) -> str:
-        """Рендеринг промпта с подстановкой переменных."""
+        """Рендеринг промпта с подстановкой переменных.
+
+        СТАНДАРТ: {key} (одинарные скобки) — единообразно с base_behavior_pattern.
+        Если переменная не передана — плейсхолдер удаляется.
+        """
+        import re
         result = prompt
         for key, value in variables.items():
-            placeholder = f"{{{{ {key} }}}}"
+            placeholder = "{" + key + "}"
             if isinstance(value, list):
-                formatted = "\n\n".join(
-                    f"### Чанк {i+1}\n{chunk.get('content', '')}"
-                    for i, chunk in enumerate(value)
-                )
-                result = result.replace(f"{{% if chunks %}}{placeholder}{{% endif %}}", formatted)
+                if value:
+                    formatted = "\n\n".join(
+                        f"### Чанк {i+1}\n{chunk.get('content', '')}"
+                        for i, chunk in enumerate(value)
+                    )
+                else:
+                    formatted = "Данные отсутствуют (чанки не созданы)."
+                result = result.replace(placeholder, formatted)
+            elif isinstance(value, dict):
+                formatted = "\n".join(f"{k}: {v}" for k, v in value.items())
                 result = result.replace(placeholder, formatted)
             else:
                 result = result.replace(placeholder, str(value))
-        
+
+        # Удаляем оставшиеся плейсхолдеры (непереданные переменные)
+        result = re.sub(r'\{[a-z_]+\}', '', result)
         # Удаляем Jinja2-подобные конструкции если они остались
         result = re.sub(r'\{%.*?%\}', '', result)
         return result
