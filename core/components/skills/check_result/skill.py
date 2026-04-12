@@ -5,6 +5,7 @@
 ТРИ CAPABILITY:
 1. check_result.execute_script - выполнение заготовленного скрипта
 2. check_result.generate_script - генерация SQL через LLM и выполнение
+3. check_result.vector_search - семантический поиск по текстам актов
 
 АРХИТЕКТУРА:
 - skill.py: координация и маршрутизация
@@ -33,6 +34,7 @@ from core.agent.components.action_executor import ExecutionContext
 from core.components.skills.check_result.handlers import (
     ExecuteScriptHandler,
     GenerateScriptHandler,
+    VectorSearchHandler,
 )
 from core.models.data.capability import Capability
 
@@ -46,14 +48,10 @@ class CheckResultSkill(Skill):
     """
     Навык проверки результатов.
 
-    Поддерживает два режима работы:
+    Поддерживает три режима работы:
     1. execute_script - выполнение заготовленных скриптов
     2. generate_script - генерация SQL через LLM и выполнение
-
-    АРХИТЕКТУРА (YAML-Only):
-    - Схемы валидации в YAML контрактах (data/contracts/)
-    - Конфигурация таблиц в data/skills/check_result/tables.yaml
-    - При инициализации: если файл отсутствует - формируется через table_description_service
+    3. vector_search - семантический поиск по текстам актов
     """
 
     @property
@@ -90,6 +88,7 @@ class CheckResultSkill(Skill):
         self._handlers = {
             "check_result.execute_script": ExecuteScriptHandler(self),
             "check_result.generate_script": GenerateScriptHandler(self),
+            "check_result.vector_search": VectorSearchHandler(self),
         }
 
         await self._publish_with_context(
@@ -155,11 +154,10 @@ class CheckResultSkill(Skill):
         - List[Dict]: список таблиц с полным описанием колонок
         """
         default_tables = [
-            {"schema": "Lib", "table": "books"},
-            {"schema": "Lib", "table": "authors"},
-            {"schema": "Lib", "table": "chapters"},
-
-            
+            {"schema": "oarb", "table": "audits"},
+            {"schema": "oarb", "table": "audit_reports"},
+            {"schema": "oarb", "table": "report_items"},
+            {"schema": "oarb", "table": "violations"},
         ]
 
         tables_by_schema: Dict[str, List[str]] = {}
@@ -221,17 +219,51 @@ class CheckResultSkill(Skill):
         return "skill.check_result.executed"
 
     def get_capabilities(self) -> List[Capability]:
+        # Импортируем реестр скриптов из handler
+        from .handlers.execute_script_handler import SCRIPTS_REGISTRY
+        
+        # Формируем детальное описание для execute_script со списком скриптов
+        scripts_lines = [
+            "📜 ДОСТУПНЫЕ СКРИПТЫ (вызывай ТОЛЬКО эти script_name):"
+        ]
+        for name, meta in SCRIPTS_REGISTRY.items():
+            # Собираем все параметры (required + optional)
+            required = meta.get("required_parameters", [])
+            optional = meta.get("optional_parameters", [])
+            all_params = [p for p in required + optional if p != "max_rows"]
+            
+            # Формат: - script_name (параметры: [a, b], обязательные: [a])
+            params_str = ", ".join(all_params) if all_params else "нет"
+            req_str = ", ".join(required) if required else "нет"
+            scripts_lines.append(f"  • `{name}` → параметры: `{params_str}` | обязательные: `{req_str}`")
+        
+        execute_script_desc = "\n".join(scripts_lines)
+
         return [
             Capability(
                 name="check_result.execute_script",
-                description="Выполнение заготовленного SQL скрипта",
+                description=execute_script_desc,  # ← Список скриптов ВСТРОЕН сюда
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visiable=True
             ),
             Capability(
                 name="check_result.generate_script",
-                description="Генерация SQL скрипта через LLM и выполнение",
+                description="Генерация произвольного SQL-скрипта через LLM и его выполнение",
+                skill_name=self.name,
+                supported_strategies=["react"],
+                visiable=True
+            ),
+            Capability(
+                name="check_result.vector_search",
+                description=(
+                    "Семантический поиск по текстам актов аудиторской проверки и отклонениям "
+                    "с использованием FAISS векторной БД. "
+                    "Найди фрагменты, где упоминаются определённые нарушения, формулировки, "
+                    "ответственные лица или ключевые понятия. "
+                    "Параметры: query (текст запроса), source (audits|violations), "
+                    "top_k (кол-во результатов), min_score (порог схожести 0.0-1.0)"
+                ),
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visiable=True

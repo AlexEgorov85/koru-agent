@@ -1,0 +1,33 @@
+capability: check_result.vector_search
+component_type: skill
+description: Input contract for check_result.vector_search - семантический поиск по текстам актов
+direction: input
+schema_data:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Текст запроса для семантического поиска (например, "нарушения в сфере закупок")
+    source:
+      type: string
+      description: Источник FAISS индекса
+      enum:
+        - audits
+        - violations
+      default: audits
+    top_k:
+      type: integer
+      description: Количество возвращаемых результатов
+      default: 10
+      minimum: 1
+      maximum: 100
+    min_score:
+      type: number
+      description: Минимальный порог схожести (от 0.0 до 1.0)
+      default: 0.5
+      minimum: 0.0
+      maximum: 1.0
+  required:
+    - query
+status: active
+version: v1.0.0

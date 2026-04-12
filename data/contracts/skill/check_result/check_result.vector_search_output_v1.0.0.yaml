@@ -1,0 +1,82 @@
+capability: check_result.vector_search
+component_type: skill
+description: Output contract for check_result.vector_search - результаты семантического поиска
+direction: output
+schema_data:
+  type: object
+  properties:
+    results:
+      type: array
+      description: Результаты семантического поиска
+      items:
+        type: object
+        properties:
+          type:
+            type: string
+            description: Тип найденного объекта
+            enum:
+              - audit
+              - violation
+              - unknown
+          score:
+            type: number
+            description: Оценка схожести (от 0.0 до 1.0)
+          audit_id:
+            type: integer
+            description: ID аудиторской проверки
+          audit_title:
+            type: string
+            description: Название проверки (для нарушений)
+          title:
+            type: string
+            description: Название (для проверок)
+          violation_id:
+            type: integer
+            description: ID нарушения
+          violation_code:
+            type: string
+            description: Код нарушения
+          description:
+            type: string
+            description: Описание нарушения
+          severity:
+            type: string
+            description: Критичность нарушения
+          status:
+            type: string
+            description: Статус нарушения
+          responsible:
+            type: string
+            description: Ответственное лицо
+          audit_type:
+            type: string
+            description: Тип проверки
+          auditee_entity:
+            type: string
+            description: Проверяемый объект
+          matched_text:
+            type: string
+            description: Текст, по которому найдено совпадение (до 300 символов)
+        additionalProperties: true
+    total_found:
+      type: integer
+      description: Общее количество найденных результатов
+    query:
+      type: string
+      description: Исходный текст запроса
+    source:
+      type: string
+      description: Использованный источник поиска
+    execution_time:
+      type: number
+      description: Время выполнения в секундах
+    warning:
+      type: string
+      description: Предупреждение (если результатов нет)
+  required:
+    - results
+    - total_found
+    - query
+    - execution_time
+status: active
+version: v1.0.0

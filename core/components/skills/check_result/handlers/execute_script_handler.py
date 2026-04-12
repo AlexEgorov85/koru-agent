@@ -9,74 +9,202 @@ from core.components.skills.utils.param_validator import ParamValidator
 
 
 SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
-    "get_all_books": {
-        "description": "Получить все книги из библиотеки",
-        "name": "get_all_books",
-        "sql": 'SELECT * FROM "Lib".books ORDER BY id LIMIT %s',
+    "get_all_audits": {
+        "description": "Получить все аудиторские проверки",
+        "name": "get_all_audits",
+        "sql": '''
+            SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
+            FROM audits
+            ORDER BY planned_date DESC
+            LIMIT %s
+        ''',
         "required_parameters": [],
         "optional_parameters": [],
     },
-    "get_books_by_author": {
-        "description": "Получить книги по автору",
-        "name": "get_books_by_author",
+    "get_audit_by_status": {
+        "description": "Получить проверки по статусу",
+        "name": "get_audit_by_status",
         "sql": '''
-            SELECT b.*, a.first_name, a.last_name 
-            FROM "Lib".books b 
-            JOIN "Lib".authors a ON b.author_id = a.id 
-            WHERE a.last_name ILIKE %s OR a.first_name ILIKE %s
-            ORDER BY b.title 
+            SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
+            FROM audits
+            WHERE status ILIKE %s
+            ORDER BY planned_date DESC
             LIMIT %s
         ''',
-        "required_parameters": ["author"],
+        "required_parameters": ["status"],
         "optional_parameters": [],
         "validation": {
-            "author": {
-                "table": "authors",
-                "search_fields": ["first_name", "last_name"],
-                "vector_source": "authors",
+            "status": {
+                "table": "audits",
+                "search_fields": ["status"],
+                "vector_source": "audits",
             }
         }
     },
-    "count_books": {
-        "description": "Посчитать количество книг",
-        "name": "count_books",
-        "sql": 'SELECT COUNT(*) as total FROM "Lib".books',
-        "required_parameters": [],
+    "get_audit_reports": {
+        "description": "Получить акты аудиторской проверки по ID проверки",
+        "name": "get_audit_reports",
+        "sql": '''
+            SELECT ar.id, ar.report_number, ar.report_date, ar.title, ar.full_text
+            FROM audit_reports ar
+            WHERE ar.audit_id = %s
+            ORDER BY ar.report_date DESC
+            LIMIT %s
+        ''',
+        "required_parameters": ["audit_id"],
         "optional_parameters": [],
     },
-    "get_books_by_year_range": {
-        "description": "Получить книги за период",
-        "name": "get_books_by_year_range",
+    "get_report_items": {
+        "description": "Получить пункты акта по ID акта",
+        "name": "get_report_items",
         "sql": '''
-            SELECT * FROM "Lib".books 
-            WHERE publication_year >= %s AND publication_year <= %s
-            ORDER BY publication_year
+            SELECT id, item_number, item_title, item_content, order_index
+            FROM report_items
+            WHERE report_id = %s
+            ORDER BY order_index
             LIMIT %s
         ''',
-        "required_parameters": [],
-        "optional_parameters": ["year_from", "year_to"],
+        "required_parameters": ["report_id"],
+        "optional_parameters": [],
     },
-    "get_books_by_genre": {
-        "description": "Получить книги по жанру",
-        "name": "get_books_by_genre",
+    "get_violations_by_audit": {
+        "description": "Получить все отклонения по проверке",
+        "name": "get_violations_by_audit",
         "sql": '''
-            SELECT b.*, g.name as genre_name
-            FROM "Lib".books b 
-            JOIN "Lib".book_genres bg ON b.id = bg.book_id 
-            JOIN "Lib".genres g ON bg.genre_id = g.id 
-            WHERE g.name ILIKE %s
-            ORDER BY b.title 
+            SELECT v.id, v.violation_code, v.description, v.recommendation,
+                   v.severity, v.status, v.responsible, v.deadline
+            FROM violations v
+            WHERE v.audit_id = %s
+            ORDER BY
+                CASE v.severity
+                    WHEN 'Высокая' THEN 1
+                    WHEN 'Средняя' THEN 2
+                    WHEN 'Низкая' THEN 3
+                END,
+                v.created_at DESC
             LIMIT %s
         ''',
-        "required_parameters": ["genre"],
+        "required_parameters": ["audit_id"],
+        "optional_parameters": [],
+    },
+    "get_violations_by_status": {
+        "description": "Получить отклонения по статусу",
+        "name": "get_violations_by_status",
+        "sql": '''
+            SELECT v.id, v.violation_code, v.description, v.recommendation,
+                   v.severity, v.status, v.responsible, v.deadline,
+                   a.title as audit_title
+            FROM violations v
+            JOIN audits a ON v.audit_id = a.id
+            WHERE v.status ILIKE %s
+            ORDER BY
+                CASE v.severity
+                    WHEN 'Высокая' THEN 1
+                    WHEN 'Средняя' THEN 2
+                    WHEN 'Низкая' THEN 3
+                END
+            LIMIT %s
+        ''',
+        "required_parameters": ["status"],
         "optional_parameters": [],
         "validation": {
-            "genre": {
-                "table": "genres",
-                "search_fields": ["name"],
-                "vector_source": "genres",
+            "status": {
+                "table": "violations",
+                "search_fields": ["status"],
+                "vector_source": "violations",
             }
         }
+    },
+    "get_violations_by_severity": {
+        "description": "Получить отклонения по уровню критичности",
+        "name": "get_violations_by_severity",
+        "sql": '''
+            SELECT v.id, v.violation_code, v.description, v.recommendation,
+                   v.severity, v.status, v.responsible, v.deadline,
+                   a.title as audit_title
+            FROM violations v
+            JOIN audits a ON v.audit_id = a.id
+            WHERE v.severity ILIKE %s
+            ORDER BY v.created_at DESC
+            LIMIT %s
+        ''',
+        "required_parameters": ["severity"],
+        "optional_parameters": [],
+        "validation": {
+            "severity": {
+                "table": "violations",
+                "search_fields": ["severity"],
+                "vector_source": "violations",
+            }
+        }
+    },
+    "get_overdue_violations": {
+        "description": "Получить просроченные отклонения (deadline < текущей даты)",
+        "name": "get_overdue_violations",
+        "sql": '''
+            SELECT v.id, v.violation_code, v.description, v.recommendation,
+                   v.severity, v.status, v.responsible, v.deadline,
+                   a.title as audit_title,
+                   CURRENT_DATE - v.deadline AS days_overdue
+            FROM violations v
+            JOIN audits a ON v.audit_id = a.id
+            WHERE v.deadline < CURRENT_DATE
+              AND v.status != 'Устранено'
+            ORDER BY days_overdue DESC, v.severity DESC
+            LIMIT %s
+        ''',
+        "required_parameters": [],
+        "optional_parameters": [],
+    },
+    "get_violations_by_responsible": {
+        "description": "Получить отклонения по ответственному лицу",
+        "name": "get_violations_by_responsible",
+        "sql": '''
+            SELECT v.id, v.violation_code, v.description, v.recommendation,
+                   v.severity, v.status, v.responsible, v.deadline,
+                   a.title as audit_title
+            FROM violations v
+            JOIN audits a ON v.audit_id = a.id
+            WHERE v.responsible ILIKE %s
+            ORDER BY v.deadline
+            LIMIT %s
+        ''',
+        "required_parameters": ["responsible"],
+        "optional_parameters": [],
+        "validation": {
+            "responsible": {
+                "table": "violations",
+                "search_fields": ["responsible"],
+                "vector_source": "violations",
+            }
+        }
+    },
+    "get_audit_statistics": {
+        "description": "Получить статистику по проверкам и отклонениям",
+        "name": "get_audit_statistics",
+        "sql": '''
+            SELECT
+                a.id as audit_id,
+                a.title as audit_title,
+                a.status as audit_status,
+                COUNT(DISTINCT ar.id) as reports_count,
+                COUNT(DISTINCT ri.id) as items_count,
+                COUNT(DISTINCT v.id) as violations_count,
+                COUNT(DISTINCT CASE WHEN v.severity = 'Высокая' THEN v.id END) as high_severity_count,
+                COUNT(DISTINCT CASE WHEN v.severity = 'Средняя' THEN v.id END) as medium_severity_count,
+                COUNT(DISTINCT CASE WHEN v.severity = 'Низкая' THEN v.id END) as low_severity_count,
+                COUNT(DISTINCT CASE WHEN v.status = 'Открыто' THEN v.id END) as open_violations_count,
+                COUNT(DISTINCT CASE WHEN v.status = 'Устранено' THEN v.id END) as resolved_violations_count
+            FROM audits a
+            LEFT JOIN audit_reports ar ON a.id = ar.audit_id
+            LEFT JOIN report_items ri ON ar.id = ri.report_id
+            LEFT JOIN violations v ON a.id = v.audit_id
+            GROUP BY a.id, a.title, a.status
+            ORDER BY a.planned_date DESC
+            LIMIT %s
+        ''',
+        "required_parameters": [],
+        "optional_parameters": [],
     },
 }
 
@@ -100,7 +228,7 @@ class ExecuteScriptHandler(SkillHandler):
         super().__init__(skill)
         self._param_validator = ParamValidator(
             executor=self.executor,
-            schema="Lib",
+            schema=None,  # Схема не указывается, т.к. таблицы в public
             log_callback=self._log_debug
         )
 

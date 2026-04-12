@@ -79,13 +79,13 @@ def create_filled_session(goal: str = "Проверка результатов")
     """Создаёт SessionContext с наполненными данными для CheckResult."""
     session = SessionContext(session_id="test_check_result_001", agent_id="test_agent_001")
     session.set_goal(goal)
-    
+
     session.record_observation(
-        {"result": "Доступны скрипты проверки", "scripts": ["check_books_count", "check_authors"]},
+        {"result": "Доступны скрипты проверки", "scripts": ["get_all_books", "get_books_by_author", "count_books", "get_books_by_year_range", "get_books_by_genre"]},
         source="system",
         step_number=1
     )
-    
+
     session.register_step(
         step_number=1,
         capability_name="check_result.execute_script",
@@ -95,10 +95,10 @@ def create_filled_session(goal: str = "Проверка результатов")
         summary=f"Проверка результатов: {goal}",
         status=ExecutionStatus.COMPLETED
     )
-    
+
     session.dialogue_history.add_user_message(f"Проверь: {goal}")
     session.dialogue_history.add_assistant_message("Выполняю проверку...")
-    
+
     return session
 
 
@@ -113,35 +113,33 @@ class TestCheckResultSkillIntegration:
     async def test_execute_script_exists(self, executor):
         """Выполнение существующего скрипта проверки."""
         session = create_filled_session(goal="Проверка количества книг")
-        
+
         result = await executor.execute_action(
             action_name="check_result.execute_script",
             parameters={
-                "script_name": "check_books_count",
-                "parameters": {"min_count": 1},
+                "script_name": "count_books",
                 "max_rows": 10
             },
             context=session
         )
 
-        # Скрипт может не существовать - проверяем логику
-        if result.status == ExecutionStatus.COMPLETED:
-            data = result.data if isinstance(result.data, dict) else result.data.model_dump()
-            
-            # Проверка: результат содержит данные
-            assert "results" in data or "rows" in data or "data" in data, "Нет данных в результате"
-            
-            results = data.get("results") or data.get("rows") or data.get("data") or []
-            print(f"✅ CheckResult: скрипт выполнен ({len(results)} строк)")
-        else:
-            # Если скрипт не найден - это тоже нормально для данного теста
-            print(f"✅ CheckResult: скрипт не найден (ожидаемо)")
+        # Ожидаем успешное выполнение
+        assert result.status == ExecutionStatus.COMPLETED, f"Ожидался COMPLETED, но получил {result.status}: {result.error}"
+        data = result.data if isinstance(result.data, dict) else result.data.model_dump()
+
+        # Проверка: результат содержит данные
+        assert "rows" in data or "results" in data, f"Нет данных в результате: {data.keys()}"
+
+        results = data.get("rows") or data.get("results") or []
+        assert isinstance(results, list), "results должен быть списком"
+        assert result.data.get("script_name") == "count_books", "Неверное имя скрипта в результате"
+        print(f"✅ CheckResult: скрипт count_books выполнен ({len(results)} строк)")
 
     @pytest.mark.asyncio
     async def test_execute_script_not_found(self, executor):
         """Выполнение несуществующего скрипта — ожидается FAILED."""
         session = create_filled_session(goal="Проверка несуществующего скрипта")
-        
+
         result = await executor.execute_action(
             action_name="check_result.execute_script",
             parameters={
@@ -151,19 +149,13 @@ class TestCheckResultSkillIntegration:
             context=session
         )
 
-        # Проверяем, что either FAILED (скрипт не найден) или COMPLETED (скрипт найден и выполнен)
-        # Ожидаем FAILED так как скрипта нет
-        if result.status == ExecutionStatus.FAILED:
-            assert result.error is not None, "Нет сообщения об ошибке"
-            error_lower = result.error.lower()
-            assert "script" in error_lower or "not found" in error_lower or "не найден" in error_lower, \
-                f"Ошибка не связана со скриптом: {result.error}"
-            print(f"✅ CheckResult: несуществующий скрипт вернул FAILED")
-        else:
-            # Если по какой-то причине выполнился - проверяем данные
-            data = result.data if isinstance(result.data, dict) else result.data.model_dump()
-            assert data is not None, "Результат должен содержать данные"
-            print(f"✅ CheckResult: скрипт выполнен (неожиданно)")
+        # Ожидаем FAILED — скрипт не существует
+        assert result.status == ExecutionStatus.FAILED, f"Ожидался FAILED, но получил {result.status}"
+        assert result.error is not None, "Нет сообщения об ошибке"
+        error_lower = result.error.lower()
+        assert "script" in error_lower or "не найден" in error_lower, \
+            f"Ошибка не связана со скриптом: {result.error}"
+        print(f"✅ CheckResult: несуществующий скрипт вернул FAILED")
 
     @pytest.mark.asyncio
     async def test_generate_script(self, executor):

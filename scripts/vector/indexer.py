@@ -427,6 +427,161 @@ async def index_table(table: str, column: str, source: str, embedding, faiss_pro
     return 0
 
 
+async def index_audits(embedding, faiss_provider, vs_config) -> int:
+    """Индексация аудиторских проверок — по заголовкам и проверяемым объектам."""
+    print("=" * 60)
+    print("ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
+    print("=" * 60)
+
+    from core.config import get_config
+    import psycopg2
+
+    config = get_config(profile="dev")
+    db_config = config.db_providers.get("default_db")
+    if not db_config:
+        print("❌ DB провайдер 'default_db' не найден")
+        return 1
+
+    params = db_config.parameters
+    conn = psycopg2.connect(
+        host=params.get("host", "localhost"),
+        port=params.get("port", 5432),
+        database=params.get("database", "postgres"),
+        user=params.get("user", "postgres"),
+        password=params.get("password", ""),
+    )
+    conn.autocommit = True
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, title, audit_type, status, auditee_entity
+        FROM audits
+        WHERE title IS NOT NULL
+        ORDER BY id
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    print(f"Найдено проверок: {len(rows)}\n")
+
+    all_vectors = []
+    all_metadata = []
+
+    for row in rows:
+        audit_id, title, audit_type, status, auditee_entity = row
+        # Формируем поисковый текст из всех значимых полей
+        search_parts = [title]
+        if auditee_entity:
+            search_parts.append(auditee_entity)
+        if audit_type:
+            search_parts.append(audit_type)
+        search_text = " ".join(str(p) for p in search_parts if p)
+
+        vector = await embedding.generate_single(search_text)
+        metadata = {
+            "audit_id": audit_id,
+            "title": title,
+            "audit_type": audit_type or "",
+            "status": status or "",
+            "auditee_entity": auditee_entity or "",
+            "search_text": search_text,
+        }
+        all_vectors.append(vector)
+        all_metadata.append(metadata)
+        print(f"   [{audit_id}] {title[:60]}... | {auditee_entity or '—'} | {status}")
+
+    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    await faiss_provider.add(all_vectors, all_metadata)
+
+    await save_index(faiss_provider, vs_config, "audits")
+
+    print("\n" + "=" * 60)
+    print("✅ ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК ЗАВЕРШЕНА!")
+    print("=" * 60)
+    return 0
+
+
+async def index_violations(embedding, faiss_provider, vs_config) -> int:
+    """Индексация отклонений — по описанию и коду нарушения."""
+    print("=" * 60)
+    print("ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ")
+    print("=" * 60)
+
+    from core.config import get_config
+    import psycopg2
+
+    config = get_config(profile="dev")
+    db_config = config.db_providers.get("default_db")
+    if not db_config:
+        print("❌ DB провайдер 'default_db' не найден")
+        return 1
+
+    params = db_config.parameters
+    conn = psycopg2.connect(
+        host=params.get("host", "localhost"),
+        port=params.get("port", 5432),
+        database=params.get("database", "postgres"),
+        user=params.get("user", "postgres"),
+        password=params.get("password", ""),
+    )
+    conn.autocommit = True
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT v.id, v.violation_code, v.description, v.severity, v.status,
+               v.responsible, a.title as audit_title
+        FROM violations v
+        JOIN audits a ON v.audit_id = a.id
+        WHERE v.description IS NOT NULL
+        ORDER BY v.id
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    print(f"Найдено отклонений: {len(rows)}\n")
+
+    all_vectors = []
+    all_metadata = []
+
+    for row in rows:
+        viol_id, viol_code, description, severity, status, responsible, audit_title = row
+        search_parts = []
+        if description:
+            search_parts.append(description)
+        if viol_code:
+            search_parts.append(viol_code)
+        if audit_title:
+            search_parts.append(audit_title)
+        search_text = " ".join(str(p) for p in search_parts if p)
+
+        vector = await embedding.generate_single(search_text)
+        metadata = {
+            "violation_id": viol_id,
+            "violation_code": viol_code or "",
+            "description": description or "",
+            "severity": severity or "",
+            "status": status or "",
+            "responsible": responsible or "",
+            "audit_title": audit_title or "",
+            "search_text": search_text,
+        }
+        all_vectors.append(vector)
+        all_metadata.append(metadata)
+        print(f"   [{viol_id}] {viol_code or '—'} | {severity} | {status} | {description[:50]}...")
+
+    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    await faiss_provider.add(all_vectors, all_metadata)
+
+    await save_index(faiss_provider, vs_config, "violations")
+
+    print("\n" + "=" * 60)
+    print("✅ ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ ЗАВЕРШЕНА!")
+    print("=" * 60)
+    return 0
+
+
 # ===========================================================================
 # CLI
 # ===========================================================================
@@ -451,6 +606,12 @@ def build_parser():
         "--full", action="store_true",
         help="Полная индексация с чанками содержимого (медленнее, но точнее)"
     )
+
+    # audits
+    subparsers.add_parser("audits", help="Индексация аудиторских проверок")
+
+    # violations
+    subparsers.add_parser("violations", help="Индексация отклонений")
 
     # table — произвольная таблица
     table_parser = subparsers.add_parser("table", help="Индексация произвольной таблицы")
@@ -486,6 +647,10 @@ async def async_main():
                 return await index_books_full(embedding, faiss_provider, vs_config)
             else:
                 return await index_books_simple(embedding, faiss_provider, vs_config)
+        elif args.command == "audits":
+            return await index_audits(embedding, faiss_provider, vs_config)
+        elif args.command == "violations":
+            return await index_violations(embedding, faiss_provider, vs_config)
         elif args.command == "table":
             return await index_table(args.table, args.column, args.source, embedding, faiss_provider, vs_config)
         else:

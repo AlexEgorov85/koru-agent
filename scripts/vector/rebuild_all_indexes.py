@@ -155,6 +155,110 @@ async def main():
     await books_provider.shutdown()
 
     # =========================================================================
+    # 3. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК
+    # =========================================================================
+    print("\n" + "=" * 60)
+    print("3. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
+    print("=" * 60)
+
+    cursor.execute("""
+        SELECT id, title, audit_type, status, auditee_entity
+        FROM audits
+        WHERE title IS NOT NULL
+        ORDER BY id
+    """)
+    audits = cursor.fetchall()
+    print(f"Найдено проверок: {len(audits)}")
+
+    audits_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
+    await audits_provider.initialize()
+
+    audits_vectors = []
+    audits_metadata = []
+    for row in audits:
+        audit_id, title, audit_type, status, auditee_entity = row
+        search_parts = [title]
+        if auditee_entity:
+            search_parts.append(auditee_entity)
+        if audit_type:
+            search_parts.append(audit_type)
+        search_text = " ".join(str(p) for p in search_parts if p)
+
+        vector = await embedding.generate_single(search_text)
+        audits_vectors.append(vector)
+        audits_metadata.append({
+            "audit_id": audit_id,
+            "title": title,
+            "audit_type": audit_type or "",
+            "status": status or "",
+            "auditee_entity": auditee_entity or "",
+            "search_text": search_text,
+        })
+        print(f"   [{audit_id}] {title[:60]}... | {auditee_entity or '—'} | {status}")
+
+    await audits_provider.add(audits_vectors, audits_metadata)
+    audits_index_path = storage_path / vs_config.indexes["audits"]
+    await audits_provider.save(str(audits_index_path))
+    count = await audits_provider.count()
+    print(f"✅ Сохранено audits_index: {count} векторов")
+    await audits_provider.shutdown()
+
+    # =========================================================================
+    # 4. ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ
+    # =========================================================================
+    print("\n" + "=" * 60)
+    print("4. ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ")
+    print("=" * 60)
+
+    cursor.execute("""
+        SELECT v.id, v.violation_code, v.description, v.severity, v.status,
+               v.responsible, a.title as audit_title
+        FROM violations v
+        JOIN audits a ON v.audit_id = a.id
+        WHERE v.description IS NOT NULL
+        ORDER BY v.id
+    """)
+    violations = cursor.fetchall()
+    print(f"Найдено отклонений: {len(violations)}")
+
+    violations_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
+    await violations_provider.initialize()
+
+    violations_vectors = []
+    violations_metadata = []
+    for row in violations:
+        viol_id, viol_code, description, severity, status, responsible, audit_title = row
+        search_parts = []
+        if description:
+            search_parts.append(description)
+        if viol_code:
+            search_parts.append(viol_code)
+        if audit_title:
+            search_parts.append(audit_title)
+        search_text = " ".join(str(p) for p in search_parts if p)
+
+        vector = await embedding.generate_single(search_text)
+        violations_vectors.append(vector)
+        violations_metadata.append({
+            "violation_id": viol_id,
+            "violation_code": viol_code or "",
+            "description": description or "",
+            "severity": severity or "",
+            "status": status or "",
+            "responsible": responsible or "",
+            "audit_title": audit_title or "",
+            "search_text": search_text,
+        })
+        print(f"   [{viol_id}] {viol_code or '—'} | {severity} | {status} | {description[:50]}...")
+
+    await violations_provider.add(violations_vectors, violations_metadata)
+    violations_index_path = storage_path / vs_config.indexes["violations"]
+    await violations_provider.save(str(violations_index_path))
+    count = await violations_provider.count()
+    print(f"✅ Сохранено violations_index: {count} векторов")
+    await violations_provider.shutdown()
+
+    # =========================================================================
     # ИТОГО
     # =========================================================================
     cursor.close()

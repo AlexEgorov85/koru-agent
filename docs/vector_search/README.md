@@ -9,9 +9,10 @@
 **Для разработчиков:**
 
 1. **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** — универсальная спецификация ⭐ **ОСНОВНОЙ**
-2. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — жизненный цикл БД
-3. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — разбиение на чанки
-4. **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** — интеграция с книгами
+2. **[ADDING_NEW_VECTOR_DB.md](ADDING_NEW_VECTOR_DB.md)** — как добавить новую векторную БД + валидацию ⭐ **НОВОЕ**
+3. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — жизненный цикл БД
+4. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — разбиение на чанки
+5. **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** — интеграция с книгами
 
 **Для пользователей:**
 
@@ -68,6 +69,12 @@
 ---
 
 ## 🎯 По задачам
+
+### Хочу добавить новую векторную БД
+→ `ADDING_NEW_VECTOR_DB.md` — **пошаговый гайд с примерами**
+
+### Хочу понять как связать FAISS с валидацией
+→ `ADDING_NEW_VECTOR_DB.md` → раздел «Шаг 5: Связывание с валидацией»
 
 ### Хочу понять архитектуру
 → `UNIVERSAL_SPEC.md`

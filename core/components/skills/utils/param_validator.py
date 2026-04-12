@@ -180,11 +180,11 @@ class ParamValidator:
     def __init__(
         self,
         executor,
-        schema: str = "Lib",
+        schema: Optional[str] = None,
         log_callback=None
     ):
         self.executor = executor
-        self.schema = schema
+        self.schema = schema  # None = без указания схемы (public)
         self._log = log_callback or (lambda x: None)
 
     async def validate(
@@ -247,11 +247,13 @@ class ParamValidator:
         """Ступень 1: SQL ILIKE поиск"""
         exec_context = ExecutionContext()
         search_term = param_value.lower().strip()
-        
+
         where_clauses = [f'"{field}" ILIKE %s' for field in search_fields]
         where_sql = " OR ".join(where_clauses)
-        
-        sql = f'SELECT DISTINCT "{search_fields[0]}" FROM "{self.schema}"."{table}" WHERE {where_sql} LIMIT 5'
+
+        # Если схема указана — используем её, иначе — public
+        table_ref = f'"{self.schema}"."{table}"' if self.schema else f'"{table}"'
+        sql = f'SELECT DISTINCT "{search_fields[0]}" FROM {table_ref} WHERE {where_sql} LIMIT 5'
         params = [f"%{search_term}%"] * len(search_fields)
 
         result = await self.executor.execute_action(
@@ -319,10 +321,11 @@ class ParamValidator:
     ) -> Dict[str, Any]:
         """Ступень 3: Fuzzy matching"""
         exec_context = ExecutionContext()
-        
+
         field = search_fields[0]
-        sql = f'SELECT DISTINCT "{field}" FROM "{self.schema}"."{table}" ORDER BY "{field}"'
-        
+        table_ref = f'"{self.schema}"."{table}"' if self.schema else f'"{table}"'
+        sql = f'SELECT DISTINCT "{field}" FROM {table_ref} ORDER BY "{field}"'
+
         result = await self.executor.execute_action(
             action_name="sql_query.execute",
             parameters={"sql": sql, "parameters": []},

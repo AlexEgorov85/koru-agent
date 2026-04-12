@@ -1,13 +1,207 @@
 tables:
-- columns: []
-  description: Таблица не найдена или не имеет столбцов
-  schema: Lib
-  table: books
-- columns: []
-  description: Таблица не найдена или не имеет столбцов
-  schema: Lib
-  table: authors
-- columns: []
-  description: Таблица не найдена или не имеет столбцов
-  schema: Lib
-  table: chapters
+- columns:
+  - column_default: nextval('oarb.audits_id_seq'::regclass)
+    column_name: id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: title
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: audit_type
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: planned_date
+    data_type: date
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: actual_date
+    data_type: date
+    description: ''
+    is_nullable: 'YES'
+  - column_default: '''Запланирована''::character varying'
+    column_name: status
+    data_type: character varying
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: auditee_entity
+    data_type: character varying
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: created_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: updated_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  description: Проверки (плановые и внеплановые аудиторские мероприятия)
+  schema: oarb
+  table: audits
+- columns:
+  - column_default: nextval('oarb.audit_reports_id_seq'::regclass)
+    column_name: id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: audit_id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: report_number
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: report_date
+    data_type: date
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: title
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: full_text
+    data_type: text
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: created_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: updated_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  description: Акты аудиторской проверки (оформленные документы по результатам)
+  schema: oarb
+  table: audit_reports
+- columns:
+  - column_default: nextval('oarb.report_items_id_seq'::regclass)
+    column_name: id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: report_id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: item_number
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: item_title
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: item_content
+    data_type: text
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: order_index
+    data_type: integer
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: created_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: updated_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  description: Пункты (разделы) акта аудиторской проверки с текстовым наполнением
+  schema: oarb
+  table: report_items
+- columns:
+  - column_default: nextval('oarb.violations_id_seq'::regclass)
+    column_name: id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: audit_id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: report_id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: item_id
+    data_type: integer
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: violation_code
+    data_type: character varying
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: description
+    data_type: text
+    description: ''
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: recommendation
+    data_type: text
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: severity
+    data_type: character varying
+    description: ''
+    is_nullable: 'NO'
+  - column_default: '''Открыто''::character varying'
+    column_name: status
+    data_type: character varying
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: responsible
+    data_type: character varying
+    description: ''
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: deadline
+    data_type: date
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: created_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  - column_default: CURRENT_TIMESTAMP
+    column_name: updated_at
+    data_type: timestamp without time zone
+    description: ''
+    is_nullable: 'YES'
+  description: Отклонения (нарушения, проблемы), выявленные в ходе аудита
+  schema: oarb
+  table: violations
