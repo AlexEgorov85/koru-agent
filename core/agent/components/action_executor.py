@@ -878,12 +878,15 @@ class ActionExecutor:
             llm_provider = None
             if hasattr(self.application_context, 'infrastructure_context'):
                 infra = self.application_context.infrastructure_context
-                llm_provider = infra.resource_registry.get_resource("default_llm").instance if infra.resource_registry else None
+                if infra.resource_registry:
+                    from core.models.enums.common_enums import ResourceType
+                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
+                    llm_provider = default_llm_info.instance if default_llm_info else None
 
             if not llm_provider:
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
-                    error="LLM провайдер 'default_llm' не найден"
+                    error="LLM провайдер по умолчанию не найден. Проверьте конфигурацию llm_providers."
                 )
 
             # Получаем LLMOrchestrator (если доступен) для retry и валидации

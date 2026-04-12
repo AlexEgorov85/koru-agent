@@ -284,17 +284,18 @@ class DataAnalysisSkill(Skill):
             # Пропускаем повторную валидацию, так как structured output уже проверил данные
             pass
 
-            # Возвращаем ExecutionResult с side_effect=True
-            return ExecutionResult.success(
-                data=answer_data,  # ← Pydantic модель!
-                metadata={
+            # Возвращаем dict (НЕ ExecutionResult!) — BaseComponent сам обернёт
+            return {
+                **answer_data,
+                "metadata": {
                     "chunks_processed": len(chunks) if chunks else 1,
+                    "total_tokens": llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0,
                     "processing_time_ms": (time.time() - start_time) * 1000,
                     "data_size_mb": data_metadata.get("size_mb", 0),
+                    "parsing_attempts": llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1,
                     "structured_output": True
-                },
-                side_effect=True
-            )
+                }
+            }
 
         except Exception as e:
             self._log_error(f"Ошибка анализа: {e}", event_type=LogEventType.ERROR)
@@ -568,7 +569,7 @@ class DataAnalysisSkill(Skill):
                 "metadata": {"parse_error": str(e)}
             }
 
-    def _validate_output(
+    def _validate_analysis_result(
         self,
         data: Dict[str, Any],
         capability_name: str

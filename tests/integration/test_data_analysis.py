@@ -130,7 +130,8 @@ class TestDataAnalysisSkillIntegration:
                 "step_id": "step_001",
                 "question": "Сколько записей в данных?",
                 "data_source": {
-                    "type": "memory"
+                    "type": "memory",
+                    "content": csv_data
                 },
                 "analysis_config": {
                     "aggregation_method": "summary"
@@ -180,7 +181,8 @@ class TestDataAnalysisSkillIntegration:
                 "step_id": "step_002",
                 "question": "Какое количество книг в базе?",
                 "data_source": {
-                    "type": "memory"
+                    "type": "memory",
+                    "content": csv_data
                 },
                 "analysis_config": {
                     "max_rows": 10,
@@ -222,7 +224,8 @@ class TestDataAnalysisSkillIntegration:
             parameters={
                 "step_id": "step_003",
                 "data_source": {
-                    "type": "memory"
+                    "type": "memory",
+                    "content": "test data"
                 }
             },
             context=session
@@ -254,7 +257,11 @@ class TestDataAnalysisSkillErrorHandling:
             action_name="data_analysis.analyze_step_data",
             parameters={
                 "step_id": "step_empty",
-                "question": "Что в данных?"
+                "question": "Что в данных?",
+                "data_source": {
+                    "type": "memory",
+                    "content": ""
+                }
             },
             context=session
         )
@@ -274,15 +281,14 @@ class TestDataAnalysisSkillErrorHandling:
         """Анализ с невалидным типом источника — должен вернуть FAILED."""
         session = create_filled_session(goal="Анализ с невалидным типом")
 
-        # data_source с невалидным типом — fallback когда в контексте нет данных
+        # data_source с невалидным типом
         result = await executor.execute_action(
             action_name="data_analysis.analyze_step_data",
             parameters={
                 "step_id": "step_invalid",
                 "question": "Что в данных?",
                 "data_source": {
-                    "type": "invalid_type_xyz",
-                    "content": "test data"
+                    "type": "invalid_type"
                 }
             },
             context=session
@@ -292,14 +298,15 @@ class TestDataAnalysisSkillErrorHandling:
         assert result.status == ExecutionStatus.FAILED, "Ожидался FAILED при невалидном типе"
         assert result.error is not None
         error_lower = result.error.lower()
-        assert "type" in error_lower or "source" in error_lower or "invalid" in error_lower, \
+        # Ошибка валидации: type не соответствует enum
+        assert "type" in error_lower or "source" in error_lower or "invalid" in error_lower or "validation" in error_lower, \
             f"Ошибка не связана с типом источника: {result.error}"
         
         print(f"✅ DataAnalysis: невалидный тип источника → FAILED")
 
     @pytest.mark.asyncio
     async def test_analyze_question_mismatch(self, executor):
-        """Вопрос не соответствует данным — низкий confidence или FAILED."""
+        """Вопрос не соответствует данным — LLM сообщает об отсутствии данных."""
         session = create_filled_session(goal="Анализ несоответствия вопроса")
 
         # Данные про товары, вопрос про сотрудников
@@ -311,6 +318,10 @@ class TestDataAnalysisSkillErrorHandling:
             parameters={
                 "step_id": "step_mismatch",
                 "question": "Сколько сотрудников в компании?",
+                "data_source": {
+                    "type": "memory",
+                    "content": csv_data
+                },
                 "analysis_config": {
                     "aggregation_method": "summary"
                 }
@@ -318,12 +329,18 @@ class TestDataAnalysisSkillErrorHandling:
             context=session
         )
 
-        # При несоответствии вопроса данным — FAILED или низкий confidence
-        if result.status == ExecutionStatus.FAILED:
-            assert result.error is not None
-            print(f"✅ DataAnalysis: несоответствие → FAILED")
-        else:
-            data = result.data if isinstance(result.data, dict) else result.data.model_dump()
-            confidence = data.get("confidence", 1.0)
-            assert confidence < 0.8, f"При несоответствии confidence должен быть < 0.8: {confidence}"
-            print(f"✅ DataAnalysis: несоответствие обработано (confidence: {confidence})")
+        # При несоответствии вопроса данным LLM должен сообщить об отсутствии relevant данных
+        assert result.status == ExecutionStatus.COMPLETED, f"FAILED: {result.error}"
+        data = result.data if isinstance(result.data, dict) else result.data.model_dump()
+
+        assert "answer" in data, "Нет поля answer"
+        answer_lower = data["answer"].lower()
+        # LLM должен указать что данных о сотрудниках нет
+        has_no_data_indication = any(word in answer_lower for word in [
+            "нет", "нет информации", "нет данных", "не содержит", 
+            "отсутствует", "не предоставлены", "нет сотрудников",
+            "не найдено", "не указаны"
+        ])
+        assert has_no_data_indication, f"answer не указывает на отсутствие данных: {data['answer']}"
+
+        print(f"✅ DataAnalysis: несоответствие обработано (answer: {data['answer'][:60]}...)")
