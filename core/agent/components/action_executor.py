@@ -250,14 +250,20 @@ class ActionExecutor:
         """
         # Извлекаем session_context с защитой от вложенного ExecutionContext
         from core.session_context.session_context import SessionContext
-        raw_sc = context.session_context
-        if isinstance(raw_sc, ExecutionContext):
-            # Вложенный ExecutionContext - извлекаем его session_context
-            session_context = getattr(raw_sc, 'session_context', raw_sc)
-        elif isinstance(raw_sc, SessionContext):
-            session_context = raw_sc
+
+        if isinstance(context, SessionContext):
+            session_context = context
+        elif isinstance(context, ExecutionContext):
+            raw_sc = context.session_context
+            if isinstance(raw_sc, SessionContext):
+                session_context = raw_sc
+            else:
+                session_context = getattr(raw_sc, 'session_context', None) if raw_sc else None
         else:
-            session_context = raw_sc
+            # Пробуем разные варианты
+            session_context = getattr(context, 'session_context', None)
+            if isinstance(session_context, ExecutionContext):
+                session_context = getattr(session_context, 'session_context', None)
 
         if not session_context:
             return ExecutionResult(
@@ -660,7 +666,8 @@ class ActionExecutor:
                 return component, type_name
 
         # Отладка: логируем доступные сервисы
-        self._log_debug(f"Компонент '{component_name}' не найден. Доступные сервисы: {list(self.application_context.components.get_all(ComponentType.SERVICE).keys())}")
+        services = self.application_context.components.all_of_type(ComponentType.SERVICE)
+        self._log_debug(f"Компонент '{component_name}' не найден. Доступные сервисы: {[s for s in services]}")
 
         return None, None
     
@@ -1058,15 +1065,16 @@ class ActionExecutor:
         step_number = parameters.get('step_number')
         goal = parameters.get('goal')
         
-        if context and context.session_context:
+        # SessionContext имеет атрибуты напрямую (session_id, agent_id, goal)
+        if context and hasattr(context, 'session_id'):
             if session_id is None:
-                session_id = getattr(context.session_context, 'session_id', None)
+                session_id = context.session_id
             if agent_id is None:
-                agent_id = getattr(context.session_context, 'agent_id', None)
+                agent_id = context.agent_id
             if goal is None:
-                goal = getattr(context.session_context, 'goal', None)
-            if step_number is None and hasattr(context.session_context, 'step_context') and context.session_context.step_context:
-                step_number = context.session_context.step_context.get_current_step_number()
+                goal = getattr(context, 'goal', None)
+            if step_number is None and hasattr(context, 'step_context') and context.step_context:
+                step_number = context.step_context.get_current_step_number()
 
         response = await orchestrator.execute_structured(
             request=request,
