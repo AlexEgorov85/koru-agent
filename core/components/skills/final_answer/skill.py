@@ -704,11 +704,14 @@ class FinalAnswerSkill(Skill):
     # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError вместо fallback ответа
 
     def _render_prompt(self, prompt: str, variables: Dict[str, Any]) -> str:
-        """Рендеринг промпта с подстановкой переменных."""
+        """Рендеринг промпта с подстановкой переменных.
+
+        СТАНДАРТ: {key} (одинарные скобки) — единообразно с base_behavior_pattern.
+        """
         import re
         result = prompt
         for key, value in variables.items():
-            placeholder = "{{ " + key + " }}"
+            placeholder = "{" + key + "}"
             if isinstance(value, list):
                 formatted = "\n\n".join(str(v) for v in value)
                 result = result.replace("{% if " + key + " %}" + placeholder + "{% endif %}", formatted)
@@ -718,7 +721,7 @@ class FinalAnswerSkill(Skill):
                 result = result.replace(placeholder, formatted)
             else:
                 result = result.replace(placeholder, str(value))
-        
+
         result = re.sub(r'\{%.*?%\}', '', result)
         return result
 
