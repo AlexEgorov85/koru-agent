@@ -1066,7 +1066,7 @@ self.ensure_ready()  # Бросит RuntimeError если не готов
 
 ### Q: Можно ли создать миксин для логирования?
 
-**A:** Нет, это избыточно. Все компоненты наследуют `Component` (через `LoggingMixinV2`), который предоставляет:
+**A:** Нет, это избыточно. Все компоненты наследуют `Component` (через `LoggingMixin`), который предоставляет:
 - `self._log_info()`, `self._log_debug()`, `self._log_warning()`, `self._log_error()`
 - `self._safe_log_sync()` — безопасный синхронный лог
 - Каждый вызов автоматически получает `event_type` (по умолчанию `LogEventType.INFO`)

@@ -36,7 +36,7 @@ BaseComponent (646 строк)
 
 ### Целевая структура
 ```
-LifecycleMixin + LoggingMixinV2 (250 строк)
+LifecycleMixin + LoggingMixin (250 строк)
     ↓
 Component (универсальный, 450 строк)
     ├─→ Skill (~130 строк)
@@ -76,7 +76,7 @@ class MySkill(Component):
         return {"result": "done"}
 ```
 
-### 2. LoggingMixinV2 - Новый подход к логированию
+### 2. LoggingMixin - Новый подход к логированию
 
 **Основные возможности**:
 - Автоматический префикс `[Skill:MySkill]`, `[Service:Database]`, etc.
