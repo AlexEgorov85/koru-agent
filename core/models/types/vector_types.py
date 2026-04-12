@@ -6,7 +6,7 @@
 - authors
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
@@ -14,7 +14,7 @@ from datetime import datetime
 class VectorSearchResult(BaseModel):
     """
     Результат векторного поиска.
-    
+
     Attributes:
         id: Уникальный ID результата
         document_id: ID документа
@@ -31,9 +31,9 @@ class VectorSearchResult(BaseModel):
     content: str
     metadata: Dict[str, Any]
     source: str
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "result_001",
                 "document_id": "book_123",
@@ -44,6 +44,7 @@ class VectorSearchResult(BaseModel):
                 "source": "books"
             }
         }
+    )
 
 
 class VectorQuery(BaseModel):
@@ -65,12 +66,13 @@ class VectorQuery(BaseModel):
     filters: Optional[Dict[str, Any]] = None
     offset: int = Field(default=0, ge=0)
     
-    @validator('filters')
+    @field_validator('filters')
+    @classmethod
     def validate_filters(cls, v):
         """Валидация фильтров."""
         if v is None:
             return v
-        
+
         allowed_keys = {
             'source', 'category', 'tags', 'date_from', 'date_to',
             'author_id', 'book_id', 'genre', 'year_from', 'year_to'
@@ -79,9 +81,9 @@ class VectorQuery(BaseModel):
         if invalid:
             raise ValueError(f"Invalid filter keys: {invalid}")
         return v
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "векторный поиск",
                 "top_k": 10,
@@ -89,6 +91,7 @@ class VectorQuery(BaseModel):
                 "filters": {"source": ["books"]}
             }
         }
+    )
 
 
 class VectorDocument(BaseModel):
@@ -109,9 +112,9 @@ class VectorDocument(BaseModel):
     source: str
     chunk_size: int = Field(default=500, ge=100, le=2000)
     chunk_overlap: int = Field(default=50, ge=0, le=200)
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "content": "текст документа...",
                 "metadata": {"category": "technical"},
@@ -120,6 +123,7 @@ class VectorDocument(BaseModel):
                 "chunk_overlap": 50
             }
         }
+    )
 
 
 class VectorChunk(BaseModel):
@@ -142,9 +146,9 @@ class VectorChunk(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     index: int
     chapter: Optional[int] = None
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "chunk_001",
                 "document_id": "book_123",
@@ -153,6 +157,7 @@ class VectorChunk(BaseModel):
                 "chapter": 1
             }
         }
+    )
 
 
 class VectorIndexInfo(BaseModel):
@@ -177,9 +182,9 @@ class VectorIndexInfo(BaseModel):
     index_type: str
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "source": "books",
                 "total_documents": 150,
@@ -191,6 +196,7 @@ class VectorIndexInfo(BaseModel):
                 "updated_at": "2026-02-19T12:00:00Z"
             }
         }
+    )
 
 
 class VectorSearchStats(BaseModel):
@@ -207,9 +213,9 @@ class VectorSearchStats(BaseModel):
     total_found: int
     returned_count: int
     filters_applied: List[str]
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query_time_ms": 45.2,
                 "total_found": 150,
@@ -217,3 +223,4 @@ class VectorSearchStats(BaseModel):
                 "filters_applied": ["source"]
             }
         }
+    )
