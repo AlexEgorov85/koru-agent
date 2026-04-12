@@ -40,7 +40,7 @@ from core.models.types.llm_types import (
     StructuredOutputConfig,
     RawLLMResponse
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
@@ -48,12 +48,25 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
 
 class OpenRouterConfig(BaseModel):
     """Конфигурация для OpenRouter провайдера."""
-    api_key: str = Field(..., description="API ключ OpenRouter")
+    api_key: str = Field(default="", description="API ключ OpenRouter (из env OPENROUTER_API_KEY если пусто)")
     model_name: str = Field(default="qwen/qwen3.6-plus:free", description="ID модели в формате openrouter")
     temperature: float = Field(default=0.7, description="Температура генерации")
     max_tokens: int = Field(default=4096, description="Максимальное количество токенов")
     timeout_seconds: float = Field(default=180.0, ge=0.0, description="Таймаут HTTP запроса")
     base_url: str = Field(default=OPENROUTER_API_URL, description="Базовый URL API")
+
+    @model_validator(mode="after")
+    def resolve_api_key(self):
+        """Разрешение API ключа из env если не задан явно."""
+        import os
+        if not self.api_key:
+            self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not self.api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY не установлен. "
+                "Укажите api_key в конфиге или задайте переменную окружения OPENROUTER_API_KEY."
+            )
+        return self
 
 
 class OpenRouterProvider(BaseLLMProvider, LLMInterface):
