@@ -181,6 +181,24 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 "is_initialized": self.is_initialized
             }
 
+    def _build_schema_prompt(self, schema_def: Dict[str, Any]) -> str:
+        """Формирование промпта с JSON схемой для structured output."""
+        import json
+        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
+        return (
+            "\n=== JSON SCHEMA ===\n"
+            f"{schema_json}\n"
+            "\nКРИТИЧЕСКИ ВАЖНО:\n"
+            "1. Верни ТОЛЬКО JSON согласно схеме выше. НИЧЕГО больше.\n"
+            "2. НЕ добавляй пояснений, вступлений, заключений или markdown-обёрток.\n"
+            "3. НЕ используй triple backticks (```).\n"
+            "4. Все обязательные поля (required) должны присутствовать.\n"
+            "5. Типы данных должны точно соответствовать схеме.\n"
+            "6. Начни ответ с '{' и закончи '}'.\n"
+            "\nПример правильного ответа:\n"
+            '{"field1": "value1", "field2": 42}\n'
+        )
+
     async def generate(self, request: LLMRequest) -> LLMResponse:
         """
         Генерация текста через OpenRouter API.
@@ -191,6 +209,15 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
 
         start_time = time.time()
         messages = self._build_messages(request)
+
+        # Если есть structured_output — добавляем схему в system_prompt
+        if hasattr(request, 'structured_output') and request.structured_output and request.structured_output.schema_def:
+            schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
+            # Находим system message и добавляем схему
+            for msg in messages:
+                if msg.get("role") == "system":
+                    msg["content"] = msg["content"] + "\n\n" + schema_prompt
+                    break
 
         max_retries = 3
         last_error = None
