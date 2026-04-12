@@ -5,10 +5,22 @@
 """
 import asyncio
 import logging
+import os
 import sys
 import traceback
 import warnings
 from typing import Optional
+
+# Загрузка .env файла (если есть) — для переменных вроде OPENROUTER_API_KEY
+_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.isfile(_env_path):
+    with open(_env_path, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip("\"'"))
+    del _f, _k, _v, _line, _env_path
 
 from core.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
