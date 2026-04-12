@@ -208,6 +208,8 @@ class ComponentFactory:
         self._log_info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
 
         discovery = self._get_discovery()
+        if not discovery._global_scanned:
+            discovery.scan()
 
         normalized_name = self._normalize_component_name(component_type, name)
         if normalized_name != name:
@@ -222,9 +224,9 @@ class ComponentFactory:
             )
             return entry.class_ref
 
+        all_names = discovery.get_all_names()
         self._log_error(
-            f"Компонент {component_type}/{name} (нормализовано: {normalized_name}) не найден. "
-            f"Доступные: {discovery.get_all_names()}"
+            f"Компонент {component_type}/{name} (нормализовано: {normalized_name}) не найден. Доступные: {all_names}"
         )
         raise ValueError(f"Компонент {component_type}/{name} не найден")
 
@@ -268,7 +270,14 @@ class ComponentFactory:
         """Получить или создать экземпляр ComponentDiscovery."""
         if not hasattr(self, "_component_discovery"):
             from core.agent.components.component_discovery import ComponentDiscovery
-            self._component_discovery = ComponentDiscovery()
+            # Передаём logger из infrastructure_context чтобы ошибки discovery
+            # попадали в тот же файл лога (infra_context.log)
+            discovery_logger = getattr(
+                getattr(self._infrastructure_context, 'log_session', None),
+                'infra_logger',
+                None
+            )
+            self._component_discovery = ComponentDiscovery(logger=discovery_logger)
         return self._component_discovery
 
     async def create_by_name(

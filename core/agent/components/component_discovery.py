@@ -55,6 +55,11 @@ class ComponentEntry:
 class ComponentDiscovery:
     """Сканер файловой системы для автоматического обнаружения компонентов."""
 
+    # Глобальный кэш на уровне класса (не экземпляра!)
+    _global_cache: Dict[str, Dict[str, ComponentEntry]] = {}
+    _global_scanned: bool = False
+    _global_logger: Optional[Any] = None
+
     def __init__(
         self,
         project_root: Optional[Path] = None,
@@ -63,9 +68,10 @@ class ComponentDiscovery:
         if project_root is None:
             project_root = Path(__file__).resolve().parents[3]
         self._project_root = project_root
-        self._cache: Dict[str, Dict[str, ComponentEntry]] = {}
-        self._scanned = False
         self._logger = logger
+        # Обновляем глобальный logger если передан
+        if logger is not None:
+            ComponentDiscovery._global_logger = logger
 
     def scan(self, force: bool = False) -> Dict[str, Dict[str, ComponentEntry]]:
         """
@@ -77,8 +83,8 @@ class ComponentDiscovery:
         RETURNS:
         - dict {component_type: {name: ComponentEntry}}
         """
-        if self._scanned and not force and self._cache:
-            return self._cache
+        if ComponentDiscovery._global_scanned and not force and ComponentDiscovery._global_cache:
+            return ComponentDiscovery._global_cache
 
         self._log("info", f"Начало сканирования компонентов (root={self._project_root})")
 
@@ -114,8 +120,8 @@ class ComponentDiscovery:
             f"Сканирование завершено: всего {total_count} компонентов за {total_ms:.0f}ms"
         )
 
-        self._cache = result
-        self._scanned = True
+        ComponentDiscovery._global_cache = result
+        ComponentDiscovery._global_scanned = True
 
         return result
 
@@ -123,23 +129,23 @@ class ComponentDiscovery:
         self, component_type: str, name: str
     ) -> Optional[ComponentEntry]:
         """Поиск конкретного компонента по типу и имени."""
-        if not self._scanned:
+        if not ComponentDiscovery._global_scanned:
             self.scan()
 
-        type_registry = self._cache.get(component_type, {})
+        type_registry = ComponentDiscovery._global_cache.get(component_type, {})
         return type_registry.get(name)
 
     def get_names(self, component_type: str) -> list:
         """Список имён компонентов данного типа."""
-        if not self._scanned:
+        if not ComponentDiscovery._global_scanned:
             self.scan()
-        return list(self._cache.get(component_type, {}).keys())
+        return list(ComponentDiscovery._global_cache.get(component_type, {}).keys())
 
     def get_all_names(self) -> Dict[str, list]:
         """Список имён всех компонентов по типам."""
-        if not self._scanned:
+        if not ComponentDiscovery._global_scanned:
             self.scan()
-        return {t: list(names.keys()) for t, names in self._cache.items()}
+        return {t: list(names.keys()) for t, names in ComponentDiscovery._global_cache.items()}
 
     def _discover_skills(self) -> Dict[str, ComponentEntry]:
         """Обнаружение навыков в core/components/skills/{name}/skill.py."""
@@ -202,9 +208,7 @@ class ComponentDiscovery:
 
             name = item.name[: -len(".py")]
             module_name = f"core.components.tools.{name}"
-            cls = self._load_class_from_module(
-                module_name, name, "Tool"
-            )
+            cls = self._load_class_from_module(module_name, name, "")
             if cls is None:
                 skipped.append(f"{name} (класс не найден)")
                 continue
@@ -221,7 +225,7 @@ class ComponentDiscovery:
             self._log("debug", f"  tool: {name} -> {cls.__name__}")
 
         if skipped:
-            self._log("debug", f"  tool: пропущено {len(skipped)} — {', '.join(skipped)}")
+            self._log("warning", f"  tool: пропущено {len(skipped)}: {', '.join(skipped)}")
 
         return entries
 
@@ -366,7 +370,10 @@ class ComponentDiscovery:
             else:
                 module = importlib.import_module(module_name)
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             self._log("warning", f"  Не удалось импортировать {module_name}: {e}")
+            self._log_error(f"Не удалось загрузить компонент {module_name}: {e}", tb)
             return None
 
         pascal_name = "".join(part.title() for part in name.split("_")).replace("_", "")
@@ -446,3 +453,13 @@ class ComponentDiscovery:
                 fn = getattr(self._logger, "info", None)
                 if fn:
                     fn(f"[{level.upper()}] {message}")
+
+    def _log_error(self, message: str, exc_info: str = None) -> None:
+        """Логирование ошибки с traceback."""
+        if self._logger is not None:
+            fn = getattr(self._logger, "error", None)
+            if fn:
+                full_msg = f"Ошибка загрузки компонента: {message}"
+                if exc_info:
+                    full_msg += f"\n{exc_info}"
+                fn(full_msg)

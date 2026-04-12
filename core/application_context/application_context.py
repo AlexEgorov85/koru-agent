@@ -82,6 +82,13 @@ class ApplicationContext(BaseSystemContext):
         self._data_dir = Path(data_dir)
         self.llm_orchestrator = None
         self._initialized = False
+        self._component_factory = None  # Один factory на все компоненты
+
+    def _get_component_factory(self) -> 'ComponentFactory':
+        """Получить или создать единый ComponentFactory (синглтон на контекст)."""
+        if self._component_factory is None:
+            self._component_factory = ComponentFactory(self.infrastructure_context)
+        return self._component_factory
 
     @property
     def is_ready(self) -> bool:
@@ -114,12 +121,12 @@ class ApplicationContext(BaseSystemContext):
 
     def _resolve_component_class(self, component_type: ComponentType, name: str) -> type:
         """Разрешение класса компонента по имени и типу."""
-        factory = ComponentFactory(self.infrastructure_context)
+        factory = self._get_component_factory()
         return factory._resolve_component_class(component_type.value, name)
 
     async def _create_component(self, component_type: ComponentType, name: str, config: Any, executor: 'ActionExecutor') -> 'Component':
         """ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента."""
-        factory = ComponentFactory(self.infrastructure_context)
+        factory = self._get_component_factory()
         component_type_str = component_type.value
 
         if not isinstance(config, ComponentConfig):
