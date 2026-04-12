@@ -14,10 +14,6 @@
   - test_vector_books_search_min_score: поиск с фильтром по score
   - test_vector_books_search_empty_query: пустой query (ожидается FAILED)
 
-  File Tool (2):
-  - test_file_tool_read: чтение файла (исключён из discovery → FAILED)
-  - test_file_tool_list: список файлов (исключён из discovery → FAILED)
-
 ПРИНЦИПЫ:
 - Контексты поднимаются ОДИН РАЗ (scope="module")
 - Строгие проверки: status == COMPLETED
@@ -207,42 +203,3 @@ class TestVectorBooksToolIntegration:
         assert result.status == ExecutionStatus.FAILED
         assert "query" in result.error.lower() or "string_too_short" in result.error.lower()
         print("✅ Vector Books: пустой query → FAILED (валидация)")
-
-
-# ============================================================================
-# FILE TOOL
-# ============================================================================
-
-class TestFileToolIntegration:
-    """File Tool — 2 теста.
-
-    ВНИМАНИЕ: file_tool намеренно исключён из discovery (app_config.py:570).
-    Эти тесты документируют текущее состояние — компонент не загружается.
-    """
-
-    @pytest.mark.asyncio
-    async def test_file_tool_read(self, executor, session):
-        """File Tool не в discovery → FAILED."""
-        data_dir = executor.application_context.infrastructure_context.config.data_dir
-        result = await executor.execute_action(
-            action_name="file_tool.read_write",
-            parameters={"operation": "read", "path": str(Path(data_dir) / "registry.yaml")},
-            context=session
-        )
-
-        # file_tool исключён из discovery → FAILED
-        assert result.status == ExecutionStatus.FAILED
-        print(f"✅ File Tool read: FAILED (не в discovery)")
-
-    @pytest.mark.asyncio
-    async def test_file_tool_list(self, executor, session):
-        """File Tool не в discovery → FAILED."""
-        data_dir = executor.application_context.infrastructure_context.config.data_dir
-        result = await executor.execute_action(
-            action_name="file_tool.read_write",
-            parameters={"operation": "list", "path": data_dir},
-            context=session
-        )
-
-        assert result.status == ExecutionStatus.FAILED
-        print(f"✅ File Tool list: FAILED (не в discovery)")

@@ -565,13 +565,6 @@ class AppConfig(BaseSettings):
         # Дополняем tool_configs из discovery данными (vector_books и т.д.)
         # component_prefixes уже содержит все компоненты из discovery
 
-        # Исключаем компоненты, которые не загрузятся (например, file_tool без aiofiles)
-        # Это временное решение — правильнее исправить file_tool
-        excluded_tools = {'file_tool'}
-        for tool_name in list(tool_configs.keys()):
-            if tool_name in excluded_tools:
-                del tool_configs[tool_name]
-
         return cls(
             config_id=f"app_config_{profile}_discovery",
             profile=profile,

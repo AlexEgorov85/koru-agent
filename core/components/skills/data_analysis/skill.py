@@ -28,9 +28,7 @@ class DataAnalysisSkill(Skill):
     def description(self) -> str:
         return "Навык анализа сырых данных по шагу и ответа на заданный вопрос"
 
-    # Зависимости не используются — BaseSkill не обрабатывает DEPENDENCIES
     # Все вызовы инструментов выполняются через executor
-    # DEPENDENCIES = ["file_tool", "sql_tool"]
 
     name: str = "data_analysis"
     
@@ -300,45 +298,12 @@ class DataAnalysisSkill(Skill):
         source_type = data_source.get("type")
         metadata = {"source_type": source_type}
 
-        if source_type == "file":
-            return await self._load_from_file(data_source, config, metadata)
-        elif source_type == "database":
+        if source_type == "database":
             return await self._load_from_database(data_source, config, metadata)
         elif source_type == "memory":
             return await self._load_from_memory(data_source, metadata)
         else:
             raise ValueError(f"Неподдерживаемый тип источника данных: {source_type}")
-
-    async def _load_from_file(
-        self,
-        data_source: Dict[str, Any],
-        config: Dict[str, Any],
-        metadata: Dict[str, Any]
-    ) -> tuple:
-        """Загрузка данных из файла через FileTool."""
-        file_path = data_source.get("path")
-        if not file_path:
-            raise ValueError("Путь к файлу не указан")
-
-        # Чтение файла через executor
-        from core.agent.components.action_executor import ExecutionContext
-        exec_context = ExecutionContext()
-        
-        result = await self.executor.execute_action(
-            action_name="file_tool.read",
-            parameters={"path": file_path},
-            context=exec_context
-        )
-
-        from core.models.data.execution import ExecutionStatus
-        if result.status != ExecutionStatus.COMPLETED or not result.data:
-            raise RuntimeError(f"Ошибка чтения файла: {result.error or 'Неизвестная ошибка'}")
-
-        content = result.data.get("content", "")
-        metadata["size_mb"] = len(content.encode('utf-8')) / (1024 * 1024)
-        metadata["file_path"] = file_path
-
-        return content, metadata
 
     async def _load_from_database(
         self,

@@ -1185,11 +1185,11 @@ class ActionExecutor:
         Выполнение действия инструмента.
 
         Инструменты не имеют capability, поэтому вызываем метод напрямую по имени действия.
-        Например: file_tool.read -> tool.execute(FileToolInput(...))
+        Например: sql_tool.execute_query -> tool.execute(...)
 
         ARGS:
         - tool: инструмент для выполнения
-        - action_name: имя действия (например, "file_tool.read")
+        - action_name: имя действия (например, "sql_tool.execute_query")
         - parameters: параметры выполнения
         - context: контекст выполнения
 
