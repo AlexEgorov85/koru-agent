@@ -20,14 +20,14 @@ from core.agent.components.action_executor import ExecutionContext
 from core.models.data.capability import Capability
 
 
-class TestResult:
+class TestOutcome:
     def __init__(self, name: str):
         self.name = name
         self.success = False
         self.error = None
         self.duration_ms = 0
         self.data = None
-    
+
     def __str__(self):
         status = "✅ PASS" if self.success else "❌ FAIL"
         return f"{status} {self.name} ({self.duration_ms:.0f}ms)"
@@ -40,7 +40,7 @@ class BookLibraryRealTest:
         self.app_context = None
         self.skill = None
         self.session_context = None
-        self.results: List[TestResult] = []
+        self.results: List[TestOutcome] = []
     
     async def initialize(self):
         
@@ -81,8 +81,8 @@ class BookLibraryRealTest:
         for cap in capabilities:
             pass  # Capabilities перечислены
 
-    async def test_list_scripts(self) -> TestResult:
-        result = TestResult("list_scripts")
+    async def test_list_scripts(self) -> TestOutcome:
+        result = TestOutcome("list_scripts")
         start = time.perf_counter()
         
         try:
@@ -127,8 +127,8 @@ class BookLibraryRealTest:
         self.results.append(result)
         return result
     
-    async def test_execute_script_get_all_books(self) -> TestResult:
-        result = TestResult("execute_script.get_all_books")
+    async def test_execute_script_get_all_books(self) -> TestOutcome:
+        result = TestOutcome("execute_script.get_all_books")
         start = time.perf_counter()
         
         try:
@@ -174,8 +174,8 @@ class BookLibraryRealTest:
         self.results.append(result)
         return result
     
-    async def test_execute_script_get_books_by_author(self) -> TestResult:
-        result = TestResult("execute_script.get_books_by_author")
+    async def test_execute_script_get_books_by_author(self) -> TestOutcome:
+        result = TestOutcome("execute_script.get_books_by_author")
         start = time.perf_counter()
         
         try:
@@ -222,8 +222,8 @@ class BookLibraryRealTest:
         self.results.append(result)
         return result
     
-    async def test_search_books_dynamic(self) -> TestResult:
-        result = TestResult("search_books.dynamic")
+    async def test_search_books_dynamic(self) -> TestOutcome:
+        result = TestOutcome("search_books.dynamic")
         start = time.perf_counter()
         
         try:
@@ -268,8 +268,8 @@ class BookLibraryRealTest:
         self.results.append(result)
         return result
     
-    async def test_semantic_search(self) -> TestResult:
-        result = TestResult("semantic_search")
+    async def test_semantic_search(self) -> TestOutcome:
+        result = TestOutcome("semantic_search")
         start = time.perf_counter()
         
         try:

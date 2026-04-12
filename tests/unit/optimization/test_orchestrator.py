@@ -29,7 +29,7 @@ from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Eve
 
 from core.agent.components.optimization.orchestrator import (
     OptimizationOrchestrator,
-    OrchestratorV2Config,
+    OrchestratorConfig,
 )
 
 
@@ -208,21 +208,21 @@ def _build_orchestrator(
 
 
 # ============================================================================
-# Тесты OrchestratorV2Config
+# Тесты OrchestratorConfig
 # ============================================================================
 
-class TestOrchestratorV2Config:
+class TestOrchestratorConfig:
     """Тесты валидации конфигурации"""
 
     def test_default_config(self):
-        config = OrchestratorV2Config()
+        config = OrchestratorConfig()
         assert config.max_iterations == 3
         assert config.target_accuracy == 0.9
         assert config.min_improvement == 0.05
         assert config.timeout_seconds == 600
 
     def test_custom_config(self):
-        config = OrchestratorV2Config(
+        config = OrchestratorConfig(
             max_iterations=5,
             target_accuracy=0.95,
             min_improvement=0.1,
@@ -233,23 +233,23 @@ class TestOrchestratorV2Config:
 
     def test_invalid_max_iterations(self):
         with pytest.raises(ValueError, match="max_iterations"):
-            OrchestratorV2Config(max_iterations=0)
+            OrchestratorConfig(max_iterations=0)
 
     def test_invalid_target_accuracy_low(self):
         with pytest.raises(ValueError, match="target_accuracy"):
-            OrchestratorV2Config(target_accuracy=0.0)
+            OrchestratorConfig(target_accuracy=0.0)
 
     def test_invalid_target_accuracy_high(self):
         with pytest.raises(ValueError, match="target_accuracy"):
-            OrchestratorV2Config(target_accuracy=1.5)
+            OrchestratorConfig(target_accuracy=1.5)
 
     def test_invalid_min_improvement(self):
         with pytest.raises(ValueError, match="min_improvement"):
-            OrchestratorV2Config(min_improvement=-0.1)
+            OrchestratorConfig(min_improvement=-0.1)
 
     def test_invalid_timeout(self):
         with pytest.raises(ValueError, match="timeout_seconds"):
-            OrchestratorV2Config(timeout_seconds=5)
+            OrchestratorConfig(timeout_seconds=5)
 
 
 # ============================================================================
@@ -531,7 +531,7 @@ class TestTestAndEvaluate:
 
     @pytest.mark.asyncio
     async def test_respects_max_iterations(self):
-        config = OrchestratorV2Config(max_iterations=2)
+        config = OrchestratorConfig(max_iterations=2)
         evaluations = [
             EvaluationResult(version_id="baseline_v1", success_rate=0.7, score=0.6, latency=200),
             EvaluationResult(version_id="candidate_v1", success_rate=0.75, score=0.65, latency=180),
@@ -609,7 +609,7 @@ class TestOptimize:
     async def test_timeout_returns_timeout_result(self):
         orch, _, _ = _build_orchestrator(
             traces=[Mock()],
-            config=OrchestratorV2Config(timeout_seconds=10),
+            config=OrchestratorConfig(timeout_seconds=10),
         )
 
         async def slow_collect(cap):
