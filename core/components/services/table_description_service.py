@@ -99,7 +99,8 @@ class TableDescriptionService(Service):
                 cols.numeric_precision,
                 cols.numeric_scale,
                 cols.is_nullable,
-                cols.column_default
+                cols.column_default,
+                cols.ordinal_position
             FROM information_schema.columns cols
             WHERE cols.table_schema = %s AND cols.table_name = %s
             ORDER BY cols.ordinal_position
@@ -151,20 +152,22 @@ class TableDescriptionService(Service):
                     data_type = row.get("data_type", "")
                     is_nullable = row.get("is_nullable", "YES")
                     column_default = row.get("column_default", None)
+                    ordinal_position = row.get("ordinal_position", 0)
                 else:
                     column_name = getattr(row, "column_name", "")
                     data_type = getattr(row, "data_type", "")
                     is_nullable = getattr(row, "is_nullable", "YES")
                     column_default = getattr(row, "column_default", None)
+                    ordinal_position = getattr(row, "ordinal_position", 0)
 
                 column_desc_sql = """
-                SELECT col_description(%s::regclass::oid, %s::regclass::attnum) as column_description
+                SELECT col_description(%s::regclass::oid, %s) as column_description
                 """
                 column_desc_result = await self.executor.execute_action(
                     action_name="sql_tool.execute",
                     parameters={
                         "sql": column_desc_sql,
-                        "parameters": [f"{schema_name}.{table_name}", column_name]
+                        "parameters": [f"{schema_name}.{table_name}", ordinal_position]
                     },
                     context=exec_context
                 )
