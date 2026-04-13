@@ -96,9 +96,23 @@ class SQLQueryService(Service):
         """
         Реализация бизнес-логики сервиса SQL-запросов (СИНХРОННАЯ).
 
+        ПОДДЕРЖИВАЕТ ДВА РЕЖИМА:
+        1. Готовый SQL: если передан sql_query — выполняет напрямую
+        2. Генерация: если передан user_question + tables — генерирует SQL через LLM
+
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
+        # Режим 1: Готовый SQL-запрос (выполнение напрямую)
+        if parameters.get("sql_query"):
+            result = safe_async_call(self.execute_query(
+                sql_query=parameters.get("sql_query", ""),
+                parameters=parameters.get("parameters"),
+                max_rows=parameters.get("max_rows", 50)
+            ))
+            return {"query_result": result, "capability": capability.name}
+        
+        # Режим 2: Генерация SQL из вопроса пользователя (через LLM)
         result = safe_async_call(self.execute_query_from_user_request(
             user_question=parameters.get("user_question", ""),
             tables=parameters.get("tables", []),

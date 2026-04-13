@@ -62,7 +62,7 @@ class GenerateScriptHandler(SkillHandler):
         rows, execution_time = await self._execute_sql(sql_query, max_results)
 
         if not rows:
-            await self.log_warning(
+            self._log_warning(
                 f"⚠️ SQL запрос не вернул результатов. "
                 f"Возможные причины: "
                 f"1) В базе нет данных по запросу '{query}', "
@@ -166,5 +166,5 @@ class GenerateScriptHandler(SkillHandler):
                 rows = data_dict.get('rows', []) or data_dict.get('data', [])
                 return rows, execution_time
 
-        await self.log_warning(f"SQL запрос не вернул результатов: {result.error}")
+        self._log_warning(f"SQL запрос не вернул результатов: {result.error}", event_type=LogEventType.WARNING)
         return [], execution_time

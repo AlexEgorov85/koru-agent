@@ -66,7 +66,7 @@ class SearchBooksHandler(SkillHandler):
 
         # 5. Обработка пустых результатов
         if not rows:
-            await self.log_warning(
+            self._log_warning(
                 f"⚠️ SQL запрос не вернул результатов. "
                 f"Возможные причины: "
                 f"1) В базе нет данных по запросу '{query_val}', "
@@ -202,9 +202,10 @@ class SearchBooksHandler(SkillHandler):
         )
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
-            data = result.data
-            rows = data.get("rows", []) if isinstance(data, dict) else getattr(data, "rows", [])
-            exec_time = data.get("execution_time", 0) if isinstance(data, dict) else getattr(data, "execution_time", 0)
+            # query_result — это DBQueryResult (dataclass)
+            query_result = result.data.get("query_result")
+            rows = query_result.rows if query_result else []
+            exec_time = query_result.execution_time if query_result else 0
             return rows, exec_time
         else:
             raise SQLGenerationError(

@@ -464,8 +464,10 @@ class ExecuteScriptHandler(SkillHandler):
         )
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
-            rows = result.data.rows if hasattr(result.data, 'rows') else []
-            exec_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
+            # query_result — это DBQueryResult (dataclass)
+            query_result = result.data.get("query_result")
+            rows = query_result.rows if query_result else []
+            exec_time = query_result.execution_time if query_result else 0.0
             return rows, exec_time
         else:
             raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")

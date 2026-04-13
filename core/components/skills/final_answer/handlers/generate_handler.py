@@ -80,7 +80,7 @@ class GenerateFinalAnswerHandler(SkillHandler):
                 try:
                     result_data = output_schema(**result_dict)
                 except Exception as e:
-                    await self.log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict")
+                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=LogEventType.WARNING)
                     result_data = result_dict
             else:
                 result_data = result_dict
@@ -94,7 +94,7 @@ class GenerateFinalAnswerHandler(SkillHandler):
             )
 
         except Exception as e:
-            await self.log_error(f"Ошибка генерации финального ответа: {str(e)}")
+            self._log_error(f"Ошибка генерации финального ответа: {str(e)}", event_type=LogEventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка генерации: {str(e)}"

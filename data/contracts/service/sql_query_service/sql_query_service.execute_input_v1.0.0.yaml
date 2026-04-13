@@ -5,21 +5,36 @@ component_type: service
 direction: input
 description: >
   Входной контракт сервиса выполнения SQL-запросов.
-  Принимает вопрос пользователя и список таблиц для генерации и выполнения SQL.
+  Поддерживает два режима:
+  1. Готовый SQL: sql_query (+ parameters, max_rows) — выполняет напрямую
+  2. Генерация: user_question + tables — генерирует SQL через LLM и выполняет
 schema_data:
   type: object
   properties:
+    sql_query:
+      type: string
+      description: >
+        Готовый SQL-запрос для выполнения (РЕЖИМ 1).
+        Если указан — выполняется напрямую без генерации.
+        Должен содержать только безопасные операции (SELECT).
+    parameters:
+      type: object
+      description: >
+        Словарь параметров для готового SQL (РЕЖИМ 1).
+        Ключи: "1", "2", "3" и т.д.
+        Пример: {"1": "Иванов", "2": 100}
+      additionalProperties: true
     user_question:
       type: string
       description: >
-        Вопрос пользователя на естественном языке.
-        Сервис самостоятельно сгенерирует и выполнит SQL.
+        Вопрос пользователя на естественном языке (РЕЖИМ 2).
+        Если указан (без sql_query) — сервис сгенерирует SQL через LLM.
         Пример: "Покажи все книги Гоголя"
     tables:
       type: array
       description: >
-        Список таблиц, к которым разрешён доступ.
-        Ограничивает область генерации SQL.
+        Список таблиц для генерации SQL (РЕЖИМ 2).
+        Ограничивает область генерации.
         Пример: ["Lib.books", "Lib.authors"]
       items:
         type: string
@@ -27,8 +42,6 @@ schema_data:
       type: integer
       description: >
         Максимальное количество строк для возврата.
-        По умолчанию 50. Ограничивает размер результата.
+        Работает в обоих режимах. По умолчанию 50.
       default: 50
-  required:
-    - user_question
-    - tables
+  required: []

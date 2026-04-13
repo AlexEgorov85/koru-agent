@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
+from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.execution import ExecutionStatus
 from core.components.skills.handlers.base_handler import SkillHandler
 
@@ -518,7 +519,7 @@ class ExecuteScriptHandler(SkillHandler):
             return {"valid": False, "suggestions": [], "corrected_value": None}
 
         except Exception as e:
-            await self.log_error(f"Author validation error: {e}")
+            self._log_error(f"Author validation error: {e}", event_type=LogEventType.ERROR)
             return {"valid": True, "suggestions": [], "corrected_value": None}
 
     async def _validate_genre(self, genre: str) -> Dict[str, Any]:
@@ -550,7 +551,7 @@ class ExecuteScriptHandler(SkillHandler):
             return {"valid": False, "suggestions": suggestions}
 
         except Exception as e:
-            await self.log_warning(f"Genre validation failed: {e}")
+            self._log_warning(f"Genre validation failed: {e}", event_type=LogEventType.WARNING)
             return {"valid": True, "suggestions": []}
 
     async def _get_all_authors(self) -> List[str]:
@@ -636,14 +637,17 @@ class ExecuteScriptHandler(SkillHandler):
             )
 
             if result.status == ExecutionStatus.COMPLETED and result.data:
-                rows = result.data.rows if hasattr(result.data, 'rows') else []
-                execution_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
+                # query_result — это DBQueryResult (dataclass)
+                query_result = result.data.get("query_result")
+                rows = query_result.rows if query_result else []
+                execution_time = query_result.execution_time if query_result else 0.0
             else:
                 error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
 
         except Exception as e:
-            await self.log_error(f"Ошибка выполнения скрипта: {e}")
+            from core.infrastructure.logging.event_types import LogEventType
+            self._log_error(f"Ошибка выполнения скрипта: {e}", event_type=LogEventType.ERROR)
             raise
 
         return rows, execution_time
