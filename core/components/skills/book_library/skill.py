@@ -92,19 +92,25 @@ class BookLibrarySkill(Skill):
         self._handlers = {}
 
     def get_capabilities(self) -> List[Capability]:
-        """
-        Возвращает список capability, которые предоставляет навык.
-
-        ВОЗВРАЩАЕТ:
-        - List[Capability]: Список из 4 capability
-        """
         from .scripts_registry import SCRIPTS_REGISTRY
         
         scripts_lines = ["Доступные скрипты:"]
         for name, config in SCRIPTS_REGISTRY.items():
-            meta = config.to_dict() if hasattr(config, 'to_dict') else config
-            required = meta.get("required_parameters", [])
-            param_descriptions = meta.get("param_descriptions", {})
+            parameters = config.parameters
+            
+            required = []
+            param_descriptions = {}
+            
+            for param_name, param_config in parameters.items():
+                if param_name == "max_rows":
+                    continue
+                if isinstance(param_config, dict):
+                    if param_config.get("required", False):
+                        required.append(param_name)
+                    if param_config.get("description"):
+                        param_descriptions[param_name] = param_config["description"]
+                else:
+                    required.append(param_name)
             
             params_str = ", ".join(required) if required else "нет"
             line = f"  • `{name}` → параметры: `{params_str}`"

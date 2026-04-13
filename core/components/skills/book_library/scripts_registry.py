@@ -2,29 +2,26 @@
 """
 Реестр заготовленных SQL-скриптов для навыка book_library.
 
-Этот модуль содержит предопределённые SQL-скрипты для выполнения
-через capability book_library.execute_script.
+СХЕМА БД:
+    "Lib".books (id, title, author_id, year, isbn, genre)
+    "Lib".authors (id, first_name, last_name, birth_date)
 
-СХЕМА БАЗЫ ДАННЫХ (нормализованная):
-    "Lib".books (
-        id SERIAL PRIMARY KEY,
-        title TEXT NOT NULL,
-        author_id INTEGER REFERENCES "Lib".authors(id),
-        year INTEGER,
-        isbn TEXT,
-        genre TEXT
-    )
-    
-    "Lib".authors (
-        id SERIAL PRIMARY KEY,
-        first_name TEXT,
-        last_name TEXT,
-        birth_date DATE
+ПОЛНАЯ СТРУКТУРА ПАРАМЕТРОВ:
+    ScriptConfig(
+        parameters={
+            "author": {
+                "type": "like",        # "like" | "exact"
+                "required": True,       # Обязательный?
+                "description": "...",  # Для LLM
+            },
+            "max_rows": "limit"        # Сокращённая запись
+        }
     )
 
-ПРИМЕЧАНИЕ:
-Скрипты используют реальную структуру таблиц из БД с JOIN между books и authors.
-Для обновления схемы выполните: python analyze_library_schema.py
+ТИПЫ:
+    - "like"   → ILIKE %value%
+    - "exact"  → = value
+    - "limit"  → LIMIT value
 """
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -87,30 +84,51 @@ def get_table_columns(table_name: str, schema: Dict[str, Any] = None) -> List[st
     return []
 
 
+# =============================================================================
+# КОНФИГУРАЦИЯ СКРИПТА
+# =============================================================================
+#
+# Полная структура:
+# ```python
+# ScriptConfig(
+#     name="script_name",
+#     description="Описание скрипта",
+#     sql="SELECT ... WHERE status = %s",
+#     parameters={                    # Словарь параметров (обязательные + опциональные)
+#         "status": {
+#             "type": "like",        # "like" | "exact" | "limit"
+#             "required": True,       # Обязательный?
+#             "description": "...",  # Для LLM
+#             "validation": {...}    # Валидация (опционально)
+#         },
+#         "max_rows": "limit"        # Сокращённая запись для лимита
+#     }
+# )
+# ```
+#
+# ТИПЫ:
+# - "like"   → ILIKE %value% (поиск по подстроке)
+# - "exact"  → = value (точное равенство)
+# - "limit"  → LIMIT value (число результатов)
+
+
 @dataclass
 class ScriptConfig:
     """Конфигурация SQL-скрипта."""
     name: str
-    sql: str
     description: str
-    parameters: List[str] = field(default_factory=list)
-    required_parameters: List[str] = field(default_factory=list)
+    sql: str
+    parameters: Dict[str, Any] = field(default_factory=dict)
     max_rows: int = 100
     output_contract: str = ""
-    param_types: Dict[str, str] = field(default_factory=dict)
-    param_descriptions: Dict[str, str] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Преобразование в словарь."""
         return {
             "sql": self.sql,
             "description": self.description,
             "parameters": self.parameters,
-            "required_parameters": self.required_parameters,
             "max_rows": self.max_rows,
-            "output_contract": self.output_contract,
-            "param_types": self.param_types,
-            "param_descriptions": self.param_descriptions
+            "output_contract": self.output_contract
         }
 
 
@@ -119,11 +137,9 @@ class ScriptConfig:
 # ============================================================================
 
 SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
-    # -------------------------------------------------------------------------
-    # Получение всех книг
-    # -------------------------------------------------------------------------
     "get_all_books": ScriptConfig(
         name="get_all_books",
+        description="Получить все книги с лимитом (с данными авторов)",
         sql="""
             SELECT
                 b.id as book_id,
@@ -139,18 +155,14 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.id
             LIMIT %s
         """,
-        description="Получить все книги с лимитом (с данными авторов)",
-        parameters=["max_rows"],
-        required_parameters=[],
+        parameters={"max_rows": "limit"},
         max_rows=100,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Поиск книг по автору (по фамилии)
-    # -------------------------------------------------------------------------
     "get_books_by_author": ScriptConfig(
         name="get_books_by_author",
+        description="Получить книги по фамилии автора (ILIKE поиск)",
         sql="""
             SELECT
                 b.id as book_id,
@@ -167,20 +179,21 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.title
             LIMIT %s
         """,
-        description="Получить книги по фамилии автора (ILIKE поиск)",
-        parameters=["author", "max_rows"],
-        required_parameters=["author"],
+        parameters={
+            "author": {
+                "type": "like",
+                "required": True,
+                "description": "Фамилия автора (можно ввести частично, поиск по LIKE)"
+            },
+            "max_rows": "limit"
+        },
         max_rows=50,
-        output_contract="book_library.execute_script_output",
-        param_types={"author": "like"},
-        param_descriptions={"author": "Фамилия автора (можно ввести частично, поиск по LIKE)"}
+        output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Поиск книг по жанру
-    # -------------------------------------------------------------------------
     "get_books_by_genre": ScriptConfig(
         name="get_books_by_genre",
+        description="Получить книги по жанру",
         sql="""
             SELECT
                 b.id as book_id,
@@ -197,12 +210,16 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.title
             LIMIT %s
         """,
-        description="Получить книги по жанру",
-        parameters=["genre", "max_rows"],
-        required_parameters=["genre"],
+        parameters={
+            "genre": {
+                "type": "exact",
+                "required": True,
+                "description": "Название жанра (точное совпадение)"
+            },
+            "max_rows": "limit"
+        },
         max_rows=50,
-        output_contract="book_library.execute_script_output",
-        param_types={"genre": "exact"}
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -210,6 +227,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     # -------------------------------------------------------------------------
     "get_books_by_year_range": ScriptConfig(
         name="get_books_by_year_range",
+        description="Получить книги по диапазону лет публикации",
         sql="""
             SELECT
                 b.id as book_id,
@@ -226,18 +244,18 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.publication_date
             LIMIT %s
         """,
-        description="Получить книги по диапазону лет публикации (year_from и year_to опциональны)",
-        parameters=["year_from", "year_to", "max_rows"],
-        required_parameters=[],
+        parameters={
+            "year_from": {"type": "exact", "required": False, "description": "Год публикации ОТ"},
+            "year_to": {"type": "exact", "required": False, "description": "Год публикации ДО"},
+            "max_rows": "limit"
+        },
         max_rows=100,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Получение книги по ID
-    # -------------------------------------------------------------------------
     "get_book_by_id": ScriptConfig(
         name="get_book_by_id",
+        description="Получить книгу по ID (с данными автора)",
         sql="""
             SELECT
                 b.id as book_id,
@@ -252,18 +270,16 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             JOIN "Lib".authors a ON b.author_id = a.id
             WHERE b.id = %s
         """,
-        description="Получить книгу по ID (с данными автора)",
-        parameters=["book_id"],
-        required_parameters=["book_id"],
+        parameters={
+            "book_id": {"type": "exact", "required": True, "description": "ID книги в БД"}
+        },
         max_rows=1,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Подсчёт количества книг автора
-    # -------------------------------------------------------------------------
     "count_books_by_author": ScriptConfig(
         name="count_books_by_author",
+        description="Посчитать количество книг по фамилии автора",
         sql="""
             SELECT
                 COUNT(*) as count,
@@ -274,18 +290,16 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             WHERE a.last_name ILIKE %s
             GROUP BY a.id, a.first_name, a.last_name
         """,
-        description="Посчитать количество книг по фамилии автора",
-        parameters=["author"],
-        required_parameters=["author"],
+        parameters={
+            "author": {"type": "like", "required": True, "description": "Фамилия автора"}
+        },
         max_rows=1,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Поиск книг по названию (LIKE)
-    # -------------------------------------------------------------------------
     "get_books_by_title_pattern": ScriptConfig(
         name="get_books_by_title_pattern",
+        description="Получить книги по шаблону названия (ILIKE)",
         sql="""
             SELECT
                 b.id as book_id,
@@ -302,18 +316,17 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.title
             LIMIT %s
         """,
-        description="Получить книги по шаблону названия (ILIKE)",
-        parameters=["title_pattern", "max_rows"],
-        required_parameters=["title_pattern"],
+        parameters={
+            "title_pattern": {"type": "like", "required": True, "description": "Шаблон названия книги"},
+            "max_rows": "limit"
+        },
         max_rows=50,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Список уникальных авторов
-    # -------------------------------------------------------------------------
     "get_distinct_authors": ScriptConfig(
         name="get_distinct_authors",
+        description="Получить список уникальных авторов у которых есть книги",
         sql="""
             SELECT DISTINCT a.last_name
             FROM "Lib".authors a
@@ -322,18 +335,14 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY a.last_name
             LIMIT %s
         """,
-        description="Получить список уникальных авторов у которых есть книги",
-        parameters=["max_rows"],
-        required_parameters=[],
+        parameters={"max_rows": "limit"},
         max_rows=100,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Список уникальных жанров
-    # -------------------------------------------------------------------------
     "get_distinct_genres": ScriptConfig(
         name="get_distinct_genres",
+        description="Получить список уникальных жанров",
         sql="""
             SELECT DISTINCT genre
             FROM "Lib".books
@@ -341,18 +350,14 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY genre
             LIMIT %s
         """,
-        description="Получить список уникальных жанров",
-        parameters=["max_rows"],
-        required_parameters=[],
+        parameters={"max_rows": "limit"},
         max_rows=50,
         output_contract="book_library.execute_script_output"
     ),
 
-    # -------------------------------------------------------------------------
-    # Статистика по жанрам
-    # -------------------------------------------------------------------------
     "get_genre_statistics": ScriptConfig(
         name="get_genre_statistics",
+        description="Получить статистику по жанрам (количество книг, средний год)",
         sql="""
             SELECT
                 genre,
@@ -364,9 +369,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY book_count DESC
             LIMIT %s
         """,
-        description="Получить статистику по жанрам (количество книг, средний год)",
-        parameters=["max_rows"],
-        required_parameters=[],
+        parameters={"max_rows": "limit"},
         max_rows=20,
         output_contract="book_library.execute_script_output"
     ),
@@ -412,13 +415,6 @@ def validate_script_parameters(
 ) -> tuple[bool, Optional[str]]:
     """
     Валидация параметров для скрипта.
-    
-    ARGS:
-        script_name: имя скрипта
-        parameters: параметры для валидации
-    
-    RETURNS:
-        (is_valid, error_message)
     """
     script = get_script(script_name)
     
@@ -426,7 +422,12 @@ def validate_script_parameters(
         return False, f"Скрипт '{script_name}' не найден"
     
     # Проверка обязательных параметров
-    missing_params = set(script.required_parameters) - set(parameters.keys())
+    required = []
+    for param_name, param_config in script.parameters.items():
+        if isinstance(param_config, dict) and param_config.get("required", False):
+            required.append(param_name)
+    
+    missing_params = set(required) - set(parameters.keys())
     if missing_params:
         return False, f"Отсутствуют обязательные параметры: {missing_params}"
     
@@ -434,20 +435,10 @@ def validate_script_parameters(
 
 
 def get_script_sql(script_name: str, parameters: Dict[str, Any] = None) -> Optional[str]:
-    """
-    Получение SQL-запроса для скрипта.
-    
-    ARGS:
-        script_name: имя скрипта
-        parameters: параметры (для будущей параметризации)
-    
-    RETURNS:
-        SQL-запрос или None
-    """
+    """Получение SQL-запроса для скрипта."""
     script = get_script(script_name)
     if not script:
         return None
-    
     return script.sql
 
 

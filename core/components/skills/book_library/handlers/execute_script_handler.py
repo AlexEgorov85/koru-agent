@@ -273,28 +273,30 @@ class ExecuteScriptHandler(SkillHandler):
     ) -> List[Any]:
         """
         Преобразование именованных параметров в позиционные для PostgreSQL.
-
-        ARGS:
-        - script_params: параметры скрипта
-        - script_config: конфигурация скрипта
-        - max_rows: максимальное количество строк
-
-        RETURNS:
-        - list: позиционные параметры для psycopg2
+        
+        Ожидает script_config с полем `parameters` в новом формате:
+        {
+            "author": {"type": "like", "required": True, "description": "..."},
+            "max_rows": "limit"
+        }
         """
-        required_params = script_config.get('required_parameters', [])
-        optional_params = script_config.get('parameters', [])
-        param_types = script_config.get('param_types', {})
-        all_params = required_params + [p for p in optional_params if p not in required_params]
+        parameters = script_config.get('parameters', {})
+        
+        # Собираем все параметры кроме max_rows
+        all_params = [p for p in parameters.keys() if p != "max_rows"]
 
         sql_params_list = []
 
         for param_name in all_params:
-            if param_name == 'max_rows':
-                continue
             if param_name in script_params:
                 param_value = script_params[param_name]
-                param_type = param_types.get(param_name, "like")
+                
+                param_config = parameters.get(param_name, "exact")
+                if isinstance(param_config, dict):
+                    param_type = param_config.get("type", "exact")
+                else:
+                    param_type = param_config if param_config else "exact"
+                
                 if param_type == "like" and param_value and '%' not in param_value:
                     param_value = f'%{param_value}%'
                 sql_params_list.append(param_value)

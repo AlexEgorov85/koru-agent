@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
@@ -8,22 +8,63 @@ from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.skills.utils.param_validator import ParamValidator
 
 
+# =============================================================================
+# КОНФИГУРАЦИЯ СКРИПТА
+# =============================================================================
+# 
+# Полная структура скрипта:
+# ```python
+# {
+#     "description": "Описание скрипта для LLM",  # Обязательно
+#     "sql": "SELECT ... WHERE status = %s",       # Обязательно
+#     
+#     # ПАРАМЕТРЫ (обязательные + опциональные в одном месте)
+#     "parameters": {
+#         "status": {                    # Имя параметра
+#             "type": "like",             # "like" = ILIKE %value% (по умолч), "exact" = точное сравнение
+#             "required": True,           # Обязательный? По умолч. False
+#             "description": "Статус...", # Подсказка для LLM (попадает в промт)
+#             "validation": {             # Валидация (опционально, для умной проверки)
+#                 "table": "audits",      # Таблица для проверки
+#                 "search_fields": ["status"],  # Поля для LIKE поиска
+#                 "vector_source": "audits"    # Source для vector search
+#             }
+#         },
+#         "max_rows": "limit"             # Специальный тип: "limit" = лимит результатов
+#     }
+# }
+# ```
+#
+# СОКРАЩЁННАЯ ЗАПИСЬ (без валидации и описания):
+#     "parameters": {"status": "like", "audit_id": "exact", "max_rows": "limit"}
+#
+# ТИПЫ ПАРАМЕТРОВ:
+# - "like"     → ILIKE %value% (поиск по подстроке, с wildcards)
+# - "exact"    → = value (точное равенство, без wildcards)
+# - "limit"    → LIMIT value (число результатов, по умолч. 50)
+# - None/unknown → treated as "exact" (для ID и числовых полей)
+#
+# ВАЖНО:
+# - Параметры с type="like" автоматически обрамляются в % для SQL
+# - Параметры с type="exact" передаются как есть
+# - Параметр max_rows завёрнут в "limit" и не добавляет %
+
+
 SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
     "get_all_audits": {
         "description": "Получить все аудиторские проверки",
-        "name": "get_all_audits",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
             FROM audits
             ORDER BY planned_date DESC
             LIMIT %s
         ''',
-        "required_parameters": [],
-        "optional_parameters": [],
+        "parameters": {
+            "max_rows": "limit"
+        }
     },
     "get_audit_by_status": {
         "description": "Получить проверки по статусу",
-        "name": "get_audit_by_status",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
             FROM audits
@@ -31,25 +72,22 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY planned_date DESC
             LIMIT %s
         ''',
-        "required_parameters": ["status"],
-        "optional_parameters": [],
-        "param_types": {
-            "status": "like"
-        },
-        "param_descriptions": {
-            "status": "Статус проверки: 'В работе', 'Завершена', 'Отменена' и т.д."
-        },
-        "validation": {
+        "parameters": {
             "status": {
-                "table": "audits",
-                "search_fields": ["status"],
-                "vector_source": "audits",
-            }
+                "type": "like",
+                "required": True,
+                "description": "Статус проверки: 'В работе', 'Завершена', 'Отменена' и т.д.",
+                "validation": {
+                    "table": "audits",
+                    "search_fields": ["status"],
+                    "vector_source": "audits"
+                }
+            },
+            "max_rows": "limit"
         }
     },
     "get_audit_reports": {
         "description": "Получить акты аудиторской проверки по ID проверки",
-        "name": "get_audit_reports",
         "sql": '''
             SELECT ar.id, ar.report_number, ar.report_date, ar.title, ar.full_text
             FROM audit_reports ar
@@ -57,18 +95,17 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY ar.report_date DESC
             LIMIT %s
         ''',
-        "required_parameters": ["audit_id"],
-        "optional_parameters": [],
-        "param_types": {
-            "audit_id": "exact"
-        },
-        "param_descriptions": {
-            "audit_id": "ID аудиторской проверки (число из поля id таблицы audits)"
-        },
+        "parameters": {
+            "audit_id": {
+                "type": "exact",
+                "required": True,
+                "description": "ID аудиторской проверки (число из поля id таблицы audits)"
+            },
+            "max_rows": "limit"
+        }
     },
     "get_report_items": {
         "description": "Получить пункты акта по ID акта",
-        "name": "get_report_items",
         "sql": '''
             SELECT id, item_number, item_title, item_content, order_index
             FROM report_items
@@ -76,18 +113,17 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY order_index
             LIMIT %s
         ''',
-        "required_parameters": ["report_id"],
-        "optional_parameters": [],
-        "param_types": {
-            "report_id": "exact"
-        },
-        "param_descriptions": {
-            "report_id": "ID акта проверки (число из поля id таблицы audit_reports)"
-        },
+        "parameters": {
+            "report_id": {
+                "type": "exact",
+                "required": True,
+                "description": "ID акта проверки (число из поля id таблицы audit_reports)"
+            },
+            "max_rows": "limit"
+        }
     },
     "get_violations_by_audit": {
         "description": "Получить все отклонения по проверке",
-        "name": "get_violations_by_audit",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline
@@ -102,18 +138,17 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 v.created_at DESC
             LIMIT %s
         ''',
-        "required_parameters": ["audit_id"],
-        "optional_parameters": [],
-        "param_types": {
-            "audit_id": "exact"
-        },
-        "param_descriptions": {
-            "audit_id": "ID аудиторской проверки (число из поля id таблицы audits)"
-        },
+        "parameters": {
+            "audit_id": {
+                "type": "exact",
+                "required": True,
+                "description": "ID аудиторской проверки (число из поля id таблицы audits)"
+            },
+            "max_rows": "limit"
+        }
     },
     "get_violations_by_status": {
         "description": "Получить отклонения по статусу",
-        "name": "get_violations_by_status",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -129,25 +164,22 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 END
             LIMIT %s
         ''',
-        "required_parameters": ["status"],
-        "optional_parameters": [],
-        "param_types": {
-            "status": "like"
-        },
-        "param_descriptions": {
-            "status": "Статус отклонения: 'Открыто', 'В работе', 'Устранено', 'На проверке'"
-        },
-        "validation": {
+        "parameters": {
             "status": {
-                "table": "violations",
-                "search_fields": ["status"],
-                "vector_source": "violations",
-            }
+                "type": "like",
+                "required": True,
+                "description": "Статус отклонения: 'Открыто', 'В работе', 'Устранено', 'На проверке'",
+                "validation": {
+                    "table": "violations",
+                    "search_fields": ["status"],
+                    "vector_source": "violations"
+                }
+            },
+            "max_rows": "limit"
         }
     },
     "get_violations_by_severity": {
         "description": "Получить отклонения по уровню критичности",
-        "name": "get_violations_by_severity",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -158,25 +190,22 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY v.created_at DESC
             LIMIT %s
         ''',
-        "required_parameters": ["severity"],
-        "optional_parameters": [],
-        "param_types": {
-            "severity": "like"
-        },
-        "param_descriptions": {
-            "severity": "Уровень критичности: 'Высокая', 'Средняя', 'Низкая'"
-        },
-        "validation": {
+        "parameters": {
             "severity": {
-                "table": "violations",
-                "search_fields": ["severity"],
-                "vector_source": "violations",
-            }
+                "type": "like",
+                "required": True,
+                "description": "Уровень критичности: 'Высокая', 'Средняя', 'Низкая'",
+                "validation": {
+                    "table": "violations",
+                    "search_fields": ["severity"],
+                    "vector_source": "violations"
+                }
+            },
+            "max_rows": "limit"
         }
     },
     "get_overdue_violations": {
         "description": "Получить просроченные отклонения (deadline < текущей даты)",
-        "name": "get_overdue_violations",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -189,12 +218,12 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY days_overdue DESC, v.severity DESC
             LIMIT %s
         ''',
-        "required_parameters": [],
-        "optional_parameters": [],
+        "parameters": {
+            "max_rows": "limit"
+        }
     },
     "get_violations_by_responsible": {
         "description": "Получить отклонения по ответственному лицу",
-        "name": "get_violations_by_responsible",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -205,25 +234,22 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY v.deadline
             LIMIT %s
         ''',
-        "required_parameters": ["responsible"],
-        "optional_parameters": [],
-        "param_types": {
-            "responsible": "like"
-        },
-        "param_descriptions": {
-            "responsible": "ФИО ответственного лица (или часть имени для поиска)"
-        },
-        "validation": {
+        "parameters": {
             "responsible": {
-                "table": "violations",
-                "search_fields": ["responsible"],
-                "vector_source": "violations",
-            }
+                "type": "like",
+                "required": True,
+                "description": "ФИО ответственного лица (или часть имени для поиска)",
+                "validation": {
+                    "table": "violations",
+                    "search_fields": ["responsible"],
+                    "vector_source": "violations"
+                }
+            },
+            "max_rows": "limit"
         }
     },
     "get_audit_statistics": {
         "description": "Получить статистику по проверкам и отклонениям",
-        "name": "get_audit_statistics",
         "sql": '''
             SELECT
                 a.id as audit_id,
@@ -245,8 +271,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             ORDER BY a.planned_date DESC
             LIMIT %s
         ''',
-        "required_parameters": [],
-        "optional_parameters": [],
+        "parameters": {
+            "max_rows": "limit"
+        }
     },
 }
 
@@ -318,7 +345,13 @@ class ExecuteScriptHandler(SkillHandler):
             params_dict = script_params or {}
 
         # Этап 2: Валидация параметров через ParamValidator (3 ступени)
-        validation_config = script_config.get("validation", {})
+        # Собираем validation конфиг из новой структуры parameters
+        parameters = script_config.get("parameters", {})
+        validation_config = {}
+        for param_name, param_config in parameters.items():
+            if isinstance(param_config, dict) and "validation" in param_config:
+                validation_config[param_name] = param_config["validation"]
+        
         validation_result = await self._param_validator.validate_multiple(
             params_dict, 
             validation_config
@@ -389,18 +422,28 @@ class ExecuteScriptHandler(SkillHandler):
         script_config: Dict[str, Any]
     ) -> List[Any]:
         """Преобразование именованных параметров в позиционные"""
-        required = script_config.get("required_parameters", [])
-        optional = script_config.get("optional_parameters", [])
-        param_types = script_config.get("param_types", {})
-        all_params = [p for p in required + optional if p != "max_rows"]
+        parameters = script_config.get("parameters", {})
+        
+        # Собираем все параметры кроме max_rows
+        all_params = [p for p in parameters.keys() if p != "max_rows"]
 
         sql_params_list = []
         for param_name in all_params:
             if param_name in script_params:
                 value = script_params[param_name]
-                param_type = param_types.get(param_name, "like")
+                
+                # Определяем тип параметра
+                param_config = parameters.get(param_name, "exact")
+                if isinstance(param_config, dict):
+                    param_type = param_config.get("type", "exact")
+                else:
+                    # Сокращённая запись: "exact" или "like"
+                    param_type = param_config if param_config else "exact"
+                
+                # Для like-параметров добавляем % если нет wildcard
                 if param_type == "like" and isinstance(value, str) and '%' not in value:
                     value = f'%{value}%'
+                
                 sql_params_list.append(value)
 
         sql_params_list.append(script_params.get("max_rows", 50))

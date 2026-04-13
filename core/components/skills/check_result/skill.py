@@ -219,27 +219,36 @@ class CheckResultSkill(Skill):
         return "skill.check_result.executed"
 
     def get_capabilities(self) -> List[Capability]:
-        # Импортируем реестр скриптов из handler
         from .handlers.execute_script_handler import SCRIPTS_REGISTRY
         
-        # Формируем детальное описание для execute_script со списком скриптов
-        scripts_lines = [
-            "📜 ДОСТУПНЫЕ СКРИПТЫ (вызывай ТОЛЬКО эти script_name):"
-        ]
+        scripts_lines = ["📜 ДОСТУПНЫЕ СКРИПТЫ (вызывай ТОЛЬКО эти script_name):"]
         for name, meta in SCRIPTS_REGISTRY.items():
-            # Собираем все параметры (required + optional)
-            required = meta.get("required_parameters", [])
-            optional = meta.get("optional_parameters", [])
-            param_descriptions = meta.get("param_descriptions", {})
-            all_params = [p for p in required + optional if p != "max_rows"]
+            parameters = meta.get("parameters", {})
             
-            # Формат: - script_name (параметры: [a, b], обязательные: [a])
+            required = []
+            optional = []
+            param_descriptions = {}
+            
+            for param_name, param_config in parameters.items():
+                if param_name == "max_rows":
+                    continue
+                if isinstance(param_config, dict):
+                    if param_config.get("required", False):
+                        required.append(param_name)
+                    else:
+                        optional.append(param_name)
+                    if param_config.get("description"):
+                        param_descriptions[param_name] = param_config["description"]
+                else:
+                    # Сокращённая запись - считаем как optional
+                    optional.append(param_name)
+            
+            all_params = required + optional
             params_str = ", ".join(all_params) if all_params else "нет"
             req_str = ", ".join(required) if required else "нет"
             
             scripts_lines.append(f"  • `{name}` → параметры: `{params_str}` | обязательные: `{req_str}`")
             
-            # Добавляем описания параметров если есть
             if param_descriptions:
                 for param, desc in param_descriptions.items():
                     scripts_lines.append(f"      - `{param}`: {desc}")
