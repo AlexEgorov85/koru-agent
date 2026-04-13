@@ -1,28 +1,39 @@
-capability: sql_query_service.execute
+capability: sql_query_service.execute_query
 version: v1.0.0
 status: active
 component_type: service
 direction: output
-description: Output contract for SQL query service
+description: >
+  Выходной контракт сервиса выполнения SQL-запросов.
+  Возвращает результат выполнения запроса с метаданными.
 schema_data:
   type: object
   properties:
     rows:
       type: array
-      description: Query result rows
+      description: >
+        Массив строк — результат выполнения SQL-запроса.
+        Каждая строка — объект с колонками как ключами.
+        Пример: [{"id": 1, "name": "Иванов"}, {"id": 2, "name": "Петров"}]
       items:
         type: object
     columns:
       type: array
-      description: Column names
+      description: >
+        Список имён колонок в порядке их следования в результате.
+        Пример: ["id", "name", "created_at"]
       items:
         type: string
     rowcount:
       type: integer
-      description: Number of rows returned
+      description: >
+        Общее количество возвращённых строк.
+        Равно длине массива rows.
     execution_time:
       type: number
-      description: Execution time in seconds
+      description: >
+        Время выполнения запроса в секундах (с дробной частью).
+        Пример: 0.125 — 125 миллисекунд.
   required:
     - rows
     - columns

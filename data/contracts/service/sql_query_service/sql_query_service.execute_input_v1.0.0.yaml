@@ -1,22 +1,34 @@
-capability: sql_query_service.execute
+capability: sql_query_service.execute_query
 version: v1.0.0
 status: active
 component_type: service
 direction: input
-description: Input contract for SQL query service
+description: >
+  Входной контракт сервиса выполнения SQL-запросов.
+  Принимает готовый SQL-запрос с параметрами для безопасного выполнения.
 schema_data:
   type: object
   properties:
-    sql:
+    sql_query:
       type: string
-      description: SQL query to execute
+      description: >
+        Готовый SQL-запрос для выполнения.
+        Должен содержать только безопасные операции (SELECT).
+        Параметры запроса передаются отдельно через поле parameters.
     parameters:
-      type: array
-      description: Query parameters as list for psycopg2 (e.g., ['value1', 100])
-      items: {}
+      type: object
+      description: >
+        Словарь параметров запроса с числовыми ключами.
+        Ключи: "1", "2", "3" и т.д. (строки!).
+        Значения: конкретные значения для подстановки в запрос.
+        Пример: {"1": "Иванов", "2": 100, "3": "2025-01-01"}
+        Если параметров нет — передавайте пустой объект {}.
+      additionalProperties: true
     max_rows:
       type: integer
-      description: Maximum number of rows to return
+      description: >
+        Максимальное количество строк для возврата.
+        По умолчанию 50. Ограничивает размер результата.
       default: 50
   required:
-    - sql
+    - sql_query
