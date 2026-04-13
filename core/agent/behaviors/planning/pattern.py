@@ -171,12 +171,13 @@ class PlanningPattern(BaseBehaviorPattern):
         if not get_next_step_capability:
             raise ValueError("Capability 'planning.get_next_step' не найдена")
 
-        # Выполнение capability получения следующего шага
-        # Вместо прямого вызова runtime.executor, используем session_context
-        # для выполнения capability
-        execution_result = await session_context.execute_capability(
-            capability=get_next_step_capability,
-            parameters={"plan_id": current_plan.item_id}
+        # Выполнение capability получения следующего шага через executor
+        from core.agent.components.action_executor import ExecutionContext
+        exec_context = ExecutionContext()
+        execution_result = await self.executor.execute_action(
+            action_name="planning.get_next_step",
+            parameters={"plan_id": current_plan.item_id},
+            context=exec_context
         )
 
         return execution_result
@@ -221,7 +222,7 @@ class PlanningPattern(BaseBehaviorPattern):
             # Если в шаге плана не указана конкретная capability — используем рассуждение
             # для выбора подходящего действия (гибридный подход)
             return await self._reason_about_step_execution(
-                session_context, step_description, parameters
+                session_context, context_analysis, step_description, parameters
             )
 
         # 2. Выбор capability для выполнения шага
@@ -253,7 +254,7 @@ class PlanningPattern(BaseBehaviorPattern):
         if not capability:
             # Если все равно нет подходящей capability, используем рассуждение
             return await self._reason_about_step_execution(
-                session_context, step_description, parameters
+                session_context, context_analysis, step_description, parameters
             )
 
         return BehaviorDecision(
@@ -333,6 +334,7 @@ class PlanningPattern(BaseBehaviorPattern):
     async def _reason_about_step_execution(
         self,
         session_context: SessionContext,
+        context_analysis: Dict[str, Any],
         step_description: str,
         suggested_parameters: Dict[str, Any]
     ) -> BehaviorDecision:
