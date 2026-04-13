@@ -210,5 +210,5 @@ python scripts/performance/event_bus_benchmark.py
 
 ## 📚 Ссылки
 
-- [План миграции](../../../../docs/EVENT_BUS_MIGRATION.md)
-- [Migration Report](../../../../docs/reports/MIGRATION_REPORT.md)
+- [AGENTS.md](../../../../AGENTS.md) — правила логирования
+- [docs/architecture/ideal.md](../../../../docs/architecture/ideal.md) — архитектура
