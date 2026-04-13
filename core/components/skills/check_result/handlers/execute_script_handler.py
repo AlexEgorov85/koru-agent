@@ -78,9 +78,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "required": True,
                 "description": "Статус проверки: 'В работе', 'Завершена', 'Отменена' и т.д.",
                 "validation": {
-                    "table": "audits",
-                    "search_fields": ["status"],
-                    "vector_source": "audits"
+                    "type": "enum",
+                    "allowed_values": ["В работе", "Завершена", "Отменена", "Планируется"]
                 }
             },
             "max_rows": "limit"
@@ -170,9 +169,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "required": True,
                 "description": "Статус отклонения: 'Открыто', 'В работе', 'Устранено', 'На проверке'",
                 "validation": {
-                    "table": "violations",
-                    "search_fields": ["status"],
-                    "vector_source": "violations"
+                    "type": "enum",
+                    "allowed_values": ["Открыто", "В работе", "Устранено", "На проверке"]
                 }
             },
             "max_rows": "limit"
@@ -196,9 +194,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "required": True,
                 "description": "Уровень критичности: 'Высокая', 'Средняя', 'Низкая'",
                 "validation": {
-                    "table": "violations",
-                    "search_fields": ["severity"],
-                    "vector_source": "violations"
+                    "type": "enum",
+                    "allowed_values": ["Высокая", "Средняя", "Низкая"]
                 }
             },
             "max_rows": "limit"
@@ -344,29 +341,31 @@ class ExecuteScriptHandler(SkillHandler):
         else:
             params_dict = script_params or {}
 
-        # Этап 2: Валидация параметров через ParamValidator (3 ступени)
+        # Этап 2: Валидация параметров через ParamValidator (4 ступени: Enum → SQL → Vector → Fuzzy)
         # Собираем validation конфиг из новой структуры parameters
         parameters = script_config.get("parameters", {})
         validation_config = {}
         for param_name, param_config in parameters.items():
             if isinstance(param_config, dict) and "validation" in param_config:
                 validation_config[param_name] = param_config["validation"]
-        
+
         validation_result = await self._param_validator.validate_multiple(
-            params_dict, 
+            params_dict,
             validation_config
         )
-        
-        if validation_result.get("warning"):
-            await self.log_info(f"✏️ Валидация: {validation_result['warning']}")
-        
-        if not validation_result["valid"]:
-            warning = validation_result.get("warning", "Валидация не прошла")
-            suggestions = validation_result.get("suggestions", [])
+
+        # Валидация НЕ БЛОКИРУЕТ — только warnings
+        warnings = validation_result.get("warnings", [])
+        if warnings:
+            for warning in warnings:
+                await self.log_info(f"⚠️ Валидация: {warning}")
+
+            # Добавляем suggestions в result (если есть)
+            suggestions = validation_result.get("suggestions", {})
             if suggestions:
-                raise ValueError(f"Параметры невалидны: {warning}. Возможно вы имели в виду: {', '.join(suggestions)}")
-            else:
-                raise ValueError(f"Параметры невалидны: {warning}")
+                for param_name, sugg_list in suggestions.items():
+                    if sugg_list:
+                        await self.log_info(f"💡 Возможно вы имели в виду ({param_name}): {', '.join(sugg_list)}")
 
         # Этап 3: Применение автокоррекции
         corrected_params = validation_result.get("corrected_params", {})
@@ -381,13 +380,17 @@ class ExecuteScriptHandler(SkillHandler):
         rows, execution_time = await self._execute_sql(sql_query, sql_params)
 
         total_time = time.time() - start_time
+        # Собираем все warnings в одну строку
+        validation_warnings = validation_result.get("warnings", [])
+        warning_str = "; ".join(validation_warnings) if validation_warnings else None
+
         result_data = {
             "rows": rows,
             "rowcount": len(rows),
             "execution_time": total_time,
             "execution_type": "static",
             "script_name": script_name,
-            "warning": validation_result.get("warning") or ("Результатов не найдено" if not rows else None)
+            "warning": warning_str or ("Результатов не найдено" if not rows else None)
         }
 
         # Этап 6: Публикация метрик
@@ -464,13 +467,20 @@ class ExecuteScriptHandler(SkillHandler):
         )
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
-            # query_result — это DBQueryResult (dataclass)
-            query_result = result.data.get("query_result")
-            rows = query_result.rows if query_result else []
-            exec_time = query_result.execution_time if query_result else 0.0
-            return rows, exec_time
-        else:
-            raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")
+            # result.data — это dict {"query_result": DBQueryResult, ...}
+            if isinstance(result.data, dict):
+                query_result = result.data.get("query_result")
+                if hasattr(query_result, 'rows'):
+                    rows = query_result.rows if query_result.rows else []
+                    exec_time = query_result.execution_time if query_result.execution_time else 0.0
+                    return rows, exec_time
+            # Fallback: если вдруг напрямую DBQueryResult
+            elif hasattr(result.data, 'rows'):
+                rows = result.data.rows if result.data.rows else []
+                exec_time = result.data.execution_time if result.data.execution_time else 0.0
+                return rows, exec_time
+
+        raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")
 
 
 def get_all_scripts() -> Dict[str, Dict[str, Any]]:

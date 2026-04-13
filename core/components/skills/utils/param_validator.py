@@ -1,8 +1,13 @@
 """
-Универсальный валидатор параметров с 3 ступенями:
-1. SQL ILIKE поиск
-2. Vector search
-3. Fuzzy matching
+Универсальный валидатор параметров с 4 ступенями:
+1. Enum (проверка по списку допустимых значений)
+2. SQL ILIKE поиск
+3. Vector search
+4. Fuzzy matching
+
+ВАЖНО: Валидация НЕ БЛОКИРУЕТ выполнение.
+- Успех → corrected_value (если нашлось точнее)
+- Неудача → warning + suggestions (продолжаем с исходным значением)
 
 ИСПОЛЬЗОВАНИЕ:
 ```python
@@ -16,7 +21,7 @@ result = await validator.validate(
         "search_fields": ["first_name", "last_name"],
     }
 )
-# result = {"valid": True, "corrected_value": "Пушкин А.С.", "suggestions": []}
+# result = {"valid": True, "corrected_value": "Пушкин А.С.", "warning": None, "suggestions": []}
 ```
 
 =============================================================================
@@ -89,25 +94,51 @@ faiss_provider.save()
 SCRIPTS_REGISTRY = {
     "get_books_by_author": {
         "sql": "SELECT ... WHERE author_id = %s",
-        "validation": {
+        "parameters": {
             "author": {
-                "table": "authors",           # Таблица для SQL валидации
-                "search_fields": ["first_name", "last_name"],  # Поля для поиска
-                "vector_source": "authors",   # Source для vector search
-                "vector_min_score": 0.7,     # (опционально) мин. score
-                "vector_top_k": 3,           # (опционально) кол-во результатов
+                "type": "like",
+                "required": True,
+                "description": "Фамилия автора",
+                "validation": {
+                    "table": "authors",           # Таблица для SQL валидации
+                    "search_fields": ["first_name", "last_name"],  # Поля для поиска
+                    "vector_source": "authors",   # Source для vector search
+                    "vector_min_score": 0.7,     # (опционально) мин. score
+                    "vector_top_k": 3,           # (опционально) кол-во результатов
+                }
+            }
+        }
+    },
+    "get_violations_by_status": {
+        "sql": "SELECT ... WHERE status = %s",
+        "parameters": {
+            "status": {
+                "type": "like",
+                "required": True,
+                "description": "Статус отклонения",
+                "validation": {
+                    "type": "enum",
+                    "allowed_values": ["Открыто", "В работе", "Устранено", "На проверке"]
+                }
             }
         }
     }
 }
 ```
 
-ПОЛЯ КОНФИГУРАЦИИ:
+ТИПЫ ВАЛИДАЦИИ:
+- type="enum": Проверка по списку allowed_values (быстро, без БД)
+- type="search": SQL → Vector → Fuzzy (по умолчанию, если указан table)
+
+ПОЛЯ КОНФИГУРАЦИИ (для type="search"):
 - table: Имя таблицы в БД (без схемы)
 - search_fields: Список полей для SQL ILIKE поиска
 - vector_source: Имя FAISS индекса (source для vector_search.search)
 - vector_min_score: (опционально) мин. score для vector matching (по умолч. 0.7)
 - vector_top_k: (опционально) кол-во результатов для vector search (по умолч. 3)
+
+ПОЛЯ КОНФИГУРАЦИИ (для type="enum"):
+- allowed_values: Список допустимых значений (case-insensitive проверка)
 """
 
 from typing import Dict, Any, List, Optional
@@ -195,50 +226,97 @@ class ParamValidator:
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Валидация параметра с 3 ступенями.
+        Валидация параметра.
+
+        АРХИТЕКТУРА: Валидация НЕ БЛОКИРУЕТ выполнение.
+        - Успех → corrected_value (если нашлось точнее)
+        - Неудача → warning + suggestions (продолжаем с исходным значением)
 
         ARGS:
         - param_value: значение для валидации
         - config: конфигурация валидации
             {
-                "table": "authors",      # имя таблицы
-                "field": "last_name",     # основное поле (для возврата)
-                "search_fields": ["first_name", "last_name"],  # поля для поиска
-                "vector_source": "authors"  # (опционально) source для vector search
+                "type": "enum",                    # или "search" (по умолчанию)
+                "allowed_values": [...],           # для type="enum"
+                "table": "authors",                # для type="search"
+                "search_fields": [...],
+                "vector_source": "authors"
             }
 
         RETURNS:
-        - Dict с ключами: valid, corrected_value, error, suggestions
+        - Dict с ключами: valid (всегда True), corrected_value, warning, suggestions
         """
+        validation_type = config.get("type", "search")
+
+        # Ступень 1: Enum validation (быстрая проверка по списку)
+        if validation_type == "enum":
+            return await self._validate_enum(param_value, config)
+
+        # Ступень 1-3: Search validation (SQL → Vector → Fuzzy)
         table = config.get("table", "")
         search_fields = config.get("search_fields", [])
         vector_source = config.get("vector_source", table)
 
         if not table or not search_fields:
-            return {"valid": True, "suggestions": []}
+            return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
 
         # Ступень 1: SQL ILIKE
         try:
             result = await self._validate_sql(param_value, table, search_fields)
-            if result["valid"]:
-                return result
+            if result.get("corrected_value") is not None:
+                return result  # Нашли точное совпадение в БД — возвращаем
         except Exception as e:
             await self._log(f"SQL validation failed: {e}")
 
         # Ступень 2: Vector search
         try:
             result = await self._validate_vector(param_value, vector_source, config)
-            if result["valid"]:
-                return result
+            if result.get("corrected_value") is not None:
+                return result  # Нашли через векторный поиск — возвращаем
         except Exception as e:
             await self._log(f"Vector validation failed: {e}")
 
-        # Ступень 3: Fuzzy matching
+        # Ступень 3: Fuzzy matching (последняя попытка)
         try:
             return await self._validate_fuzzy(param_value, table, search_fields)
         except Exception as e:
             await self._log(f"Fuzzy validation failed: {e}")
-            return {"valid": False, "error": f"'{param_value}' не найдено", "suggestions": []}
+            return {
+                "valid": True,  # НЕ блокируем!
+                "corrected_value": None,
+                "warning": f"'{param_value}' не найдено в БД",
+                "suggestions": []
+            }
+
+    async def _validate_enum(
+        self,
+        param_value: str,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Ступень 1: Проверка по списку допустимых значений"""
+        allowed_values = config.get("allowed_values", [])
+        if not allowed_values:
+            return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
+
+        # Case-insensitive проверка
+        value_lower = str(param_value).lower().strip()
+        for allowed in allowed_values:
+            if str(allowed).lower().strip() == value_lower:
+                # Точное совпадение — используем каноническое значение
+                return {
+                    "valid": True,
+                    "corrected_value": allowed,
+                    "warning": None,
+                    "suggestions": []
+                }
+
+        # Не найдено — warning, но НЕ ошибка
+        return {
+            "valid": True,  # НЕ блокируем!
+            "corrected_value": None,
+            "warning": f"'{param_value}' не в списке допустимых значений: {allowed_values}",
+            "suggestions": list(allowed_values)
+        }
 
     async def _validate_sql(
         self,
@@ -268,9 +346,9 @@ class ParamValidator:
             rows = result.data.rows if hasattr(result.data, 'rows') else []
             if rows:
                 first_value = rows[0][0] if hasattr(rows[0], '__getitem__') else str(rows[0])
-                return {"valid": True, "corrected_value": first_value, "suggestions": []}
+                return {"valid": True, "corrected_value": first_value, "warning": None, "suggestions": []}
 
-        return {"valid": False, "error": f"'{param_value}' не найдено", "suggestions": []}
+        return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
 
     async def _validate_vector(
         self,
@@ -326,9 +404,9 @@ class ParamValidator:
                     found_value = metadata.get("name", metadata.get("title", ""))
 
                 if score >= min_score and found_value:
-                    return {"valid": True, "corrected_value": found_value, "suggestions": []}
+                    return {"valid": True, "corrected_value": found_value, "warning": None, "suggestions": []}
 
-        return {"valid": False, "error": "Не найдено", "suggestions": []}
+        return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
 
     async def _validate_fuzzy(
         self,
@@ -355,9 +433,14 @@ class ParamValidator:
 
             matched = fuzzy_match(param_value, all_values, max_distance=2)
             if matched:
-                return {"valid": True, "corrected_value": matched, "suggestions": []}
+                return {"valid": True, "corrected_value": matched, "warning": None, "suggestions": []}
 
-        return {"valid": False, "error": f"'{param_value}' не найдено", "suggestions": []}
+        return {
+            "valid": True,  # НЕ блокируем!
+            "corrected_value": None,
+            "warning": f"'{param_value}' не найдено",
+            "suggestions": []
+        }
 
     async def validate_multiple(
         self,
@@ -367,18 +450,21 @@ class ParamValidator:
         """
         Валидация нескольких параметров.
 
+        АРХИТЕКТУРА: Валидация НЕ БЛОКИРУЕТ выполнение.
+        Все warnings собираются, но выполнение продолжается.
+
         ARGS:
         - params: {"param_name": value, ...}
         - validation_config: {"param_name": config, ...}
 
         RETURNS:
-        - Dict с ключами: valid, corrected_params, warning, suggestions
+        - Dict с ключами: valid (всегда True), corrected_params, warnings, suggestions
         """
         result = {
             "valid": True,
             "corrected_params": {},
-            "warning": None,
-            "suggestions": []
+            "warnings": [],
+            "suggestions": {}
         }
 
         for param_name, param_config in validation_config.items():
@@ -391,15 +477,15 @@ class ParamValidator:
 
             validation = await self.validate(param_value, param_config)
 
-            if not validation["valid"]:
-                result["valid"] = False
-                result["warning"] = f"Параметр '{param_name}': {validation.get('error', 'невалиден')}"
-                result["suggestions"] = validation.get("suggestions", [])
-                return result
+            # Собираем warnings (НЕ блокируем!)
+            warning = validation.get("warning")
+            if warning:
+                result["warnings"].append(f"Параметр '{param_name}': {warning}")
+                result["suggestions"][param_name] = validation.get("suggestions", [])
 
             corrected = validation.get("corrected_value")
             if corrected and corrected != param_value:
                 result["corrected_params"][param_name] = corrected
-                result["warning"] = f"✏️ Исправлена опечатка: '{param_value}' → '{corrected}'"
+                result["warnings"].append(f"✏️ Исправлена опечатка: '{param_value}' → '{corrected}'")
 
         return result
