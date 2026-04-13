@@ -98,6 +98,24 @@ class BookLibrarySkill(Skill):
         ВОЗВРАЩАЕТ:
         - List[Capability]: Список из 4 capability
         """
+        from .scripts_registry import SCRIPTS_REGISTRY
+        
+        scripts_lines = ["Доступные скрипты:"]
+        for name, config in SCRIPTS_REGISTRY.items():
+            meta = config.to_dict() if hasattr(config, 'to_dict') else config
+            required = meta.get("required_parameters", [])
+            param_descriptions = meta.get("param_descriptions", {})
+            
+            params_str = ", ".join(required) if required else "нет"
+            line = f"  • `{name}` → параметры: `{params_str}`"
+            scripts_lines.append(line)
+            
+            if param_descriptions:
+                for param, desc in param_descriptions.items():
+                    scripts_lines.append(f"      - `{param}`: {desc}")
+        
+        scripts_desc = "\n".join(scripts_lines)
+        
         return [
             Capability(
                 name="book_library.search_books",
@@ -112,14 +130,14 @@ class BookLibrarySkill(Skill):
             ),
             Capability(
                 name="book_library.execute_script",
-                description="Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author (поиск по фамилии), get_books_by_genre, get_books_by_year_range (параметры year_from и year_to опциональны), get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Нормализованная схема: Lib.books JOIN Lib.authors. Быстро ~100мс.",
+                description=f"Выполнение заготовленного SQL-скрипта по имени. Быстро ~100мс.\n\n{scripts_desc}",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
                     "requires_llm": False,
                     "execution_type": "static",
-                    "scripts_count": 10,
+                    "scripts_count": len(SCRIPTS_REGISTRY),
                     "schema": "normalized (books JOIN authors)"
                 }
             ),
@@ -368,7 +386,8 @@ class BookLibrarySkill(Skill):
             execution_type=extra_data.get("execution_type", "unknown"),
             rows_returned=extra_data.get("rows_returned", 0),
             script_name=extra_data.get("script_name"),
-            error=extra_data.get("error")
+            error=extra_data.get("error"),
+            event_type=extra_data.get("event_type")
         )
 
 

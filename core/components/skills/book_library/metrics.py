@@ -17,7 +17,8 @@ async def publish_book_library_metrics(
     execution_type: Optional[str] = None,
     rows_returned: int = 0,
     script_name: Optional[str] = None,
-    error: Optional[str] = None
+    error: Optional[str] = None,
+    event_type=None
 ) -> None:
     """
     Публикация метрик выполнения BookLibrarySkill через стандартный logging.

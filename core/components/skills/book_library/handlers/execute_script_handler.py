@@ -284,6 +284,7 @@ class ExecuteScriptHandler(SkillHandler):
         """
         required_params = script_config.get('required_parameters', [])
         optional_params = script_config.get('parameters', [])
+        param_types = script_config.get('param_types', {})
         all_params = required_params + [p for p in optional_params if p not in required_params]
 
         sql_params_list = []
@@ -293,10 +294,9 @@ class ExecuteScriptHandler(SkillHandler):
                 continue
             if param_name in script_params:
                 param_value = script_params[param_name]
-                # Для ILIKE параметров добавляем % если нет wildcard
-                if param_name in ['author', 'title_pattern']:
-                    if param_value and '%' not in param_value:
-                        param_value = f'%{param_value}%'
+                param_type = param_types.get(param_name, "like")
+                if param_type == "like" and param_value and '%' not in param_value:
+                    param_value = f'%{param_value}%'
                 sql_params_list.append(param_value)
 
         sql_params_list.append(max_rows)

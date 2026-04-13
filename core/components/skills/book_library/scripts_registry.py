@@ -97,6 +97,8 @@ class ScriptConfig:
     required_parameters: List[str] = field(default_factory=list)
     max_rows: int = 100
     output_contract: str = ""
+    param_types: Dict[str, str] = field(default_factory=dict)
+    param_descriptions: Dict[str, str] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь."""
@@ -106,7 +108,9 @@ class ScriptConfig:
             "parameters": self.parameters,
             "required_parameters": self.required_parameters,
             "max_rows": self.max_rows,
-            "output_contract": self.output_contract
+            "output_contract": self.output_contract,
+            "param_types": self.param_types,
+            "param_descriptions": self.param_descriptions
         }
 
 
@@ -167,7 +171,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["author", "max_rows"],
         required_parameters=["author"],
         max_rows=50,
-        output_contract="book_library.execute_script_output"
+        output_contract="book_library.execute_script_output",
+        param_types={"author": "like"},
+        param_descriptions={"author": "Фамилия автора (можно ввести частично, поиск по LIKE)"}
     ),
 
     # -------------------------------------------------------------------------
@@ -195,7 +201,8 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["genre", "max_rows"],
         required_parameters=["genre"],
         max_rows=50,
-        output_contract="book_library.execute_script_output"
+        output_contract="book_library.execute_script_output",
+        param_types={"genre": "exact"}
     ),
 
     # -------------------------------------------------------------------------
