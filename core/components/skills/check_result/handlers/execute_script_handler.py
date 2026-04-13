@@ -370,7 +370,7 @@ class ExecuteScriptHandler(SkillHandler):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="service.sql_query_service.execute",
+            action_name="service.sql_query_service.execute_query",
             parameters={
                 "sql_query": sql,
                 "parameters": {str(i+1): val for i, val in enumerate(sql_params)},
