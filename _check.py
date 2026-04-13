@@ -1,1 +1,0 @@
-import os; print(os.path.getsize(r"c:/Users/Алексей/Documents/WORK/Agent_v5/core/application_context/application_context.py"))

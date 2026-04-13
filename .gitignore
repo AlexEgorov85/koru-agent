@@ -80,4 +80,6 @@ models/embedding/*/*/*.json
 
 # UI launch script (local convenience, not part of codebase)
 run_ui.bat
-```
+
+# IDE settings (local)
+.vscode/
