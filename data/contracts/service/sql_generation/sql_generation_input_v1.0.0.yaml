@@ -1,14 +1,42 @@
 capability: sql_generation
 component_type: service
-description: Input contract for sql_generation
+description: >
+  Входной контракт сервиса генерации SQL-запросов.
+  Принимает вопрос на естественном языке и схему базы данных.
 direction: input
 schema_data:
-  properties:
-    input:
-      description: Input for sql_generation
-      type: string
-  required:
-  - input
   type: object
+  properties:
+    natural_language_query:
+      type: string
+      description: >
+        Вопрос пользователя на естественном языке.
+        Пример: "Покажи все книги Толстого"
+    table_schema:
+      type: string
+      description: >
+        Описание схемы базы данных (таблицы, колонки, типы).
+        Используется LLM для генерации корректного SQL.
+    required_columns:
+      type: array
+      description: >
+        Список требуемых колонок в результате (опционально).
+        Пример: ["title", "author", "year"]
+      items:
+        type: string
+    filters:
+      type: object
+      description: >
+        Дополнительные фильтры (опционально).
+        Пример: {"year_from": 1850, "genre": "фантастика"}
+      additionalProperties: true
+    connection_name:
+      type: string
+      description: >
+        Имя подключения к БД (опционально).
+        Если не указано — используется подключение по умолчанию.
+  required:
+    - natural_language_query
+    - table_schema
 status: active
 version: v1.0.0

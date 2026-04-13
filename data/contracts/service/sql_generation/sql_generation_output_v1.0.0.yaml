@@ -1,23 +1,47 @@
 capability: sql_generation
 component_type: service
-description: Output contract for sql_generation
+description: >
+  Выходной контракт сервиса генерации SQL-запросов.
+  Возвращает сгенерированный SQL с метаданными.
 direction: output
 schema_data:
+  type: object
   properties:
     sql:
-      description: Сгенерированный SQL запрос
       type: string
+      description: >
+        Сгенерированный SQL-запрос.
+        Параметризованный (с плейсхолдерами).
     parameters:
-      description: Параметры для параметризованного запроса
       type: object
+      description: >
+        Словарь параметров для подстановки в SQL.
+        Ключи: "1", "2", "3" и т.д.
+        Пример: {"1": "Толстой", "2": 1850}
+      additionalProperties: true
     reasoning:
-      description: Объяснение генерации
       type: string
+      description: >
+        Объяснение выбора SQL-конструкции.
+        Почему выбран такой запрос.
+    tables_used:
+      type: array
+      description: >
+        Список таблиц, использованных в запросе.
+        Пример: ["Lib.books", "Lib.authors"]
+      items:
+        type: string
     safety_score:
-      description: Оценка безопасности (0.0-1.0)
       type: number
+      description: >
+        Оценка безопасности запроса (0.0–1.0).
+        1.0 — полностью безопасен, 0.0 — опасен.
+    generation_id:
+      type: string
+      description: >
+        Уникальный идентификатор генерации.
+        Используется для отслеживания и коррекции.
   required:
-  - sql
-  type: object
+    - sql
 status: active
 version: v1.0.0

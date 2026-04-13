@@ -3,25 +3,27 @@ component_type: service
 direction: output
 status: active
 version: v1.0.0
-description: "Output contract for contract service"
+description: >
+  Выходной контракт сервиса контрактов.
+  Возвращает запрошенную схему контракта.
 schema_data:
-  $schema: "http://json-schema.org/draft-07/schema#"
   type: object
   properties:
-    result:
+    capability:
+      type: string
+      description: >
+        Имя capability для которой запрошен контракт.
+    direction:
+      type: string
+      description: >
+        Направление контракта.
+        "input" или "output".
+    schema:
       type: object
-      description: "Validation result"
-      properties:
-        success:
-          type: boolean
-          description: "Whether validation was successful"
-        errors:
-          type: array
-          items:
-            type: string
-          description: "List of validation errors if any"
-        processed_contract:
-          type: object
-          description: "Processed contract data"
+      description: >
+        Схема контракта (JSON Schema).
+        Содержит структуру валидации для capability.
   required:
-    - result
+    - capability
+    - direction
+    - schema

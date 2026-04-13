@@ -3,18 +3,23 @@ version: v1.0.0
 status: active
 component_type: tool
 direction: input
-description: Input contract for SQL query execution
+description: >
+  Входной контракт для выполнения SQL-запроса к базе книг.
 schema_data:
   type: object
   properties:
     sql:
       type: string
-      description: "SQL запрос"
+      description: >
+        SQL-запрос для выполнения.
+        Должен быть безопасным (SELECT).
     parameters:
-      type: array
-      description: "Параметры запроса"
-      items:
-        type: string
+      type: object
+      description: >
+        Словарь параметров запроса.
+        Ключи: "1", "2", "3" и т.д.
+        Пример: {"1": "фантастика", "2": 10}
+      additionalProperties: true
   required:
     - sql
   additionalProperties: false

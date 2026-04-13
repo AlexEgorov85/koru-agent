@@ -3,15 +3,22 @@ version: v1.0.0
 status: active
 component_type: service
 direction: input
-description: Input contract for SQL validator service
+description: >
+  Входной контракт сервиса валидации SQL-запросов.
+  Проверяет безопасность и корректность SQL.
 schema_data:
   type: object
   properties:
     sql:
       type: string
-      description: SQL query to validate
-    table_schema:
-      type: string
-      description: Database schema context
+      description: >
+        SQL-запрос для валидации.
+        Проверяется на безопасность (только SELECT).
+    parameters:
+      type: object
+      description: >
+        Словарь параметров запроса для проверки.
+        Пример: {"1": "Иванов", "2": 100}
+      additionalProperties: true
   required:
     - sql

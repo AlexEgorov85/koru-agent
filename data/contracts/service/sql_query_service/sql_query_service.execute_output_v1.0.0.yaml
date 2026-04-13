@@ -5,36 +5,48 @@ component_type: service
 direction: output
 description: >
   Выходной контракт сервиса выполнения SQL-запросов.
-  Возвращает результат выполнения запроса с метаданными.
+  Возвращает результат запроса с метаданными выполнения.
 schema_data:
   type: object
   properties:
-    rows:
-      type: array
+    query_result:
+      type: object
       description: >
-        Массив строк — результат выполнения SQL-запроса.
-        Каждая строка — объект с колонками как ключами.
-        Пример: [{"id": 1, "name": "Иванов"}, {"id": 2, "name": "Петров"}]
-      items:
-        type: object
-    columns:
-      type: array
-      description: >
-        Список имён колонок в порядке их следования в результате.
-        Пример: ["id", "name", "created_at"]
-      items:
-        type: string
-    rowcount:
-      type: integer
-      description: >
-        Общее количество возвращённых строк.
-        Равно длине массива rows.
-    execution_time:
-      type: number
-      description: >
-        Время выполнения запроса в секундах (с дробной частью).
-        Пример: 0.125 — 125 миллисекунд.
+        Результат выполнения SQL-запроса (DBQueryResult).
+      properties:
+        success:
+          type: boolean
+          description: Флаг успешности выполнения
+        rows:
+          type: array
+          description: >
+            Массив строк — результат запроса.
+            Каждая строка — объект с колонками.
+          items:
+            type: object
+        columns:
+          type: array
+          description: >
+            Список имён колонок.
+            Пример: ["id", "title", "author"]
+          items:
+            type: string
+        rowcount:
+          type: integer
+          description: Общее количество возвращённых строк
+        execution_time:
+          type: number
+          description: >
+            Время выполнения в секундах.
+            Пример: 0.125 — 125 мс
+        error:
+          type: string
+          description: >
+            Сообщение об ошибке (при неудаче).
+            Null если запрос успешен.
+    capability:
+      type: string
+      description: Имя выполненной capability
   required:
-    - rows
-    - columns
-    - rowcount
+    - query_result
+    - capability

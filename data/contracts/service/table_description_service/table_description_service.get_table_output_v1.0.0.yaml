@@ -3,25 +3,70 @@ version: v1.0.0
 status: active
 component_type: service
 direction: output
-description: Output contract for table description service
+description: >
+  Выходной контракт сервиса получения описания таблиц.
+  Возвращает метаданные таблицы с колонками.
 schema_data:
   type: object
   properties:
+    schema_name:
+      type: string
+      description: >
+        Имя схемы базы данных.
+        Пример: "public", "Lib"
     table_name:
       type: string
-      description: Table name
+      description: >
+        Имя таблицы.
+        Пример: "books", "authors"
+    description:
+      type: string
+      description: >
+        Описание таблицы (из комментариев БД).
+        Пустая строка если комментариев нет.
     columns:
       type: array
-      description: Column definitions
+      description: >
+        Список колонок с метаданными.
       items:
         type: object
         properties:
-          name:
+          column_name:
             type: string
-          type:
+            description: Имя колонки
+          data_type:
             type: string
-          nullable:
-            type: boolean
+            description: >
+              Тип данных колонки.
+              Пример: "varchar", "integer", "timestamp"
+          is_nullable:
+            type: string
+            description: >
+              Допустимость NULL.
+              Значения: "YES" или "NO"
+          column_default:
+            type: string
+            description: >
+              Значение по умолчанию.
+              Пример: "nextval('seq')" или null
+          description:
+            type: string
+            description: >
+              Описание колонки (из комментариев БД).
+    constraints:
+      type: array
+      description: >
+        Ограничения таблицы (пока не заполняется).
+      items:
+        type: object
+    examples:
+      type: array
+      description: >
+        Примеры данных (пока не заполняется).
+      items:
+        type: object
   required:
+    - schema_name
     - table_name
+    - description
     - columns
