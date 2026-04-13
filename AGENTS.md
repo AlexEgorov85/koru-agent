@@ -83,7 +83,7 @@ The system has three independent lifecycle layers with strict configuration boun
 | Layer | Config | Source | Lifecycle | Responsibility |
 |-------|--------|--------|-----------|----------------|
 | **Infrastructure** | `InfraConfig` | `core/config/defaults/{profile}.yaml` | Once per app | Heavy resources (LLM/DB providers, data paths) |
-| **Application** | `AppConfig` | `data/registry.yaml` + overrides | Once per agent | Versioned behavior (prompts, contracts), profile |
+| **Application** | `AppConfig` | Auto-discovery из `data/prompts/`, `data/contracts/` | Once per agent | Versioned behavior (prompts, contracts), profile |
 | **Session** | `AgentConfig` | Request parameters | Once per request | Execution context (goal, correlation_id, max_steps) |
 
 **Critical rule:** If a parameter relates to a resource (provider, path) → `InfraConfig`. If to behavior (versions, profile) → `AppConfig`. If to request (goal, limits) → `AgentConfig`.
@@ -104,7 +104,7 @@ The system has three independent lifecycle layers with strict configuration boun
 
 **Forbidden:**
 - ❌ `agent_config` or `prompt_versions` in `core/config/defaults/*.yaml`
-- ❌ `llm_providers`, `db_providers` in `data/registry.yaml`
+- ❌ `llm_providers`, `db_providers` в discovery
 - ❌ `goal`, `max_steps` in config files — only in code at request time
 
 ### 3. All components inherit `BaseComponent`
@@ -366,9 +366,8 @@ Agent_v5/
 │   ├── services/               # Business services and skills
 │   └── session_context/        # Session/Step contexts
 ├── data/                       # SINGLE source of truth for resources
-│   ├── prompts/                # data/prompts/{type}/{component}/{version}.yaml
-│   ├── contracts/              # data/contracts/{type}/{component}/{version}.yaml
-│   └── registry.yaml           # AppConfig: active versions + profile
+│   └── prompts/                # Auto-discovery: data/prompts/{type}/{component}/{version}.yaml
+│   └── contracts/              # Auto-discovery: data/contracts/{type}/{component}/{version}.yaml
 ├── docs/
 │   ├── RULES.MD                # Full development rules
 │   └── architecture/ideal.md   # Target architecture blueprint
@@ -402,8 +401,8 @@ Agent_v5/
 
 | Symptom | Problem | Action |
 |---------|---------|--------|
-| `agent_config` in `dev.yaml` | Config duplication | Remove field, move versions to `registry.yaml` |
-| `prompt_versions` in `dev.yaml` | Config duplication | Remove field, move to `registry.yaml` |
+| `agent_config` in `dev.yaml` | Config duplication | Remove field, versions come from discovery |
+| `prompt_versions` in `dev.yaml` | Config duplication | Remove field, versions come from discovery |
 | `type_provider` in configs | Incorrect provider registration | Replace with `provider_type` |
 | `id(ctx1.prompt_service) == id(ctx2.prompt_service)` | Shared prompt cache | Move `PromptService` to `ApplicationContext` |
 | FS calls after `initialize()` | No preloading | Implement caching in `PromptService`/`ContractService` |

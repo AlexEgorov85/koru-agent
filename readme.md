@@ -398,9 +398,9 @@ python -m pytest tests/ --cov=core --cov-report=html
 
 | Файл | Назначение |
 |------|------------|
-| `registry.yaml` | Реестр версий промптов/контрактов |
-| `config/settings.yaml` | Базовая конфигурация (dev) |
-| `config/settings_prod.yaml` | Продакшен конфигурация |
+| `core/config/defaults/{profile}.yaml` | InfraConfig (провайдеры, пути) |
+| `data/prompts/` | Auto-discovery промптов |
+| `data/contracts/` | Auto-discovery контрактов |
 
 ### Пример
 

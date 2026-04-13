@@ -12,7 +12,7 @@
 | Слой | Конфигурация | Источник | Жизненный цикл | Ответственность |
 |------|--------------|----------|----------------|-----------------|
 | **Инфраструктурный** | `InfraConfig` | `core/config/defaults/{profile}.yaml` | 1 раз на приложение | Тяжёлые ресурсы (модели, пулы), пути к данным |
-| **Прикладной** | `AppConfig` | `data/registry.yaml` + оверрайды | 1 раз на агента/сессию | Версионируемое поведение (промпты, контракты), профиль (prod/sandbox) |
+| **Прикладной** | `AppConfig` | Auto-discovery из `data/prompts/`, `data/contracts/` | 1 раз на агента/сессию | Версионируемое поведение (промпты, контракты), профиль (prod/sandbox) |
 | **Сессионный** | `AgentConfig` | Параметры запроса | 1 раз на запрос | Контекст выполнения (goal, correlation_id, max_steps) |
 
 ---
@@ -24,7 +24,7 @@ flowchart TD
     subgraph CONFIG [Конфигурация — строго иерархическая]
         direction LR
         IC[InfraConfig<br/>core/config/defaults/dev.yaml]
-        AC[AppConfig<br/>data/registry.yaml + оверрайды]
+        AC[AppConfig<br/>Auto-discovery + оверрайды]
         AGC[AgentConfig<br/>параметры запроса]
     end
     
@@ -192,27 +192,22 @@ skills:
 - ❌ `profile` (prod/sandbox) — безопасность поведения не относится к инфраструктуре
 - ❌ `goal`, `max_steps`, `correlation_id` — параметры запроса не относятся к инфраструктуре
 
-### `AppConfig` — поведение приложения (только в `data/registry.yaml` + оверрайды)
+### `AppConfig` — поведение приложения (Auto-discovery + оверрайды)
 ```yaml
-# data/registry.yaml — ЕДИНСТВЕННЫЙ источник активных версий
+# AppConfig загружается автоматически из discovery
+# Структура: data/prompts/{type}/{component}/{version}.yaml
+#            data/contracts/{type}/{component}/{version}.yaml
+
 profile: prod  # ← prod или sandbox
 
-active_prompts:
-  planning.create_plan: "v1.0.0"      # status: active
-  planning.update_plan: "v1.0.0"      # status: active
-  sql_generation.generate_query: "v1.0.0"  # status: active
-
-active_contracts:
-  planning.create_plan:
-    input: "v1.0.0"
-    output: "v1.0.0"
-  sql_generation.generate_query:
-    input: "v1.0.0"
-    output: "v1.0.0"
+# Активные версии определяются статусом в метаданных файлов:
+# - status: active → используется в prod/sandbox
+# - status: draft → используется только в sandbox  
+# - status: archived → заблокирован везде
 
 # Оверрайды для песочницы (только в коде, не в файле)
 # Пример использования:
-#   app_config = AppConfig.from_registry(profile="sandbox")
+#   app_config = AppConfig.from_discovery(profile="sandbox")
 #   app_config.set_prompt_override("planning.create_plan", "v2.0.0")  # ← draft версия
 ```
 
@@ -260,7 +255,6 @@ project/
 │   │           └── generate_query_v1.0.0.yaml
 │   ├── contracts/
 │   │   └── ...
-│   └── registry.yaml              # Активные версии + профиль (prod/sandbox)
 │
 ├── core/
 │   ├── config/
@@ -285,7 +279,7 @@ project/
 
 **Критически важно:**
 - ✅ `core/config/` содержит **только** `InfraConfig`
-- ✅ `data/registry.yaml` содержит **только** `AppConfig`
+- ✅ AppConfig загружается через auto-discovery (без registry.yaml)
 - ✅ `AgentConfig` создаётся **только в коде** при запуске запроса
 - ❌ НЕТ `agent_config` в `dev.yaml` — это дублирование!
 - ❌ НЕТ `prompt_versions` в `dev.yaml` — это дублирование!
@@ -318,7 +312,7 @@ await infra.shutdown()  # ← Освобождение ресурсов
 ### Прикладной контекст (`ApplicationContext`)
 ```python
 # Загрузка конфигурации (1 раз на агента)
-app_config = AppConfig.from_registry(profile="prod")  # ← Читает ТОЛЬКО из data/registry.yaml
+app_config = AppConfig.from_discovery(profile="prod")  # ← Auto-discovery из data/prompts/ и data/contracts/
 app_config.set_prompt_override("planning.create_plan", "v2.0.0")  # ← Только в sandbox
 
 # Инициализация (1 раз на агента)
@@ -424,7 +418,7 @@ sequenceDiagram
 
 ### ✅ Базовые гарантии конфигурации
 - [ ] `InfraConfig` загружается ТОЛЬКО из `core/config/defaults/{profile}.yaml`
-- [ ] `AppConfig` загружается ТОЛЬКО из `data/registry.yaml`
+- [ ] `AppConfig` загружается через auto-discovery (без registry.yaml)
 - [ ] `AgentConfig` создаётся ТОЛЬКО в коде при запуске запроса
 - [ ] Нет поля `agent_config` в `dev.yaml` (дублирование удалено)
 - [ ] Нет поля `prompt_versions` в `dev.yaml` (дублирование удалено)
@@ -461,8 +455,8 @@ sequenceDiagram
 
 | Симптом | Проблема | Действие |
 |---------|----------|----------|
-| `agent_config` в `dev.yaml` | Дублирование конфигурации | Удалить поле, перенести версии в `data/registry.yaml` |
-| `prompt_versions` в `dev.yaml` | Дублирование конфигурации | Удалить поле, перенести версии в `data/registry.yaml` |
+| `agent_config` в `dev.yaml` | Дублирование конфигурации | Удалить поле, версии приходят через discovery |
+| `prompt_versions` в `dev.yaml` | Дублирование конфигурации | Удалить поле, версии приходят через discovery |
 | `type_provider` в конфигах | Некорректная регистрация провайдеров | Заменить на `provider_type` + добавить миграцию |
 | `id(ctx1.prompt_service) == id(ctx2.prompt_service)` | Общий кэш промптов | Перенести создание `PromptService` из `InfrastructureContext` в `ApplicationContext` |
 | Обращения к ФС после `initialize()` | Нет предзагрузки ресурсов | Реализовать кэширование в `PromptService`/`ContractService` |
@@ -493,7 +487,7 @@ sequenceDiagram
 | Критерий | Требование | Фактическое состояние | Статус |
 |----------|------------|----------------------|--------|
 | `InfraConfig` источник | ТОЛЬКО `core/config/defaults/{profile}.yaml` | `core/config/defaults/dev.yaml` существует | ✅ |
-| `AppConfig` источник | ТОЛЬКО `data/registry.yaml` | `registry.yaml` существует, используется | ✅ |
+| `AppConfig` источник | Auto-discovery из `data/prompts/`, `data/contracts/` | `AppConfig.from_discovery()` использует discovery | ✅ |
 | `AgentConfig` создание | ТОЛЬКО в коде при запуске | Создаётся в `AgentFactory.create_agent()` | ✅ |
 | Нет `agent_config` в `dev.yaml` | Дублирование удалено | Поле отсутствует | ✅ |
 | Нет `prompt_versions` в `dev.yaml` | Дублирование удалено | Поле отсутствует | ✅ |
@@ -540,7 +534,7 @@ sequenceDiagram
 | Структура промптов | `data/prompts/{type}/{component}/{version}.yaml` | `data/prompts/{skill|tool|service|behavior}/` | ✅ |
 | Структура контрактов | `data/contracts/{type}/{component}/{version}.yaml` | `data/contracts/{skill|tool|service|behavior}/` | ✅ |
 | Метаданные `status` | `draft\|active\|archived` | `ComponentStatus`, `PromptStatus` enums | ✅ |
-| Активные версии | В `registry.yaml` | `services.*.prompt_versions`, `skills.*.prompt_versions` | ✅ |
+| Активные версии | Auto-discovery | `AppConfig.from_discovery()` сканирует `data/prompts/`, `data/contracts/` | ✅ |
 | Хранилища без кэша | Только загрузка из ФС | `PromptStorage`, `ContractStorage` | ✅ |
 
 ---
@@ -581,7 +575,7 @@ sequenceDiagram
 | Этап | Задача | Срок | Статус | Критерий завершения | Фактическое выполнение |
 |------|--------|------|--------|---------------------|------------------------|
 | **1** | Удалить `agent_config` и `prompt_versions` из `dev.yaml` | 1 день | ✅ Выполнено | `grep -r "agent_config\|prompt_versions" core/config/defaults/` → 0 совпадений | Поля отсутствуют в `core/config/defaults/dev.yaml` |
-| **2** | Перенести версии в `data/registry.yaml` | 1 день | ✅ Выполнено | Все версии загружаются из `registry.yaml`, а не из `dev.yaml` | `registry.yaml` содержит `services.*.prompt_versions`, `skills.*.prompt_versions` |
+| **2** | Перенести версии в auto-discovery | 1 день | ✅ Выполнено | Все версии загружаются через discovery из `data/prompts/`, `data/contracts/` | AppConfig.from_discovery() сканирует файловую систему |
 | **3** | Перенос создания `PromptService`/`ContractService` из `InfrastructureContext` в `ApplicationContext` | 2 дня | ✅ Выполнено | Тест изоляции кэшей проходит ✅ | Сервисы в `core/application/services/`, кэши изолированы |
 | **4** | Исправление конфигурации: `type_provider` → `provider_type` | 1 день | ✅ Выполнено | Все провайдеры регистрируются ✅ | `dev.yaml` использует `provider_type: llama_cpp`, `provider_type: postgres` |
 | **5** | Реализация профилей `prod`/`sandbox` с валидацией статусов | 2 дня | ✅ Выполнено | Продакшн отклоняет `draft` версии ✅ | `_validate_status_by_profile()` в `DataRepository`, `AppConfig.profile` |
@@ -600,11 +594,11 @@ sequenceDiagram
 # core/config/validator.py
 def validate_no_duplication(config: SystemConfig):
     if hasattr(config, 'agent_config'):
-        warnings.warn(
-            "Устаревшее поле 'agent_config' в инфраструктурной конфигурации. "
-            "Версии промптов/контрактов должны храниться в data/registry.yaml",
-            DeprecationWarning
-        )
+            warnings.warn(
+                "Устаревшее поле 'agent_config' в инфраструктурной конфигурации. "
+                "Версии промптов/контрактов должны загружаться через discovery",
+                DeprecationWarning
+            )
 ```
 
 ### 2. Документирование отклонений
