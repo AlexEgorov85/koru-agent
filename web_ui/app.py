@@ -237,15 +237,21 @@ with tab1:
                 display_msg = thinking_msg or tool_call_msg or decision_msg
 
                 if display_msg:
-                    # Формируем иконку по типу события
+                    # Определяем иконку и убираем дублирующий эмодзи из сообщения
                     icon = "🤔"
+                    clean_msg = display_msg
+
                     if tool_call_msg and display_msg == tool_call_msg:
                         icon = "⚙️"
+                        clean_msg = display_msg.removeprefix("⚙️ ").removeprefix("✅ ").removeprefix("❌ ")
                     elif decision_msg and display_msg == decision_msg:
                         icon = "🧠"
+                        clean_msg = display_msg.removeprefix("🧠 ").removeprefix("🎯 ")
+                    elif thinking_msg and display_msg == thinking_msg:
+                        clean_msg = display_msg.removeprefix("🤔 ")
 
                     thinking_placeholder.markdown(
-                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>{icon} {display_msg}</div>",
+                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>{icon} {clean_msg}</div>",
                         unsafe_allow_html=True
                     )
 
