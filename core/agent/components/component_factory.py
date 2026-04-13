@@ -237,7 +237,7 @@ class ComponentFactory:
         AppConfig.from_discovery() отдаёт имена с суффиксами:
         - services: contract_service -> contract
         - behaviors: evaluation_pattern -> evaluation
-        - tools: vector_books -> vector_books_tool
+        - tools: vector_books -> vector_search_tool
 
         ARGS:
         - component_type: тип компонента

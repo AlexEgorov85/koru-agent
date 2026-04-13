@@ -8,11 +8,11 @@
   - test_sql_tool_invalid_sql: некорректный SQL
   - test_sql_tool_missing_sql_field: отсутствие поля 'sql'
 
-  Vector Books (4):
-  - test_vector_books_search_books: поиск по книгам
-  - test_vector_books_search_authors: поиск по авторам
-  - test_vector_books_search_min_score: поиск с фильтром по score
-  - test_vector_books_search_empty_query: пустой query (ожидается FAILED)
+  Vector Search (4):
+  - test_vector_search_search_books: поиск по книгам
+  - test_vector_search_search_authors: поиск по авторам
+  - test_vector_search_min_score: поиск с фильтром по score
+  - test_vector_search_empty_query: пустой query (ожидается FAILED)
 
 ПРИНЦИПЫ:
 - Контексты поднимаются ОДИН РАЗ (scope="module")
@@ -143,17 +143,17 @@ class TestSqlToolIntegration:
 
 
 # ============================================================================
-# VECTOR BOOKS TOOL
+# VECTOR SEARCH TOOL
 # ============================================================================
 
-class TestVectorBooksToolIntegration:
-    """Vector Books Tool — 4 теста (books + authors)."""
+class TestVectorSearchToolIntegration:
+    """Vector Search Tool — 4 теста (books + authors)."""
 
     @pytest.mark.asyncio
-    async def test_vector_books_search_books(self, executor, session):
+    async def test_vector_search_search_books(self, executor, session):
         """Поиск по книгам."""
         result = await executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={"query": "главный герой романа", "top_k": 5, "min_score": 0.3, "source": "books"},
             context=session
         )
@@ -162,13 +162,13 @@ class TestVectorBooksToolIntegration:
         assert result.data is not None
         data = result.data if isinstance(result.data, dict) else result.data.model_dump()
         assert data.get("total_found", 0) >= 0
-        print(f"✅ Vector Books (books): {data.get('total_found', 0)} результатов")
+        print(f"✅ Vector Search (books): {data.get('total_found', 0)} результатов")
 
     @pytest.mark.asyncio
-    async def test_vector_books_search_authors(self, executor, session):
+    async def test_vector_search_search_authors(self, executor, session):
         """Поиск по авторам."""
         result = await executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={"query": "Пушкин", "top_k": 5, "min_score": 0.3, "source": "authors"},
             context=session
         )
@@ -177,29 +177,29 @@ class TestVectorBooksToolIntegration:
         assert result.data is not None
         data = result.data if isinstance(result.data, dict) else result.data.model_dump()
         assert data.get("total_found", 0) > 0, f"Ожидались результаты поиска по автору 'Пушкин', получено: {data}"
-        print(f"✅ Vector Books (authors): {data['total_found']} результатов")
+        print(f"✅ Vector Search (authors): {data['total_found']} результатов")
 
     @pytest.mark.asyncio
-    async def test_vector_books_search_min_score(self, executor, session):
+    async def test_vector_search_min_score(self, executor, session):
         """Поиск с высоким порогом — мало результатов."""
         result = await executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={"query": "роман", "top_k": 3, "min_score": 0.9, "source": "books"},
             context=session
         )
 
         assert result.status == ExecutionStatus.COMPLETED, f"FAILED: {result.error}"
-        print(f"✅ Vector Books (high score): поиск выполнен")
+        print(f"✅ Vector Search (high score): поиск выполнен")
 
     @pytest.mark.asyncio
-    async def test_vector_books_search_empty_query(self, executor, session):
+    async def test_vector_search_empty_query(self, executor, session):
         """Пустой query — ожидается FAILED (контракт требует min_length=1)."""
         result = await executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={"query": "", "top_k": 3, "source": "books"},
             context=session
         )
 
         assert result.status == ExecutionStatus.FAILED
         assert "query" in result.error.lower() or "string_too_short" in result.error.lower()
-        print("✅ Vector Books: пустой query → FAILED (валидация)")
+        print("✅ Vector Search: пустой query → FAILED (валидация)")

@@ -562,7 +562,7 @@ class AppConfig(BaseSettings):
                         f"Проверьте что соответствующие YAML файлы есть в data/"
                     )
 
-        # Дополняем tool_configs из discovery данными (vector_books и т.д.)
+        # Дополняем tool_configs из discovery данными (vector_search и т.д.)
         # component_prefixes уже содержит все компоненты из discovery
 
         return cls(

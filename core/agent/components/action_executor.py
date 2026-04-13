@@ -1219,7 +1219,7 @@ class ActionExecutor:
             )
 
             # Вызываем execute() который вызовет _execute_impl() для FileTool/SQLTool
-            # или async execute() для VectorBooksTool
+            # или async execute() для VectorSearchTool
             result = await tool.execute(
                 capability=capability_obj,
                 parameters=parameters,
