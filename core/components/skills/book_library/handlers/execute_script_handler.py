@@ -436,7 +436,7 @@ class ExecuteScriptHandler(SkillHandler):
             # Ступень 2: Векторный поиск
             try:
                 vector_result = await self.executor.execute_action(
-                    action_name="vector_books.search",
+                    action_name="vector_search.search",
                     parameters={
                         "query": author_name,
                         "top_k": 3,
@@ -448,15 +448,20 @@ class ExecuteScriptHandler(SkillHandler):
 
                 if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
                     inner_data = vector_result.data
-                    if hasattr(inner_data, 'data'):
-                        actual_data = inner_data.data
+                    # VectorSearchTool возвращает {"results": [...], "total_found": N}
+                    if isinstance(inner_data, dict):
+                        results = inner_data.get("results", [])
+                    elif hasattr(inner_data, "data"):
+                        nested = inner_data.data
+                        results = nested.get("results", []) if isinstance(nested, dict) else (nested if isinstance(nested, list) else [])
                     else:
-                        actual_data = inner_data
-                    results = actual_data if isinstance(actual_data, list) else []
+                        results = inner_data if isinstance(inner_data, list) else []
+
                     if results:
                         best_result = results[0]
-                        author_from_vector = best_result.get('author_name', best_result.get('name', ''))
-                        score = best_result.get('score', 0)
+                        metadata = best_result.get("metadata", {})
+                        author_from_vector = metadata.get("author_name", metadata.get("last_name", metadata.get("name", "")))
+                        score = best_result.get("score", 0)
                         await self.log_debug(f"[DEBUG _validate_author] Vector found: author='{author_from_vector}', score={score}")
                         if score >= 0.7:
                             return {"valid": True, "suggestions": [], "corrected_value": author_from_vector}

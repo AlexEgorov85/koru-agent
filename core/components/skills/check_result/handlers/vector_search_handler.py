@@ -14,7 +14,7 @@ class VectorSearchHandler(SkillHandler):
     RESPONSIBILITIES:
     - Семантический поиск по full_text актов (audit_reports)
     - Семантический поиск по item_content пунктов акта (report_items)
-    - Поиск через vector_books.search с source="audits"
+    - Поиск через vector_search.search с source="audits"
     - Форматирование результатов с контекстом (название проверки, номер акта)
 
     CAPABILITY:
@@ -46,7 +46,7 @@ class VectorSearchHandler(SkillHandler):
 
         await self.log_info(f"Запуск векторного поиска: '{query[:80]}...' (source={source}, top_k={top_k})")
 
-        # Выполняем векторный поиск через vector_books_tool
+        # Выполняем векторный поиск через vector_search_tool
         results = await self._vector_search(query, source, top_k, min_score)
 
         # Форматируем результаты
@@ -83,11 +83,11 @@ class VectorSearchHandler(SkillHandler):
         min_score: float
     ) -> List[Dict[str, Any]]:
         """
-        Выполнение векторного поиска через vector_books_tool.
+        Выполнение векторного поиска через vector_search_tool.
 
         ARGS:
         - query: Текст запроса
-        - source: Источник FAISS индекса (audits, violations)
+        - source: Источник FAISS индекса (audits, violations, books, ...)
         - top_k: Количество результатов
         - min_score: Минимальный порог схожести
 
@@ -97,7 +97,7 @@ class VectorSearchHandler(SkillHandler):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={
                 "query": query,
                 "top_k": top_k,
@@ -127,7 +127,7 @@ class VectorSearchHandler(SkillHandler):
         Преобразует сырые метаданные FAISS в читаемый формат с контекстом.
 
         ARGS:
-        - results: Сырые результаты vector_books.search
+        - results: Сырые результаты vector_search.search
 
         RETURNS:
         - List[Dict]: Форматированные результаты с описанием

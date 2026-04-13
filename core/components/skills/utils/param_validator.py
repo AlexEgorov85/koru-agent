@@ -67,10 +67,12 @@ for author in get_all_authors():
 faiss_provider.save()
 ```
 
-ДОСТУПНЫЕ SOURCE (параметр source в vector_books.search):
+ДОСТУПНЫЕ SOURCE (параметр source в vector_search.search):
 - "books" — индекс названий книг
 - "authors" — индекс авторов (фамилии)
 - "genres" — индекс жанров
+- "audits" — индекс аудиторских проверок
+- "violations" — индекс отклонений
 - Любой другой — должен быть зарегистрирован в infrastructure
 
 ЕСЛИ ИНДЕКС НЕ СУЩЕСТВУЕТ:
@@ -103,7 +105,7 @@ SCRIPTS_REGISTRY = {
 ПОЛЯ КОНФИГУРАЦИИ:
 - table: Имя таблицы в БД (без схемы)
 - search_fields: Список полей для SQL ILIKE поиска
-- vector_source: Имя FAISS индекса (source для vector_books.search)
+- vector_source: Имя FAISS индекса (source для vector_search.search)
 - vector_min_score: (опционально) мин. score для vector matching (по умолч. 0.7)
 - vector_top_k: (опционально) кол-во результатов для vector search (по умолч. 3)
 """
@@ -283,7 +285,7 @@ class ParamValidator:
         top_k = config.get("vector_top_k", 3)
 
         result = await self.executor.execute_action(
-            action_name="vector_books.search",
+            action_name="vector_search.search",
             parameters={
                 "query": param_value,
                 "top_k": top_k,
@@ -295,20 +297,35 @@ class ParamValidator:
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
             inner_data = result.data
-            if hasattr(inner_data, 'data'):
-                actual_data = inner_data.data
+            # VectorSearchTool возвращает {"results": [...], "total_found": N}
+            if isinstance(inner_data, dict):
+                results = inner_data.get("results", [])
+            elif hasattr(inner_data, "data"):
+                nested = inner_data.data
+                results = nested.get("results", []) if isinstance(nested, dict) else (nested if isinstance(nested, list) else [])
+            elif hasattr(inner_data, "results"):
+                results = inner_data.results
             else:
-                actual_data = inner_data
-            
-            results = actual_data if isinstance(actual_data, list) else []
+                results = inner_data if isinstance(inner_data, list) else []
+
             if results:
                 best = results[0]
-                # Определяем поле с именем
-                name_field = f"{vector_source[:-1]}_name" if vector_source.endswith("s") else "name"
-                found_value = best.get(name_field, best.get('name', ''))
-                score = best.get('score', 0)
-                
-                if score >= min_score:
+                metadata = best.get("metadata", {})
+                score = best.get("score", 0)
+
+                # Определяем поле с именем по source
+                if vector_source == "authors":
+                    found_value = metadata.get("author_name", metadata.get("last_name", metadata.get("name", "")))
+                elif vector_source == "genres":
+                    found_value = metadata.get("genre_name", metadata.get("name", ""))
+                elif vector_source == "audits":
+                    found_value = metadata.get("title", metadata.get("audit_title", ""))
+                elif vector_source == "violations":
+                    found_value = metadata.get("violation_code", metadata.get("description", ""))
+                else:
+                    found_value = metadata.get("name", metadata.get("title", ""))
+
+                if score >= min_score and found_value:
                     return {"valid": True, "corrected_value": found_value, "suggestions": []}
 
         return {"valid": False, "error": "Не найдено", "suggestions": []}

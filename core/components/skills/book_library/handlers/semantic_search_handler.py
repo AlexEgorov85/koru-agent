@@ -103,21 +103,21 @@ class SemanticSearchHandler(SkillHandler):
         try:
             exec_ctx = execution_context if execution_context else ExecutionContext()
             test_result = await self.executor.execute_action(
-                action_name="vector_books.search",
-                parameters={"query": "test", "top_k": 1},
+                action_name="vector_search.search",
+                parameters={"query": "test", "top_k": 1, "source": "books"},
                 context=execution_context
             )
             if test_result.status != ExecutionStatus.COMPLETED:
                 raise VectorSearchError(
                     "Vector Search для книг не инициализирован. "
-                    "Проверьте что FAISS индекс создан и vector_books доступен."
+                    "Проверьте что FAISS индекс создан и vector_search доступен."
                 )
         except VectorSearchError:
             raise
         except Exception as e:
             raise VectorSearchError(
                 f"Vector Search для книг не инициализирован. "
-                f"Проверьте что FAISS индекс создан и vector_books доступен. Ошибка: {e}"
+                f"Проверьте что FAISS индекс создан и vector_search доступен. Ошибка: {e}"
             )
 
     async def _execute_vector_search(
@@ -146,11 +146,12 @@ class SemanticSearchHandler(SkillHandler):
             exec_ctx = execution_context if execution_context else ExecutionContext()
 
             result = await self.executor.execute_action(
-                action_name="vector_books.search",
+                action_name="vector_search.search",
                 parameters={
                     "query": query,
                     "top_k": top_k,
-                    "min_score": min_score
+                    "min_score": min_score,
+                    "source": "books"
                 },
                 context=execution_context
             )
