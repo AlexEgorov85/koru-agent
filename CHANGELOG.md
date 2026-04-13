@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [5.36.1] - 2026-04-13
+
+### Fixed
+- **check_result skill: Явное указание схемы oarb во всех SQL-скриптах и промптах**
+  - Все SQL запросы в `SCRIPTS_REGISTRY` теперь используют `oarb.schema.table` вместо `table`
+  - `ParamValidator` инициализируется с `schema="oarb"` вместо `schema=None`
+  - Промпт `generate_script.system` обновлён: все таблицы указаны с префиксом `oarb.`
+  - Исправлено правило 5: "Все таблицы находятся в схеме oarb" вместо "в схеме public"
+
 ## [5.36.0] - 2026-03-15
 
 ### Fixed
