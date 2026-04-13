@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [5.37.0] - 2026-04-13
+
+### Fixed
+- **planning.pattern: Исправлены 2 критические ошибки приводящие к Runtime Error**
+  - `session_context.execute_capability()` не существует → заменён на `executor.execute_action()`
+  - `_reason_about_step_execution()` использовала неопределённую переменную `context_analysis`
+  - Добавлен параметр `context_analysis` в метод и обновлены все вызовы
+
+- **Масштабная проверка await во всём проекте**
+  - Проверены все async/await вызовы в core/ (50+ файлов)
+  - Проверены: LLM orchestrator, провайдеры, сервисы, скиллы, инструменты
+  - Проверены: agent runtime, action executor, application context, infrastructure context
+  - Других ошибок с пропущенными await не найдено
+
 ## [5.36.2] - 2026-04-13
 
 ### Fixed
