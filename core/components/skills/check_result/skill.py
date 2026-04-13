@@ -230,12 +230,19 @@ class CheckResultSkill(Skill):
             # Собираем все параметры (required + optional)
             required = meta.get("required_parameters", [])
             optional = meta.get("optional_parameters", [])
+            param_descriptions = meta.get("param_descriptions", {})
             all_params = [p for p in required + optional if p != "max_rows"]
             
             # Формат: - script_name (параметры: [a, b], обязательные: [a])
             params_str = ", ".join(all_params) if all_params else "нет"
             req_str = ", ".join(required) if required else "нет"
+            
             scripts_lines.append(f"  • `{name}` → параметры: `{params_str}` | обязательные: `{req_str}`")
+            
+            # Добавляем описания параметров если есть
+            if param_descriptions:
+                for param, desc in param_descriptions.items():
+                    scripts_lines.append(f"      - `{param}`: {desc}")
         
         execute_script_desc = "\n".join(scripts_lines)
 
@@ -292,8 +299,9 @@ class CheckResultSkill(Skill):
     ) -> None:
         """Публикация метрик выполнения навыка в EventBus."""
         capability_name = capability.name if hasattr(capability, 'name') else str(capability)
+        event_type = extra_data.get("event_type", "check_result.metrics")
         await self._publish_with_context(
-            event_type="check_result.metrics",
+            event_type=event_type,
             data={
                 "capability_name": capability_name,
                 "success": success,
