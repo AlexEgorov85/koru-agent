@@ -19,20 +19,12 @@ PROMPT_RENAMES = {
     "skill/planning/planning.update_plan_v1.0.0.yaml": "skill/planning/planning.update_plan.user_v1.0.0.yaml",
     "skill/data_analysis/data_analysis.analyze_step_data_v1.0.0.yaml": "skill/data_analysis/data_analysis.analyze_step_data.user_v1.0.0.yaml",
     "skill/final_answer/final_answer.generate_v1.0.0.yaml": "skill/final_answer/final_answer.generate.user_v1.0.0.yaml",
-    "skill/book_library/book_library.execute_script_v1.1.0.yaml": "skill/book_library/book_library.execute_script.user_v1.1.0.yaml",
-    "skill/book_library/book_library.search_books_v1.0.0.yaml": "skill/book_library/book_library.search_books.user_v1.0.0.yaml",
-    
+
     # Services
     "service/contract/contract.service_v1.0.0.yaml": "service/contract/contract.service.user_v1.0.0.yaml",
     "service/sql_generation/sql_generation_v1.0.0.yaml": "service/sql_generation/sql_generation.user_v1.0.0.yaml",
     "service/sql_generation/sql_generation.generate_query_v1.0.0.yaml": "service/sql_generation/sql_generation.generate_query.user_v1.0.0.yaml",
-    
-    # Tools
-    "tool/book_library/book_library_v1.0.0.yaml": "tool/book_library/book_library.user_v1.0.0.yaml",
-    "tool/book_library/book_library.execute_script_v1.0.0.yaml": "tool/book_library/book_library.execute_script.user_v1.0.0.yaml",
-    "tool/book_library/book_library.execute_script_v1.1.0.yaml": "tool/book_library/book_library.execute_script.user_v1.1.0.yaml",
-    "tool/book_library/book_library.search_books_v1.0.0.yaml": "tool/book_library/book_library.search_books.user_v1.0.0.yaml",
-    
+
     # Behaviors (уже переименованы, но проверим)
     "behavior/behavior/behavior_v1.0.0.yaml": "behavior/behavior/behavior.user_v1.0.0.yaml",
     "behavior/behavior/behavior.planning_v1.0.0.yaml": "behavior/behavior/behavior.planning.user_v1.0.0.yaml",

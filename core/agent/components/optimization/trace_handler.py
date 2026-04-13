@@ -41,7 +41,7 @@ class TraceHandler:
     ```python
     handler = TraceHandler(session_handler)
     trace = await handler.get_execution_trace(session_id)
-    traces = await handler.get_traces_by_capability('book_library.search_books')
+    traces = await handler.get_traces_by_capability('planning.create_plan')
     ```
     """
 
@@ -532,7 +532,7 @@ class TraceHandler:
         if capability and capability != 'null' and capability != 'None':
             return capability
         
-        # 2. Поиск в logger_name (формат: core.services.skills.book_library...)
+        # 2. Поиск в logger_name (формат: core.services.skills.planning...)
         logger_name = event.get('logger_name', '')
         if logger_name:
             # Извлекаем skill/service name

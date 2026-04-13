@@ -65,25 +65,6 @@ metadata:
   created: '2026-02-19'
   description: Системный промпт для {capability}
 """,
-    "skill.book_library": """capability: {capability}.system
-component_type: skill
-version: v1.0.0
-status: active
-description: Системный промпт для {name}
-content: |
-  Ты — модуль работы с библиотекой книг. Выполни операцию с книгами.
-  Верни результат в формате JSON согласно выходному контракту.
-
-  === ПРАВИЛА ===
-  1. Используй эффективные SQL запросы
-  2. Проверяй результаты на корректность
-  3. Обрабатывай ошибки gracefully
-variables: []
-metadata:
-  author: system
-  created: '2026-02-19'
-  description: Системный промпт для {capability}
-""",
     "service.contract": """capability: {capability}.system
 component_type: service
 version: v1.0.0
@@ -121,24 +102,6 @@ metadata:
   created: '2026-02-19'
   description: Системный промпт для {capability}
 """,
-    "tool.book_library": """capability: {capability}.system
-component_type: tool
-version: v1.0.0
-status: active
-description: Системный промпт для {name}
-content: |
-  Ты — инструмент работы с книгами. Выполни операцию.
-  Верни результат в формате JSON согласно выходному контракту.
-
-  === ПРАВИЛА ===
-  1. Будь точен в операциях
-  2. Проверяй результаты
-variables: []
-metadata:
-  author: system
-  created: '2026-02-19'
-  description: Системный промпт для {capability}
-""",
     "behavior": """capability: {capability}.system
 component_type: behavior
 version: v1.0.0
@@ -168,14 +131,10 @@ def get_template(capability: str) -> str:
         return SYSTEM_PROMPT_TEMPLATES["skill.data_analysis"]
     elif capability.startswith("skill.final_answer"):
         return SYSTEM_PROMPT_TEMPLATES["skill.final_answer"]
-    elif capability.startswith("skill.book_library"):
-        return SYSTEM_PROMPT_TEMPLATES["skill.book_library"]
     elif capability.startswith("service.contract"):
         return SYSTEM_PROMPT_TEMPLATES["service.contract"]
     elif capability.startswith("service.sql_generation"):
         return SYSTEM_PROMPT_TEMPLATES["service.sql_generation"]
-    elif capability.startswith("tool.book_library"):
-        return SYSTEM_PROMPT_TEMPLATES["tool.book_library"]
     elif capability.startswith("behavior"):
         return SYSTEM_PROMPT_TEMPLATES["behavior"]
     else:
@@ -215,7 +174,6 @@ def create_system_prompts():
         
         # Формируем capability из пути
         # Примеры:
-        # skill/book_library/book_library.search_books.user → skill.book_library.search_books
         # skill/planning/planning.create_plan.user → skill.planning.create_plan
         # behavior/behavior/behavior.react.think.user → behavior.react.think
         
@@ -225,8 +183,8 @@ def create_system_prompts():
         elif len(parts) > 1:
             # component_type/component_name/capability.user
             component_type = parts[0]  # skill, tool, service, behavior
-            component_name = parts[1]  # book_library, planning, etc.
-            capability_base = filename  # book_library.search_books, planning.create_plan, etc.
+            component_name = parts[1]  # planning, sql_generation, etc.
+            capability_base = filename  # planning.create_plan, sql_generation.generate_query, etc.
             
             # Убираем дублирование component_name из capability_base если есть
             if capability_base.startswith(component_name + "."):

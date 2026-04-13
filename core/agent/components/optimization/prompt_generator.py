@@ -415,7 +415,7 @@ class PromptGenerator:
                 # Извлекаем capability names из diff
                 caps_a = set()
                 caps_b = set()
-                for cap_marker in ['book_library.', 'execute_script', 'search_books', 'unknown', 'semantic_search']:
+                for cap_marker in ['planning.', 'execute', 'search', 'unknown', 'analyze']:
                     if cap_marker in diff_a:
                         caps_a.add(cap_marker)
                     if cap_marker in diff_b:

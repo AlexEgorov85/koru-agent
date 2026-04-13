@@ -37,11 +37,6 @@ def mock_llm_provider():
     )
     
     provider.register_response(
-        "book_library.search_books",
-        '{"rows": [{"title": "Test Book", "author": "Test Author"}], "rowcount": 1}'
-    )
-    
-    provider.register_response(
         "final_answer.generate",
         '{"final_answer": "Test answer", "confidence": 0.95}'
     )

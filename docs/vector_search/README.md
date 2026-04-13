@@ -27,7 +27,6 @@
 | # | Задача | Статус | Файлы |
 |---|--------|--------|-------|
 | 1 | Автоматическая инициализация vector_search | ✅ | `infrastructure_context.py` |
-| 2 | Интеграция semantic_search с BookLibrarySkill | ✅ | `book_library/skill.py` |
 | 3 | Fallback на SQL поиск | ✅ | `vector_books_tool.py`, `skill.py` |
 | 4 | Обработка ошибок и логирование | ✅ | Все файлы |
 

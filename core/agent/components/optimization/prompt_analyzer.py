@@ -493,8 +493,6 @@ class SessionPromptAnalyzer:
     """
     
     ACTION_TO_CAPABILITY = {
-        'book_library.execute_script': 'behavior.react.act',
-        'book_library.search_books': 'behavior.react.think',
         'final_answer.generate': 'final_answer.generate',
         'data_analysis.analyze_step_data': 'data_analysis',
         'planning.create_plan': 'planning',

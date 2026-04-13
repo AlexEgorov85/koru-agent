@@ -88,7 +88,7 @@ def create_filled_session(goal: str, add_observations: bool = True, add_steps: b
     
     if add_observations:
         session.record_observation(
-            {"result": "Доступны инструменты SQL", "capabilities": ["sql_tool.execute", "book_library.search"]},
+            {"result": "Доступны инструменты SQL", "capabilities": ["sql_tool.execute"]},
             source="system",
             step_number=1
         )

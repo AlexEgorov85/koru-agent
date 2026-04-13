@@ -9,7 +9,7 @@ async def test_skill():
     db = MockDatabase(predefined_results={...})
     llm = MockLLM(predefined_responses=[...])
 
-    skill = BookLibrarySkill(db=db, llm=llm)
+    skill = PlanningSkill(db=db, llm=llm)
     result = await skill.execute(...)
 
     # Assert

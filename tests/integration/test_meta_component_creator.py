@@ -170,8 +170,8 @@ class TestMetaComponentCreatorIntegration:
         result = await executor.execute_action(
             action_name="meta_component_creator.fix",
             parameters={
-                "skill_name": "book_library",
-                "issue_description": "Добавить обработку ошибок при отсутствии книги",
+                "skill_name": "planning",
+                "issue_description": "Добавить обработку ошибок при отсутствии шага",
                 "dry_run": True
             },
             context=session

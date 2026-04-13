@@ -154,7 +154,7 @@ ComponentConfig                ← Генерируется из AppConfig
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  Component (BookLibrarySkill, PlanningSkill, etc.)           │
+│  Component (PlanningSkill, DataAnalysisSkill, etc.)          │
 │  → НЕ загружает ничего сам                                   │
 │  → Использует self.prompts, self.input_contracts...          │
 │  → Только валидирует что ресурсы загружены                   │

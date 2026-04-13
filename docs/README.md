@@ -31,7 +31,6 @@ docs/
 │
 ├── guides/                            # Руководства
 │   ├── README.md                      # Обзор руководств
-│   ├── book_library.md                # Book Library
 │   └── vector_search.md               # Vector Search
 │
 ├── vector_search/                     # Vector Search документация

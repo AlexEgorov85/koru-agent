@@ -180,10 +180,6 @@ skills:
     enabled: true
     parameters:
       max_steps: 15
-  book_library:
-    enabled: true
-    parameters:
-      max_books_per_query: 10
 ```
 
 **Запрещено в `InfraConfig`:**
@@ -248,8 +244,6 @@ project/
 │   │   │   ├── planning/
 │   │   │   │   ├── create_plan_v1.0.0.yaml    # status: active
 │   │   │   │   └── create_plan_v2.0.0.yaml    # status: draft
-│   │   │   └── book_library/
-│   │   │       └── search_books_v1.0.0.yaml
 │   │   └── tools/
 │   │       └── sql_tool/
 │   │           └── generate_query_v1.0.0.yaml

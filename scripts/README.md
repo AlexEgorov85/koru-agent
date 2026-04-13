@@ -87,7 +87,6 @@ python -m scripts.vector.indexer table --table "Lib.genres" --column "name" --so
 | `validate_registry.py` | Валидация registry.yaml |
 | `check_registry.py` | Проверка конфигурации registry |
 | `check_yaml_syntax.py` | Проверка синтаксиса YAML файлов |
-| `analyze_library_schema.py` | Анализ схемы библиотеки |
 
 ---
 

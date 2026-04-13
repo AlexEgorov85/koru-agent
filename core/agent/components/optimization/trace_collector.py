@@ -42,8 +42,8 @@ class TraceCollector:
     USAGE:
     ```python
     collector = TraceCollector(trace_handler)
-    traces = await collector.collect_traces('book_library.search_books')
-    dataset = await collector.build_dataset('book_library.search_books')
+    traces = await collector.collect_traces('planning.create_plan')
+    dataset = await collector.build_dataset('planning.create_plan')
     ```
     """
 

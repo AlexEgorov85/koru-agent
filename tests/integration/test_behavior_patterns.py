@@ -110,13 +110,6 @@ def create_capabilities() -> list:
             supported_strategies=["planning"],
             visiable=False
         ),
-        Capability(
-            name="book_library.search",
-            description="Поиск книг",
-            skill_name="book_library",
-            supported_strategies=["react", "planning"],
-            visiable=True
-        ),
     ]
 
 

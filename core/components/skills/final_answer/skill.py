@@ -309,29 +309,16 @@ class FinalAnswerSkill(Skill):
                         if isinstance(item_content, str):
                             observations.append(item_content)
                         elif isinstance(item_content, dict):
-                            # Специальная обработка для book_library.execute_script
-                            if 'rows' in item_content and isinstance(item_content['rows'], list):
-                                # Форматируем каждую строку как книгу
-                                rows = item_content['rows']
-                                for row in rows:
-                                    formatted = format_book_data(row)
-                                    observations.append(formatted)
+                            # Сериализуем dict/объект с конвертацией datetime → строки
+                            serialized = serialize_for_prompt(item_content)
+                            if isinstance(serialized, dict):
+                                observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
                             else:
-                                # Сериализуем dict/объект с конвертацией datetime → строки
-                                serialized = serialize_for_prompt(item_content)
-                                if isinstance(serialized, dict):
-                                    observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
-                                else:
-                                    observations.append(str(serialized))
+                                observations.append(str(serialized))
                         elif hasattr(item_content, 'model_dump'):
                             # Pydantic модель (результат _validate_output)
                             content_dict = serialize_for_prompt(item_content)
-                            if isinstance(content_dict, dict) and 'rows' in content_dict and isinstance(content_dict['rows'], list):
-                                # book_library.execute_script — форматируем как книги
-                                for row in content_dict['rows']:
-                                    formatted = format_book_data(row)
-                                    observations.append(formatted)
-                            elif isinstance(content_dict, dict):
+                            if isinstance(content_dict, dict):
                                 observations.append(json.dumps(content_dict, ensure_ascii=False, indent=1))
                             else:
                                 observations.append(str(content_dict))

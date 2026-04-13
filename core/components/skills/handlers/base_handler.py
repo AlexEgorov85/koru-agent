@@ -2,7 +2,7 @@
 Универсальный базовый класс для всех обработчиков навыков (Skill Handlers).
 
 ARCHITECTURE:
-- Наследуется всеми Skill handlers (book_library, data_analysis, final_answer, planning, etc.)
+- Наследуется всеми Skill handlers (data_analysis, final_answer, planning, etc.)
 - Не содержит бизнес-логики конкретного навыка
 - Предоставляет общие утилиты для всех хендлеров
 - Устраняет дублирование кода между навыками

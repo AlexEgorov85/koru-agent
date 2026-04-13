@@ -687,7 +687,7 @@ class ApplicationContext(BaseSystemContext):
         отдельный sandbox контекст с модифицированным промптом.
 
         ARGS:
-        - capability: имя capability (например 'book_library.search_books')
+        - capability: имя capability (например 'planning.create_plan')
         - prompt_content: новое содержание промпта
 
         RETURNS:

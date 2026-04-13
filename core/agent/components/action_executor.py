@@ -686,7 +686,7 @@ class ActionExecutor:
 
         # Для простоты создаем capability с именем действия
         from core.models.data.capability import Capability
-        # Извлекаем skill_name из action_name (например, book_library.search_books → book_library)
+        # Извлекаем skill_name из action_name (например, planning.create_plan → planning)
         parts = action_name.split('.')
         skill_name = parts[0] if len(parts) >= 2 else action_name
         return Capability(
@@ -1273,7 +1273,7 @@ class ActionExecutor:
 
         ARGS:
         - component: навык или behavior для выполнения
-        - action_name: имя действия (например, "book_library.execute_script")
+        - action_name: имя действия (например, "planning.create_plan")
         - parameters: параметры выполнения
         - context: контекст выполнения
 

@@ -135,7 +135,7 @@ class ExampleExtractor:
     USAGE:
     ```python
     extractor = ExampleExtractor()
-    good_examples = extractor.extract_good_examples(traces, 'book_library.search_books')
+    good_examples = extractor.extract_good_examples(traces, 'planning.create_plan')
     error_examples = extractor.extract_error_examples(traces, 'syntax_error')
     ```
     """

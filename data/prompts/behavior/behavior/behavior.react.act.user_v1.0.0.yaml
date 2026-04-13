@@ -36,7 +36,6 @@ content: |
   - Для работы с файлами → file_tool.read_write
   - Для работы с данными → sql_tool.execute_query или sql_query.execute
   - Для генерации SQL → sql_generation.generate_query
-  - Для поиска книг → book_library.search_books или book_library.execute_script
   - Для анализа данных → data_analysis.analyze_step_data
   - Для планирования → planning capabilities
   - Для финального ответа → final_answer.generate
@@ -54,29 +53,6 @@ content: |
   - action_parameters: объект с параметрами для вызова инструмента
   - reasoning: краткое обоснование выбора действия
   - expected_outcome: ожидаемый результат выполнения
-
-  === ИНСТРУКЦИИ ДЛЯ book_library.execute_script ===
-  Передавай параметры в ПЛОСКОМ формате (все параметры на верхнем уровне):
-  - script_name: имя скрипта
-  - author: имя автора (если нужно)
-  - genre: жанр (если нужно)
-  - year_from: год ОТ (если нужно)
-  - year_to: год ДО (если нужно)
-  - book_id: ID книги (если нужно)
-  - title_pattern: шаблон названия (если нужно)
-  - max_rows: лимит результатов (опционально, по умолчанию 100)
-
-  Доступные скрипты:
-  - get_all_books — получить все книги
-  - get_books_by_author — книги по автору
-  - get_books_by_genre — книги по жанру
-  - get_books_by_year_range — книги по диапазону лет
-  - get_book_by_id — книга по ID
-  - count_books_by_author — количество книг автора
-  - get_books_by_title_pattern — книги по шаблону названия
-  - get_distinct_authors — список уникальных авторов
-  - get_distinct_genres — список уникальных жанров
-  - get_genre_statistics — статистика по жанрам
 
   === ВЫПОЛНЕНИЕ ===
   На основе предоставленного рассуждения и доступных инструментов выполни действие.

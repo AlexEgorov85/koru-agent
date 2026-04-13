@@ -65,24 +65,6 @@ class TestSkillArchitecture:
         assert result.side_effect is False
 
 
-class TestBookLibrarySkill:
-    """Тесты BookLibrarySkill"""
-
-    def test_skill_has_no_state_access(self):
-        """BookLibrarySkill не имеет прямого доступа к state"""
-        import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
-
-        # Получаем исходный код
-        source = inspect.getsource(BookLibrarySkill)
-
-        # Проверяем отсутствие доступа к state
-        assert "state.memory" not in source
-        assert "state.finished" not in source
-        assert "state.pattern_data" not in source
-        assert ".data_context" not in source
-
-
 class TestFinalAnswerSkill:
     """Тесты FinalAnswerSkill"""
 
@@ -169,12 +151,11 @@ class TestSkillDeterminism:
     def test_no_random_usage(self):
         """Skills не используют random"""
         import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
         from core.components.skills.planning.skill import PlanningSkill
         from core.components.skills.final_answer.skill import FinalAnswerSkill
         from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
-        for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
+        for skill_class in [PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
             assert "import random" not in source
             assert "from random" not in source
@@ -187,12 +168,11 @@ class TestSkillNoPatternKnowledge:
     def test_no_pattern_type_checks(self):
         """Skills не проверяют тип Pattern"""
         import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
         from core.components.skills.planning.skill import PlanningSkill
         from core.components.skills.final_answer.skill import FinalAnswerSkill
         from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
-        for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
+        for skill_class in [PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
 
             # Проверяем отсутствие проверок типа Pattern
@@ -203,11 +183,10 @@ class TestSkillNoPatternKnowledge:
     def test_supported_strategies_is_metadata(self):
         """supported_strategies это только metadata, не логика"""
         import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
         from core.components.skills.final_answer.skill import FinalAnswerSkill
         from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
-        for skill_class in [BookLibrarySkill, FinalAnswerSkill, DataAnalysisSkill]:
+        for skill_class in [FinalAnswerSkill, DataAnalysisSkill]:
             # Проверяем исходный код что нет проверок стратегии
             source = inspect.getsource(skill_class)
             # Проверяем что нет проверок типа if strategy == "react"
@@ -220,12 +199,11 @@ class TestSkillNoDirectLLM:
     def test_no_direct_llm_calls(self):
         """Skills не создают LLM клиентов напрямую"""
         import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
         from core.components.skills.planning.skill import PlanningSkill
         from core.components.skills.final_answer.skill import FinalAnswerSkill
         from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
-        for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
+        for skill_class in [PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
 
             # Проверяем отсутствие прямых вызовов LLM API
@@ -244,12 +222,11 @@ class TestSkillNoRetry:
     def test_no_retry_loops(self):
         """Skills не имеют циклов retry"""
         import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
         from core.components.skills.planning.skill import PlanningSkill
         from core.components.skills.final_answer.skill import FinalAnswerSkill
         from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
-        for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
+        for skill_class in [PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
 
             # Проверяем отсутствие retry циклов

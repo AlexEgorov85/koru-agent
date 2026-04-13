@@ -3,7 +3,7 @@
 
 ЕДИНОЕ место хранения всех компонентов:
 - Сервисы (PromptService, ContractService, ...)
-- Навыки (BookLibrarySkill, PlanningSkill, ...)
+- Навыки (PlanningSkill, DataAnalysisSkill, ...)
 - Инструменты (BaseTool подклассы)
 - Паттерны поведения (ReActPattern, ...)
 """
@@ -23,11 +23,11 @@ class ComponentRegistry:
     
     # Регистрация
     registry.register(ComponentType.SERVICE, "prompt_service", service_instance)
-    registry.register(ComponentType.SKILL, "book_library", skill_instance)
-    
+    registry.register(ComponentType.SKILL, "planning", skill_instance)
+
     # Получение
     service = registry.get(ComponentType.SERVICE, "prompt_service")
-    skill = registry.get(ComponentType.SKILL, "book_library")
+    skill = registry.get(ComponentType.SKILL, "planning")
     
     # Все компоненты типа
     all_skills = registry.all_of_type(ComponentType.SKILL)
@@ -44,7 +44,7 @@ class ComponentRegistry:
         СТРУКТУРА:
         {
             ComponentType.SERVICE: {"prompt_service": instance, ...},
-            ComponentType.SKILL: {"book_library": instance, ...},
+            ComponentType.SKILL: {"planning": instance, ...},
             ComponentType.TOOL: {"search_tool": instance, ...},
             ComponentType.BEHAVIOR: {"react": instance, ...}
         }

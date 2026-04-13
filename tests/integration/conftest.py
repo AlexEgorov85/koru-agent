@@ -102,31 +102,3 @@ async def db_transaction(infrastructure):
 # ============================================================================
 # ФИКСТУРЫ ДЛЯ ПОЛУЧЕНИЯ КОМПОНЕНТОВ
 # ============================================================================
-
-@pytest.fixture
-def book_library_skill(app_context):
-    """
-    Получение навыка book_library из ApplicationContext.
-    """
-    from core.models.enums.common_enums import ComponentType
-    
-    skill = app_context.components.get(ComponentType.TOOL, "book_library")
-    if skill is None:
-        pytest.skip("Навык book_library не найден в реестре")
-    
-    return skill
-
-
-@pytest.fixture
-def get_capability(book_library_skill):
-    """
-    Factory для получения capability по имени.
-    """
-    def _get(capability_name: str):
-        caps = book_library_skill.get_capabilities()
-        for cap in caps:
-            if cap.name == capability_name:
-                return cap
-        pytest.skip(f"Capability {capability_name} не найдена")
-    
-    return _get
