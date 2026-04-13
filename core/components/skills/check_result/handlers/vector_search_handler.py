@@ -69,10 +69,7 @@ class VectorSearchHandler(SkillHandler):
             rows_returned=len(formatted_results)
         )
 
-        output_schema = self.get_output_schema()
-        if output_schema:
-            return output_schema.model_validate(result_data)
-
+        # Возвращаем dict — валидацию выполнит Component._validate_output()
         return result_data
 
     async def _vector_search(

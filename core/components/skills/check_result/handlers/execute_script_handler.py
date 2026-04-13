@@ -33,6 +33,12 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["status"],
         "optional_parameters": [],
+        "param_types": {
+            "status": "like"
+        },
+        "param_descriptions": {
+            "status": "Статус проверки: 'В работе', 'Завершена', 'Отменена' и т.д."
+        },
         "validation": {
             "status": {
                 "table": "audits",
@@ -107,6 +113,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["status"],
         "optional_parameters": [],
+        "param_types": {
+            "status": "like"
+        },
         "validation": {
             "status": {
                 "table": "violations",
@@ -130,6 +139,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["severity"],
         "optional_parameters": [],
+        "param_types": {
+            "severity": "like"
+        },
         "validation": {
             "severity": {
                 "table": "violations",
@@ -171,6 +183,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["responsible"],
         "optional_parameters": [],
+        "param_types": {
+            "responsible": "like"
+        },
         "validation": {
             "responsible": {
                 "table": "violations",
@@ -323,10 +338,7 @@ class ExecuteScriptHandler(SkillHandler):
             rows_returned=len(rows)
         )
 
-        output_schema = self.get_output_schema()
-        if output_schema:
-            return output_schema.model_validate(result_data)
-
+        # Возвращаем dict — валидацию выполнит Component._validate_output()
         return result_data
 
     def _prepare_script_params(
@@ -352,13 +364,15 @@ class ExecuteScriptHandler(SkillHandler):
         """Преобразование именованных параметров в позиционные"""
         required = script_config.get("required_parameters", [])
         optional = script_config.get("optional_parameters", [])
+        param_types = script_config.get("param_types", {})
         all_params = [p for p in required + optional if p != "max_rows"]
 
         sql_params_list = []
         for param_name in all_params:
             if param_name in script_params:
                 value = script_params[param_name]
-                if isinstance(value, str) and '%' not in value:
+                param_type = param_types.get(param_name, "like")
+                if param_type == "like" and isinstance(value, str) and '%' not in value:
                     value = f'%{value}%'
                 sql_params_list.append(value)
 
