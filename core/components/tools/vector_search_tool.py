@@ -1,11 +1,18 @@
 """
-VectorBooksTool — универсальный инструмент для работы с книгами.
+VectorSearchTool — универсальный инструмент для семантического поиска.
 
 Capabilities:
-- search: Семантический поиск по текстам книг
-- get_document: Получение полного текста книги (SQL)
-- analyze: LLM анализ (герои, темы, etc.)
-- query: SQL запрос к базе книг
+- search: Семантический поиск по векторному индексу (любой source)
+- get_document: Получение полного текста документа (SQL/FAISS)
+- analyze: LLM анализ фрагментов
+- query: SQL запрос к базе данных
+
+ИСТОЧНИКИ (source):
+- books: Индекс книг
+- authors: Индекс авторов
+- genres: Индекс жанров
+- audits: Индекс аудиторских проверок
+- violations: Индекс отклонений
 """
 from typing import Optional, Dict, Any, List
 from core.components.tools.tool import Tool
@@ -16,12 +23,12 @@ from core.models.types.analysis import AnalysisResult
 from core.infrastructure.logging.event_types import LogEventType
 
 
-class VectorBooksTool(Tool):
+class VectorSearchTool(Tool):
     """
-    Универсальный инструмент для работы с книгами.
+    Универсальный инструмент для семантического поиска через FAISS.
 
     Использует:
-    - FAISS для семантического поиска
+    - FAISS для семантического поиска (любой source)
     - SQL для получения полного текста
     - LLM для анализа
     - Cache для кэширования результатов анализа
@@ -40,23 +47,24 @@ class VectorBooksTool(Tool):
             executor=executor,
             application_context=application_context
         )
-        
+
         # ← НОВОЕ: Инициализация атрибутов инфраструктуры
         self._embedding_provider = None
-        self._faiss_provider = None
-        self._chunking_strategy = None
         self._sql_provider = None
         self._cache_service = None
+        # FAISS провайдеры кэшируются по source
+        self._faiss_providers: Dict[str, Any] = {}
+        self._chunking_strategies: Dict[str, Any] = {}
 
     @property
     def description(self) -> str:
-        return "Все операции с книгами: поиск + текст + анализ"
+        return "Универсальный семантический поиск через FAISS (books, authors, audits, violations, ...)"
 
     def get_capabilities(self) -> List['Capability']:
         """
         Возвращает возможности инструмента — скрытые из {{available_tools}}.
 
-        vector_books — внутренний инструмент для прямого вызова через executor,
+        vector_search — внутренний инструмент для прямого вызова через executor,
         не для ReAct-планирования. LLM не должен видеть его в списке доступных.
         """
         from core.models.data.capability import Capability
@@ -83,24 +91,57 @@ class VectorBooksTool(Tool):
         return capabilities
 
     def _get_infrastructure(self):
-        """Получение провайдеров из инфраструктуры."""
+        """Получение провайдеров из инфраструктуры.
+
+        NOTE: FAISS провайдеры не кэшируются здесь — они получаются динамически
+        по source в _get_faiss_for_source().
+        """
         if self._embedding_provider is None:
             infra = self.application_context.infrastructure_context
             self._embedding_provider = infra.get_embedding_provider()
-            self._faiss_provider = infra.get_faiss_provider('books')
-            self._chunking_strategy = infra.get_chunking_strategy()
-            self._sql_provider = infra.resource_registry.get_resource('default_db').instance if infra.resource_registry else None
 
             if not self._embedding_provider:
                 from core.errors.exceptions import InfrastructureError
                 raise InfrastructureError(
                     "Embedding провайдер не инициализирован. "
                     "Убедитесь что SentenceTransformersProvider настроен в InfrastructureContext.",
-                    component="vector_books_tool"
+                    component="vector_search_tool"
                 )
 
-            from core.infrastructure.cache.analysis_cache import AnalysisCache
-            self._cache_service = AnalysisCache()
+            # SQL провайдер
+            if self._sql_provider is None:
+                self._sql_provider = infra.resource_registry.get_resource('default_db').instance if infra.resource_registry else None
+
+            # Cache сервис
+            if self._cache_service is None:
+                from core.infrastructure.cache.analysis_cache import AnalysisCache
+                self._cache_service = AnalysisCache()
+
+    def _get_faiss_for_source(self, source: str):
+        """
+        Получение FAISS провайдера для конкретного источника.
+
+        ARGS:
+        - source: имя источника (books, authors, audits, violations, ...)
+
+        RETURNS:
+        - FAISS провайдер для данного источника
+        """
+        if source not in self._faiss_providers:
+            infra = self.application_context.infrastructure_context
+            faiss = infra.get_faiss_provider(source)
+
+            if not faiss:
+                from core.errors.exceptions import InfrastructureError
+                raise InfrastructureError(
+                    f"FAISS провайдер для источника '{source}' не найден. "
+                    f"Убедитесь что он зарегистрирован в InfrastructureContext.",
+                    component="vector_search_tool"
+                )
+
+            self._faiss_providers[source] = faiss
+
+        return self._faiss_providers[source]
     
     async def shutdown(self):
         """Закрытие инструмента."""
@@ -113,13 +154,13 @@ class VectorBooksTool(Tool):
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Выполнение операции (ASYNC версия для vector_books).
+        Выполнение операции (ASYNC версия для vector_search).
 
         Capabilities:
-        - vector_books.search: Семантический поиск
-        - vector_books.get_document: Полный текст книги (SQL)
-        - vector_books.analyze: LLM анализ
-        - vector_books.query: SQL запрос
+        - vector_search.search: Семантический поиск (любой source)
+        - vector_search.get_document: Полный текст документа (SQL/FAISS)
+        - vector_search.analyze: LLM анализ
+        - vector_search.query: SQL запрос
         """
         # Извлекаем operation из capability.name
         if hasattr(capability, 'name'):
@@ -139,17 +180,17 @@ class VectorBooksTool(Tool):
             params_dict = parameters
 
         # Получаем инфраструктуру (загружаем embedding если нужно)
-        self._log_debug(f"VectorBooksTool: getting infrastructure...", event_type=LogEventType.DEBUG)
+        self._log_debug(f"VectorSearchTool: getting infrastructure...", event_type=LogEventType.DEBUG)
         self._get_infrastructure()
-        self._log_debug(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}", event_type=LogEventType.DEBUG)
+        self._log_debug(f"VectorSearchTool: infrastructure ready, embedding={self._embedding_provider is not None}", event_type=LogEventType.DEBUG)
 
-        # Выполняем async операцию напрямую (используем Pydantic модели)
+        # Выполняем async операцию напрямую
         if operation == "search":
             query = params_dict.get('query', '')
             top_k = params_dict.get('top_k', 10)
             min_score = params_dict.get('min_score', 0.5)
             source = params_dict.get('source', 'books')
-            self._log_debug(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=LogEventType.DEBUG)
+            self._log_debug(f"VectorSearchTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=LogEventType.DEBUG)
 
             return await self._search(query=query, top_k=top_k, min_score=min_score, source=source)
 
@@ -163,8 +204,8 @@ class VectorBooksTool(Tool):
             prompt = params_dict.get('prompt', '')
             force_refresh = params_dict.get('force_refresh', False)
             return await self._analyze(
-                entity_id=entity_id, 
-                analysis_type=analysis_type, 
+                entity_id=entity_id,
+                analysis_type=analysis_type,
                 prompt=prompt,
                 force_refresh=force_refresh
             )
@@ -188,18 +229,19 @@ class VectorBooksTool(Tool):
         source: str = "books"
     ) -> Dict[str, Any]:
         """
-        Семантический поиск по книгам.
-        РАБОТАЕТ КАК test_vector_db.py — напрямую, без сложной инфраструктуры.
+        Семантический поиск через FAISS.
+
+        РАБОТАЕТ: Динамически получает FAISS провайдер для указанного source.
         """
         import time
         import numpy as np
         start_time = time.time()
 
-        self._log_debug(f"[_search] START | query='{query[:50]}...'", event_type=LogEventType.DEBUG)
+        self._log_debug(f"[_search] START | query='{query[:50]}...', source={source}", event_type=LogEventType.DEBUG)
 
         try:
-            # 1. Генерируем вектор через _embedding_provider
-            self._log_debug(f"[_search] Using embedding provider...", event_type=LogEventType.DEBUG)
+            # 1. Генерируем вектор через embedding_provider
+            self._log_debug(f"[_search] Generating embedding...", event_type=LogEventType.DEBUG)
 
             if not self._embedding_provider:
                 return {"error": "Embedding provider not initialized", "search_type": "error"}
@@ -209,14 +251,10 @@ class VectorBooksTool(Tool):
             query_vector = np.array(query_vector_list[0], dtype=np.float32) if query_vector_list else None
             self._log_debug(f"[_search] Embedding done", event_type=LogEventType.DEBUG)
 
-            # 2. Получаем FAISS индекс через метод доступа
-            self._log_debug(f"[_search] Getting FAISS...", event_type=LogEventType.DEBUG)
+            # 2. Получаем FAISS индекс для указанного source
+            self._log_debug(f"[_search] Getting FAISS for source='{source}'...", event_type=LogEventType.DEBUG)
 
-            infra = self.application_context.infrastructure_context
-            faiss = infra.get_faiss_provider(source)
-
-            if not faiss:
-                return {"error": f"FAISS {source} provider not found", "search_type": "error"}
+            faiss = self._get_faiss_for_source(source)
 
             count = await faiss.count()
             if count == 0:
@@ -227,7 +265,7 @@ class VectorBooksTool(Tool):
                     query=query
                 )
 
-            # 3. Поиск в FAISS (напрямую как в тесте)
+            # 3. Поиск в FAISS
             self._log_debug(f"[_search] Searching FAISS ({count} vectors)...", event_type=LogEventType.DEBUG)
 
             faiss_search_start = time.time()
@@ -243,6 +281,8 @@ class VectorBooksTool(Tool):
                     "chunk_id": result.get("metadata", {}).get("chunk_id"),
                     "document_id": result.get("metadata", {}).get("document_id"),
                     "book_id": result.get("metadata", {}).get("book_id"),
+                    "audit_id": result.get("metadata", {}).get("audit_id"),
+                    "violation_id": result.get("metadata", {}).get("violation_id"),
                     "chapter": result.get("metadata", {}).get("chapter"),
                     "score": result.get("score"),
                     "content": result.get("metadata", {}).get("content", ""),
@@ -252,7 +292,6 @@ class VectorBooksTool(Tool):
             total_time = time.time() - start_time
             self._log_debug(f"[_search] COMPLETE: {total_time:.2f}s, found={len(results)}", event_type=LogEventType.DEBUG)
 
-            # Возвращаем только поля из output контракта (additionalProperties: false)
             return {
                 "results": results,
                 "total_found": len(results)
@@ -263,13 +302,11 @@ class VectorBooksTool(Tool):
             import traceback
             self._log_error(f"Traceback: {traceback.format_exc()}", event_type=LogEventType.ERROR)
 
-            # ❌ УДАЛЕНО: Fallback на SQL при любой ошибке
-            # ✅ ТЕПЕРЬ: Выбрасываем VectorSearchError
             from core.errors.exceptions import VectorSearchError
             raise VectorSearchError(
                 f"Векторный поиск не удался: {e}. "
                 f"Проверьте что FAISS индекс создан, загружен и содержит данные.",
-                component="vector_books_tool.search"
+                component="vector_search_tool.search"
             )
 
     # ❌ УДАЛЕНО: _sql_fallback_search
@@ -337,7 +374,7 @@ class VectorBooksTool(Tool):
 
         Примеры:
         - analyze(entity_id="book_1", analysis_type="character", prompt="Кто главный герой?")
-        - analyze(entity_id="book_1", analysis_type="theme", prompt="Какие основные темы?")
+        - analyze(entity_id="audit_5", analysis_type="summary", prompt="Какие ключевые нарушения?")
 
         Args:
             entity_id: ID сущности
@@ -364,7 +401,7 @@ class VectorBooksTool(Tool):
 
         # 3. LLM анализ — используем промпт из component_config
         # Получаем шаблон промпта из кэша (загружен при инициализации)
-        capability_name = "vector_books.analyze"
+        capability_name = "vector_search.analyze"
         prompt_obj = self.get_prompt(capability_name)
         prompt_template = prompt_obj.content if prompt_obj else ""
 
@@ -372,7 +409,7 @@ class VectorBooksTool(Tool):
             from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/",
-                component="vector_books_tool"
+                component="vector_search_tool"
             )
 
         # Рендерим промпт
@@ -380,12 +417,12 @@ class VectorBooksTool(Tool):
 
         # Получаем output контракт для структурированного вывода
         output_schema = self.get_output_contract(capability_name)
-        
+
         if not output_schema:
             from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Контракт для {capability_name} не загружен! Проверьте YAML в data/contracts/",
-                component="vector_books_tool"
+                component="vector_search_tool"
             )
 
         # Вызов LLM через executor с structured output
@@ -395,14 +432,14 @@ class VectorBooksTool(Tool):
             parameters={
                 'prompt': llm_prompt,
                 'structured_output': {
-                    'output_model': 'VectorBooksAnalysis',
+                    'output_model': 'VectorSearchAnalysis',
                     'schema_def': output_schema,
                     'max_retries': 3,
                     'strict_mode': False
                 }
             }
         )
-        
+
         if not result.get('success'):
             raise RuntimeError(f"LLM error: {result.get('error')}")
 
@@ -429,25 +466,48 @@ class VectorBooksTool(Tool):
     
     async def _get_context(self, entity_id: str) -> str:
         """Получение контекста для анализа."""
-        
-        # Если это книга, получаем несколько чанков
+
+        # Определяем source и ID из entity_id
         if entity_id.startswith("book_"):
-            book_id = int(entity_id.replace("book_", ""))
-            
-            results = await self._faiss_provider.search(
-                query_vector=[0.0] * 384,  # Пустой вектор для получения любых чанков
-                top_k=5,
-                filters={"book_id": book_id}
-            )
-            
-            context = "\n\n".join([
-                f"[Глава {r['metadata'].get('chapter', '?')}]\n{r['metadata'].get('content', '')}"
-                for r in results
-            ])
-            
-            return context
-        
-        return ""
+            source = "books"
+            entity_num = int(entity_id.replace("book_", ""))
+            filter_key = "book_id"
+        elif entity_id.startswith("audit_"):
+            source = "audits"
+            entity_num = int(entity_id.replace("audit_", ""))
+            filter_key = "audit_id"
+        elif entity_id.startswith("violation_"):
+            source = "violations"
+            entity_num = int(entity_id.replace("violation_", ""))
+            filter_key = "violation_id"
+        else:
+            return ""
+
+        # Получаем FAISS для этого source
+        faiss = self._get_faiss_for_source(source)
+
+        results = await faiss.search(
+            query_vector=[0.0] * 384,  # Пустой вектор для получения любых чанков
+            top_k=5,
+        )
+
+        # Фильтруем по entity_id
+        filtered = [r for r in results if r.get("metadata", {}).get(filter_key) == entity_num]
+
+        if not filtered:
+            return ""
+
+        context_parts = []
+        for r in filtered[:5]:
+            metadata = r.get("metadata", {})
+            chapter = metadata.get("chapter")
+            content = metadata.get("content", "")
+            if chapter is not None:
+                context_parts.append(f"[Глава/Раздел {chapter}]\n{content}")
+            else:
+                context_parts.append(content)
+
+        return "\n\n".join(context_parts)
     
     async def _query(
         self,
