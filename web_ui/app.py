@@ -14,7 +14,7 @@ if project_root not in sys.path:
 
 import streamlit as st
 from core.agent.factory import AgentFactory
-from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_shared_dialogue_history, reset_dialogue_history, get_agent_steps
+from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_shared_dialogue_history, reset_dialogue_history, get_agent_steps, set_agent_log_path, get_agent_log_path, populate_agent_steps
 
 st.set_page_config(
     page_title="Агент",
@@ -176,19 +176,24 @@ with tab1:
                         if not is_ready():
                             error_holder[0] = RuntimeError("Система не инициализирована. Перейдите в Управление и нажмите 'Запустить систему'.")
                             return
-                        
+
                         app_ctx = get_app_context()
                         if app_ctx is None:
                             error_holder[0] = RuntimeError("Контекст приложения упал. Попробуйте перезапустить систему в Управлении.")
                             return
-                        
+
                         factory = AgentFactory(app_ctx)
                         shared_dialogue_history = get_shared_dialogue_history()
-                        
+
                         async def run():
                             agent = await factory.create_agent(goal=pending, dialogue_history=shared_dialogue_history)
+                            # Устанавливаем путь к лог-файлу агента для UI
+                            log_session = app_ctx.infrastructure_context.log_session
+                            log_path = log_session.get_last_agent_log_path()
+                            if log_path:
+                                set_agent_log_path(log_path)
                             return await agent.run(pending)
-                        
+
                         result_holder[0] = loop.run_until_complete(run())
                     finally:
                         loop.close()
@@ -200,39 +205,59 @@ with tab1:
             agent_thread.start()
             
             # Пока агент работает - показываем мысли в реальном времени
-            last_log_count = 0
             crash_detected = False
-            
+
             while agent_thread.is_alive():
                 # Проверяем что контексты живы
                 if not is_ready():
                     crash_detected = True
                     break
-                
-                # Получаем свежие логи
+
+                # Получаем свежие логи из файла (tail-режим)
                 logs = get_logs()
-                
-                # Ищем последнее сообщение "thinking"
+
+                # Ищем последние сообщения для UI
                 thinking_msg = None
+                tool_call_msg = None
+                decision_msg = None
+
                 for log in reversed(logs):
-                    if log.get("level") == "thinking":
+                    evt = log.get("event_type", "")
+                    # thinking — главный приоритет
+                    if "THINKING" in evt and not thinking_msg:
                         thinking_msg = log.get("message", "")
-                        break
-                
-                if thinking_msg:
-                    # Одна строка которая меняется
+                    # tool_call — показать если нет thinking
+                    elif "TOOL_CALL" in evt and not tool_call_msg:
+                        tool_call_msg = log.get("message", "")
+                    # decision — показать если нет thinking/tool_call
+                    elif "DECISION" in evt and not decision_msg:
+                        decision_msg = log.get("message", "")
+
+                # Формируем отображение: thinking > tool_call > decision
+                display_msg = thinking_msg or tool_call_msg or decision_msg
+
+                if display_msg:
+                    # Формируем иконку по типу события
+                    icon = "🤔"
+                    if tool_call_msg and display_msg == tool_call_msg:
+                        icon = "⚙️"
+                    elif decision_msg and display_msg == decision_msg:
+                        icon = "🧠"
+
                     thinking_placeholder.markdown(
-                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>{thinking_msg}</div>",
+                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>{icon} {display_msg}</div>",
                         unsafe_allow_html=True
                     )
-                    last_log_count = len(logs)
-                
+
                 # Небольшая пауза чтобы UI успевал обновляться
                 time.sleep(0.3)
             
             # Дожидаемся завершения
             agent_thread.join()
-            
+
+            # Заполняем шаги агента из лог-файла
+            populate_agent_steps()
+
             # Очищаем контейнер мыслей
             thinking_placeholder.empty()
             

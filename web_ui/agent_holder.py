@@ -3,9 +3,18 @@
 
 Контексты создаются один раз при поднятии и живут в памяти
 пока работает сервер. Каждый запрос создаёт новый Agent из app_ctx.
+
+МЕХАНИЗМ ЛОГИРОВ ДЛЯ UI:
+- UI читает лог-файл агента в реальном времени (tail-подобно)
+- Парсит строки вида: "TIMESTAMP | LEVEL    | EVENT_TYPE | COMPONENT | MESSAGE"
+- Фильтрует по LogEventType для отображения thinking/progress/tool_call и т.д.
 """
 
 import asyncio
+import threading
+import re
+import time
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.application_context.application_context import ApplicationContext
@@ -17,12 +26,17 @@ _is_ready: bool = False
 # НОВОЕ: Глобальная DialogueHistory — хранится между запросами
 _dialogue_history: Optional[Any] = None  # DialogueHistory (ленивый импорт)
 
-_event_logs: List[Dict[str, Any]] = []
-_log_lock = asyncio.Lock()
+# НОВОЕ: Путь к лог-файлу последнего агента
+_agent_log_path: Optional[Path] = None
+_log_file_lock = threading.Lock()
+
+# НОВОЕ: Позиция чтения (для tail-режима — не читать заново)
+_last_log_position: int = 0
+_position_lock = threading.Lock()
 
 # НОВОЕ: Детальная история шагов агента
 _agent_steps: List[Dict[str, Any]] = []
-_steps_lock = asyncio.Lock()
+_steps_lock = threading.Lock()
 
 
 def get_status() -> dict:
@@ -39,22 +53,250 @@ def get_event_bus():
     return None
 
 
+def get_agent_log_path() -> Optional[Path]:
+    """Получить путь к лог-файлу текущего агента."""
+    with _log_file_lock:
+        return _agent_log_path
+
+
+def set_agent_log_path(path: Path):
+    """Установить путь к лог-файлу агента."""
+    global _agent_log_path, _last_log_position
+    with _log_file_lock:
+        _agent_log_path = path
+    with _position_lock:
+        _last_log_position = 0
+
+
 def get_logs() -> List[Dict[str, Any]]:
-    return _event_logs.copy()
+    """
+    Прочитать новые записи из лог-файла агента (tail-режим).
+
+    Возвращает список записей с полями:
+    - time: timestamp строка
+    - level: DEBUG/INFO/WARNING/ERROR
+    - event_type: LogEventType value (например "AGENT_THINKING")
+    - component: имя компонента
+    - message: текст сообщения
+    - raw: полная строка (для fallback)
+    """
+    log_path = get_agent_log_path()
+    if not log_path or not log_path.exists():
+        return []
+
+    entries = []
+    global _last_log_position
+
+    with _position_lock:
+        start_pos = _last_log_position
+
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            # Если файл меньше чем start_pos — значит это новый файл
+            f.seek(0, 2)  # seek to end
+            file_size = f.tell()
+            if file_size < start_pos:
+                start_pos = 0
+
+            f.seek(start_pos)
+            new_content = f.read()
+            end_pos = f.tell()
+
+            if not new_content:
+                return []
+
+            # Парсим строки
+            for line in new_content.splitlines():
+                entry = _parse_log_line(line)
+                if entry:
+                    entries.append(entry)
+
+            with _position_lock:
+                _last_log_position = end_pos
+
+    except (FileNotFoundError, IOError):
+        return []
+
+    return entries
+
+
+# Формат лога: "2026-04-12 14:30:00,123456 | INFO     | AGENT_THINKING     | agent.agent_001          | Сообщение"
+_LOG_LINE_RE = re.compile(
+    r'^(?P<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s*\|\s*'
+    r'(?P<level>\w+)\s*\|\s*'
+    r'(?P<event_type>[^|]+?)\s*\|\s*'
+    r'(?P<component>[^|]+?)\s*\|\s*'
+    r'(?P<message>.+)$'
+)
+
+
+def _parse_log_line(line: str) -> Optional[Dict[str, Any]]:
+    """Парсинг одной строки лога."""
+    line = line.strip()
+    if not line:
+        return None
+
+    m = _LOG_LINE_RE.match(line)
+    if not m:
+        # Fallback: просто строка без структуры
+        return {
+            "time": "",
+            "level": "info",
+            "event_type": "",
+            "component": "",
+            "message": line,
+            "raw": line,
+        }
+
+    event_type = m.group("event_type").strip()
+    level_raw = m.group("level").strip().upper()
+
+    # Нормализация уровня
+    level = "info"
+    if "ERROR" in level_raw or "CRITICAL" in level_raw:
+        level = "error"
+    elif "WARNING" in level_raw:
+        level = "warning"
+    elif "DEBUG" in level_raw:
+        level = "debug"
+
+    # Специальные event_type для UI
+    if event_type == "-":
+        ui_level = level
+    elif "THINKING" in event_type:
+        level = "thinking"
+    elif "ERROR" in event_type:
+        level = "error"
+    elif "WARNING" in event_type:
+        level = "warning"
+
+    return {
+        "time": m.group("time"),
+        "level": level,
+        "event_type": event_type,
+        "component": m.group("component").strip(),
+        "message": m.group("message").strip(),
+        "raw": line,
+    }
 
 
 def clear_logs():
-    global _event_logs, _agent_steps
-    _event_logs = []
-    _agent_steps = []
+    """Сброс позиции чтения лога."""
+    with _position_lock:
+        global _last_log_position
+        _last_log_position = 0
+    global _agent_steps
+    with _steps_lock:
+        _agent_steps = []
 
 
 def add_log(message: str, level: str = "info"):
-    _event_logs.append({
-        "time": asyncio.get_event_loop().time(),
-        "level": level,
-        "message": message
-    })
+    """
+    Добавление записи в _event_logs (устаревший метод, для обратной совместимости).
+    Больше не используется — логи читаются из файла.
+    """
+    pass  # stub для обратной совместимости
+
+
+def populate_agent_steps():
+    """
+    Заполнить _agent_steps из лог-файла.
+
+    Парсит лог-файл и извлекает события AGENT_DECISION, TOOL_RESULT, TOOL_ERROR
+    для отображения хода мышления агента в UI.
+    """
+    log_path = get_agent_log_path()
+    if not log_path or not log_path.exists():
+        return
+
+    steps = []
+    step_counter = 0
+
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                entry = _parse_log_line(line)
+                if not entry:
+                    continue
+
+                evt = entry.get("event_type", "")
+                msg = entry.get("message", "")
+                time_str = entry.get("time", "")
+
+                #capability selection (ШАГ N + AGENT_DECISION)
+                if "AGENT_DECISION" in evt and "Capability:" in msg:
+                    step_counter += 1
+                    # Парсим: "🎯 Capability: check_result.execute_script | reasoning"
+                    cap_name = ""
+                    reasoning = ""
+                    if "|" in msg:
+                        parts = msg.split("|", 1)
+                        cap_part = parts[0].replace("🎯 Capability:", "").strip()
+                        cap_name = cap_part
+                        reasoning = parts[1].strip() if len(parts) > 1 else ""
+                    else:
+                        cap_name = msg.replace("🎯 Capability:", "").strip()
+
+                    steps.append({
+                        "type": "capability_selected",
+                        "capability": cap_name,
+                        "reasoning": reasoning,
+                        "step": step_counter,
+                        "timestamp": time_str,
+                    })
+
+                # tool result
+                elif "TOOL_RESULT" in evt:
+                    # Парсим: "✅ check_result.execute_script → COMPLETED"
+                    action = ""
+                    status = ""
+                    if "→" in msg:
+                        parts = msg.split("→", 1)
+                        action = parts[0].replace("✅", "").strip()
+                        status = parts[1].strip()
+                    else:
+                        action = msg.replace("✅", "").strip()
+                        status = "COMPLETED"
+
+                    steps.append({
+                        "type": "action_performed",
+                        "action": action,
+                        "parameters": {},
+                        "status": status,
+                        "error": None,
+                        "step": step_counter,
+                        "timestamp": time_str,
+                    })
+
+                # tool error
+                elif "TOOL_ERROR" in evt:
+                    # Парсим: "❌ check_result.execute_script → FAILED: error msg"
+                    action = ""
+                    error = ""
+                    if "→" in msg:
+                        parts = msg.split("→", 1)
+                        action = parts[0].replace("❌", "").strip()
+                        error = parts[1].strip()
+                    else:
+                        action = msg.replace("❌", "").strip()
+                        error = msg
+
+                    steps.append({
+                        "type": "action_performed",
+                        "action": action,
+                        "parameters": {},
+                        "status": "FAILED",
+                        "error": error,
+                        "step": step_counter,
+                        "timestamp": time_str,
+                    })
+
+        with _steps_lock:
+            _agent_steps.clear()
+            _agent_steps.extend(steps)
+
+    except (FileNotFoundError, IOError):
+        pass
 
 
 def add_agent_step(step_data: Dict[str, Any]):
@@ -72,13 +314,10 @@ async def init_contexts(profile: str = "prod", data_dir: str = "data"):
 
     from core.config import get_config
     from core.config.app_config import AppConfig
-    from core.infrastructure.event_bus.unified_event_bus import EventType
 
     config = get_config(profile=profile, data_dir=data_dir)
     _infra_ctx = InfrastructureContext(config)
     await _infra_ctx.initialize()
-
-    _subscribe_to_events()
 
     # Проверка session_handler
     if _infra_ctx.session_handler:
@@ -105,97 +344,6 @@ async def init_contexts(profile: str = "prod", data_dir: str = "data"):
         print("[agent_holder] WARNING: LLMOrchestrator НЕ инициализирован!")
 
     _is_ready = True
-
-
-def _subscribe_to_events():
-    if not _infra_ctx or not _infra_ctx.event_bus:
-        return
-
-    from core.infrastructure.event_bus.unified_event_bus import EventType
-
-    event_bus = _infra_ctx.event_bus
-
-    async def on_log(event):
-        msg = event.data.get("message", "") if event.data else ""
-        level = "info"
-        if "error" in str(event.event_type).lower():
-            level = "error"
-        elif "warning" in str(event.event_type).lower():
-            level = "warning"
-        add_log(msg, level)
-
-    async def on_user_result(event):
-        msg = event.data.get("message", "") if event.data else ""
-        add_log(f"[RESULT] {msg}", "info")
-
-    async def on_progress(event):
-        msg = event.data.get("message", "") if event.data else ""
-        add_log(f"[PROGRESS] {msg}", "info")
-
-    async def on_skill(event):
-        skill = event.data.get("skill_name", "") if event.data else ""
-        add_log(f"[SKILL] {skill} выполнен", "info")
-
-    async def on_tool(event):
-        tool = event.data.get("tool_name", "") if event.data else ""
-        add_log(f"[TOOL] {tool} вызван", "info")
-
-    # НОВОЕ: Подписка на детали шагов агента
-    async def on_capability_selected(event):
-        """Сохраняем информацию о выбранном capability."""
-        if event.data:
-            add_agent_step({
-                "type": "capability_selected",
-                "capability": event.data.get("capability", ""),
-                "timestamp": event.timestamp.isoformat() if hasattr(event, 'timestamp') else None
-            })
-
-    async def on_action_performed(event):
-        """Сохраняем информацию о выполненном действии."""
-        if event.data:
-            add_agent_step({
-                "type": "action_performed",
-                "action": event.data.get("action", ""),
-                "parameters": event.data.get("parameters", {}),
-                "result": event.data.get("result", ""),
-                "timestamp": event.timestamp.isoformat() if hasattr(event, 'timestamp') else None
-            })
-
-    # НОВОЕ: Подписка на мысли агента
-    async def on_agent_thinking(event):
-        """Мысли агента - одна строка которая меняется."""
-        if event.data:
-            msg = event.data.get("message", "")
-            add_log(msg, "thinking")
-
-    event_bus.subscribe(EventType.AGENT_THINKING, on_agent_thinking)
-    
-    # Подписка на финальный ответ
-    async def on_session_answer(event):
-        msg = event.data.get("answer", "") if event.data else ""
-        add_log(f"[SESSION_ANSWER] {msg}", "info")
-    
-    event_bus.subscribe(EventType.SESSION_ANSWER, on_session_answer)
-    
-    event_bus.subscribe(EventType.LOG_INFO, on_log)
-    event_bus.subscribe(EventType.INFO, on_log)
-    event_bus.subscribe(EventType.LOG_WARNING, on_log)
-    event_bus.subscribe(EventType.WARNING, on_log)
-    event_bus.subscribe(EventType.LOG_ERROR, on_log)
-    event_bus.subscribe(EventType.ERROR_OCCURRED, on_log)
-    event_bus.subscribe(EventType.USER_RESULT, on_user_result)
-    event_bus.subscribe(EventType.USER_PROGRESS, on_progress)
-    event_bus.subscribe(EventType.SKILL_EXECUTED, on_skill)
-    event_bus.subscribe(EventType.TOOL_CALL, on_tool)
-    # НОВОЕ: LLM события для полноты логов
-    event_bus.subscribe(EventType.LLM_CALL_STARTED, on_log)
-    event_bus.subscribe(EventType.LLM_CALL_COMPLETED, on_log)
-    event_bus.subscribe(EventType.LLM_CALL_FAILED, on_log)
-    event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, on_log)
-    event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, on_log)
-    # НОВОЕ: Детали шагов агента
-    event_bus.subscribe(EventType.CAPABILITY_SELECTED, on_capability_selected)
-    event_bus.subscribe(EventType.ACTION_PERFORMED, on_action_performed)
 
 
 async def shutdown_contexts():

@@ -289,6 +289,12 @@ class AgentRuntime:
                     agent_id=self.agent_id
                 )
 
+                # Логируем для UI (через LogEventType — читается из файла)
+                self.log.info(
+                    f"🎯 Capability: {decision.action} | {decision.reasoning or ''}",
+                    extra={"event_type": LogEventType.AGENT_DECISION}
+                )
+
                 try:
                     result = await self.safe_executor.execute(
                         capability_name=decision.action,
@@ -333,6 +339,18 @@ class AgentRuntime:
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id
                 )
+
+                # Логируем для UI (через LogEventType — читается из файла)
+                if result.status == ExecutionStatus.FAILED:
+                    self.log.info(
+                        f"❌ {decision.action} → FAILED: {result.error or 'неизвестная'}",
+                        extra={"event_type": LogEventType.TOOL_ERROR}
+                    )
+                else:
+                    self.log.info(
+                        f"✅ {decision.action} → {result.status.value}",
+                        extra={"event_type": LogEventType.TOOL_RESULT}
+                    )
 
                 # Сохранение данных результата в data_context
                 observation_item_ids = []

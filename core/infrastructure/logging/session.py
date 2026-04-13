@@ -249,6 +249,33 @@ class LoggingSession:
         self._agent_loggers[agent_id] = logger
         return logger
 
+    def get_last_agent_log_path(self) -> Optional[Path]:
+        """
+        Получить путь к последнему лог-файлу агента.
+
+        Если есть созданные логгеры — возвращает путь последнего.
+        Если логгеров нет — ищет последний файл в agents_dir.
+
+        RETURNS:
+        - Path к лог-файлу или None
+        """
+        # Если есть созданные логгеры — берём последний
+        if self._agent_loggers:
+            last_id = list(self._agent_loggers.keys())[-1]
+            last_logger = self._agent_loggers[last_id]
+            # Путь можно получить из handlers
+            for handler in last_logger.handlers:
+                if isinstance(handler, logging.FileHandler):
+                    return Path(handler.baseFilename)
+
+        # Fallback: ищем последний файл в agents_dir
+        if self.agents_dir.exists():
+            log_files = sorted(self.agents_dir.glob("*.log"), key=lambda p: p.stat().st_mtime)
+            if log_files:
+                return log_files[-1]
+
+        return None
+
     def shutdown(self) -> None:
         """Корректно закрывает все обработчики."""
         for logger in [self.infra_logger, self.app_logger]:
