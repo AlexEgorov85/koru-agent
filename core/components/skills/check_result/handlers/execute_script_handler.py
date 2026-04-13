@@ -55,7 +55,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "description": "Получить все аудиторские проверки",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
-            FROM audits
+            FROM oarb.audits
             ORDER BY planned_date DESC
             LIMIT %s
         ''',
@@ -67,7 +67,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "description": "Получить проверки по статусу",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
-            FROM audits
+            FROM oarb.audits
             WHERE status ILIKE %s
             ORDER BY planned_date DESC
             LIMIT %s
@@ -89,7 +89,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "description": "Получить акты аудиторской проверки по ID проверки",
         "sql": '''
             SELECT ar.id, ar.report_number, ar.report_date, ar.title, ar.full_text
-            FROM audit_reports ar
+            FROM oarb.audit_reports ar
             WHERE ar.audit_id = %s
             ORDER BY ar.report_date DESC
             LIMIT %s
@@ -98,7 +98,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "audit_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID аудиторской проверки (число из поля id таблицы audits)"
+                "description": "ID аудиторской проверки (число из поля id таблицы oarb.audits)"
             },
             "max_rows": "limit"
         }
@@ -107,7 +107,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "description": "Получить пункты акта по ID акта",
         "sql": '''
             SELECT id, item_number, item_title, item_content, order_index
-            FROM report_items
+            FROM oarb.report_items
             WHERE report_id = %s
             ORDER BY order_index
             LIMIT %s
@@ -116,7 +116,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "report_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID акта проверки (число из поля id таблицы audit_reports)"
+                "description": "ID акта проверки (число из поля id таблицы oarb.audit_reports)"
             },
             "max_rows": "limit"
         }
@@ -126,7 +126,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline
-            FROM violations v
+            FROM oarb.violations v
             WHERE v.audit_id = %s
             ORDER BY
                 CASE v.severity
@@ -141,7 +141,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "audit_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID аудиторской проверки (число из поля id таблицы audits)"
+                "description": "ID аудиторской проверки (число из поля id таблицы oarb.audits)"
             },
             "max_rows": "limit"
         }
@@ -152,8 +152,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
                    a.title as audit_title
-            FROM violations v
-            JOIN audits a ON v.audit_id = a.id
+            FROM oarb.violations v
+            JOIN oarb.audits a ON v.audit_id = a.id
             WHERE v.status ILIKE %s
             ORDER BY
                 CASE v.severity
@@ -182,8 +182,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
                    a.title as audit_title
-            FROM violations v
-            JOIN audits a ON v.audit_id = a.id
+            FROM oarb.violations v
+            JOIN oarb.audits a ON v.audit_id = a.id
             WHERE v.severity ILIKE %s
             ORDER BY v.created_at DESC
             LIMIT %s
@@ -208,8 +208,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                    v.severity, v.status, v.responsible, v.deadline,
                    a.title as audit_title,
                    CURRENT_DATE - v.deadline AS days_overdue
-            FROM violations v
-            JOIN audits a ON v.audit_id = a.id
+            FROM oarb.violations v
+            JOIN oarb.audits a ON v.audit_id = a.id
             WHERE v.deadline < CURRENT_DATE
               AND v.status != 'Устранено'
             ORDER BY days_overdue DESC, v.severity DESC
@@ -225,8 +225,8 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
                    a.title as audit_title
-            FROM violations v
-            JOIN audits a ON v.audit_id = a.id
+            FROM oarb.violations v
+            JOIN oarb.audits a ON v.audit_id = a.id
             WHERE v.responsible ILIKE %s
             ORDER BY v.deadline
             LIMIT %s
@@ -260,10 +260,10 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
                 COUNT(DISTINCT CASE WHEN v.severity = 'Низкая' THEN v.id END) as low_severity_count,
                 COUNT(DISTINCT CASE WHEN v.status = 'Открыто' THEN v.id END) as open_violations_count,
                 COUNT(DISTINCT CASE WHEN v.status = 'Устранено' THEN v.id END) as resolved_violations_count
-            FROM audits a
-            LEFT JOIN audit_reports ar ON a.id = ar.audit_id
-            LEFT JOIN report_items ri ON ar.id = ri.report_id
-            LEFT JOIN violations v ON a.id = v.audit_id
+            FROM oarb.audits a
+            LEFT JOIN oarb.audit_reports ar ON a.id = ar.audit_id
+            LEFT JOIN oarb.report_items ri ON ar.id = ri.report_id
+            LEFT JOIN oarb.violations v ON a.id = v.audit_id
             GROUP BY a.id, a.title, a.status
             ORDER BY a.planned_date DESC
             LIMIT %s
@@ -294,7 +294,7 @@ class ExecuteScriptHandler(SkillHandler):
         super().__init__(skill)
         self._param_validator = ParamValidator(
             executor=self.executor,
-            schema=None,  # Схема не указывается, т.к. таблицы в public
+            schema="oarb",
             log_callback=self._log_debug
         )
 
