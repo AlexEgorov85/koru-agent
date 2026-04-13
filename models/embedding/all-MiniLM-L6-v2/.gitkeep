@@ -1,0 +1,3 @@
+# Embedding model directory placeholder
+# Model files are gitignored — download on demand.
+# Configure model path in core/config/defaults/dev.yaml (vector_search.embedding.model_name)

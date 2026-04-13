@@ -17,7 +17,6 @@
 **Для пользователей:**
 
 1. **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** — API документация
-2. **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** — руководство
 
 ---
 
@@ -146,7 +145,6 @@ Fallback на SQL      ✅ 100%  ← НОВОЕ
 | Документ | Описание |
 |----------|----------|
 | **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** | API документация |
-| **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** | Руководство пользователя |
 | **[../../CHANGELOG.md](../../CHANGELOG.md)** | История изменений |
 
 ---

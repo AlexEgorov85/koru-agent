@@ -71,4 +71,13 @@ test_output.txt
 # Generated vector indexes (too large, regenerate on demand)
 data/vector/*.faiss
 data/vector/*_metadata.json
+
+# Embedding models (binary weights — download on demand)
+models/embedding/*/model.safetensors
+models/embedding/*/tokenizer.json
+models/embedding/*/*.json
+models/embedding/*/*/*.json
+
+# UI launch script (local convenience, not part of codebase)
+run_ui.bat
 ```

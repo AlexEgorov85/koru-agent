@@ -71,6 +71,6 @@ graph TD
 
 ## Ссылки
 
-- `core/infrastructure/context/infrastructure_context.py`
-- `core/application/context/application_context.py`
-- `docs/architecture.md`
+- `core/infrastructure_context/infrastructure_context.py`
+- `core/application_context/application_context.py`
+- `docs/architecture/ideal.md`
