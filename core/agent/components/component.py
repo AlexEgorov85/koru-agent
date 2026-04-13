@@ -654,7 +654,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
     
     async def _publish_metrics(
         self,
-        capability: Capability,
+        capability: Optional[Capability],
         success: bool,
         execution_time_ms: float,
         execution_context: Optional[ExecutionContext] = None,
@@ -663,10 +663,17 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         """Публикация метрик выполнения."""
         # Метрики теперь публикуются через EventBus отдельно (если нужно)
         # Логи выполнения — через стандартный logging
-        event_type = LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
         
+        # Если event_type передан в extra_data — используем его, иначе дефолтный
+        event_type = extra_data.get(
+            'event_type',
+            LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
+        )
+        
+        capability_name = capability.name if capability else extra_data.get('capability_name', 'unknown')
+
         self._log_info(
-            f"Выполнение {capability.name}: {'успешно' if success else 'ошибка'} ({execution_time_ms:.2f}ms)",
+            f"Выполнение {capability_name}: {'успешно' if success else 'ошибка'} ({execution_time_ms:.2f}ms)",
             event_type=event_type,
             **extra_data
         )

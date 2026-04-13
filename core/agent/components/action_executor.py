@@ -1140,14 +1140,9 @@ class ActionExecutor:
         """
         try:
             # Извлекаем имя метода из имени действия
-            # sql_query_service.execute -> execute
+            method_name = action_name
             if '.' in action_name:
-                _, method_name = action_name.split('.', 1)
-                # service.execute -> execute_query (добавляем префикс если нужно)
-                if method_name == "execute":
-                    method_name = "execute_query"
-            else:
-                method_name = action_name
+                method_name = action_name.split('.')[-1]
 
             # Проверяем наличие метода
             if not hasattr(service, method_name):
