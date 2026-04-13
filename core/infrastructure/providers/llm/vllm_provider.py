@@ -21,6 +21,9 @@ from core.models.types.llm_types import (
 )
 from pydantic import BaseModel, Field
 
+# from vllm import LLM, SamplingParams
+# from vllm.sampling_params import StructuredOutputsParams
+
 
 class VLLMConfig(BaseModel):
     """Конфигурация для vLLM провайдера."""
@@ -112,11 +115,12 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
     async def initialize(self) -> bool:
         """Инициализация vLLM движка и загрузка модели."""
+        
+
         try:
             model_path = self.config_obj.model_path or self.config_obj.model_name
             model_path = self._resolve_model_path(model_path)
 
-            from vllm import LLM
             self.llm = LLM(
                 model=model_path,
                 tensor_parallel_size=self.config_obj.tensor_parallel_size,
@@ -159,7 +163,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
             start_time = time.time()
 
-            from vllm import SamplingParams
+            
             result = await self.llm.generate(
                 "ОК",
                 SamplingParams(temperature=0.1, max_tokens=5)
@@ -232,12 +236,8 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         structured_outputs = None
         if hasattr(request, 'structured_output') and request.structured_output:
-            schema_def = request.structured_output.schema_def
             structured_outputs = StructuredOutputsParams(
-                json={
-                    "name": "response",
-                    "schema": schema_def
-                }
+                json=request.structured_output.schema_def
             )
 
         sampling_params = SamplingParams(
@@ -253,17 +253,14 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         try:
             response = await self.llm.generate(prompt, sampling_params)
 
-            choices = response.outputs
-            usage = response.usage
-
-            if choices:
-                generated_text = choices[0].text
-                finish_reason = choices[0].finish_reason or "stop"
+            if response[0].outputs:
+                generated_text = response[0].outputs[0].text
+                finish_reason = response[0].outputs[0].finish_reason or "stop"
             else:
                 generated_text = ''
                 finish_reason = 'error'
 
-            tokens_used = usage.total_tokens if usage else 0
+            tokens_used = len(response[0].promt_token_ids)
             generation_time = time.time() - start_time
 
             if hasattr(request, 'structured_output') and request.structured_output:
