@@ -52,6 +52,36 @@ class VectorBooksTool(Tool):
     def description(self) -> str:
         return "Все операции с книгами: поиск + текст + анализ"
 
+    def get_capabilities(self) -> List['Capability']:
+        """
+        Возвращает возможности инструмента — скрытые из {{available_tools}}.
+
+        vector_books — внутренний инструмент для прямого вызова через executor,
+        не для ReAct-планирования. LLM не должен видеть его в списке доступных.
+        """
+        from core.models.data.capability import Capability
+
+        capabilities = []
+        allowed_ops = self.get_allowed_operations()
+
+        if not allowed_ops and self.component_config:
+            if hasattr(self.component_config, 'input_contract_versions'):
+                for cap_name in self.component_config.input_contract_versions.keys():
+                    if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
+                        allowed_ops.append(cap_name)
+
+        for op_name in allowed_ops:
+            cap_full_name = op_name if '.' in op_name else f"{self.name}.{op_name}"
+            capabilities.append(Capability(
+                name=cap_full_name,
+                description=f"Операция '{op_name}' инструмента {self.name}",
+                skill_name=self.name,
+                supported_strategies=["react"],
+                visiable=False  # Скрыт из {{available_tools}} — только прямой вызов
+            ))
+
+        return capabilities
+
     def _get_infrastructure(self):
         """Получение провайдеров из инфраструктуры."""
         if self._embedding_provider is None:
