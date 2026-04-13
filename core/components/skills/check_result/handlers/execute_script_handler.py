@@ -59,6 +59,12 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["audit_id"],
         "optional_parameters": [],
+        "param_types": {
+            "audit_id": "exact"
+        },
+        "param_descriptions": {
+            "audit_id": "ID аудиторской проверки (число из поля id таблицы audits)"
+        },
     },
     "get_report_items": {
         "description": "Получить пункты акта по ID акта",
@@ -72,6 +78,12 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["report_id"],
         "optional_parameters": [],
+        "param_types": {
+            "report_id": "exact"
+        },
+        "param_descriptions": {
+            "report_id": "ID акта проверки (число из поля id таблицы audit_reports)"
+        },
     },
     "get_violations_by_audit": {
         "description": "Получить все отклонения по проверке",
@@ -92,6 +104,12 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         ''',
         "required_parameters": ["audit_id"],
         "optional_parameters": [],
+        "param_types": {
+            "audit_id": "exact"
+        },
+        "param_descriptions": {
+            "audit_id": "ID аудиторской проверки (число из поля id таблицы audits)"
+        },
     },
     "get_violations_by_status": {
         "description": "Получить отклонения по статусу",
@@ -115,6 +133,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "optional_parameters": [],
         "param_types": {
             "status": "like"
+        },
+        "param_descriptions": {
+            "status": "Статус отклонения: 'Открыто', 'В работе', 'Устранено', 'На проверке'"
         },
         "validation": {
             "status": {
@@ -141,6 +162,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "optional_parameters": [],
         "param_types": {
             "severity": "like"
+        },
+        "param_descriptions": {
+            "severity": "Уровень критичности: 'Высокая', 'Средняя', 'Низкая'"
         },
         "validation": {
             "severity": {
@@ -185,6 +209,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "optional_parameters": [],
         "param_types": {
             "responsible": "like"
+        },
+        "param_descriptions": {
+            "responsible": "ФИО ответственного лица (или часть имени для поиска)"
         },
         "validation": {
             "responsible": {
