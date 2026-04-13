@@ -93,7 +93,6 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         self.config_obj = config_obj
         self.llm = None
-        self._tokenizer = None
 
     def _resolve_model_path(self, model_path: str) -> str:
         """Разрешение пути к модели."""
@@ -190,51 +189,6 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         from core.infrastructure.providers.llm.json_parser import extract_json_from_response
         return extract_json_from_response(content)
 
-    def _format_messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
-        """Форматировать сообщения в промпт для vLLM."""
-        from transformers import AutoTokenizer
-
-        if self._tokenizer is None:
-            model_path = self.config_obj.model_path or self.config_obj.model_name
-            model_path = self._resolve_model_path(model_path)
-            try:
-                self._tokenizer = AutoTokenizer.from_pretrained(
-                    model_path, 
-                    trust_remote_code=self.config_obj.trust_remote_code
-                )
-            except Exception:
-                return self._simple_format_messages(messages)
-
-        try:
-            texts = self._tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            return texts
-        except Exception:
-            return self._simple_format_messages(messages)
-
-    def _simple_format_messages(self, messages: List[Dict[str, str]]) -> str:
-        """Простое форматирование сообщений."""
-        prompt_parts = []
-
-        for msg in messages:
-            role = msg.get('role', 'user')
-            content = msg.get('content', '')
-
-            if role == 'system':
-                prompt_parts.append(f"<|system|>\n{content}</s>")
-            elif role == 'user':
-                prompt_parts.append(f"<|user|>\n{content}</s>")
-            elif role == 'assistant':
-                prompt_parts.append(f"<|assistant|>\n{content}</s>")
-            else:
-                prompt_parts.append(content)
-
-        prompt_parts.append("<|assistant|>")
-        return "\n".join(prompt_parts)
-
     async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
         """Генерация текста через vLLM."""
         if not self.is_initialized or not self.llm:
@@ -247,17 +201,34 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         else:
             max_tokens = request.max_tokens
 
-        from vllm import SamplingParams
-        from vllm.sampling_params import StructuredOutputsParams
+        # ──────────────────────────────────────────────
+        # Явное формирование одного промпта
+        # ──────────────────────────────────────────────
+        # Архитектура: LLMRequest создаётся с prompt + system_prompt.
+        # messages НЕ используется — это legacy от chat-формата.
+        # Все вызовы в проекте передают готовый prompt (рендер из YAML).
+        #
+        # Формат:
+        #   <|system|>
+        #   {system_prompt}
+        #   <|user|>
+        #   {prompt}
+        #   <|assistant|>
+        # ──────────────────────────────────────────────
+        parts = []
 
-        prompt = request.prompt
         system_prompt = request.system_prompt or ""
+        user_prompt = request.prompt or ""
 
-        if request.messages:
-            messages = list(request.messages)
-            if system_prompt:
-                messages.insert(0, {"role": "system", "content": system_prompt})
-            prompt = self._format_messages_to_prompt(messages)
+        if system_prompt:
+            parts.append(f"<|system|>\n{system_prompt}")
+
+        if user_prompt:
+            parts.append(f"<|user|>\n{user_prompt}")
+
+        parts.append("<|assistant|>")
+
+        prompt = "\n".join(parts)
 
         structured_outputs = None
         if hasattr(request, 'structured_output') and request.structured_output:
@@ -451,11 +422,20 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         return json.loads(json_content)
 
     async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
-        """Подсчёт токенов."""
-        prompt = self._format_messages_to_prompt(messages)
+        """Подсчёт токенов (приблизительный, без tokenizer)."""
+        # Формируем промпт как в _generate_impl
+        parts = []
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+            if role == 'system':
+                parts.append(f"<|system|>\n{content}")
+            elif role == 'user':
+                parts.append(f"<|user|>\n{content}")
+            elif role == 'assistant':
+                parts.append(f"<|assistant|>\n{content}")
+        parts.append("<|assistant|>")
+        prompt = "\n".join(parts)
 
-        if self._tokenizer:
-            tokens = self._tokenizer(prompt)
-            return len(tokens.input_ids)
-
-        return len(prompt.split()) // 4
+        # Приблизительный подсчёт: ~4 символа на токен для большинства моделей
+        return len(prompt) // 4
