@@ -1,9 +1,9 @@
-capability: vector_books.get_document
+capability: vector_search.get_document
 version: v1.0.0
 status: active
 component_type: tool
 direction: input
-description: Input contract for getting full book text
+description: Input contract for getting full document text (any source)
 schema_data:
   type: object
   properties:

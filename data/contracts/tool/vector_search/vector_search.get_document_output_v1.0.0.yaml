@@ -1,0 +1,33 @@
+capability: vector_search.get_document
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Output contract for getting full document text (any source)
+schema_data:
+  type: object
+  properties:
+    document_id:
+      type: string
+      description: "ID документа"
+    content:
+      type: string
+      description: "Полный текст документа"
+    metadata:
+      type: object
+      description: "Метаданные документа"
+      additionalProperties: true
+    book_id:
+      type: integer
+      description: "ID книги (если source=books)"
+    chapters:
+      type: array
+      description: "Список глав с содержимым (если source=books)"
+      items:
+        type: object
+        properties:
+          chapter:
+            type: integer
+          content:
+            type: string
+  additionalProperties: true

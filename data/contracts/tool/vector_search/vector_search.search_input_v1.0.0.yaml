@@ -1,9 +1,9 @@
-capability: vector_books.search
+capability: vector_search.search
 version: v1.0.0
 status: active
 component_type: tool
 direction: input
-description: Input contract for vector books search operation
+description: Input contract for vector search operation (any source)
 schema_data:
   type: object
   properties:
@@ -40,13 +40,21 @@ schema_data:
           type: array
           items:
             type: string
+        audit_id:
+          type: array
+          items:
+            type: integer
+        violation_id:
+          type: array
+          items:
+            type: integer
         year_from:
           type: integer
         year_to:
           type: integer
     source:
       type: string
-      description: "Источник векторного индекса (books/authors)"
+      description: "Источник векторного индекса (books/authors/audits/violations)"
       default: books
   required:
     - query

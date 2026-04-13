@@ -1,4 +1,4 @@
-capability: vector_books.query
+capability: vector_search.query
 version: v1.0.0
 status: active
 component_type: tool

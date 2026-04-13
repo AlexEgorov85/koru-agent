@@ -1,9 +1,9 @@
-capability: vector_books.analyze
+capability: vector_search.analyze
 version: v1.0.0
 status: active
 component_type: tool
 direction: input
-description: Input contract for LLM analysis of book content
+description: Input contract for LLM analysis of vector content (books, audits, violations, ...)
 schema_data:
   type: object
   properties:

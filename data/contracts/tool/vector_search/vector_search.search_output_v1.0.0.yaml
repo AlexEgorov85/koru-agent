@@ -1,9 +1,9 @@
-capability: vector_books.search
+capability: vector_search.search
 version: v1.0.0
 status: active
 component_type: tool
 direction: output
-description: Output contract for vector books search operation
+description: Output contract for vector search operation (any source)
 schema_data:
   type: object
   properties:
@@ -18,6 +18,10 @@ schema_data:
           document_id:
             type: string
           book_id:
+            type: integer
+          audit_id:
+            type: integer
+          violation_id:
             type: integer
           chapter:
             type: integer
