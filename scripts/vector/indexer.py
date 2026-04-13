@@ -332,26 +332,34 @@ async def index_books_full(embedding, faiss_provider, vs_config) -> int:
         book_title = book_info.get("title", f"Book {book_id}")
         book_author = book_info.get("author", "Unknown")
 
-        # Разбиваем главу на чанки если текст большой
-        chunk_size = vs_config.chunking.chunk_size
-        for i in range(0, len(chapter_text), chunk_size):
-            chunk = chapter_text[i:i + chunk_size]
-            if not chunk.strip():
-                continue
+        # Разбиваем главу на чанки через ChunkingService
+        # (рекурсивно по абзацам/предложениям, с overlap)
+        from core.infrastructure.providers.vector.chunking_service import ChunkingService
+        chunking = ChunkingService.from_config(vs_config.chunking)
+        doc_id = f"book_{book_id}"
+        chunks = await chunking.split(
+            content=chapter_text,
+            document_id=doc_id,
+            metadata={
+                "book_title": book_title,
+                "book_author": book_author,
+                "chapter_number": chapter_number,
+            },
+        )
 
-            vector = await embedding.generate_single(chunk)
-            metadata = {
-                "chunk_id": f"book_{book_id}_chapter_{chapter_id}_chunk_{i // chunk_size}",
-                "document_id": f"book_{book_id}",
+        total_chars = 0
+        for chunk in chunks:
+            vector = await embedding.generate_single(chunk.content)
+            chunk.metadata.update({
                 "book_id": book_id,
                 "chapter": chapter_number,
-                "chunk_index": i // chunk_size,
-                "content": chunk[:200]  # Первые 200 символов для отображения
-            }
+            })
             all_vectors.append(vector)
-            all_metadata.append(metadata)
+            all_metadata.append(chunk.metadata)
+            total_chars += len(chunk.content)
 
-        print(f"  📖 [{book_id}] {book_title} — глава {chapter_number}: {len(chapter_text)} символов")
+        print(f"  📖 [{book_id}] {book_title} — глава {chapter_number}: "
+              f"{len(chapter_text)} символов → {len(chunks)} чанков")
 
     print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
