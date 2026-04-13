@@ -1,8 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.35.0-orange.svg)]()
-[![Tests](https://img.shields.io/badge/tests-992%20passed-green.svg)]()
+[![Version](https://img.shields.io/badge/version-5.36.0-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -26,131 +25,22 @@
 
 ---
 
-## 📊 Последние изменения (v5.35.0)
+## 📊 Последние изменения (v5.36.0)
 
-**Версия 5.35.0** (10 марта 2026) — **ReAct Pattern: Отображение реальных данных наблюдений**
+**Версия 5.36.0** (15 марта 2026) — **Исправления final_answer и контрактов**
 
-### Умная обработка данных наблюдений
-- ✅ **LLM видит реальные данные** вместо observation_item_ids
-- ✅ **4 уровня обработки** по размеру данных:
-  - Малые данные (<50 строк): полное отображение
-  - Средние данные (50-500 строк): статистика + первые 5 примеров
-  - Большие данные (500-1000 строк): статистика + 3 примера + рекомендация data_analysis
-  - Очень большие данные (>1000 строк): только мета + рекомендация data_analysis
-- ✅ **Автоматическая суммаризация** при превышении лимитов
+### Исправления final_answer
+- ✅ Исправлены критические ошибки промпта и контрактов
+- ✅ Исправлено имя переменной в user-промпте: `{observation}` → `{observations}`
+- ✅ Добавлены новые переменные: `{steps_taken}`, `{format_type}`, `{include_steps}`, `{include_evidence}`
+- ✅ Исправлено извлечение полей из LLM ответа: `answer` → `final_answer`, `confidence` → `confidence_score`
+- ✅ Добавлено `additionalProperties: false` в output контракт
 
-### PromptBuilderService обновления
-- Добавлен параметр `session_context` в `build_reasoning_prompt()`
-- Метод `_build_step_history()` извлекает реальные данные из observation_item_ids
-- Метод `_extract_observations_from_step()` для умной обработки наблюдений
-- Настраиваемые лимиты DATA_SIZE_LIMITS и DISPLAY_LIMITS
+### Исправления исключений
+- ✅ Убрано дублирование параметра `code` в иерархии исключений
+- ✅ Исправлена передача metadata и component в InfrastructureError/VectorSearchError
 
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5350---2026-03-10)
-
----
-
-## 📊 Последние изменения (v5.34.0)
-
-**Версия 5.34.0** (6 марта 2026) — **Миграция на интерфейсы и внедрение зависимостей (DI)**
-
-### Интерфейсы и DI
-- ✅ **9 интерфейсов** в `core/interfaces/`: DatabaseInterface, LLMInterface, VectorInterface, CacheInterface, PromptStorageInterface, ContractStorageInterface, EventBusInterface, MetricsStorageInterface, LogStorageInterface
-- ✅ **Провайдеры реализуют интерфейсы** явно (PostgreSQLProvider, LlamaCppProvider, FAISSProvider, MemoryCacheProvider)
-- ✅ **DI через конструкторы** компонентов
-- ✅ **ComponentFactory** с автоматическим разрешением зависимостей
-
-### BaseComponent с внедрёнными зависимостями
-- 9 параметров конструктора для интерфейсов
-- Свойства: `db`, `llm`, `cache`, `vector`, `event_bus`, `prompt_storage`, `contract_storage`, `metrics_storage`, `log_storage`
-- `application_context` помечен как **DEPRECATED**
-
-### Сервисы используют интерфейсы
-- `PromptService`: `self.prompt_storage` вместо `infrastructure_context.get_prompt_storage()`
-- `ContractService`: `self.contract_storage` вместо `infrastructure_context.get_contract_storage()`
-- `TableDescriptionService`: `self.db` вместо `get_provider("default_db")`
-- `SQLGenerationService`, `SQLQueryService`: `self.llm`, `self.event_bus`
-
-### Behavior Patterns используют llm_orchestrator
-- `ReActPattern`: llm_orchestrator для retry/валидации
-- `EvaluationPattern`: llm_orchestrator для структурированного вывода
-- `PlanningPattern`: через BaseService
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5340---2026-03-06)
-
----
-
-## 📊 Последние изменения (v5.33.0)
-
-**Версия 5.33.0** (6 марта 2026) — **Система управления жизненным циклом компонентов**
-
-### ComponentState и LifecycleMixin
-- ✅ **ComponentState enum**: CREATED → INITIALIZING → READY → SHUTDOWN/FAILED
-- ✅ **LifecycleMixin** для управления состояниями
-- ✅ **Методы**: `ensure_ready()`, `is_ready`, `is_initialized`, `is_failed`, `state`
-- ✅ **Автоматические переходы** состояний при инициализации
-
-### Проверки готовности контекстов
-- `AgentRuntime` проверяет `application_context.is_ready`
-- `AgentRuntime` проверяет `infrastructure_context.is_ready`
-- `BehaviorManager` проверяет инициализацию перед генерацией decision
-- `RuntimeError` при попытке использования до инициализации
-
-### Исправления
-- Удалена поддержка синхронных функций в `handle_errors` декораторе
-- Синхронные файловые операции в `FileTool` используют `aiofiles`
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5330---2026-03-06)
-
----
-
-## 📊 Последние изменения (v5.29.0)
-
-**Версия 5.29.0** (2 марта 2026) — **План стабилизации завершён (100%)**
-
-### Стабилизация ядра агента
-- ✅ **Детекция зацикливания** — `AgentStuckError` при повторении decision без изменения state
-- ✅ **Гарантия вызова LLM** — `InfrastructureError` если `requires_llm=True` но LLM не вызван
-- ✅ **Валидация ACT decision** — проверка capability_name в `BehaviorManager`
-- ✅ **ReActPattern инварианты** — гарантия что observe() мутирует state
-- ✅ **Логирование через EventBus** — используется `_publish_with_context()` с автоматическим session_id/agent_id
-
-### Новые исключения
-- `AgentStuckError` — агент зациклился
-- `InvalidDecisionError` — decision некорректен
-- `PatternError` — нарушение инвариантов паттерна
-- `InfrastructureError` — инфраструктурная ошибка
-
-### Тесты стабилизации (48 тестов)
-- `test_no_infinite_loop` — детекция зацикливания
-- `test_llm_called_for_think_decision` — гарантия вызова LLM
-- `test_state_mutates_after_each_step` — мутация state
-- `test_planning_skill_*` — тесты PlanningSkill
-
-### Architecture Guarantees
-- ✅ Нет бесконечных циклов
-- ✅ Snapshot всегда меняется после observe()
-- ✅ Decision не повторяется более 1 раза без изменения state
-- ✅ Любой `decision.requires_llm` гарантированно вызывает LLM
-- ✅ Все навыки возвращают `SkillResult`
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5290---2026-03-02)
-
----
-
-## 📊 Последние изменения (v5.16.0)
-
-**Версия 5.16.0** (27 февраля 2026) — Система логирования для самообучения агента
-
-### Улучшения:
-- ✅ Расширена модель LogEntry: execution_context, step_quality_score, benchmark_scenario_id
-- ✅ Создана модель ExecutionContextSnapshot для снимка контекста выполнения
-- ✅ Добавлен расчёт качества шага (0.0-1.0) по метрикам выполнения
-- ✅ Скрипт агрегации данных для обучения: positive/negative примеры, бенчмарки
-- ✅ Скрипт автоматической очистки старых логов (настраиваемый период)
-- ✅ 19 новых тестов для системы логирования (100% passing)
-- ✅ Исправлена ошибка logger.user_message в main.py
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5360---2026-03-15)
 
 ---
 
@@ -246,116 +136,23 @@ TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 ## 📁 Структура проекта
 
 ```
-koru-agent/
+Agent_v5/
 ├── core/                           # Ядро системы
-│   ├── application/                # Прикладной слой
-│   │   ├── context/               # ApplicationContext
-│   │   ├── services/              # Сервисы (Benchmark, Optimization...)
-│   │   └── skills/                # Навыки агента
-│   ├── infrastructure/            # Инфраструктурный слой
-│   │   ├── context/               # InfrastructureContext
-│   │   ├── event_bus/             # Шина событий
-│   │   ├── providers/             # Провайдеры (LLM, DB)
-│   │   └── storage/               # Хранилища (Metrics, Logs)
-│   ├── models/                    # Модели данных
-│   └── config/                    # Конфигурация
+│   ├── agent/                      # Runtime, Factory, Behaviors, Strategies
+│   ├── application_context/        # ApplicationContext (изолированный на агента)
+│   ├── components/                 # BaseComponent, ActionExecutor
+│   ├── config/                     # Конфигурация (defaults/)
+│   ├── infrastructure/             # Провайдеры, EventBus, logging, storage
+│   ├── infrastructure_context/     # InfrastructureContext (общий)
+│   ├── models/                     # Модели данных
+│   ├── errors/                     # Исключения
+│   ├── session_context/            # SessionContext (сессия)
+│   └── security/                  # Безопасность
 │
-├── scripts/                       # CLI утилиты
-├── tests/                         # Тесты
-├── docs/                          # Документация
-└── data/                          # Данные (промпты, контракты, метрики)
-```
-
----
-
-## 🎯 Система Benchmark + Learning
-
-> ⚠️ **Примечание:** Система находится в разработке. Документация будет обновлена.
-
-### Обзор
-
-Система позволяет автоматически оценивать качество работы агента, сравнивать версии промптов/контрактов и оптимизировать их без ручного вмешательства.
-
-### Архитектура
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    BENCHMARK + LEARNING                     │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │  Metrics     │    │    Log       │    │  Accuracy    │  │
-│  │  Collector   │    │  Collector   │    │  Evaluator   │  │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘  │
-│         └───────────────────┼────────────────────┘          │
-│                             │                               │
-│                    ┌────────▼────────┐                      │
-│                    │ BenchmarkService │                      │
-│                    └────────┬────────┘                      │
-│                             │                               │
-│                    ┌────────▼────────┐                      │
-│                    │ OptimizationSvc  │                      │
-│                    └────────┬────────┘                      │
-│                             │                               │
-│              ┌──────────────┴──────────────┐                │
-│              │                             │                │
-│     ┌────────▼────────┐          ┌────────▼────────┐       │
-│     │ PromptContract  │          │  Version        │       │
-│     │  Generator      │          │  Management     │       │
-│     └─────────────────┘          └─────────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Компоненты
-
-#### 1. Сбор данных
-
-| Компонент | Назначение |
-|-----------|------------|
-| **MetricsCollector** | Подписка на события выполнения (SKILL_EXECUTED, ERROR_OCCURRED) |
-| **LogCollector** | Структурированные логи с корреляцией по agent_id/session_id |
-| **FileSystemMetricsStorage** | Хранение метрик в JSON с агрегацией |
-| **FileSystemLogStorage** | Индексация логов по capability/session |
-
-#### 2. Оценка качества
-
-| Компонент | Назначение |
-|-----------|------------|
-| **AccuracyEvaluatorService** | Оценка соответствия вывода ожидаемому |
-| **ExactMatchEvaluator** | Точное совпадение строк/JSON |
-| **CoverageEvaluator** | Полнота покрытия ключевых элементов |
-| **SemanticEvaluator** | Семантическая оценка через LLM |
-| **HybridEvaluator** | Взвешенная комбинация стратегий |
-
-#### 3. Бенчмарки
-
-| Компонент | Назначение |
-|-----------|------------|
-| **BenchmarkService** | Оркестрация бенчмарков |
-| **BenchmarkScenario** | Сценарии с критериями оценки |
-| **VersionComparison** | Сравнение версий промптов/контрактов |
-
-#### 4. Оптимизация
-
-| Компонент | Назначение |
-|-----------|------------|
-| **OptimizationService** | Цикл оптимизации с анализом неудач |
-| **PromptContractGenerator** | Генерация новых версий |
-| **FailureAnalysis** | Категоризация ошибок и рекомендации |
-
-### CLI утилиты
-
-```bash
-# Запуск бенчмарка
-python scripts/run_benchmark.py -c planning.create_plan -v v1.0.0
-
-# Сравнение версий
-python scripts/run_benchmark.py -c planning.create_plan --compare v1.0.0 v2.0.0
-
-# Оптимизация по точности
-python scripts/run_optimization.py -c planning.create_plan -m accuracy -t 0.95
-
-# Оптимизация по скорости
-python scripts/run_optimization.py -c planning.create_plan -m speed --max-iterations 10
+├── data/                           # Промпты, контракты
+├── scripts/                        # CLI утилиты
+├── tests/                          # Тесты
+└── docs/                           # Документация
 ```
 
 ---
@@ -426,11 +223,10 @@ agent:
 
 | Показатель | Значение |
 |------------|----------|
-| **Тестов пройдено** | 398 passed, 10 skipped |
-| **Без моков** | 113 тестов (31%) |
-| **Vector Search** | 77 тестов (все прошли) |
-| **Файлов создано** | 65+ |
-| **Строк кода** | ~10000+ |
+| **Тестов** | 545 тестов |
+| **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic |
+| **Vector Search** | FAISS с chunking/embedding |
+| **Профили** | dev, sandbox, prod |
 
 ---
 
@@ -471,21 +267,18 @@ black core/ --check
 ### Основная документация
 
 - **[CHANGELOG.md](CHANGELOG.md)** — История изменений
-- **[docs/README.md](docs/README.md)** — Полная документация проекта
-- **[docs/reports/README.md](docs/reports/README.md)** — Отчёты о разработке
+- **[AGENTS.md](AGENTS.md)** — Требования к разработке и архитектура
+- **[docs/README.md](docs/README.md)** — Обзор документации
+
+### Архитектура
+
+- **[docs/architecture/README.md](docs/architecture/README.md)** — Архитектурные документы
+- **[docs/architecture/ideal.md](docs/architecture/ideal.md)** — Целевая архитектура
 
 ### Vector Search
 
 - **[docs/vector_search/README.md](docs/vector_search/README.md)** — навигация
 - **[docs/api/vector_search_api.md](docs/api/vector_search_api.md)** — API документация
-- **[docs/guides/vector_search.md](docs/guides/vector_search.md)** — руководство
-
-#### Документация
-
-- **[UNIVERSAL_SPEC.md](docs/vector_search/UNIVERSAL_SPEC.md)** — универсальная спецификация
-- **[VECTOR_LIFECYCLE.md](docs/vector_search/VECTOR_LIFECYCLE.md)** — жизненный цикл БД
-- **[CHUNKING_STRATEGY.md](docs/vector_search/CHUNKING_STRATEGY.md)** — стратегия chunking
-- **[BOOKS_INTEGRATION.md](docs/vector_search/BOOKS_INTEGRATION.md)** — интеграция с книгами
 
 ---
 
