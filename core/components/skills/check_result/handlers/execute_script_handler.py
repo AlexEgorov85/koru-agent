@@ -317,10 +317,28 @@ class ExecuteScriptHandler(SkillHandler):
         start_time = time.time()
 
         script_name = params.script_name if hasattr(params, 'script_name') else ''
-        script_params = params.parameters if hasattr(params, 'parameters') else {}
         max_rows = params.max_rows if hasattr(params, 'max_rows') else 50
 
+        # Извлекаем параметры скрипта:
+        # 1. Сначала пробуем params.parameters (если LLM обернул в parameters)
+        # 2. Если пусто — берём все поля из params кроме script_name и max_rows
+        if hasattr(params, 'parameters') and params.parameters:
+            script_params = params.parameters
+        else:
+            # LLM передал параметры на верхнем уровне — извлекаем их
+            script_params = {}
+            if hasattr(params, 'model_dump'):
+                all_fields = params.model_dump()
+            elif hasattr(params, 'dict'):
+                all_fields = params.dict()
+            else:
+                all_fields = {}
+            for key, value in all_fields.items():
+                if key not in ('script_name', 'max_rows') and value is not None:
+                    script_params[key] = value
+
         await self.log_info(f"Запуск выполнения скрипта: {script_name}")
+        await self.log_info(f"Параметры скрипта: {script_params}")
 
         # Этап 1: Проверка что скрипт существует
         if script_name not in SCRIPTS_REGISTRY:
