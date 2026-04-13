@@ -163,15 +163,22 @@ class SkillHandler(Component, ABC):
         - **kwargs: дополнительные параметры (script_name, etc.)
         """
         if self.skill and hasattr(self.skill, '_publish_metrics'):
+            from core.infrastructure.logging.event_types import LogEventType
+            
+            # Определяем event_type на основе успеха
+            event_type = kwargs.pop('event_type', None)
+            if event_type is None:
+                event_type = LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
+            
             await self.skill._publish_metrics(
-                event_type=self.skill._get_event_type_for_success(),
-                capability_name=self.capability_name,
+                capability=None,  # Передаём None, данные будут в extra_data
                 success=success,
                 execution_time_ms=execution_time_ms,
-                tokens_used=tokens_used,
                 execution_type=execution_type,
                 rows_returned=rows_returned,
                 error=error,
+                capability_name=self.capability_name,
+                event_type=event_type,
                 **kwargs
             )
     
