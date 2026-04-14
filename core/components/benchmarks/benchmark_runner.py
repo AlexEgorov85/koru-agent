@@ -19,6 +19,7 @@ from core.components.benchmarks.benchmark_models import (
     BenchmarkScenario,
     PromptVersion,
 )
+from core.components.benchmarks.check_result_validator import CheckResultValidator
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging.event_types import LogEventType
 
@@ -86,6 +87,7 @@ class BenchmarkRunner:
         self.executor_callback = executor_callback
         self.config = config or BenchmarkRunConfig()
         self._log_session = log_session
+        self._check_result_validator = CheckResultValidator()
 
         # Инициализация random seed для воспроизводимости
         random.seed(self.config.seed)
@@ -156,6 +158,23 @@ class BenchmarkRunner:
 
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
 
+            # Для check_result сценариев проводим специализированную валидацию
+            validation_score = None
+            validation_checks = None
+            validation_errors = None
+            
+            capability = scenario.metadata.get('capability', '')
+            if 'check_result' in capability:
+                validation_result = self._check_result_validator.validate(result, scenario)
+                validation_score = validation_result.score
+                validation_checks = validation_result.checks
+                validation_errors = validation_result.errors if validation_result.errors else None
+                
+                # Переопределяем success на основе валидации
+                result['success'] = validation_result.success
+                if validation_errors:
+                    result['validation_errors'] = validation_errors
+
             return BenchmarkRunResult(
                 version_id=version.id,
                 scenario_id=scenario.id,
@@ -164,7 +183,9 @@ class BenchmarkRunner:
                 error=result.get('error'),
                 execution_time_ms=execution_time,
                 tokens_used=result.get('tokens_used', 0),
-                raw_result=result
+                raw_result=result,
+                validation_score=validation_score,
+                validation_checks=validation_checks,
             )
 
         except Exception as e:

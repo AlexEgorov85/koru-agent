@@ -26,12 +26,17 @@ if TYPE_CHECKING:
 @dataclass
 class EvaluationConfig:
     """Конфигурация Evaluator"""
-    # Веса метрик для расчёта score
+    # Веса метрик для расчёта score (SQL-задачи)
     success_rate_weight: float = 0.4
     execution_success_weight: float = 0.3
     sql_validity_weight: float = 0.2
     latency_weight: float = 0.1
-    
+
+    # Веса метрик для check_result
+    validation_score_weight: float = 0.5  # Основной показатель качества
+    script_accuracy_weight: float = 0.3   # Правильность выбора скрипта/параметров
+    result_completeness_weight: float = 0.2  # Полнота результатов
+
     # Пороги
     min_success_rate: float = 0.8
     max_latency_ms: float = 1000.0
@@ -105,6 +110,35 @@ class Evaluator:
         if not results:
             return EvaluationResult(version_id=version_id)
 
+        # Проверяем есть ли check_result сценарии
+        has_check_result = any(
+            r.raw_result and r.raw_result.get('metadata', {}).get('level') == 'check_result'
+            for r in results
+            if r.raw_result
+        )
+
+        if has_check_result:
+            # Оценка для check_result
+            return self._evaluate_check_result(version_id, results)
+        else:
+            # Стандартная оценка (SQL tasks)
+            return self._evaluate_standard(version_id, results)
+
+    def _evaluate_standard(
+        self,
+        version_id: str,
+        results: List[BenchmarkRunResult]
+    ) -> EvaluationResult:
+        """
+        Стандартная оценка для SQL задач.
+
+        ARGS:
+        - version_id: идентификатор версии
+        - results: результаты бенчмарка
+
+        RETURNS:
+        - EvaluationResult: результат оценки
+        """
         # Расчёт метрик
         success_rate = self._calculate_success_rate(results)
         execution_success = self._calculate_execution_success(results)
@@ -126,6 +160,197 @@ class Evaluator:
         evaluation.calculate_score()
 
         return evaluation
+
+    def _evaluate_check_result(
+        self,
+        version_id: str,
+        results: List[BenchmarkRunResult]
+    ) -> EvaluationResult:
+        """
+        Оценка для check_result задач.
+
+        ИСПОЛЬЗУЕТ:
+        - validation_score (из CheckResultValidator) как основной показатель
+        - script_accuracy (правильность выбора скрипта)
+        - result_completeness (наличие результатов)
+
+        ARGS:
+        - version_id: идентификатор версии
+        - results: результаты бенчмарка
+
+        RETURNS:
+        - EvaluationResult: результат оценки
+        """
+        # Базовые метрики
+        success_rate = self._calculate_success_rate(results)
+        execution_success = self._calculate_execution_success(results)
+        latency = self._calculate_avg_latency(results)
+        error_rate = self._calculate_error_rate(results)
+
+        # Специфичные метрики для check_result
+        validation_score = self._calculate_avg_validation_score(results)
+        script_accuracy = self._calculate_script_accuracy(results)
+        result_completeness = self._calculate_result_completeness(results)
+
+        # Для check_result sql_validity заменяем на validation_score
+        sql_validity = validation_score
+
+        # Создание результата
+        evaluation = EvaluationResult(
+            version_id=version_id,
+            success_rate=success_rate,
+            sql_validity=sql_validity,  # Здесь validation_score
+            execution_success=execution_success,
+            latency=latency,
+            error_rate=error_rate
+        )
+
+        # Переопределяем score с учетом специфики check_result
+        evaluation.score = self._calculate_check_result_score(
+            success_rate,
+            execution_success,
+            validation_score,
+            script_accuracy,
+            result_completeness,
+            latency
+        )
+
+        # Сохраняем дополнительные метрики
+        evaluation.metadata = {
+            'validation_score': validation_score,
+            'script_accuracy': script_accuracy,
+            'result_completeness': result_completeness,
+            'evaluation_type': 'check_result'
+        }
+
+        return evaluation
+
+    def _calculate_avg_validation_score(self, results: List[BenchmarkRunResult]) -> float:
+        """
+        Расчёт среднего validation score.
+
+        ARGS:
+        - results: результаты бенчмарка
+
+        RETURNS:
+        - float: средний validation score (0.0-1.0)
+        """
+        validation_scores = [
+            r.validation_score
+            for r in results
+            if r.validation_score is not None
+        ]
+        
+        if not validation_scores:
+            # Fallback: используем success_rate
+            return self._calculate_success_rate(results)
+        
+        return sum(validation_scores) / len(validation_scores)
+
+    def _calculate_script_accuracy(self, results: List[BenchmarkRunResult]) -> float:
+        """
+        Расчёт точности выбора скрипта/метода.
+
+        ARGS:
+        - results: результаты бенчмарка
+
+        RETURNS:
+        - float: точность (0.0-1.0)
+        """
+        if not results:
+            return 0.0
+
+        accurate_count = 0
+        for result in results:
+            if result.validation_checks:
+                # Проверяем script_name_match или аналогичные проверки
+                script_checks = [
+                    value for key, value in result.validation_checks.items()
+                    if 'script' in key.lower() or 'method' in key.lower()
+                ]
+                if script_checks:
+                    accurate_count += sum(script_checks) / len(script_checks)
+                else:
+                    # Fallback: считаем успешное выполнение как точность
+                    accurate_count += 1.0 if result.success else 0.0
+            else:
+                # Fallback для не-check_result задач
+                accurate_count += 1.0 if result.success else 0.0
+
+        return accurate_count / len(results)
+
+    def _calculate_result_completeness(self, results: List[BenchmarkRunResult]) -> float:
+        """
+        Расчёт полноты результатов.
+
+        ARGS:
+        - results: результаты бенчмарка
+
+        RETURNS:
+        - float: полнота (0.0-1.0)
+        """
+        if not results:
+            return 0.0
+
+        complete_count = 0
+        for result in results:
+            if result.validation_checks:
+                # Проверяем наличие результатов
+                completeness_checks = [
+                    value for key, value in result.validation_checks.items()
+                    if 'result' in key.lower() or 'completeness' in key.lower()
+                ]
+                if completeness_checks:
+                    complete_count += sum(completeness_checks) / len(completeness_checks)
+                else:
+                    complete_count += 1.0 if result.success else 0.0
+            else:
+                complete_count += 1.0 if result.success else 0.0
+
+        return complete_count / len(results)
+
+    def _calculate_check_result_score(
+        self,
+        success_rate: float,
+        execution_success: float,
+        validation_score: float,
+        script_accuracy: float,
+        result_completeness: float,
+        latency: float
+    ) -> float:
+        """
+        Расчёт score для check_result задач.
+
+        ФОРМУЛА:
+        score = (
+            validation_score * 0.5 +
+            script_accuracy * 0.3 +
+            result_completeness * 0.2 -
+            latency_penalty * 0.1
+        )
+
+        ARGS:
+        - success_rate: доля успешных выполнений
+        - execution_success: выполнения без критических ошибок
+        - validation_score: средний validation score
+        - script_accuracy: точность выбора скрипта
+        - result_completeness: полнота результатов
+        - latency: среднее время (ms)
+
+        RETURNS:
+        - float: итоговый score (0.0-1.0)
+        """
+        latency_penalty = min(latency / 1000, 1.0) * self.config.latency_weight
+
+        score = (
+            validation_score * self.config.validation_score_weight +
+            script_accuracy * self.config.script_accuracy_weight +
+            result_completeness * self.config.result_completeness_weight -
+            latency_penalty
+        )
+
+        # Ограничиваем范围 0.0-1.0
+        return max(0.0, min(1.0, score))
 
     def _calculate_success_rate(self, results: List[BenchmarkRunResult]) -> float:
         """

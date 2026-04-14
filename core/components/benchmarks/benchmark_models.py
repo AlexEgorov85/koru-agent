@@ -928,6 +928,8 @@ class BenchmarkRunResult:
     - execution_time_ms: время выполнения
     - tokens_used: количество токенов
     - raw_result: сырой результат
+    - validation_score: оценка валидации (для check_result, 0.0-1.0)
+    - validation_checks: детализация проверок (dict)
     """
     version_id: str
     scenario_id: str
@@ -937,3 +939,5 @@ class BenchmarkRunResult:
     execution_time_ms: float = 0.0
     tokens_used: int = 0
     raw_result: Optional[Dict[str, Any]] = None
+    validation_score: Optional[float] = None
+    validation_checks: Optional[Dict[str, bool]] = None

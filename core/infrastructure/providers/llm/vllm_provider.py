@@ -314,7 +314,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         )
 
         try:
-            response = await self.llm.generate(prompt, sampling_params)
+            response = self.llm.generate(prompt, sampling_params)
 
             if response[0].outputs:
                 generated_text = response[0].outputs[0].text
