@@ -374,29 +374,43 @@ class FinalAnswerSkill(Skill):
                         capability = step.get("capability_name", "неизвестно")
                         summary = step.get("summary", "")
                         status = step.get("status", "")
-                        
+                        parameters = step.get("parameters", {})
+
                         # Получаем данные наблюдения
                         result_data = step.get("observation", "") or step.get("result", "")
-                        
-                        steps_taken.append({
+
+                        step_entry = {
                             "action": capability,
                             "summary": summary,
                             "status": status.value if hasattr(status, 'value') else str(status),
                             "result": serialize_for_prompt(result_data) if result_data else ""
-                        })
+                        }
+
+                        # Добавляем параметры если есть
+                        if parameters:
+                            step_entry["parameters"] = serialize_for_prompt(parameters)
+
+                        steps_taken.append(step_entry)
                     else:
                         # Объект AgentStep
                         capability = getattr(step, 'capability_name', 'неизвестно')
                         summary = getattr(step, 'summary', '')
                         status = getattr(step, 'status', '')
+                        parameters = getattr(step, 'parameters', {})
                         result_data = getattr(step, 'observation', '') or getattr(step, 'result', '')
-                        
-                        steps_taken.append({
+
+                        step_entry = {
                             "action": capability,
                             "summary": summary,
                             "status": status.value if hasattr(status, 'value') else str(status),
                             "result": serialize_for_prompt(result_data) if result_data else ""
-                        })
+                        }
+
+                        # Добавляем параметры если есть
+                        if parameters:
+                            step_entry["parameters"] = serialize_for_prompt(parameters)
+
+                        steps_taken.append(step_entry)
         except Exception as e:
             self._log_warning(f"Не удалось получить step history: {e}", event_type=LogEventType.WARNING)
             # Продолжаем с пустыми шагами

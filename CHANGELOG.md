@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [5.36.8] - 2026-04-14
+
+### Added
+- **step_history: Параметры запуска и результат теперь сохраняются в истории шагов**
+  - `AgentStep` получил поля `parameters` и `result`
+  - `runtime.py` сериализует `result.data` и передаёт `decision.parameters` при записи шага
+  - `_build_step_history()` отображает строку `Параметры: key=value` перед результатом
+  - `_context_get_step_history()` возвращает `parameters` и `result` в dict-формате
+  - `final_answer` skill включает `parameters` в промпт для каждого шага
+
 ## [5.36.7] - 2026-04-14
 
 ### Fixed

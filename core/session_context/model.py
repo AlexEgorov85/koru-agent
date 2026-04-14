@@ -145,7 +145,7 @@ class AgentStep:
     - Представление шагов агента в формате, безопасном для LLM
     - Координация действий и результатов
     - Трассировка поведения агента
-    
+
     ПОЛЯ:
     - step_number: Порядковый номер шага
     - capability_name: Название capability, использованной на шаге
@@ -153,7 +153,9 @@ class AgentStep:
     - action_item_id: ID элемента с действием
     - observation_item_ids: Список ID элементов с результатами
     - summary: Краткое описание шага (без chain-of-thought)
-    
+    - parameters: Параметры запуска действия/инструмента
+    - result: Результат выполнения (сериализованный)
+
     ПРИМЕР ИСПОЛЬЗОВАНИЯ:
     step = AgentStep(
         step_number=1,
@@ -161,13 +163,16 @@ class AgentStep:
         skill_name="PlanningSkill",
         action_item_id="action_123",
         observation_item_ids=["obs_456"],
-        summary="Создан первичный план для анализа данных"
+        summary="Создан первичный план для анализа данных",
+        parameters={"query": "SELECT * FROM users"},
+        result={"rows": 10, "success": True}
     )
-    
+
     ОСОБЕННОСТИ:
     - Содержит только ссылки на данные первого уровня
     - Безопасен для передачи в LLM
     - Не содержит сырых данных или внутренних деталей
+    - parameters и result хранятся для истории в промпте
     """
     step_number: int
     capability_name: str
@@ -176,3 +181,5 @@ class AgentStep:
     observation_item_ids: List[str]
     summary: Optional[str] = None
     status: Optional[ExecutionStatus] = None
+    parameters: Optional[Dict[str, Any]] = None
+    result: Optional[Any] = None

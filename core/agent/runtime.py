@@ -355,8 +355,72 @@ class AgentRuntime:
                 # Сохранение данных результата в data_context
                 observation_item_ids = []
                 items_count_before = self.session_context.data_context.count() if hasattr(self.session_context, 'data_context') else -1
-                if result.data is not None:
+                
+                if result.status == ExecutionStatus.FAILED:
+                    # При ошибке создаём observation с деталями ошибки для истории шагов
                     from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
+                    
+                    error_details = {
+                        "error": result.error or "Неизвестная ошибка",
+                        "status": "FAILED",
+                        "capability": decision.action,
+                        "parameters": decision.parameters or {}
+                    }
+                    
+                    # Добавляем stack trace если есть
+                    if hasattr(result, 'traceback') and result.traceback:
+                        error_details["traceback"] = result.traceback[:2000]  # Ограничиваем размер
+                    
+                    observation_item = ContextItem(
+                        item_id='',
+                        session_id=self.session_context.session_id,
+                        item_type=ContextItemType.ERROR_LOG,
+                        content=error_details,
+                        quick_content=f"❌ {result.error or 'Неизвестная ошибка'}"[:200],
+                        metadata=ContextItemMetadata(
+                            source=decision.action,
+                            step_number=executed_steps + 1,
+                            capability_name=decision.action,
+                            additional_data={
+                                "is_error": True,
+                                "error_type": type(result.error).__name__ if result.error else "Unknown"
+                            }
+                        )
+                    )
+                    observation_item_id = self.session_context.data_context.add_item(observation_item)
+                    observation_item_ids = [observation_item_id]
+                    items_count_after = self.session_context.data_context.count()
+                    self.log.info(
+                        f"📝 Сохранена ошибка: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
+                        extra={"event_type": LogEventType.STEP_COMPLETED}
+                    )
+                elif result.data is not None:
+                    from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
+                    
+                    # Проверяем, нужно ли добавить предупреждение об усечении данных
+                    additional_metadata = {}
+                    parameters = decision.parameters or {}
+                    
+                    # Извлекаем LIMIT из параметров (max_rows или limit)
+                    limit_value = parameters.get('max_rows') or parameters.get('limit')
+                    
+                    # Проверяем, есть ли rows в результате
+                    result_rows = None
+                    if isinstance(result.data, dict) and 'rows' in result.data:
+                        result_rows = result.data['rows']
+                    elif hasattr(result.data, 'rows'):
+                        result_rows = result.data.rows
+                    
+                    # Если количество строк равно LIMIT — данные могут быть обрезаны
+                    if limit_value and result_rows is not None:
+                        actual_row_count = len(result_rows) if isinstance(result_rows, list) else 0
+                        if actual_row_count == limit_value:
+                            additional_metadata['truncated_warning'] = True
+                            additional_metadata['truncated_message'] = (
+                                f"⚠️ Получено {actual_row_count} строк (LIMIT={limit_value}). "
+                                f"Возможно, данные обрезаны. Увеличьте лимит для получения полного списка."
+                            )
+                    
                     observation_item = ContextItem(
                         item_id='',
                         session_id=self.session_context.session_id,
@@ -366,7 +430,8 @@ class AgentRuntime:
                         metadata=ContextItemMetadata(
                             source=decision.action,
                             step_number=executed_steps + 1,
-                            capability_name=decision.action
+                            capability_name=decision.action,
+                            additional_data=additional_metadata if additional_metadata else None
                         )
                     )
                     observation_item_id = self.session_context.data_context.add_item(observation_item)
@@ -379,6 +444,22 @@ class AgentRuntime:
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
+
+                # Сериализуем результат для хранения в истории
+                serialized_result = None
+                if result.data is not None:
+                    try:
+                        if hasattr(result.data, 'model_dump'):
+                            serialized_result = result.data.model_dump()
+                        elif hasattr(result.data, 'dict'):
+                            serialized_result = result.data.dict()
+                        elif isinstance(result.data, (dict, list, str, int, float, bool)):
+                            serialized_result = result.data
+                        else:
+                            serialized_result = str(result.data)
+                    except Exception:
+                        serialized_result = str(result.data)
+
                 self.session_context.register_step(
                     step_number=executed_steps,
                     capability_name=decision.action or "unknown",
@@ -386,7 +467,9 @@ class AgentRuntime:
                     action_item_id='',
                     observation_item_ids=observation_item_ids,
                     summary=decision.reasoning,
-                    status=result.status
+                    status=result.status,
+                    parameters=decision.parameters or {},
+                    result=serialized_result
                 )
                 await event_bus.publish(EventType.INFO, {
                     "message": f"✅ Executor завершил: status={result.status.value}" +

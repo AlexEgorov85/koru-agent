@@ -122,8 +122,8 @@ class PromptBuilderService:
         return ""
     
     def _build_step_history(
-        self, 
-        last_steps: list, 
+        self,
+        last_steps: list,
         session_context=None
     ) -> str:
         """Формирует читаемую историю шагов с реальными данными."""
@@ -138,20 +138,63 @@ class PromptBuilderService:
                 summary = step.summary or "Без описания"
                 status = step.status.value if hasattr(step.status, 'value') else str(step.status)
 
+                # Извлекаем параметры
+                parameters_str = ""
+                if hasattr(step, 'parameters') and step.parameters:
+                    params = step.parameters
+                    if isinstance(params, dict):
+                        # Форматируем параметры компактно
+                        params_parts = []
+                        for key, value in params.items():
+                            val_str = str(value)[:200]  # Ограничиваем длину
+                            params_parts.append(f"{key}={val_str}")
+                        parameters_str = "\n   Параметры: " + ", ".join(params_parts)
+
+                # Извлекаем результат
+                result_str = ""
+                if hasattr(step, 'result') and step.result is not None:
+                    result_data = step.result
+                    if isinstance(result_data, dict):
+                        result_str = str(result_data)[:500]
+                    else:
+                        result_str = str(result_data)[:500]
+
                 observation_text = self._extract_observations_from_step(
                     session_context,
                     step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
                 )
-                
+
                 step_text = f"{i}. {capability}\n"
-                step_text += f"   Результат: {observation_text if observation_text else 'Нет данных'}\n"
+                if parameters_str:
+                    step_text += f"   {parameters_str}\n"
+                step_text += f"   Результат: {result_str if result_str else (observation_text if observation_text else 'Нет данных')}\n"
                 step_text += f"   Статус: {status}"
-                
+
             elif isinstance(step, dict):
                 # Это словарь (новый формат)
                 capability = step.get('capability_name', step.get('capability', 'unknown'))
                 summary = step.get('summary', '')
-                
+
+                # Извлекаем параметры
+                parameters_str = ""
+                if 'parameters' in step and step['parameters']:
+                    params = step['parameters']
+                    if isinstance(params, dict):
+                        params_parts = []
+                        for key, value in params.items():
+                            val_str = str(value)[:200]
+                            params_parts.append(f"{key}={val_str}")
+                        parameters_str = "\n   Параметры: " + ", ".join(params_parts)
+
+                # Извлекаем результат
+                result_str = ""
+                if 'result' in step and step['result'] is not None:
+                    result_data = step['result']
+                    if isinstance(result_data, dict):
+                        result_str = str(result_data)[:500]
+                    else:
+                        result_str = str(result_data)[:500]
+
                 # Пробуем получить observation из dict
                 if 'observation' in step and step['observation']:
                     observation = step['observation']
@@ -162,18 +205,20 @@ class PromptBuilderService:
                     )
                 else:
                     observation = summary
-                
+
                 status = step.get('status', 'unknown')
-                
+
                 step_text = f"{i}. {capability}\n"
-                step_text += f"   Результат: {observation if observation else 'Нет данных'}\n"
+                if parameters_str:
+                    step_text += f"   {parameters_str}\n"
+                step_text += f"   Результат: {result_str if result_str else (observation if observation else 'Нет данных')}\n"
                 step_text += f"   Статус: {status}"
             else:
                 # Fallback для строки или другого типа
                 step_text = f"{i}. {str(step)}"
-            
+
             step_lines.append(step_text)
-        
+
         return "\n\n".join(step_lines)
 
     def _extract_observations_from_step(
@@ -208,7 +253,41 @@ class PromptBuilderService:
                 
                 if item and hasattr(item, 'content'):
                     content = item.content
+
+                    # Проверяем, это observation с ошибкой?
+                    is_error_observation = False
+                    if hasattr(item, 'item_type'):
+                        from core.session_context.model import ContextItemType
+                        is_error_observation = (item.item_type == ContextItemType.ERROR_LOG)
                     
+                    if is_error_observation:
+                        # Обработка ошибки — показываем детали
+                        if isinstance(content, dict):
+                            error_msg = content.get('error', 'Неизвестная ошибка')
+                            capability = content.get('capability', 'unknown')
+                            parameters = content.get('parameters', {})
+                            traceback = content.get('traceback', '')
+                            
+                            observations.append(f"❌ ОШИБКА в {capability}")
+                            observations.append(f"   Текст: {error_msg}")
+                            
+                            # Показываем параметры вызова
+                            if parameters:
+                                params_str = ", ".join([f"{k}={str(v)[:100]}" for k, v in list(parameters.items())[:3]])
+                                observations.append(f"   Параметры: {params_str}")
+                            
+                            # Показываем traceback если есть (сокращённо)
+                            if traceback:
+                                # Берём последние 5 строк traceback для компактности
+                                tb_lines = traceback.strip().split('\n')[-5:]
+                                tb_str = '\n   '.join(tb_lines)
+                                observations.append(f"   Детали:\n   {tb_str}")
+                            
+                            observations.append("💡 Возможно, нужно: проверить параметры, вызвать skill с другими параметрами, или использовать другой skill")
+                        else:
+                            observations.append(f"❌ ОШИБКА: {str(content)[:500]}")
+                        continue
+
                     # Извлекаем полезную информацию
                     rows = None
                     
@@ -232,27 +311,39 @@ class PromptBuilderService:
                     # Обработка rows
                     if rows is not None:
                         total_rows += len(rows)
-                        
+
+                        # Проверяем предупреждение об усечении данных
+                        truncated_warning = False
+                        truncated_message = ""
+                        if hasattr(item, 'metadata') and item.metadata:
+                            if hasattr(item.metadata, 'additional_data') and item.metadata.additional_data:
+                                truncated_warning = item.metadata.additional_data.get('truncated_warning', False)
+                                truncated_message = item.metadata.additional_data.get('truncated_message', '')
+
                         # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
                         if len(rows) <= self.DATA_SIZE_LIMITS['small']:
                             # Маленькие данные → показываем всё
                             observations.extend(self._format_small_data(rows))
+                            # Добавляем предупреждение об усечении
+                            if truncated_warning:
+                                observations.append(f"⚠️ {truncated_message}")
                         elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
                             # Средние данные → статистика + первые N
                             observations.append(f"📊 Найдено {len(rows)} записей")
+                            observations.append("⚠️ Эти данные не доступны для final_answer, для полного анализа используйте data_analysis.analyze_step_data")
                             observations.append("📋 Первые 5:")
                             observations.extend(self._format_small_data(rows[:5]))
                             observations.append(f"... и ещё {len(rows) - 5} записей")
                         elif len(rows) <= self.DATA_SIZE_LIMITS['large']:
                             # Большие данные → только статистика
                             observations.append(f"📊 Найдено {len(rows)} записей (большие данные)")
-                            observations.append("⚠️ Для полного анализа используйте data_analysis.analyze_step_data")
+                            observations.append("⚠️ Эти данные не доступны для final_answer, для полного анализа используйте data_analysis.analyze_step_data")
                             observations.append("📋 Пример (3 записи):")
                             observations.extend(self._format_small_data(rows[:3]))
                         else:
                             # Очень большие данные → только мета
                             observations.append(f"📊 Найдено {len(rows)} записей (очень большие данные)")
-                            observations.append("💡 Вызовите data_analysis.analyze_step_data для суммаризации")
+                            observations.append("💡 Эти данные не доступны для final_answer, вызовите data_analysis.analyze_step_data для суммаризации")
                     elif not observations:
                         # Fallback для других типов
                         content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
@@ -264,7 +355,7 @@ class PromptBuilderService:
         # Добавляем итоговую статистику если данных много
         if total_rows > self.DATA_SIZE_LIMITS['medium']:
             observations.append(f"\n⚠️ ОБЩИЙ ОБЪЁМ: {total_rows} строк")
-            observations.append("💡 Рекомендация: Используйте data_analysis.analyze_step_data")
+            observations.append("💡 Эти данные не доступны для final_answer. Рекомендация: Используйте data_analysis.analyze_step_data")
         
         if observations:
             return "\n".join(observations)
@@ -358,15 +449,53 @@ class PromptBuilderService:
                     req_mark = "(required)" if is_required else "(optional)"
                     param_desc = param_info.get('description', '')
 
-                    if param_desc:
-                        params_list.append(f"{param_name}: {param_type} {req_mark} — {param_desc}")
+                    # Раскрываем вложенные объекты
+                    if param_type == 'object' and 'properties' in param_info:
+                        # Это сложный объект — форматируем с вложенными полями
+                        nested_props = param_info.get('properties', {})
+                        nested_required = param_info.get('required', [])
+                        nested_lines = []
+                        for nested_name, nested_info in nested_props.items():
+                            nested_type = nested_info.get('type', 'string')
+                            nested_req = "(required)" if nested_name in nested_required else "(optional)"
+                            nested_desc = nested_info.get('description', '')
+                            default_val = nested_info.get('default')
+                            default_str = f", default: {default_val}" if default_val is not None else ""
+                            
+                            # Добавляем enum если есть
+                            if 'enum' in nested_info:
+                                enum_vals = ', '.join([str(e) for e in nested_info['enum']])
+                                nested_desc += f" (варианты: {enum_vals})"
+                            
+                            if nested_desc:
+                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str} — {nested_desc}")
+                            else:
+                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str}")
+                        
+                        # Форматируем как блок с вложенностью
+                        params_list.append(f"{param_name}: object {req_mark} — {param_desc}")
+                        params_list.append(f"    Структура {param_name}:")
+                        for nl in nested_lines:
+                            params_list.append(f"      - {nl}")
                     else:
-                        params_list.append(f"{param_name}: {param_type} {req_mark}")
+                        # Простой тип
+                        default_val = param_info.get('default')
+                        default_str = f", default: {default_val}" if default_val is not None else ""
+                        
+                        # Добавляем enum если есть
+                        if 'enum' in param_info:
+                            enum_vals = ', '.join([str(e) for e in param_info['enum']])
+                            param_desc += f" (варианты: {enum_vals})"
+                        
+                        if param_desc:
+                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str} — {param_desc}")
+                        else:
+                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str}")
 
                 if params_list:
                     line += "\n    Параметры:"
                     for p in params_list:
-                        line += f"\n      - {p}"
+                        line += f"\n      {p}"
             lines.append(line)
         return "\n".join(lines)
     
