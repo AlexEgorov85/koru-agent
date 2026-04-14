@@ -253,7 +253,41 @@ class PromptBuilderService:
                 
                 if item and hasattr(item, 'content'):
                     content = item.content
+
+                    # Проверяем, это observation с ошибкой?
+                    is_error_observation = False
+                    if hasattr(item, 'item_type'):
+                        from core.session_context.model import ContextItemType
+                        is_error_observation = (item.item_type == ContextItemType.ERROR_LOG)
                     
+                    if is_error_observation:
+                        # Обработка ошибки — показываем детали
+                        if isinstance(content, dict):
+                            error_msg = content.get('error', 'Неизвестная ошибка')
+                            capability = content.get('capability', 'unknown')
+                            parameters = content.get('parameters', {})
+                            traceback = content.get('traceback', '')
+                            
+                            observations.append(f"❌ ОШИБКА в {capability}")
+                            observations.append(f"   Текст: {error_msg}")
+                            
+                            # Показываем параметры вызова
+                            if parameters:
+                                params_str = ", ".join([f"{k}={str(v)[:100]}" for k, v in list(parameters.items())[:3]])
+                                observations.append(f"   Параметры: {params_str}")
+                            
+                            # Показываем traceback если есть (сокращённо)
+                            if traceback:
+                                # Берём последние 5 строк traceback для компактности
+                                tb_lines = traceback.strip().split('\n')[-5:]
+                                tb_str = '\n   '.join(tb_lines)
+                                observations.append(f"   Детали:\n   {tb_str}")
+                            
+                            observations.append("💡 Возможно, нужно: проверить параметры, вызвать skill с другими параметрами, или использовать другой skill")
+                        else:
+                            observations.append(f"❌ ОШИБКА: {str(content)[:500]}")
+                        continue
+
                     # Извлекаем полезную информацию
                     rows = None
                     
@@ -277,11 +311,22 @@ class PromptBuilderService:
                     # Обработка rows
                     if rows is not None:
                         total_rows += len(rows)
-                        
+
+                        # Проверяем предупреждение об усечении данных
+                        truncated_warning = False
+                        truncated_message = ""
+                        if hasattr(item, 'metadata') and item.metadata:
+                            if hasattr(item.metadata, 'additional_data') and item.metadata.additional_data:
+                                truncated_warning = item.metadata.additional_data.get('truncated_warning', False)
+                                truncated_message = item.metadata.additional_data.get('truncated_message', '')
+
                         # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
                         if len(rows) <= self.DATA_SIZE_LIMITS['small']:
                             # Маленькие данные → показываем всё
                             observations.extend(self._format_small_data(rows))
+                            # Добавляем предупреждение об усечении
+                            if truncated_warning:
+                                observations.append(f"⚠️ {truncated_message}")
                         elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
                             # Средние данные → статистика + первые N
                             observations.append(f"📊 Найдено {len(rows)} записей")
@@ -404,15 +449,53 @@ class PromptBuilderService:
                     req_mark = "(required)" if is_required else "(optional)"
                     param_desc = param_info.get('description', '')
 
-                    if param_desc:
-                        params_list.append(f"{param_name}: {param_type} {req_mark} — {param_desc}")
+                    # Раскрываем вложенные объекты
+                    if param_type == 'object' and 'properties' in param_info:
+                        # Это сложный объект — форматируем с вложенными полями
+                        nested_props = param_info.get('properties', {})
+                        nested_required = param_info.get('required', [])
+                        nested_lines = []
+                        for nested_name, nested_info in nested_props.items():
+                            nested_type = nested_info.get('type', 'string')
+                            nested_req = "(required)" if nested_name in nested_required else "(optional)"
+                            nested_desc = nested_info.get('description', '')
+                            default_val = nested_info.get('default')
+                            default_str = f", default: {default_val}" if default_val is not None else ""
+                            
+                            # Добавляем enum если есть
+                            if 'enum' in nested_info:
+                                enum_vals = ', '.join([str(e) for e in nested_info['enum']])
+                                nested_desc += f" (варианты: {enum_vals})"
+                            
+                            if nested_desc:
+                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str} — {nested_desc}")
+                            else:
+                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str}")
+                        
+                        # Форматируем как блок с вложенностью
+                        params_list.append(f"{param_name}: object {req_mark} — {param_desc}")
+                        params_list.append(f"    Структура {param_name}:")
+                        for nl in nested_lines:
+                            params_list.append(f"      - {nl}")
                     else:
-                        params_list.append(f"{param_name}: {param_type} {req_mark}")
+                        # Простой тип
+                        default_val = param_info.get('default')
+                        default_str = f", default: {default_val}" if default_val is not None else ""
+                        
+                        # Добавляем enum если есть
+                        if 'enum' in param_info:
+                            enum_vals = ', '.join([str(e) for e in param_info['enum']])
+                            param_desc += f" (варианты: {enum_vals})"
+                        
+                        if param_desc:
+                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str} — {param_desc}")
+                        else:
+                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str}")
 
                 if params_list:
                     line += "\n    Параметры:"
                     for p in params_list:
-                        line += f"\n      - {p}"
+                        line += f"\n      {p}"
             lines.append(line)
         return "\n".join(lines)
     
