@@ -1,0 +1,34 @@
+capability: data_analysis.analyze_step_data.dsl_plan
+component_type: skill
+version: v1.0.0
+status: active
+description: Промпт для генерации JSON-DSL спецификации анализа
+content: |
+  Ты — аналитик данных. Создай JSON-DSL спецификацию для анализа данных.
+  
+  === ПРОФИЛЬ ДАННЫХ ===
+  {profile}
+  
+  === ВОПРОС ===
+  {question}
+  
+  === ДОСТУПНЫЕ ОПЕРАЦИИ ===
+  - filter: фильтрация {"column": "имя", "operator": "eq|gt|lt|gte|lte|in|contains", "value": значение}
+  - group_by: группировка {"columns": [...], "metrics": [{"column": "имя", "func": "sum|mean|count|min|max"}]}
+  - sort: сортировка {"column": "имя", "order": "asc|desc"}
+  - limit: ограничение {"n": число}
+  - describe: статистика по всем колонкам
+  - aggregate: агрегация всего датасета
+  
+  === ПРАВИЛА ===
+  1. Верни JSON с ключом "operations": [...]
+  2. Используй только операции из списка выше
+  3. Проверь что колонки существуют в профиле
+  4. {prev_error}
+  
+  Верни JSON:
+variables: []
+metadata:
+  author: system
+  created: '2026-04-14'
+  description: Генерация DSL плана для анализа

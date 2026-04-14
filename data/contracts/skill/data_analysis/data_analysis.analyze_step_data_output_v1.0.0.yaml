@@ -8,39 +8,41 @@ schema_data:
   properties:
     answer:
       type: string
-      description: Текстовый ответ
-    stats:
-      type: object
-      description: Статистика (для режима python)
-    profile:
-      type: object
-      description: Профиль данных (типы, nulls, min/max/mean)
+      description: Финальный текстовый ответ на вопрос
+    executed_operations:
+      type: array
+      description: Список выполненных операций
+      items:
+        type: string
+    execution_status:
+      type: string
+      enum: [success, error, skipped]
+      description: Статус выполнения
+    execution_error:
+      type: string
+      description: Текст ошибки если execution_status=error
     confidence:
       type: number
-      minimum: 0
-      maximum: 1
-      description: Уверенность в ответе (0-1)
+      minimum: 0.0
+      maximum: 1.0
+      description: Уверенность в ответе 0.0-1.0
     metadata:
       type: object
-      description: Дополнительные данные
+      description: Метаданные выполнения
       properties:
-        mode:
+        mode_used:
           type: string
-          description: Фактический режим выполнения
-        processing_time_ms:
-          type: number
-          description: Время обработки в мс
-        rows_processed:
+          description: Режим который был использован
+        row_count:
           type: integer
           description: Количество обработанных строк
-        chunks_processed:
-          type: integer
-          description: Количество обработанных чанков
-        data_size_mb:
+        processing_time_ms:
           type: number
-          description: Размер данных в MB
-        columns:
-          type: array
-          items:
-            type: string
-          description: Имена колонок
+          description: Время обработки в миллисекундах
+        data_type:
+          type: string
+          description: Тип данных tabular или text
+        retries_used:
+          type: integer
+          description: Количество попыток
+  required: [answer, execution_status, confidence]

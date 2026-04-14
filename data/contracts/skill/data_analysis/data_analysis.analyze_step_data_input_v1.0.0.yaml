@@ -11,18 +11,18 @@ schema_data:
       description: ID шага для анализа
     question:
       type: string
-      description: Вопрос к данным
+      description: Вопрос или задача для анализа данных
     mode:
       type: string
-      enum: [python, llm, semantic, auto]
+      enum: [auto, python, llm, semantic, code]
       default: auto
-      description: Режим анализа (python=детерминированный, llm=интерпретация, semantic=текст, auto=автовыбор)
-    max_rows:
+      description: Режим анализа. auto=автоопределение, python=только Python, llm=LLM планирует, semantic=текст, code=генерация кода
+    max_retries:
       type: integer
-      default: 10000
-      description: Максимум строк для обработки
-    max_response_chars:
-      type: integer
-      default: 8000
-      description: Максимум символов в ответе
+      default: 2
+      description: Максимум попыток при ошибке валидации/исполнения
+    timeout_seconds:
+      type: number
+      default: 5.0
+      description: Лимит времени на исполнение в секундах
   required: [step_id, question]
