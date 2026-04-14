@@ -126,11 +126,13 @@ class SessionContext(BaseSessionContext):
         action_item_id: str,
         observation_item_ids: List[str],
         summary: Optional[str] = None,
-        status: Optional[ExecutionStatus] = None
+        status: Optional[ExecutionStatus] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        result: Optional[Any] = None
     ) -> None:
         """
         Регистрация шага агента.
-        
+
         ПАРАМЕТРЫ:
         - step_number: номер шага
         - capability_name: название capability
@@ -138,8 +140,9 @@ class SessionContext(BaseSessionContext):
         - action_item_id: ID элемента действия
         - observation_item_ids: ID результатов
         - summary: краткое описание шага
-        - status: .....
-        - execution_time: .........
+        - status: статус выполнения
+        - parameters: параметры запуска действия/инструмента
+        - result: результат выполнения (сериализованный)
         """
         step = AgentStep(
             step_number=step_number,
@@ -148,7 +151,9 @@ class SessionContext(BaseSessionContext):
             action_item_id=action_item_id,
             observation_item_ids=observation_item_ids,
             summary=summary,
-            status=status
+            status=status,
+            parameters=parameters,
+            result=result
         )
         self.step_context.add_step(step)
         self.last_activity = datetime.now()

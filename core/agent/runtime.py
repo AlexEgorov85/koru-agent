@@ -379,6 +379,22 @@ class AgentRuntime:
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
+
+                # Сериализуем результат для хранения в истории
+                serialized_result = None
+                if result.data is not None:
+                    try:
+                        if hasattr(result.data, 'model_dump'):
+                            serialized_result = result.data.model_dump()
+                        elif hasattr(result.data, 'dict'):
+                            serialized_result = result.data.dict()
+                        elif isinstance(result.data, (dict, list, str, int, float, bool)):
+                            serialized_result = result.data
+                        else:
+                            serialized_result = str(result.data)
+                    except Exception:
+                        serialized_result = str(result.data)
+
                 self.session_context.register_step(
                     step_number=executed_steps,
                     capability_name=decision.action or "unknown",
@@ -386,7 +402,9 @@ class AgentRuntime:
                     action_item_id='',
                     observation_item_ids=observation_item_ids,
                     summary=decision.reasoning,
-                    status=result.status
+                    status=result.status,
+                    parameters=decision.parameters or {},
+                    result=serialized_result
                 )
                 await event_bus.publish(EventType.INFO, {
                     "message": f"✅ Executor завершил: status={result.status.value}" +

@@ -458,7 +458,8 @@ class ActionExecutor:
                             "summary": getattr(step, 'summary', ''),
                             "status": getattr(step, 'status', ''),
                             "observation": getattr(step, 'observation', ''),
-                            "result": getattr(step, 'result', '')
+                            "result": getattr(step, 'result', ''),
+                            "parameters": getattr(step, 'parameters', {})
                         })
                     else:
                         steps_data.append(step)
