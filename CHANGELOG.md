@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [5.37.0] - 2026-04-14
+
+### Added
+- **data_analysis: Python-first архитектура с batch+tree-reduce**
+  - Новые режимы: python (AnalyticsEngine), llm (DSL), semantic (text), code (legacy)
+  - python: детерминированные вычисления через JSON-DSL (без exec/eval)
+  - llm: LLM генерирует DSL → Engine исполняет → LLM интерпретирует
+  - semantic: batch processing + tree-reduce синтез (без лимита чанков)
+  - safe_formula_parser.py: AST-валидация формул (whitelist функций)
+  - batch_processor.py: групповая обработка чанков (15 чанков/батч, до 3 параллельно)
+  - tree_reducer.py: итеративное слияние summary (O(log N) по глубине)
+  - Обновлены контракты: добавлены mode=auto|python|llm|semantic|code
+  - Добавлены промпты: dsl_plan, interpret, semantic_reduce
+  - Добавлены docstrings во все методы skill.py
+
 ## [5.36.8] - 2026-04-14
 
 ### Added
