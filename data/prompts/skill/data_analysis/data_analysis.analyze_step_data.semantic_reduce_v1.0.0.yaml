@@ -1,0 +1,27 @@
+capability: data_analysis.analyze_step_data.semantic_reduce
+component_type: skill
+version: v1.0.0
+status: active
+description: Промпт для tree-reduce синтеза при работе с текстом
+content: |
+  Ты — аналитик данных. Объедини фрагменты анализа в один связный текст.
+  
+  === ВОПРОС ===
+  {question}
+  
+  === ФРАГМЕНТЫ ===
+  {summaries}
+  
+  === ПРАВИЛА ===
+  1. Объедини информацию из всех фрагментов
+  2. Убери дублирующиеся факты
+  3. Сохрани все ключевые данные и выводы
+  4. Пиши на русском языке
+  5. Не выдумывай факты, которых нет в исходных данных
+  
+  Объединённый анализ:
+variables: []
+metadata:
+  author: system
+  created: '2026-04-14'
+  description: Tree-reduce синтез для semantic mode

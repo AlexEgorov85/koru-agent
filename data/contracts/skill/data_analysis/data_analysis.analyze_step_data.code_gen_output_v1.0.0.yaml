@@ -1,0 +1,15 @@
+capability: data_analysis.analyze_step_data.code_gen
+version: v1.0.0
+status: active
+component_type: skill
+direction: output
+schema_data:
+  type: object
+  properties:
+    code:
+      type: string
+      description: Сгенерированный безопасный Python-код для анализа данных
+    explanation:
+      type: string
+      description: Краткое пояснение что делает код
+  required: [code, explanation]
