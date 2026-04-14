@@ -741,7 +741,7 @@ class LLMOrchestrator:
 
                 if self._logger:
                     self._logger.info(
-                        f"🔵 [STRUCTURED] Найден raw_response.content, len={len(raw_content) if raw_content else 0}",
+                        f"🔵 [STRUCTURED] Обработка raw_response.content, len={len(raw_content) if raw_content else 0}",
                         extra={"event_type": LogEventType.LLM_RESPONSE}
                     )
 
@@ -773,8 +773,9 @@ class LLMOrchestrator:
 
                         # Логируем начало парсинга
                         if self._logger:
+                            schema_keys = list(schema.keys()) if isinstance(schema, dict) else "unknown"
                             self._logger.info(
-                                f"🔵 [STRUCTURED] Вызов json_parsing.parse_to_model: модель={model_name}",
+                                f"🔵 [STRUCTURED] Вызов json_parsing.parse_to_model: модель={model_name} | schema_keys={schema_keys}",
                                 extra={"event_type": LogEventType.LLM_RESPONSE}
                             )
 
@@ -818,6 +819,11 @@ class LLMOrchestrator:
                                             f"✅ [STRUCTURED] Pydantic модель {model_name} создана через JsonParsingService",
                                             extra={"event_type": LogEventType.LLM_RESPONSE}
                                         )
+                                        if steps:
+                                            self._logger.debug(
+                                                f"🔵 [STRUCTURED] Steps обработки: {steps}",
+                                                extra={"event_type": LogEventType.LLM_RESPONSE}
+                                            )
                                     return RetryAttempt(
                                         attempt_number=attempt_num,
                                         prompt=request.prompt,
@@ -855,6 +861,11 @@ class LLMOrchestrator:
                                         f"❌ [STRUCTURED] JsonParsingService вернул ошибку: {error_type}: {error_message}",
                                         extra={"event_type": LogEventType.LLM_ERROR}
                                     )
+                                    if steps:
+                                        self._logger.debug(
+                                            f"🔵 [STRUCTURED] Steps до ошибки: {steps}",
+                                            extra={"event_type": LogEventType.LLM_ERROR}
+                                        )
                                     if error_details:
                                         for detail in error_details[:3]:  # Первые 3 ошибки
                                             loc = detail.get("loc", [])
