@@ -219,6 +219,12 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                     msg["content"] = msg["content"] + "\n\n" + schema_prompt
                     break
 
+        # Логируем полный промпт (сообщения)
+        import json
+        messages_json = json.dumps(messages, indent=2, ensure_ascii=False)
+        self._get_logger().debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW MESSAGES) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", messages_json,
+                                extra={"event_type": LogEventType.DEBUG})
+
         max_retries = 3
         last_error = None
 
@@ -246,6 +252,10 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                     content = response.choices[0].message.content or ""
                     finish_reason = response.choices[0].finish_reason or "stop"
                     tokens_used = response.usage.total_tokens if response.usage else 0
+
+                    # Логируем сырой ответ
+                    self._get_logger().debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", content,
+                                            extra={"event_type": LogEventType.DEBUG})
 
                     # Если контент пустой — это ошибка free-модели
                     if not content or not content.strip():
@@ -287,7 +297,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             except Exception as e:
                 last_error = str(e)
                 self._get_logger().error("❌ [OPENROUTER] Ошибка: %s", last_error, extra={"event_type": LogEventType.LLM_ERROR})
-                
+
                 if attempt < max_retries:
                     wait_time = 10 * attempt
                     await asyncio.sleep(wait_time)

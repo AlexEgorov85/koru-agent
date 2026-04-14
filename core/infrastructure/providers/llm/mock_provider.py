@@ -138,6 +138,9 @@ class MockLLMProvider(BaseLLMProvider):
 
         start_time = time.time()
 
+        self.log.debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", request.prompt,
+                      extra={"event_type": LogEventType.DEBUG})
+
         self.log.debug("Mock выполнение запроса: %s",
                        request.prompt,
                        extra={"event_type": LogEventType.LLM_CALL})
@@ -199,6 +202,9 @@ class MockLLMProvider(BaseLLMProvider):
         })
 
         generation_time = time.time() - start_time
+
+        self.log.debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", response,
+                      extra={"event_type": LogEventType.DEBUG})
 
         # Публикация события LLM_CALL_COMPLETED
         if hasattr(self, '_event_bus') and self._event_bus:

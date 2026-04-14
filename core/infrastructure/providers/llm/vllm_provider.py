@@ -294,6 +294,9 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         logger.debug("Промпт vLLM (%d симв.): %s", len(prompt), prompt,
                     extra={"event_type": LogEventType.LLM_CALL})
 
+        logger.debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", prompt,
+                    extra={"event_type": LogEventType.DEBUG})
+
         structured_outputs = None
         if hasattr(request, 'structured_output') and request.structured_output:
             structured_outputs = StructuredOutputsParams(
@@ -322,6 +325,9 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
             tokens_used = len(response[0].promt_token_ids)
             generation_time = time.time() - start_time
+
+            logger.debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", generated_text,
+                        extra={"event_type": LogEventType.DEBUG})
 
             if hasattr(request, 'structured_output') and request.structured_output:
                 if not generated_text or not generated_text.strip():

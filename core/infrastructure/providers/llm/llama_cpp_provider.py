@@ -376,6 +376,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             is_executor_thread = current_thread.name.startswith('llm_worker') or \
                                  current_thread.name.startswith('llm_orchestrator')
 
+            # Логируем полный промпт перед вызовом
+            full_prompt_for_log = prompt
+            if system_prompt:
+                full_prompt_for_log = system_prompt + "\n\n" + prompt
+            
+            self._get_logger().debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", full_prompt_for_log,
+                                    extra={"event_type": LogEventType.DEBUG})
+
             if is_executor_thread:
                 # Уже в потоке - вызываем напрямую
                 response = _call_llm_sync()
@@ -396,11 +404,9 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
 
-                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("💬 RESPONSE (LlamaCppProvider)", extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("=" * 80, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug(generated_text, extra={"event_type": LogEventType.DEBUG})
-                self._get_logger().debug("\n" + "=" * 80, extra={"event_type": LogEventType.DEBUG})
+                self._get_logger().debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", generated_text,
+                                        extra={"event_type": LogEventType.DEBUG})
+
                 self._get_logger().info("🔵 [LLM] generated_text: %d символов", len(generated_text), extra={"event_type": LogEventType.LLM_RESPONSE})
                 self._get_logger().info("🔵 [LLM] finish_reason: %s", finish_reason, extra={"event_type": LogEventType.LLM_RESPONSE})
             else:
