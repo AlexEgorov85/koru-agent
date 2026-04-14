@@ -721,6 +721,24 @@ class LLMOrchestrator:
                 # LLMResponse от провайдера
                 raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
 
+                # ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: пустой ответ от LLM
+                if not raw_content or not raw_content.strip():
+                    self._logger.warning(
+                        f"⚠️ [STRUCTURED] Пустой ответ от LLM (attempt {attempt_num}/{max_retries}) | "
+                        f"finish_reason={finish_reason}",
+                        extra={"event_type": LogEventType.LLM_ERROR}
+                    )
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=None,
+                        success=False,
+                        error_type="empty_response",
+                        error_message="LLM вернул пустой ответ",
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
+
                 if self._logger:
                     self._logger.info(
                         f"🔵 [STRUCTURED] Найден raw_response.content, len={len(raw_content) if raw_content else 0}",
@@ -919,6 +937,23 @@ class LLMOrchestrator:
                         extra={"event_type": LogEventType.LLM_RESPONSE}
                     )
                 raw_content = response.content
+
+                # ✅ ПРОВЕРКА: пустой content
+                if not raw_content or not raw_content.strip():
+                    self._logger.warning(
+                        f"⚠️ [STRUCTURED] Пустой LLMResponse.content (attempt {attempt_num}/{max_retries})",
+                        extra={"event_type": LogEventType.LLM_ERROR}
+                    )
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=None,
+                        success=False,
+                        error_type="empty_response",
+                        error_message="LLM вернул пустой ответ (LLMResponse.content)",
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
 
             # Валидация через JsonParsingService
             if request.structured_output and raw_content:

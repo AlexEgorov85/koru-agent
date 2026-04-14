@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## [5.36.4] - 2026-04-14
+
+### Added
+- **vllm_provider: Добавлено полное логирование vLLM провайдера**
+  - Логирование инициализации модели (загрузка, параметры, статус)
+  - Логирование генерации ответов (prompt, tokens, время, finish_reason)
+  - Логирование structured output результатов и ошибок парсинга
+  - Логирование health check проверок
+  - Логирование shutdown и ошибок
+  - Использует `LogEventType` для фильтрации в терминале через `LoggingSession`
+
+### Fixed
+- **planning.pattern: Детальное логирование причин пустых/невалидных LLM ответов**
+  - Разделены ошибки: `llm_returned_none`, `llm_empty_response`, `llm_no_content`, `llm_json_parse_failed`
+  - Добавлена проверка `finish_reason` при создании и обновлении планов
+  - Runtime Error при пустых ответах LLM с указанием причины
+
+- **llama_cpp_provider: Проверка на пустой ответ**
+  - Добавлена валидация `generated_text` перед обработкой
+  - Возвращается `finish_reason="empty"` для пустых ответов
+
+- **llm_orchestrator: Критическая проверка пустых ответов в structured output**
+  - Ранняя детекция пустых ответов до валидации JSON
+  - Информативные предупре с указанием attempt number и finish_reason
+
+- **base_llm: Добавлен метод `_validate_response_content()`**
+  - Проверяет все поля ответа: `parsed_content`, `content`, `raw_response.content`
+  - Используется для раннего детектирования ошибок в провайдерах
+
 ## [5.36.3] - 2026-04-13
 
 ### Fixed

@@ -180,6 +180,29 @@ class PlanningSkill(Skill):
             else:
                 plan_data = llm_result_data if llm_result_data else {}
 
+            # ✅ ПРОВЕРКА: LLM вернул пустой результат
+            if not plan_data:
+                finish_reason = ""
+                if hasattr(llm_result_data, 'finish_reason'):
+                    finish_reason = llm_result_data.finish_reason
+                elif isinstance(llm_result_data, dict):
+                    finish_reason = llm_result_data.get("finish_reason", "unknown")
+
+                self._log_error(
+                    f"LLM вернул пустой план | finish_reason={finish_reason} | "
+                    f"validation_errors={getattr(llm_result_data, 'validation_errors', [])}",
+                    event_type=LogEventType.ERROR
+                )
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"LLM вернул пустой ответ при создании плана (finish_reason={finish_reason})",
+                    metadata={
+                        "error_type": "empty_llm_response",
+                        "finish_reason": finish_reason,
+                        "attempts": llm_result.metadata.get("attempts", 1) if isinstance(llm_result.metadata, dict) else 1
+                    }
+                )
+
             # Логирование успешного structured output
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             self._log_info(
@@ -319,6 +342,27 @@ class PlanningSkill(Skill):
                 updated_plan = llm_result_data.get("parsed_content", {})
             else:
                 updated_plan = llm_result_data if llm_result_data else {}
+
+            # ✅ ПРОВЕРКА: LLM вернул пустой результат
+            if not updated_plan:
+                finish_reason = ""
+                if hasattr(llm_result_data, 'finish_reason'):
+                    finish_reason = llm_result_data.finish_reason
+                elif isinstance(llm_result_data, dict):
+                    finish_reason = llm_result_data.get("finish_reason", "unknown")
+
+                self._log_error(
+                    f"LLM вернул пустой ответ при обновлении плана | finish_reason={finish_reason}",
+                    event_type=LogEventType.ERROR
+                )
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"LLM вернул пустой ответ при обновлении плана (finish_reason={finish_reason})",
+                    metadata={
+                        "error_type": "empty_llm_response",
+                        "finish_reason": finish_reason
+                    }
+                )
 
             # Логирование успешного structured output
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1

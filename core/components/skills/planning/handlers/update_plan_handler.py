@@ -70,6 +70,16 @@ class UpdatePlanHandler(SkillHandler):
         llm_data = llm_result.result
         updated_plan = llm_data.parsed_content if hasattr(llm_data, 'parsed_content') else llm_data.get("parsed_content", {}) if isinstance(llm_data, dict) else llm_data
 
+        # ✅ ПРОВЕРКА: LLM вернул пустой результат
+        if not updated_plan:
+            finish_reason = "unknown"
+            if hasattr(llm_data, 'finish_reason'):
+                finish_reason = llm_data.finish_reason
+            elif isinstance(llm_data, dict):
+                finish_reason = llm_data.get("finish_reason", "unknown")
+
+            raise RuntimeError(f"LLM вернул пустой ответ при обновлении плана (finish_reason={finish_reason})")
+
         save_result = await self.executor.execute_action(
             action_name="context.record_plan",
             parameters={"plan_data": updated_plan, "plan_type": "update"},

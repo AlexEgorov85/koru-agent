@@ -221,10 +221,40 @@ class ReActPattern(BaseBehaviorPattern):
                     f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
                 )
 
-            if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
-                self._log_error("❌ LLM ответ пустой или не распарсен", event_type=LogEventType.LLM_ERROR)
+            # ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ПРИЧИН пустого/невалидного ответа
+            if not result:
+                self._log_error("❌ LLM вернул None (result=None)", event_type=LogEventType.LLM_ERROR)
                 return self.fallback_strategy.create_error(
-                    "llm_call_failed", available_capabilities
+                    "llm_returned_none", available_capabilities
+                )
+            elif result.finish_reason == "empty":
+                self._log_error(
+                    f"❌ LLM вернул пустой ответ (finish_reason=empty) | "
+                    f"model={result.model} | attempts={getattr(result, 'parsing_attempts', 'N/A')}",
+                    event_type=LogEventType.LLM_ERROR
+                )
+                return self.fallback_strategy.create_error(
+                    "llm_empty_response", available_capabilities
+                )
+            elif not result.content and not result.raw_response:
+                self._log_error(
+                    f"❌ LLM вернул ответ без контента | "
+                    f"finish_reason={result.finish_reason} | model={result.model}",
+                    event_type=LogEventType.LLM_ERROR
+                )
+                return self.fallback_strategy.create_error(
+                    "llm_no_content", available_capabilities
+                )
+            elif not hasattr(result, 'parsed_content') or result.parsed_content is None:
+                validation_errors = getattr(result, 'validation_errors', [])
+                self._log_error(
+                    f"❌ JSON не распарсен | "
+                    f"finish_reason={result.finish_reason} | "
+                    f"errors={validation_errors}",
+                    event_type=LogEventType.LLM_ERROR
+                )
+                return self.fallback_strategy.create_error(
+                    "llm_json_parse_failed", available_capabilities
                 )
 
             reasoning_result = result.parsed_content

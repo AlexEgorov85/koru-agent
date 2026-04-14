@@ -198,7 +198,7 @@ class BaseLLMProvider(BaseProvider, ABC):
     def _update_metrics(self, response_time: float, success: bool = True):
         """Обновление внутренних метрик провайдера."""
         super()._update_metrics(response_time, success)
-        
+
         # Специфичная логика для LLM
         if self.error_count > 0 and self.request_count > 1:
             error_rate = self.error_count / self.request_count
@@ -206,6 +206,36 @@ class BaseLLMProvider(BaseProvider, ABC):
                 self.health_status = LLMHealthStatus.UNHEALTHY
             elif error_rate >= 0.5:
                 self.health_status = LLMHealthStatus.DEGRADED
+
+    def _validate_response_content(self, response: LLMResponse) -> bool:
+        """
+        Проверка что ответ от LLM не пустой.
+
+        АРХИТЕКТУРА:
+        - Проверяет все возможные поля ответа
+        - Используется в _generate_impl() для раннего детектирования ошибок
+        - Возвращает True только если есть непустой контент
+
+        ПАРАМЕТРЫ:
+        - response: Ответ от LLM
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если ответ содержит непустой контент
+        """
+        # Проверяем parsed_content (структурированный ответ)
+        if response.parsed_content is not None:
+            return True
+
+        # Проверяем content
+        if response.content and response.content.strip():
+            return True
+
+        # Проверяем raw_response.content
+        if response.raw_response and response.raw_response.content:
+            if response.raw_response.content.strip():
+                return True
+
+        return False
 
     def get_model_info(self) -> Dict[str, Any]:
         """Получение информации о модели."""

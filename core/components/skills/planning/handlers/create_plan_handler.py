@@ -56,6 +56,16 @@ class CreatePlanHandler(SkillHandler):
         else:
             plan_data = llm_result_data if llm_result_data else {}
 
+        # ✅ ПРОВЕРКА: LLM вернул пустой результат
+        if not plan_data:
+            finish_reason = "unknown"
+            if hasattr(llm_result_data, 'finish_reason'):
+                finish_reason = llm_result_data.finish_reason
+            elif isinstance(llm_result_data, dict):
+                finish_reason = llm_result_data.get("finish_reason", "unknown")
+
+            raise RuntimeError(f"LLM вернул пустой ответ при создании плана (finish_reason={finish_reason})")
+
         await self.log_info(f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})")
 
         save_result = await self.executor.execute_action(

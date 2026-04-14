@@ -408,6 +408,18 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 finish_reason = 'error'
                 self._get_logger().warning("⚠️ [LLM] choices пуст!", extra={"event_type": LogEventType.WARNING})
 
+            # Проверка на пустой ответ (для structured output и обычного режима)
+            if not generated_text or not generated_text.strip():
+                self._get_logger().warning("⚠️ [LLM] generated_text пустой или содержит только пробелы", extra={"event_type": LogEventType.WARNING})
+                return LLMResponse(
+                    content="",
+                    model=self.model_name,
+                    tokens_used=usage.get('total_tokens', 0),
+                    generation_time=time.time() - start_time,
+                    finish_reason="empty",
+                    metadata={"error": "empty_response"}
+                )
+
             # === ОБРАБОТКА STRUCTURED OUTPUT ===
             if hasattr(request, 'structured_output') and request.structured_output:
                 self._get_logger().info("🔵 Structured output запрошен: %s", request.structured_output.output_model, extra={"event_type": LogEventType.LLM_RESPONSE})
