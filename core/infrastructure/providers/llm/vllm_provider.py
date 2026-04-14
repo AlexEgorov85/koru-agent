@@ -323,7 +323,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                 generated_text = ''
                 finish_reason = 'error'
 
-            tokens_used = len(response[0].promt_token_ids)
+            tokens_used = len(response[0].outputs[0].token_ids)
             generation_time = time.time() - start_time
 
             logger.debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", generated_text,
