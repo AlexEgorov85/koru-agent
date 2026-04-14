@@ -813,8 +813,11 @@ class LLMOrchestrator:
                             status = result_data.get("status", "unknown")
 
                             if status == "success":
+                                # Проверяем оба поля: pydantic_model (объект) и pydantic_model_data (dict)
                                 pydantic_model = result_data.get("pydantic_model")
-                                if pydantic_model is not None:
+                                pydantic_model_data = result_data.get("pydantic_model_data")
+                                
+                                if pydantic_model is not None or pydantic_model_data is not None:
                                     steps = result_data.get("processing_steps", [])
                                     if self._logger:
                                         self._logger.info(
@@ -826,11 +829,15 @@ class LLMOrchestrator:
                                                 f"🔵 [STRUCTURED] Steps обработки: {steps}",
                                                 extra={"event_type": LogEventType.LLM_RESPONSE}
                                             )
+                                    
+                                    # Если есть объект Pydantic - используем его, иначе создаём из dict
+                                    parsed_content = pydantic_model if pydantic_model is not None else pydantic_model_data
+                                    
                                     return RetryAttempt(
                                         attempt_number=attempt_num,
                                         prompt=request.prompt,
                                         raw_response=raw_content,
-                                        parsed_content=pydantic_model,
+                                        parsed_content=parsed_content,
                                         success=True,
                                         error_type=None,
                                         error_message=None,

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [5.36.7] - 2026-04-14
+
+### Fixed
+- **llm_orchestrатор: Исправлена ошибка 'Pydantic модель не создана' для structured output**
+  - Orchestrator искал поле `pydantic_model` но `to_dict()` возвращает `pydantic_model_data`
+  - Добавлена поддержка обоих полей: `pydantic_model` (объект) и `pydantic_model_data` (dict)
+  - Structured output теперь работает корректно - валидный JSON от LLM успешно парсится
+
 ## [5.36.6] - 2026-04-14
 
 ### Fixed
