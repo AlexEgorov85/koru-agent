@@ -557,6 +557,152 @@
           }
         }
       ]
+    },
+    "check_result": {
+      "description": "Проверка качества выполнения SQL скриптов и генерации запросов",
+      "test_cases": [
+        {
+          "id": "check_script_books_count",
+          "name": "Execute Script: Количество книг",
+          "input": "Сколько всего книг в базе данных?",
+          "expected_script_name": "get_books_count",
+          "expected_output": {
+            "success": true,
+            "has_numeric_result": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_books_count",
+            "must_return_number": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "easy"
+          }
+        },
+        {
+          "id": "check_script_violations_open",
+          "name": "Execute Script: Открытые отклонения",
+          "input": "Сколько открытых отклонений сейчас?",
+          "expected_script_name": "get_violations_by_status",
+          "expected_parameters": {
+            "status": "Открыто"
+          },
+          "expected_output": {
+            "success": true,
+            "has_count_result": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_violations_by_status",
+            "must_have_status_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_reports_by_author",
+          "name": "Execute Script: Отчеты по автору",
+          "input": "Покажи отчеты где участвовал Лев Толстой",
+          "expected_script_name": "get_reports_by_author",
+          "expected_parameters": {
+            "author_name": "Лев Толстой"
+          },
+          "expected_output": {
+            "success": true,
+            "has_list_result": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_reports_by_author",
+            "must_have_author_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_generate_sql_recent_books",
+          "name": "Generate Script: Книги изданные после 1900 года",
+          "input": "Составь SQL запрос для получения книг изданных после 1900 года",
+          "expected_output": {
+            "success": true,
+            "has_sql": true,
+            "valid_sql": true
+          },
+          "validation": {
+            "must_generate_sql": true,
+            "must_have_from_clause": true,
+            "must_have_where_clause": true,
+            "must_have_year_filter": true
+          },
+          "metadata": {
+            "capability": "check_result.generate_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_generate_sql_authors_count",
+          "name": "Generate Script: Количество авторов без книг",
+          "input": "Напиши SQL для получения количества авторов у которых нет ни одной книги",
+          "expected_output": {
+            "success": true,
+            "has_sql": true,
+            "valid_sql": true,
+            "uses_join_or_subquery": true
+          },
+          "validation": {
+            "must_generate_sql": true,
+            "must_use_left_join_or_not_exists": true,
+            "must_be_valid_sql": true
+          },
+          "metadata": {
+            "capability": "check_result.generate_script",
+            "difficulty": "hard"
+          }
+        },
+        {
+          "id": "check_vector_search_violations",
+          "name": "Vector Search: Поиск отклонений по ключевым словам",
+          "input": "Найди отклонения связанные с нарушением сроков выполнения",
+          "expected_output": {
+            "success": true,
+            "has_results": true,
+            "source": "violations"
+          },
+          "validation": {
+            "must_use_vector_search": true,
+            "must_have_source": "violations",
+            "must_return_results": true
+          },
+          "metadata": {
+            "capability": "check_result.vector_search",
+            "difficulty": "easy"
+          }
+        },
+        {
+          "id": "check_vector_search_audit_findings",
+          "name": "Vector Search: Замечания по аудиту",
+          "input": "Какие замечания были найдены в актах аудита касательно финансовой отчетности?",
+          "expected_output": {
+            "success": true,
+            "has_results": true,
+            "source": "audits"
+          },
+          "validation": {
+            "must_use_vector_search": true,
+            "must_have_source": "audits",
+            "must_return_relevant_results": true
+          },
+          "metadata": {
+            "capability": "check_result.vector_search",
+            "difficulty": "medium"
+          }
+        }
+      ]
     }
   },
   "metadata": {

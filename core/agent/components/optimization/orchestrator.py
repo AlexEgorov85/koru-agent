@@ -758,7 +758,15 @@ class OptimizationOrchestrator:
         with open(benchmark_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        test_cases = data.get('levels', {}).get('sql_generation', {}).get('test_cases', [])
+        # Определяем level из capability
+        # check_result.execute_script -> check_result
+        # check_result.generate_script -> check_result
+        # check_result.vector_search -> check_result
+        level_name = capability.split('.')[0] if '.' in capability else capability
+
+        levels = data.get('levels', {})
+        test_cases = levels.get(level_name, {}).get('test_cases', [])
+        
         if not test_cases:
             return []
 
