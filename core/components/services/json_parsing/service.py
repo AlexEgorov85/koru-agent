@@ -27,6 +27,7 @@ from core.config.component_config import ComponentConfig
 from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from .types import JsonParseResult, JsonParseStatus
+from . import robust_extractor
 
 
 class JsonParsingService(Service):
@@ -243,17 +244,16 @@ class JsonParsingService(Service):
                     ]
                 ).to_dict()
 
-        # Шаг 3: Ищем первую { и последнюю } в тексте
+        # Шаг 3: Robust extraction с балансировкой скобок
         self._log_debug(
-            f"🔍 [JsonParsing.extract_json] Шаг 3: поиск по скобкам {{}}",
+            f"🔍 [JsonParsing.extract_json] Шаг 3: robust extraction с балансировкой",
             event_type=LogEventType.INFO
         )
-        start = content.find('{')
-        end = content.rfind('}') + 1
-        if start != -1 and end > start:
-            json_content = content[start:end]
+        json_content, steps = robust_extractor.robust_extract_json(content)
+        
+        if json_content:
             self._log_info(
-                f"✅ [JsonParsing.extract_json] JSON извлечён по скобкам {{}}: {len(json_content)} симв.",
+                f"✅ [JsonParsing.extract_json] JSON извлечён robust_extract: {len(json_content)} симв.",
                 event_type=LogEventType.INFO
             )
             self._log_debug(
@@ -266,37 +266,7 @@ class JsonParsingService(Service):
                 extracted_json=json_content,
                 processing_steps=[
                     f"Входной текст: {len(content)} симв.",
-                    "Извлечение по скобкам {}",
-                    f"Извлечён JSON: {len(json_content)} симв."
-                ]
-            ).to_dict()
-
-        # Шаг 4: Ищем массив [...]
-        self._log_debug(
-            f"🔍 [JsonParsing.extract_json] Шаг 4: поиск по скобкам []",
-            event_type=LogEventType.INFO
-        )
-        start = content.find('[')
-        end = content.rfind(']') + 1
-        if start != -1 and end > start:
-            json_content = content[start:end]
-            self._log_info(
-                f"✅ [JsonParsing.extract_json] JSON извлечён по скобкам []: {len(json_content)} симв.",
-                event_type=LogEventType.INFO
-            )
-            self._log_debug(
-                f"🟢 [JsonParsing.extract_json] Извлечённый JSON:\n{json_content}",
-                event_type=LogEventType.INFO
-            )
-            return JsonParseResult(
-                status=JsonParseStatus.SUCCESS,
-                raw_input=content,
-                extracted_json=json_content,
-                processing_steps=[
-                    f"Входной текст: {len(content)} симв.",
-                    "Извлечение по скобкам []",
-                    f"Извлечён JSON: {len(json_content)} симв."
-                ]
+                ] + steps
             ).to_dict()
 
         # Ничего не нашли
@@ -308,14 +278,10 @@ class JsonParsingService(Service):
             status=JsonParseStatus.EXTRACT_ERROR,
             raw_input=content,
             error_type="no_json_found",
-            error_message="JSON не найден в тексте (нет блоков markdown, {}, [])",
+            error_message="JSON не найден в тексте",
             processing_steps=[
                 f"Входной текст: {len(content)} симв.",
-                "Поиск markdown json блоков — не найдено",
-                "Поиск markdown блоков — не найдено",
-                "Поиск по скобкам {} — не найдено",
-                "Поиск по скобкам [] — не найдено"
-            ]
+            ] + steps
         ).to_dict()
 
     async def _action_parse_json(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
