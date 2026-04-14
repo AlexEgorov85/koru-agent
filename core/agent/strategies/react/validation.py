@@ -19,8 +19,6 @@ from core.infrastructure.event_bus.unified_event_bus import EventType, EventDoma
 def _fix_missing_commas_simple(json_str: str) -> str:
     """
     Упрощённая функция для исправления отсутствующих запятых в JSON.
-    
-    Исправляет случаи когда после значения идёт новый ключ без запятой.
     """
     patterns = [
         (r'(")\s*\n\s*(")', r'\1,\n\2'),
@@ -34,6 +32,81 @@ def _fix_missing_commas_simple(json_str: str) -> str:
         fixed = re.sub(pattern, replacement, fixed)
     
     return fixed
+
+
+def _fix_missing_closing_brackets_simple(json_str: str) -> str:
+    """
+    Исправить отсутствующие закрывающие скобки в JSON.
+    """
+    stripped = json_str.rstrip()
+    
+    last_meaningful_idx = -1
+    for i in range(len(stripped) - 1, -1, -1):
+        char = stripped[i]
+        if char in '}"\'0123456789' or char.isalpha():
+            last_meaningful_idx = i
+            break
+    
+    if last_meaningful_idx == -1:
+        return json_str
+    
+    core_json = stripped[:last_meaningful_idx + 1]
+    
+    brace_count = 0
+    bracket_count = 0
+    in_string = False
+    escape_next = False
+    
+    for char in core_json:
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+    
+    fixed = core_json
+    
+    while bracket_count > 0:
+        fixed += ']'
+        bracket_count -= 1
+    
+    while brace_count > 0:
+        fixed += '}'
+        brace_count -= 1
+    
+    return fixed
+
+
+def _fix_json_trailing_garbage_simple(json_str: str) -> str:
+    """
+    Удалить мусор в конце JSON.
+    """
+    last_brace = json_str.rfind('}')
+    last_bracket = json_str.rfind(']')
+    last_closing = max(last_brace, last_bracket)
+    
+    if last_closing != -1:
+        after = json_str[last_closing + 1:].strip()
+        if not after or all(c in '\n\r\t .,;' for c in after):
+            return json_str[:last_closing + 1]
+    
+    return json_str
 
 
 async def parse_llm_json_response(
@@ -110,10 +183,17 @@ async def parse_llm_json_response(
             fixed_str = re.sub(r'^\{\{', '{', fixed_str)
             return json.loads(fixed_str)
         except json.JSONDecodeError:
-            # Попытка исправить отсутствующие запятые
+            # Попытка исправить: запятые, скобки, мусор
             try:
-                fixed_with_commas = _fix_missing_commas_simple(json_str)
-                fixed_str = re.sub(r'\}\}', '}', fixed_with_commas)
+                fixed = json_str
+                # Исправляем запятые
+                fixed = _fix_missing_commas_simple(fixed)
+                # Исправляем скобки
+                fixed = _fix_missing_closing_brackets_simple(fixed)
+                # Удаляем мусор
+                fixed = _fix_json_trailing_garbage_simple(fixed)
+                
+                fixed_str = re.sub(r'\}\}', '}', fixed)
                 fixed_str = re.sub(r'^\{\{', '{', fixed_str)
                 return json.loads(fixed_str)
             except json.JSONDecodeError:

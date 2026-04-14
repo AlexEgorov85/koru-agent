@@ -375,12 +375,12 @@ class JsonParsingService(Service):
                     f"✅ [JsonParsing.parse_json] JSON распарсен: {len(raw)} симв., тип={type(parsed_data).__name__}",
                     event_type=LogEventType.INFO
                 )
-            
+
             self._log_debug(
                 f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
                 event_type=LogEventType.INFO
             )
-            
+
             return JsonParseResult(
                 status=JsonParseStatus.SUCCESS,
                 raw_input=raw,
@@ -393,16 +393,42 @@ class JsonParsingService(Service):
             ).to_dict()
 
         except json.JSONDecodeError as e:
-            # Попытка исправить отсутствующие запятые
+            # Цикл исправлений: извлечение, запятые, скобки, мусор
             self._log_debug(
                 f"⚠️ [JsonParsing.parse_json] Ошибка парсинга, попытка исправления: {type(e).__name__}: {e}",
                 event_type=LogEventType.INFO
             )
             
-            fixed_raw = self._fix_missing_commas(raw)
-            if fixed_raw != raw:
+            fixed_raw = raw
+            fixes_applied = []
+            
+            # Попытка 0: Извлечь валидный JSON из мусора
+            extracted = self._extract_and_fix_json(fixed_raw)
+            if extracted and extracted != fixed_raw:
+                fixes_applied.append("extract_from_garbage")
+                fixed_raw = extracted
+            
+            # Попытка 1: Исправить запятые
+            fixed_with_commas = self._fix_missing_commas(fixed_raw)
+            if fixed_with_commas != fixed_raw:
+                fixes_applied.append("missing_commas")
+                fixed_raw = fixed_with_commas
+            
+            # Попытка 2: Исправить закрывающие скобки
+            fixed_with_brackets = self._fix_missing_closing_brackets(fixed_raw)
+            if fixed_with_brackets != fixed_raw:
+                fixes_applied.append("missing_closing_brackets")
+                fixed_raw = fixed_with_brackets
+            
+            # Попытка 3: Удалить мусор в конце
+            fixed_clean = self._fix_json_trailing_garbage(fixed_raw)
+            if fixed_clean != fixed_raw:
+                fixes_applied.append("trailing_garbage")
+                fixed_raw = fixed_clean
+            
+            if fixes_applied:
                 self._log_info(
-                    f"🔧 [JsonParsing.parse_json] Применено исправление отсутствующих запятых",
+                    f"🔧 [JsonParsing.parse_json] Применены исправления: {', '.join(fixes_applied)}",
                     event_type=LogEventType.INFO
                 )
                 try:
@@ -412,17 +438,17 @@ class JsonParsingService(Service):
                     if isinstance(parsed_data, dict):
                         keys_info = list(parsed_data.keys())
                         self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления запятых: {len(fixed_raw)} симв., ключи={keys_info}",
+                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., ключи={keys_info}",
                             event_type=LogEventType.INFO
                         )
                     elif isinstance(parsed_data, list):
                         self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON массив распарсен после исправления запятых: {len(fixed_raw)} симв., элементов={len(parsed_data)}",
+                            f"✅ [JsonParsing.parse_json] JSON массив распарсен после исправления: {len(fixed_raw)} симв., элементов={len(parsed_data)}",
                             event_type=LogEventType.INFO
                         )
                     else:
                         self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления запятых: {len(fixed_raw)} симв., тип={type(parsed_data).__name__}",
+                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., тип={type(parsed_data).__name__}",
                             event_type=LogEventType.INFO
                         )
 
@@ -438,18 +464,17 @@ class JsonParsingService(Service):
                         parsed_data=parsed_data,
                         processing_steps=[
                             f"Входная строка: {len(raw)} симв.",
-                            "Обнаружены отсутствующие запятые",
-                            "Применено исправление запятых",
+                            f"Применены исправления: {', '.join(fixes_applied)}",
                             f"JSON распарсен успешно: {len(fixed_raw)} симв."
                         ]
                     ).to_dict()
                 except json.JSONDecodeError:
                     self._log_debug(
-                        f"❌ [JsonParsing.parse_json] Исправление запятых не помогло",
+                        f"❌ [JsonParsing.parse_json] Исправления не помогли",
                         event_type=LogEventType.WARNING
                     )
             
-            # Если исправление не помогло или не применялось
+            # Если исправления не помогли
             self._log_error(
                 f"❌ [JsonParsing.parse_json] Ошибка парсинга JSON: {type(e).__name__}: {e}",
                 event_type=LogEventType.ERROR
@@ -757,37 +782,16 @@ class JsonParsingService(Service):
         """
         Исправить отсутствующие запятые между полями JSON.
 
-        ПРОБЛЕМА: LLM иногда генерирует JSON без запятых:
-        {
-          "field1": "value1"
-          "field2": "value2"
-        }
+        ПРОБЛЕМА: LLM иногда генерирует JSON без запятых.
 
-        РЕШЕНИЕ: Найти места где после закрывающей кавычки/скобки/скобки
-        идёт новая открывающая кавычка (начало нового ключа) и добавить запятую.
-
-        ARGS:
-        - json_str: JSON строка с потенциальными отсутствующими запятыми
-
-        RETURNS:
-        - Исправленная JSON строка
+        РЕШЕНИЕ: Добавить запятые там где после значения идёт новый ключ.
         """
         import re
         
         patterns_to_fix = [
-            # После закрывающей кавычки значения идёт новый ключ
-            # "key": "value"\n"next_key" -> "key": "value",\n"next_key"
             (r'(")\s*\n\s*(")', r'\1,\n\2'),
-            
-            # После закрывающей скобки } или ] идёт новый ключ
-            # }\n"key" -> },\n"key"
             (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
-            
-            # После числа или true/false/null идёт новый ключ
-            # 123\n"key" -> 123,\n"key"
             (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
-            
-            # Объекты в массивах: }\n{ -> },\n{
             (r'(\})\s*\n\s*(\{)', r'\1,\n\2'),
         ]
         
@@ -796,4 +800,190 @@ class JsonParsingService(Service):
             fixed = re.sub(pattern, replacement, fixed)
         
         return fixed
+
+    def _fix_missing_closing_brackets(self, json_str: str) -> str:
+        """
+        Исправить отсутствующие закрывающие скобки в JSON.
+
+        ПРОБЛЕМА: LLM зацикливается или обрывает ответ без закрывающих скобок.
+
+        РЕШЕНИЕ: Подсчитать баланс скобок и добавить недостающие.
+        """
+        # Удаляем trailing whitespace и мусор
+        stripped = json_str.rstrip()
+        
+        # Находим последнюю значимую позицию
+        last_meaningful_idx = -1
+        for i in range(len(stripped) - 1, -1, -1):
+            char = stripped[i]
+            if char in '}"\'0123456789' or char.isalpha():
+                last_meaningful_idx = i
+                break
+        
+        if last_meaningful_idx == -1:
+            return json_str
+        
+        core_json = stripped[:last_meaningful_idx + 1]
+        
+        # Подсчитываем баланс скобок
+        brace_count = 0
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+        
+        for char in core_json:
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\' and in_string:
+                escape_next = True
+                continue
+            
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                elif char == '[':
+                    bracket_count += 1
+                elif char == ']':
+                    bracket_count -= 1
+        
+        # Добавляем недостающие закрывающие скобки
+        fixed = core_json
+        
+        while bracket_count > 0:
+            fixed += ']'
+            bracket_count -= 1
+        
+        while brace_count > 0:
+            fixed += '}'
+            brace_count -= 1
+        
+        return fixed
+
+    def _fix_json_trailing_garbage(self, json_str: str) -> str:
+        """
+        Удалить мусор в конце JSON (переносы, пробелы, точки).
+
+        ПРОБЛЕМА: LLM зацикливается после JSON.
+        """
+        last_brace = json_str.rfind('}')
+        last_bracket = json_str.rfind(']')
+        last_closing = max(last_brace, last_bracket)
+        
+        if last_closing != -1:
+            after = json_str[last_closing + 1:].strip()
+            if not after or all(c in '\n\r\t .,;' for c in after):
+                return json_str[:last_closing + 1]
+        
+        return json_str
+
+    def _extract_and_fix_json(self, json_str: str) -> Optional[str]:
+        """
+        Извлечь валидный JSON из строки с мусором.
+
+        ПРОБЛЕМА: LLM генерирует кучу мусора ВНУТРИ JSON.
+
+        РЕШЕНИЕ: Посимвольно идём по JSON, считаем баланс скобок.
+        Как только баланс стал 0 - нашли конец валидного JSON.
+        """
+        if not json_str or not json_str.strip():
+            return None
+        
+        # Находим первую { или [
+        start_idx = -1
+        for i, char in enumerate(json_str):
+            if char in '{[':
+                start_idx = i
+                break
+        
+        if start_idx == -1:
+            return None
+        
+        # Идём посимвольно и считаем баланс
+        brace_count = 0
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+        last_valid_end = -1
+        
+        for i in range(start_idx, len(json_str)):
+            char = json_str[i]
+            
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\' and in_string:
+                escape_next = True
+                continue
+            
+            if char == '"':
+                in_string = not in_string
+                continue
+            
+            if in_string:
+                continue
+            
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+            
+            if brace_count == 0 and bracket_count == 0:
+                last_valid_end = i + 1
+                break
+        
+        if last_valid_end == -1:
+            # Не нашли конец - добавляем скобки
+            stripped = json_str[start_idx:].rstrip()
+            last_meaningful = -1
+            for i in range(len(stripped) - 1, -1, -1):
+                if stripped[i] in '}"\'0123456789' or stripped[i].isalpha():
+                    last_meaningful = i
+                    break
+            
+            if last_meaningful == -1:
+                return None
+            
+            core = stripped[:last_meaningful + 1]
+            
+            b_count = br_count = 0
+            in_str = esc = False
+            for c in core:
+                if esc:
+                    esc = False
+                    continue
+                if c == '\\' and in_str:
+                    esc = True
+                    continue
+                if c == '"':
+                    in_str = not in_str
+                    continue
+                if not in_str:
+                    if c == '{': b_count += 1
+                    elif c == '}': b_count -= 1
+                    elif c == '[': br_count += 1
+                    elif c == ']': br_count -= 1
+            
+            while br_count > 0:
+                core += ']'
+                br_count -= 1
+            while b_count > 0:
+                core += '}'
+                b_count -= 1
+            
+            return core
+        
+        return json_str[start_idx:last_valid_end]
 

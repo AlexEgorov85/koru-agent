@@ -246,6 +246,9 @@ class GenerateScriptHandler(SkillHandler):
 
         RETURNS:
         - Tuple[list, float]: (строки результатов, время выполнения в секундах)
+
+        RAISES:
+        - SQLExecutionError: если выполнение SQL завершилось ошибкой
         """
         start_time = time.time()
         exec_context = ExecutionContext()
@@ -265,7 +268,20 @@ class GenerateScriptHandler(SkillHandler):
             data_dict = result.data.model_dump() if hasattr(result.data, 'model_dump') else result.data
             if isinstance(data_dict, dict):
                 rows = data_dict.get('rows', []) or data_dict.get('data', [])
+                
+                # Проверяем есть ли ошибка в ответе
+                error = data_dict.get('error')
+                if error:
+                    raise SQLGenerationError(
+                        f"Ошибка выполнения SQL: {error}",
+                        request=sql_query
+                    )
+                
                 return rows, execution_time
 
-        self._log_warning(f"SQL запрос не вернул результатов: {result.error}", event_type=LogEventType.WARNING)
-        return [], execution_time
+        # Выполнение завершилось ошибкой — бросаем исключение для retry
+        error_msg = result.error if result else "Неизвестная ошибка"
+        raise SQLGenerationError(
+            f"Ошибка выполнения SQL: {error_msg}",
+            request=sql_query
+        )

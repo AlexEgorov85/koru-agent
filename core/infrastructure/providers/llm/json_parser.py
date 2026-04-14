@@ -15,6 +15,7 @@ JSON Parser — утилитарные функции для работы с JSO
 - data_analysis._parse_llm_response()
 """
 import re
+from typing import Optional
 
 
 def _fix_missing_commas(json_str: str) -> str:
@@ -149,6 +150,126 @@ def _fix_json_trailing_garbage(json_str: str) -> str:
             return json_str[:last_closing + 1]
     
     return json_str
+
+
+def _extract_and_fix_json(json_str: str) -> Optional[str]:
+    """
+    Извлечь валидный JSON из строки с мусором.
+    
+    ПРОБЛЕМА: LLM генерирует кучу мусора ВНУТРИ JSON, из-за чего 
+    закрывающие скобки "теряются" или смещаются.
+    
+    ПРИМЕР:
+    - {"key": "value"} extra text {"garbage": true}
+    - {"key": "value"} random characters....
+    - {"key": incomplete garbage
+    
+    РЕШЕНИЕ: Посимвольно идём по JSON, считаем баланс скобок.
+    Как только баланс стал 0 - нашли конец валидного JSON.
+    Обрезаем всё после него и добавляем недостающие скобки если нужно.
+    
+    ВОЗВРАЩАЕТ:
+    - Валидный JSON строка или None если не удалось извлечь
+    """
+    if not json_str or not json_str.strip():
+        return None
+    
+    # Находим первую { или [
+    start_idx = -1
+    for i, char in enumerate(json_str):
+        if char in '{[':
+            start_idx = i
+            break
+    
+    if start_idx == -1:
+        return None  # Нет открывающих скобок
+    
+    # Идём посимвольно и считаем баланс
+    brace_count = 0
+    bracket_count = 0
+    in_string = False
+    escape_next = False
+    last_valid_end = -1
+    
+    for i in range(start_idx, len(json_str)):
+        char = json_str[i]
+        
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        
+        if char == '"':
+            in_string = not in_string
+            continue
+        
+        if in_string:
+            continue
+        
+        # Считаем скобки
+        if char == '{':
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+        elif char == '[':
+            bracket_count += 1
+        elif char == ']':
+            bracket_count -= 1
+        
+        # Проверяем что баланс стал 0 (все скобки закрыты)
+        if brace_count == 0 and bracket_count == 0:
+            last_valid_end = i + 1
+            break  # Нашли конец валидного JSON
+    
+    if last_valid_end == -1:
+        # Не удалось найти конец - пробуем добавить скобки
+        # Берём от start_idx до последнего значимого символа
+        stripped = json_str[start_idx:].rstrip()
+        last_meaningful = -1
+        for i in range(len(stripped) - 1, -1, -1):
+            if stripped[i] in '}"\'0123456789' or stripped[i].isalpha():
+                last_meaningful = i
+                break
+        
+        if last_meaningful == -1:
+            return None
+        
+        core = stripped[:last_meaningful + 1]
+        
+        # Пересчитываем баланс
+        b_count = br_count = 0
+        in_str = esc = False
+        for c in core:
+            if esc:
+                esc = False
+                continue
+            if c == '\\' and in_str:
+                esc = True
+                continue
+            if c == '"':
+                in_str = not in_str
+                continue
+            if not in_str:
+                if c == '{': b_count += 1
+                elif c == '}': b_count -= 1
+                elif c == '[': br_count += 1
+                elif c == ']': br_count -= 1
+        
+        # Добавляем недостающие
+        while br_count > 0:
+            core += ']'
+            br_count -= 1
+        while b_count > 0:
+            core += '}'
+            b_count -= 1
+        
+        return core
+    
+    # Нашли валидный конец - возвращаем
+    return json_str[start_idx:last_valid_end]
 
 
 def extract_json_from_response(content: str) -> str:
