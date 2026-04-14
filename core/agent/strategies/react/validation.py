@@ -16,6 +16,25 @@ from typing import Any, Dict, Optional
 from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain, UnifiedEventBus
 
 
+def _fix_missing_commas_simple(json_str: str) -> str:
+    """
+    Упрощённая функция для исправления отсутствующих запятых в JSON.
+    
+    Исправляет случаи когда после значения идёт новый ключ без запятой.
+    """
+    patterns = [
+        (r'(")\s*\n\s*(")', r'\1,\n\2'),
+        (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
+        (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+    ]
+    
+    fixed = json_str
+    for pattern, replacement in patterns:
+        fixed = re.sub(pattern, replacement, fixed)
+    
+    return fixed
+
+
 async def parse_llm_json_response(
     result: str,
     event_bus: Optional[UnifiedEventBus] = None,
@@ -90,7 +109,14 @@ async def parse_llm_json_response(
             fixed_str = re.sub(r'^\{\{', '{', fixed_str)
             return json.loads(fixed_str)
         except json.JSONDecodeError:
-            continue
+            # Попытка исправить отсутствующие запятые
+            try:
+                fixed_with_commas = _fix_missing_commas_simple(json_str)
+                fixed_str = re.sub(r'\}\}', '}', fixed_with_commas)
+                fixed_str = re.sub(r'^\{\{', '{', fixed_str)
+                return json.loads(fixed_str)
+            except json.JSONDecodeError:
+                continue
     
     if event_bus:
         await event_bus.publish(

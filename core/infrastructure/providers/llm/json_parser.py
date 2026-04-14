@@ -17,6 +17,27 @@ JSON Parser — утилитарные функции для работы с JSO
 import re
 
 
+def _fix_missing_commas(json_str: str) -> str:
+    """
+    Исправить отсутствующие запятые между полями JSON.
+    
+    ПРОБЛЕМА: LLM иногда генерирует JSON без запятых между полями.
+    
+    РЕШЕНИЕ: Добавить запятые там где после значения идёт новый ключ.
+    """
+    patterns = [
+        (r'(")\s*\n\s*(")', r'\1,\n\2'),
+        (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
+        (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+    ]
+    
+    fixed = json_str
+    for pattern, replacement in patterns:
+        fixed = re.sub(pattern, replacement, fixed)
+    
+    return fixed
+
+
 def extract_json_from_response(content: str) -> str:
     """
     Извлечение JSON из текста ответа (если есть обёртка).

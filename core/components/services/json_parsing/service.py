@@ -353,6 +353,8 @@ class JsonParsingService(Service):
                 processing_steps=["Получена пустая строка"]
             ).to_dict()
 
+        # Попытка парсинга с предобработкой
+        # Сначала пробуем как есть
         try:
             parsed_data = json.loads(raw)
             
@@ -391,6 +393,63 @@ class JsonParsingService(Service):
             ).to_dict()
 
         except json.JSONDecodeError as e:
+            # Попытка исправить отсутствующие запятые
+            self._log_debug(
+                f"⚠️ [JsonParsing.parse_json] Ошибка парсинга, попытка исправления: {type(e).__name__}: {e}",
+                event_type=LogEventType.INFO
+            )
+            
+            fixed_raw = self._fix_missing_commas(raw)
+            if fixed_raw != raw:
+                self._log_info(
+                    f"🔧 [JsonParsing.parse_json] Применено исправление отсутствующих запятых",
+                    event_type=LogEventType.INFO
+                )
+                try:
+                    parsed_data = json.loads(fixed_raw)
+                    
+                    # Логирование успешного парсинга после исправления
+                    if isinstance(parsed_data, dict):
+                        keys_info = list(parsed_data.keys())
+                        self._log_info(
+                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления запятых: {len(fixed_raw)} симв., ключи={keys_info}",
+                            event_type=LogEventType.INFO
+                        )
+                    elif isinstance(parsed_data, list):
+                        self._log_info(
+                            f"✅ [JsonParsing.parse_json] JSON массив распарсен после исправления запятых: {len(fixed_raw)} симв., элементов={len(parsed_data)}",
+                            event_type=LogEventType.INFO
+                        )
+                    else:
+                        self._log_info(
+                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления запятых: {len(fixed_raw)} симв., тип={type(parsed_data).__name__}",
+                            event_type=LogEventType.INFO
+                        )
+
+                    self._log_debug(
+                        f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
+                        event_type=LogEventType.INFO
+                    )
+
+                    return JsonParseResult(
+                        status=JsonParseStatus.SUCCESS,
+                        raw_input=raw,
+                        extracted_json=fixed_raw,
+                        parsed_data=parsed_data,
+                        processing_steps=[
+                            f"Входная строка: {len(raw)} симв.",
+                            "Обнаружены отсутствующие запятые",
+                            "Применено исправление запятых",
+                            f"JSON распарсен успешно: {len(fixed_raw)} симв."
+                        ]
+                    ).to_dict()
+                except json.JSONDecodeError:
+                    self._log_debug(
+                        f"❌ [JsonParsing.parse_json] Исправление запятых не помогло",
+                        event_type=LogEventType.WARNING
+                    )
+            
+            # Если исправление не помогло или не применялось
             self._log_error(
                 f"❌ [JsonParsing.parse_json] Ошибка парсинга JSON: {type(e).__name__}: {e}",
                 event_type=LogEventType.ERROR
@@ -693,3 +752,49 @@ class JsonParsingService(Service):
                 fields[field_name] = (Optional[field_type], None)
 
         return create_model(model_name, **fields)
+
+    def _fix_missing_commas(self, json_str: str) -> str:
+        """
+        Исправить отсутствующие запятые между полями JSON.
+
+        ПРОБЛЕМА: LLM иногда генерирует JSON без запятых:
+        {
+          "field1": "value1"
+          "field2": "value2"
+        }
+
+        РЕШЕНИЕ: Найти места где после закрывающей кавычки/скобки/скобки
+        идёт новая открывающая кавычка (начало нового ключа) и добавить запятую.
+
+        ARGS:
+        - json_str: JSON строка с потенциальными отсутствующими запятыми
+
+        RETURNS:
+        - Исправленная JSON строка
+        """
+        import re
+        
+        # Паттерн: после значения (строка в кавычках, число, true/false/null, } или ])
+        # идёт новый ключ (строка в кавычках) без запятой
+        # Ищем: "}" или "]" или число/булево, затем новая строка/пробелы, затем "\""
+        
+        patterns_to_fix = [
+            # После закрывающей кавычки значения идёт новый ключ
+            # "key": "value"\n"next_key" -> "key": "value",\n"next_key"
+            (r'(")\s*\n\s*(")', r'\1,\n\2'),
+            
+            # После закрывающей скобки } или ] идёт новый ключ
+            # }\n"key" -> },\n"key"
+            (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
+            
+            # После числа или true/false/null идёт новый ключ
+            # 123\n"key" -> 123,\n"key"
+            (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+        ]
+        
+        fixed = json_str
+        for pattern, replacement in patterns_to_fix:
+            fixed = re.sub(pattern, replacement, fixed)
+        
+        return fixed
+
