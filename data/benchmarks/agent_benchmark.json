@@ -562,18 +562,18 @@
       "description": "Проверка качества выполнения SQL скриптов и генерации запросов",
       "test_cases": [
         {
-          "id": "check_script_books_count",
-          "name": "Execute Script: Количество книг",
-          "input": "Сколько всего книг в базе данных?",
-          "expected_script_name": "get_books_count",
+          "id": "check_script_all_audits",
+          "name": "Execute Script: Все аудиторские проверки",
+          "input": "Покажи все аудиторские проверки",
+          "expected_script_name": "get_all_audits",
           "expected_output": {
             "success": true,
-            "has_numeric_result": true
+            "has_results": true
           },
           "validation": {
             "must_use_script": true,
-            "expected_script": "get_books_count",
-            "must_return_number": true
+            "expected_script": "get_all_audits",
+            "must_return_list": true
           },
           "metadata": {
             "capability": "check_result.execute_script",
@@ -590,7 +590,7 @@
           },
           "expected_output": {
             "success": true,
-            "has_count_result": true
+            "has_results": true
           },
           "validation": {
             "must_use_script": true,
@@ -603,21 +603,59 @@
           }
         },
         {
-          "id": "check_script_reports_by_author",
-          "name": "Execute Script: Отчеты по автору",
-          "input": "Покажи отчеты где участвовал Лев Толстой",
-          "expected_script_name": "get_reports_by_author",
-          "expected_parameters": {
-            "author_name": "Лев Толстой"
-          },
+          "id": "check_script_overdue_violations",
+          "name": "Execute Script: Просроченные отклонения",
+          "input": "Покажи просроченные отклонения",
+          "expected_script_name": "get_overdue_violations",
           "expected_output": {
             "success": true,
-            "has_list_result": true
+            "has_results": true
           },
           "validation": {
             "must_use_script": true,
-            "expected_script": "get_reports_by_author",
-            "must_have_author_param": true
+            "expected_script": "get_overdue_violations",
+            "must_have_deadline_filter": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_audit_statistics",
+          "name": "Execute Script: Статистика по проверкам",
+          "input": "Покажи статистику по всем аудиторским проверкам",
+          "expected_script_name": "get_audit_statistics",
+          "expected_output": {
+            "success": true,
+            "has_aggregated_results": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_audit_statistics",
+            "must_have_counts": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_violations_by_severity",
+          "name": "Execute Script: Отклонения по критичности",
+          "input": "Покажи все отклонения с высокой критичностью",
+          "expected_script_name": "get_violations_by_severity",
+          "expected_parameters": {
+            "severity": "Высокая"
+          },
+          "expected_output": {
+            "success": true,
+            "has_results": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_violations_by_severity",
+            "must_have_severity_param": true
           },
           "metadata": {
             "capability": "check_result.execute_script",
