@@ -509,7 +509,16 @@ async def cmd_bench_optimize(args) -> int:
         log_print("❌ Нет вопросов для запуска")
         return 1
 
-    log_print(f"📋 Загружено {len(questions)} вопросов:")
+    # Определяем capability
+    if args.capability:
+        # Явно указанная capability
+        capability = args.capability
+        questions = [q for q in questions if q.get('level') in capability or capability in q.get('id', '')]
+    else:
+        # Берём первую найденную capability из вопросов
+        capability = questions[0].get('level', 'agent_benchmark') if questions else 'agent_benchmark'
+
+    log_print(f"📋 Загружено {len(questions)} вопросов для capability: {capability}")
     for q in questions:
         log_print(f"   • [{q['level']}] {q['name']}")
     log_print()
@@ -659,7 +668,7 @@ async def cmd_bench_optimize(args) -> int:
 
     log_print(f"🚀 Запуск оптимизации (mode={args.mode}, iterations={orch_config.max_iterations})\n")
 
-    result = await orchestrator.optimize(capability="agent_benchmark", mode=mode_map[args.mode])
+    result = await orchestrator.optimize(capability=capability, mode=mode_map[args.mode])
 
     # Отчёт
     log_print("═" * 60)
@@ -859,6 +868,7 @@ def build_parser() -> argparse.ArgumentParser:
     opt_parser.add_argument("--size", type=int, default=2, help="Количество вопросов")
     opt_parser.add_argument("--mode", type=str, default="accuracy", choices=["accuracy", "speed", "tokens", "balanced"])
     opt_parser.add_argument("--benchmark-file", type=str, default="data/benchmarks/agent_benchmark.json")
+    opt_parser.add_argument("--capability", type=str, default=None, help="Capability для тестирования (по умолчанию: все из бенчмарка)")
 
     # ----- prompt -----
     prompt_parser = subparsers.add_parser("prompt", help="Управление промптами")

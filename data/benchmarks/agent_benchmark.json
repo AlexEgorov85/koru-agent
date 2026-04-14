@@ -559,7 +559,7 @@
       ]
     },
     "check_result": {
-      "description": "Проверка качества выполнения SQL скриптов и генерации запросов",
+      "description": "Проверка качества выполнения SQL скриптов, генерации запросов и векторного поиска",
       "test_cases": [
         {
           "id": "check_script_all_audits",
@@ -578,6 +578,94 @@
           "metadata": {
             "capability": "check_result.execute_script",
             "difficulty": "easy"
+          }
+        },
+        {
+          "id": "check_script_audit_by_status",
+          "name": "Execute Script: Проверки по статусу",
+          "input": "Какие аудиторские проверки сейчас в работе?",
+          "expected_script_name": "get_audit_by_status",
+          "expected_parameters": {
+            "status": "В работе"
+          },
+          "expected_output": {
+            "success": true,
+            "has_results": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_audit_by_status",
+            "must_have_status_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_audit_reports",
+          "name": "Execute Script: Акты конкретной проверки",
+          "input": "Покажи все акты аудиторской проверки с ID 1",
+          "expected_script_name": "get_audit_reports",
+          "expected_parameters": {
+            "audit_id": 1
+          },
+          "expected_output": {
+            "success": true,
+            "has_reports": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_audit_reports",
+            "must_have_audit_id_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_report_items",
+          "name": "Execute Script: Пункты акта проверки",
+          "input": "Покажи все пункты акта с ID 5",
+          "expected_script_name": "get_report_items",
+          "expected_parameters": {
+            "report_id": 5
+          },
+          "expected_output": {
+            "success": true,
+            "has_items": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_report_items",
+            "must_have_report_id_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_script_violations_by_audit",
+          "name": "Execute Script: Отклонения по проверке",
+          "input": "Какие отклонения были найдены в аудиторской проверке ID 3?",
+          "expected_script_name": "get_violations_by_audit",
+          "expected_parameters": {
+            "audit_id": 3
+          },
+          "expected_output": {
+            "success": true,
+            "has_violations": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_violations_by_audit",
+            "must_have_audit_id_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
           }
         },
         {
@@ -603,6 +691,28 @@
           }
         },
         {
+          "id": "check_script_violations_by_responsible",
+          "name": "Execute Script: Отклонения по ответственному",
+          "input": "Какие отклонения закреплены за Ивановым?",
+          "expected_script_name": "get_violations_by_responsible",
+          "expected_parameters": {
+            "responsible": "Иванов"
+          },
+          "expected_output": {
+            "success": true,
+            "has_results": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_violations_by_responsible",
+            "must_have_responsible_param": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "medium"
+          }
+        },
+        {
           "id": "check_script_overdue_violations",
           "name": "Execute Script: Просроченные отклонения",
           "input": "Покажи просроченные отклонения",
@@ -615,25 +725,6 @@
             "must_use_script": true,
             "expected_script": "get_overdue_violations",
             "must_have_deadline_filter": true
-          },
-          "metadata": {
-            "capability": "check_result.execute_script",
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "check_script_audit_statistics",
-          "name": "Execute Script: Статистика по проверкам",
-          "input": "Покажи статистику по всем аудиторским проверкам",
-          "expected_script_name": "get_audit_statistics",
-          "expected_output": {
-            "success": true,
-            "has_aggregated_results": true
-          },
-          "validation": {
-            "must_use_script": true,
-            "expected_script": "get_audit_statistics",
-            "must_have_counts": true
           },
           "metadata": {
             "capability": "check_result.execute_script",
@@ -663,9 +754,28 @@
           }
         },
         {
-          "id": "check_generate_sql_recent_books",
-          "name": "Generate Script: Книги изданные после 1900 года",
-          "input": "Составь SQL запрос для получения книг изданных после 1900 года",
+          "id": "check_script_audit_statistics",
+          "name": "Execute Script: Статистика по проверкам",
+          "input": "Покажи статистику по всем аудиторским проверкам",
+          "expected_script_name": "get_audit_statistics",
+          "expected_output": {
+            "success": true,
+            "has_aggregated_results": true
+          },
+          "validation": {
+            "must_use_script": true,
+            "expected_script": "get_audit_statistics",
+            "must_have_counts": true
+          },
+          "metadata": {
+            "capability": "check_result.execute_script",
+            "difficulty": "hard"
+          }
+        },
+        {
+          "id": "check_generate_sql_audits_this_year",
+          "name": "Generate Script: Проверки этого года",
+          "input": "Составь SQL запрос для получения аудиторских проверок запланированных в этом году",
           "expected_output": {
             "success": true,
             "has_sql": true,
@@ -674,8 +784,8 @@
           "validation": {
             "must_generate_sql": true,
             "must_have_from_clause": true,
-            "must_have_where_clause": true,
-            "must_have_year_filter": true
+            "must_have_date_filter": true,
+            "must_be_valid_sql": true
           },
           "metadata": {
             "capability": "check_result.generate_script",
@@ -683,18 +793,19 @@
           }
         },
         {
-          "id": "check_generate_sql_authors_count",
-          "name": "Generate Script: Количество авторов без книг",
-          "input": "Напиши SQL для получения количества авторов у которых нет ни одной книги",
+          "id": "check_generate_sql_violations_report",
+          "name": "Generate Script: Отчет по отклонениям с деталями",
+          "input": "Напиши SQL запрос который покажет все отклонения с названиями проверок, статусами и ответственными, отсортированные по критичности",
           "expected_output": {
             "success": true,
             "has_sql": true,
             "valid_sql": true,
-            "uses_join_or_subquery": true
+            "has_joins": true
           },
           "validation": {
             "must_generate_sql": true,
-            "must_use_left_join_or_not_exists": true,
+            "must_use_joins": true,
+            "must_have_order_by": true,
             "must_be_valid_sql": true
           },
           "metadata": {
@@ -703,9 +814,31 @@
           }
         },
         {
-          "id": "check_vector_search_violations",
-          "name": "Vector Search: Поиск отклонений по ключевым словам",
-          "input": "Найди отклонения связанные с нарушением сроков выполнения",
+          "id": "check_generate_sql_overdue_stats",
+          "name": "Generate Script: Статистика просроченных отклонений по проверкам",
+          "input": "Составь SQL запрос для получения количества просроченных отклонений по каждой аудиторской проверке",
+          "expected_output": {
+            "success": true,
+            "has_sql": true,
+            "valid_sql": true,
+            "has_aggregation": true
+          },
+          "validation": {
+            "must_generate_sql": true,
+            "must_have_group_by": true,
+            "must_have_count": true,
+            "must_have_deadline_filter": true,
+            "must_be_valid_sql": true
+          },
+          "metadata": {
+            "capability": "check_result.generate_script",
+            "difficulty": "hard"
+          }
+        },
+        {
+          "id": "check_vector_search_violations_deadline",
+          "name": "Vector Search: Поиск отклонений по нарушению сроков",
+          "input": "Найди отклонения связанные с нарушением сроков выполнения работ",
           "expected_output": {
             "success": true,
             "has_results": true,
@@ -723,7 +856,7 @@
         },
         {
           "id": "check_vector_search_audit_findings",
-          "name": "Vector Search: Замечания по аудиту",
+          "name": "Vector Search: Замечания по аудиту финансовой отчетности",
           "input": "Какие замечания были найдены в актах аудита касательно финансовой отчетности?",
           "expected_output": {
             "success": true,
@@ -738,6 +871,44 @@
           "metadata": {
             "capability": "check_result.vector_search",
             "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_vector_search_responsible_person",
+          "name": "Vector Search: Поиск нарушений по ответственному лицу",
+          "input": "Найди все нарушения где упоминается главный инженер Петров",
+          "expected_output": {
+            "success": true,
+            "has_results": true,
+            "source": "violations"
+          },
+          "validation": {
+            "must_use_vector_search": true,
+            "must_have_source": "violations",
+            "must_return_results": true
+          },
+          "metadata": {
+            "capability": "check_result.vector_search",
+            "difficulty": "medium"
+          }
+        },
+        {
+          "id": "check_vector_search_report_items",
+          "name": "Vector Search: Поиск пунктов акта по ключевым словам",
+          "input": "Найди в актах аудита пункты касающиеся охраны труда и техники безопасности",
+          "expected_output": {
+            "success": true,
+            "has_results": true,
+            "source": "audits"
+          },
+          "validation": {
+            "must_use_vector_search": true,
+            "must_have_source": "audits",
+            "must_return_relevant_results": true
+          },
+          "metadata": {
+            "capability": "check_result.vector_search",
+            "difficulty": "hard"
           }
         }
       ]

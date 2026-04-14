@@ -342,13 +342,25 @@ def load_first_n_questions(benchmark_file: str, n: int) -> list:
         for tc in level_data.get("test_cases", []):
             if len(questions) >= n:
                 return questions
-            questions.append({
+            # Извлекаем ВСЕ поля из test_case
+            question = {
                 "id": tc.get("id", f"{level_name}_{len(questions)}"),
                 "name": tc.get("name", ""),
                 "input": tc.get("input", ""),
                 "expected_output": tc.get("expected_output", {}),
                 "level": level_name,
-            })
+            }
+            # Добавляем специфичные поля для check_result
+            if "expected_script_name" in tc:
+                question["expected_script_name"] = tc["expected_script_name"]
+            if "expected_parameters" in tc:
+                question["expected_parameters"] = tc["expected_parameters"]
+            if "validation" in tc:
+                question["validation"] = tc["validation"]
+            if "metadata" in tc:
+                question["metadata"] = tc["metadata"]
+            
+            questions.append(question)
     return questions
 
 
@@ -360,8 +372,22 @@ def build_scenarios_from_questions(questions: list, event_bus):
 
     scenarios = []
     for q in questions:
+        # Извлекаем метаданные для check_result
+        metadata = {
+            'source': 'benchmark',
+            'level': q.get('level', 'unknown'),
+        }
+        
+        # Для check_result добавляем специфичные поля
+        if 'expected_script_name' in q:
+            metadata['expected_script_name'] = q['expected_script_name']
+        if 'expected_parameters' in q:
+            metadata['expected_parameters'] = q['expected_parameters']
+        if 'validation' in q:
+            metadata['validation'] = q['validation']
+
         expected = ExpectedOutput(
-            content=q["expected_output"],
+            content=q.get("expected_output", {}),
             criteria=[
                 EvaluationCriterion(
                     name="accuracy",
@@ -385,8 +411,8 @@ def build_scenarios_from_questions(questions: list, event_bus):
                     threshold=0.8,
                 )
             ],
-            timeout_seconds=60,
-            metadata={"level": q["level"]},
+            timeout_seconds=120,
+            metadata=metadata,
         )
         scenarios.append(scenario)
     return scenarios
