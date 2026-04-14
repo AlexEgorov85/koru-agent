@@ -26,9 +26,20 @@ def _fix_missing_commas(json_str: str) -> str:
     РЕШЕНИЕ: Добавить запятые там где после значения идёт новый ключ.
     """
     patterns = [
+        # После закрывающей кавычки значения идёт новый ключ
+        # "key": "value"\n"next_key" -> "key": "value",\n"next_key"
         (r'(")\s*\n\s*(")', r'\1,\n\2'),
+        
+        # После закрывающей скобки } или ] идёт новый ключ
+        # }\n"key" -> },\n"key"
         (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
+        
+        # После числа или true/false/null идёт новый ключ
+        # 123\n"key" -> 123,\n"key"
         (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+        
+        # Объекты в массивах: }\n{ -> },\n{
+        (r'(\})\s*\n\s*(\{)', r'\1,\n\2'),
     ]
     
     fixed = json_str
@@ -36,6 +47,108 @@ def _fix_missing_commas(json_str: str) -> str:
         fixed = re.sub(pattern, replacement, fixed)
     
     return fixed
+
+
+def _fix_missing_closing_brackets(json_str: str) -> str:
+    """
+    Исправить отсутствующие закрывающие скобки в JSON.
+    
+    ПРОБЛЕМА: LLM иногда зацикливается, добавляет кучу переносов/пробелов 
+    или обрывает ответ, и JSON остаётся без закрывающих скобок.
+    
+    ПРИМЕРЫ:
+    - {"key": "value"  (нет })
+    - {"arr": [1, 2, 3]  (нет ])
+    - {"obj": {"inner": "value"}  (нет внешнего })
+    - {"key": "value"}}}}}  (лишние скобки - НЕ исправляем, это другая проблема)
+    
+    РЕШЕНИЕ: Подсчитать открывающие/закрывающие скобки и добавить недостающие.
+    """
+    # Удаляем trailing whitespace и мусор в конце
+    # (переносы, пробелы, точки и т.д. после последнего символа JSON)
+    stripped = json_str.rstrip()
+    
+    # Находим последнюю значимую позицию (последнюю } или ] или цифру или букву)
+    last_meaningful_idx = -1
+    for i in range(len(stripped) - 1, -1, -1):
+        char = stripped[i]
+        if char in '}"\'0123456789' or char.isalpha():
+            last_meaningful_idx = i
+            break
+    
+    if last_meaningful_idx == -1:
+        return json_str  # Не удалось найти конец JSON
+    
+    # Берём часть до конца значимого контента
+    core_json = stripped[:last_meaningful_idx + 1]
+    
+    # Подсчитываем баланс скобок
+    brace_count = 0  # для {}
+    bracket_count = 0  # для []
+    in_string = False
+    escape_next = False
+    
+    for char in core_json:
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+    
+    # Добавляем недостающие закрывающие скобки
+    fixed = core_json
+    
+    # Сначала закрываем массивы (внутренние)
+    while bracket_count > 0:
+        fixed += ']'
+        bracket_count -= 1
+    
+    # Потом закрываем объекты (внешние)
+    while brace_count > 0:
+        fixed += '}'
+        brace_count -= 1
+    
+    return fixed
+
+
+def _fix_json_trailing_garbage(json_str: str) -> str:
+    """
+    Удалить мусор в конце JSON (повторяющиеся переносы, пробелы, точки).
+    
+    ПРОБЛЕМА: LLM зацикливается и добавляет кучу символов после JSON.
+    
+    ПРИМЕР:
+    - {"key": "value"}\n\n\n\n.....
+    - {"key": "value"}          
+    """
+    # Ищем последнюю } или ] и обрезаем всё после неё
+    last_brace = json_str.rfind('}')
+    last_bracket = json_str.rfind(']')
+    last_closing = max(last_brace, last_bracket)
+    
+    if last_closing != -1:
+        # Проверяем что после закрывающей скобки только мусор
+        after = json_str[last_closing + 1:].strip()
+        if not after or all(c in '\n\r\t .,;' for c in after):
+            return json_str[:last_closing + 1]
+    
+    return json_str
 
 
 def extract_json_from_response(content: str) -> str:

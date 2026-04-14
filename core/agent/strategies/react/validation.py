@@ -26,6 +26,7 @@ def _fix_missing_commas_simple(json_str: str) -> str:
         (r'(")\s*\n\s*(")', r'\1,\n\2'),
         (r'(\}|\])\s*\n\s*(")', r'\1,\n\2'),
         (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+        (r'(\})\s*\n\s*(\{)', r'\1,\n\2'),
     ]
     
     fixed = json_str

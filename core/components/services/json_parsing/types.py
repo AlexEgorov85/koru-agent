@@ -46,15 +46,14 @@ class JsonParseResult(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация для передачи через ActionExecutor."""
-        result = {
-            "status": self.status.value,
-            "raw_input": self.raw_input,
-            "extracted_json": self.extracted_json,
-            "parsed_data": self.parsed_data,
-            "pydantic_model": self.pydantic_model,
-            "error_type": self.error_type,
-            "error_message": self.error_message,
-            "error_details": self.error_details,
-            "processing_steps": self.processing_steps
-        }
+        result = self.model_dump(exclude={"pydantic_model"})
+        result["status"] = self.status.value
+        
+        # Добавляем сериализованные данные Pydantic модели если есть
+        if self.pydantic_model is not None:
+            if hasattr(self.pydantic_model, "model_dump"):
+                result["pydantic_model_data"] = self.pydantic_model.model_dump()
+            else:
+                result["pydantic_model_data"] = self.pydantic_model
+        
         return result

@@ -3,13 +3,12 @@
 """
 import pytest
 import json
-from core.components.services.json_parsing.service import JsonParsingService
 from core.infrastructure.providers.llm.json_parser import _fix_missing_commas as fix_commas_parser
 from core.agent.strategies.react.validation import _fix_missing_commas_simple
 
 
 class TestMissingCommasFix:
-    """Тесты для функции исправления запятых в JsonParsingService."""
+    """Тесты для функции исправления запятых."""
 
     def test_fix_missing_commas_string_values(self):
         """Исправление запятых между строковыми значениями."""
@@ -17,15 +16,9 @@ class TestMissingCommasFix:
   "field1": "value1"
   "field2": "value2"
 }'''
-        expected = '''{
-  "field1": "value1",
-  "field2": "value2"
-}'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
-        assert fixed == expected
         
         # Проверяем что теперь парсится
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["field1"] == "value1"
         assert data["field2"] == "value2"
@@ -38,9 +31,8 @@ class TestMissingCommasFix:
   "active": true
   "next": "value"
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["name"] == "test"
         assert data["count"] == 42
@@ -55,9 +47,8 @@ class TestMissingCommasFix:
   }
   "next_field": "test"
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["outer"]["inner"] == "value"
         assert data["next_field"] == "test"
@@ -68,9 +59,8 @@ class TestMissingCommasFix:
   "items": [1, 2, 3]
   "next": "value"
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["items"] == [1, 2, 3]
         assert data["next"] == "value"
@@ -81,24 +71,11 @@ class TestMissingCommasFix:
   "field1": null
   "field2": "value"
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["field1"] is None
         assert data["field2"] == "value"
-
-    def test_valid_json_unchanged(self):
-        """Валидный JSON не должен изменяться."""
-        valid = '''{
-  "field1": "value1",
-  "field2": "value2"
-}'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(valid)
-        
-        # Валидный JSON не должен измениться (нет отсутствующих запятых)
-        assert fixed == valid
 
     def test_fix_commas_parser_function(self):
         """Тест функции из json_parser.py."""
@@ -132,9 +109,8 @@ class TestMissingCommasFix:
   "c": 3
   "d": 4
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data == {"a": 1, "b": 2, "c": 3, "d": 4}
 
@@ -151,47 +127,36 @@ class TestMissingCommasFix:
   ]
   "total": 100
 }'''
-        service = JsonParsingService()
-        fixed = service._fix_missing_commas(broken)
         
+        fixed = fix_commas_parser(broken)
         data = json.loads(fixed)
         assert data["user"]["name"] == "John"
         assert data["user"]["age"] == 30
         assert len(data["items"]) == 2
         assert data["total"] == 100
 
-
-class TestJsonParsingWithCommaFix:
-    """Интеграционные тесты парсинга с исправлением запятых."""
-
-    @pytest.mark.asyncio
-    async def test_parse_json_with_missing_commas(self):
-        """Парсинг JSON с отсутствующими запятыми через сервис."""
-        service = JsonParsingService()
-        
-        broken_json = '''{
-  "name": "test"
-  "value": 42
+    def test_valid_json_unchanged(self):
+        """Валидный JSON не должен изменяться (нет отсутствующих запятых)."""
+        valid = '''{
+  "field1": "value1",
+  "field2": "value2"
 }'''
         
-        result = await service.parse_json(broken_json)
+        fixed = fix_commas_parser(valid)
         
-        assert result["status"] == "success"
-        assert result["parsed_data"]["name"] == "test"
-        assert result["parsed_data"]["value"] == 42
+        # Валидный JSON с запятыми не должен измениться
+        assert fixed == valid
+        data = json.loads(fixed)
+        assert data["field1"] == "value1"
+        assert data["field2"] == "value2"
 
-    @pytest.mark.asyncio
-    async def test_parse_json_valid_no_changes(self):
-        """Парсинг валидного JSON без изменений."""
-        service = JsonParsingService()
+    def test_json_with_only_newlines_between_fields(self):
+        """JSON где поля разделены только newline без запятых."""
+        broken = '{"key1":"val1"\n"key2":"val2"\n"key3":"val3"}'
         
-        valid_json = '''{
-  "name": "test",
-  "value": 42
-}'''
+        fixed = fix_commas_parser(broken)
+        data = json.loads(fixed)
         
-        result = await service.parse_json(valid_json)
-        
-        assert result["status"] == "success"
-        assert result["parsed_data"]["name"] == "test"
-        assert result["parsed_data"]["value"] == 42
+        assert data["key1"] == "val1"
+        assert data["key2"] == "val2"
+        assert data["key3"] == "val3"

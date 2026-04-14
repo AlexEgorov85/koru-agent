@@ -774,10 +774,6 @@ class JsonParsingService(Service):
         """
         import re
         
-        # Паттерн: после значения (строка в кавычках, число, true/false/null, } или ])
-        # идёт новый ключ (строка в кавычках) без запятой
-        # Ищем: "}" или "]" или число/булево, затем новая строка/пробелы, затем "\""
-        
         patterns_to_fix = [
             # После закрывающей кавычки значения идёт новый ключ
             # "key": "value"\n"next_key" -> "key": "value",\n"next_key"
@@ -790,6 +786,9 @@ class JsonParsingService(Service):
             # После числа или true/false/null идёт новый ключ
             # 123\n"key" -> 123,\n"key"
             (r'(\d|true|false|null)\s*\n\s*(")', r'\1,\n\2'),
+            
+            # Объекты в массивах: }\n{ -> },\n{
+            (r'(\})\s*\n\s*(\{)', r'\1,\n\2'),
         ]
         
         fixed = json_str
