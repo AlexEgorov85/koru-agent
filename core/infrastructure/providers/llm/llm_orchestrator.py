@@ -1,4 +1,4 @@
-﻿"""
+"""
 LLMOrchestrator - централизованное управление вызовами LLM с расширенным логированием.
 
 АРХИТЕКТУРНАЯ РОЛЬ:
@@ -783,10 +783,10 @@ class LLMOrchestrator:
 
                         # Вызываем JsonParsingService через ActionExecutor
                         # Создаём простой контекст для вызова сервиса
-                        from core.models.data.execution import ExecutionResult
-                        execution_context = ExecutionResult(
-                            data={},
-                            status="success"
+                        from core.agent.components.action_executor import ExecutionContext
+                        execution_context = ExecutionContext(
+                            session_id=session_id or "system",
+                            agent_id=agent_id or "system"
                         )
 
                         parse_result = await self.executor.execute_action(
@@ -978,10 +978,10 @@ class LLMOrchestrator:
             # Валидация через JsonParsingService
             if request.structured_output and raw_content:
                 # Создаём контекст для вызова сервиса
-                from core.models.data.execution import ExecutionResult
-                execution_context = ExecutionResult(
-                    data={},
-                    status="success"
+                from core.agent.components.action_executor import ExecutionContext
+                execution_context = ExecutionContext(
+                    session_id=session_id or "system",
+                    agent_id=agent_id or "system"
                 )
 
                 validation_result = await self.executor.execute_action(

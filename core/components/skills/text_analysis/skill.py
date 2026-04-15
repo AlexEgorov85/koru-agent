@@ -93,10 +93,12 @@ class TextAnalysisSkill(Skill):
             return None
             
         steps = session.step_context.steps
-        if not isinstance(steps, list) or not (0 <= step_id < len(steps)):
+        if not isinstance(steps, list):
             return None
-            
-        step = steps[step_id]
+        
+        step = next((s for s in steps if s.step_number == step_id), None)
+        if step is None:
+            return None
         
         if not hasattr(step, 'observation_item_ids') or not step.observation_item_ids:
             return None
