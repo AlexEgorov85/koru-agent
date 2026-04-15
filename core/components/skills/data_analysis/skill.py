@@ -75,21 +75,20 @@ class DataAnalysisSkill(Skill):
         return max(available, 1000) * 7 // 10
 
     def _get_llm_config(self) -> Dict[str, int]:
-        """Получает конфигурацию LLM из infrastructure_context."""
+        """Получает конфигурацию LLM из infrastructure_context через resource_registry."""
         try:
             if self._application_context and hasattr(self._application_context, 'infrastructure_context'):
                 infra = self._application_context.infrastructure_context
-                if hasattr(infra, 'llm_providers'):
-                    providers = infra.llm_providers
-                    if providers:
-                        provider = list(providers.values())[0]
-                        if hasattr(provider, 'model_kwargs'):
-                            kwargs = provider.model_kwargs or {}
-                            context_window = kwargs.get('context_window', self.DEFAULT_CONTEXT_WINDOW)
-                            max_tokens = kwargs.get('max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
-                            return {'context_window': context_window, 'max_tokens': max_tokens}
-        except Exception:
-            pass
+                if infra.resource_registry:
+                    from core.models.enums.common_enums import ResourceType
+                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
+                    if default_llm_info and default_llm_info.instance:
+                        provider = default_llm_info.instance
+                        n_ctx = getattr(provider, 'n_ctx', self.DEFAULT_CONTEXT_WINDOW)
+                        max_tokens = getattr(provider, 'max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
+                        return {'context_window': int(n_ctx), 'max_tokens': int(max_tokens)}
+        except Exception as e:
+            self._log_warning(f"Не удалось получить LLM config: {e}", event_type=LogEventType.WARNING)
         return {'context_window': self.DEFAULT_CONTEXT_WINDOW, 'max_tokens': self.DEFAULT_MAX_NEW_TOKENS}
 
     def get_capabilities(self) -> List[Capability]:
