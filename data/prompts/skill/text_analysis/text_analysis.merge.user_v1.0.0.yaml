@@ -1,0 +1,27 @@
+capability: text_analysis.merge.user
+version: v1.0.0
+status: active
+component_type: skill
+description: Пользовательский промпт для MERGE
+content: |
+  === ВОПРОС ===
+  {question}
+  
+  === ФРАГМЕНТ 1 ===
+  {content1}
+  
+  === ФРАГМЕНТ 2 ===
+  {content2}
+variables:
+  - name: question
+    description: Вопрос пользователя
+    required: true
+  - name: content1
+    description: Первый фрагмент
+    required: true
+  - name: content2
+    description: Второй фрагмент
+    required: true
+metadata:
+  author: system
+  created: '2026-04-15'

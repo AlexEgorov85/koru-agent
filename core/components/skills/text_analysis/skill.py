@@ -324,6 +324,39 @@ class TextAnalysisSkill(Skill):
         return content[:3000]
 
     def _build_analyze_prompt(self, content: str, question: str) -> str:
+        prompt_obj = self.get_prompt("text_analysis.analyze")
+        if not prompt_obj:
+            return self._build_analyze_prompt_fallback(content, question)
+        
+        truncated = content[:5000] if len(content) > 5000 else content
+        return self._render_prompt(prompt_obj.content, {
+            "question": question,
+            "content": truncated
+        })
+
+    def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
+        prompt_obj = self.get_prompt("text_analysis.merge")
+        if not prompt_obj:
+            return self._build_merge_prompt_fallback(content1, content2, question)
+        
+        return self._render_prompt(prompt_obj.content, {
+            "question": question,
+            "content1": content1,
+            "content2": content2
+        })
+
+    def _build_final_prompt(self, content: str, question: str) -> str:
+        prompt_obj = self.get_prompt("text_analysis.final")
+        if not prompt_obj:
+            return self._build_final_prompt_fallback(content, question)
+        
+        truncated = content[:6000] if len(content) > 6000 else content
+        return self._render_prompt(prompt_obj.content, {
+            "question": question,
+            "content": truncated
+        })
+
+    def _build_analyze_prompt_fallback(self, content: str, question: str) -> str:
         truncated = content[:5000] if len(content) > 5000 else content
         return f"""Проанализируй данные и ответь на вопрос.
 
@@ -340,7 +373,7 @@ class TextAnalysisSkill(Skill):
 
 Ответ:"""
 
-    def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
+    def _build_merge_prompt_fallback(self, content1: str, content2: str, question: str) -> str:
         return f"""Объедини два фрагмента анализа в один связный ответ.
 
 ВОПРОС: {question}
@@ -359,7 +392,7 @@ class TextAnalysisSkill(Skill):
 
 Объединённый анализ:"""
 
-    def _build_final_prompt(self, content: str, question: str) -> str:
+    def _build_final_prompt_fallback(self, content: str, question: str) -> str:
         truncated = content[:6000] if len(content) > 6000 else content
         return f"""Сократи текст анализа, сохранив ключевые факты.
 
@@ -375,3 +408,10 @@ class TextAnalysisSkill(Skill):
 - Пиши на русском языке
 
 Сокращённый анализ:"""
+
+    def _render_prompt(self, template: str, variables: Dict[str, Any]) -> str:
+        result = template
+        for key, value in variables.items():
+            placeholder = "{" + key + "}"
+            result = result.replace(placeholder, str(value))
+        return result
