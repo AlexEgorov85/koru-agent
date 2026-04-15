@@ -27,7 +27,10 @@ content: |
   4. {prev_error}
   
   Верни JSON:
-variables: []
+variables:
+  - profile
+  - question
+  - prev_error
 metadata:
   author: system
   created: '2026-04-14'

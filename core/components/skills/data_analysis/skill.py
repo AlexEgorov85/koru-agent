@@ -262,7 +262,8 @@ class DataAnalysisSkill(Skill):
             result = await self._run_python_mode(data, profile, question, start_time, executed_operations)
 
         result["executed_operations"] = executed_operations
-return result
+
+        return result
 
     def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
         """

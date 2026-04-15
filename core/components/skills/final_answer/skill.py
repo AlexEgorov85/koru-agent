@@ -305,18 +305,41 @@ class FinalAnswerSkill(Skill):
                         item_content = item.content
 
                     if item_type == "OBSERVATION":
-                        # Сериализуем данные наблюдения в JSON-подобный формат
+                        # Используем content напрямую - там ВСЕ данные!
                         if isinstance(item_content, str):
                             observations.append(item_content)
                         elif isinstance(item_content, dict):
-                            # Сериализуем dict/объект с конвертацией datetime → строки
-                            serialized = serialize_for_prompt(item_content)
-                            if isinstance(serialized, dict):
-                                observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
+                            # Если это наш формат observation с данными - используем данные
+                            if "data" in item_content:
+                                rows = item_content.get("data", [])
+                                if rows:
+                                    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+                                    # Форматируем в Markdown таблицу
+                                    md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
+                                    if md_table:
+                                        observations.append(f"📊 Данные ({len(rows)} строк):\n{md_table}")
+                                    else:
+                                        observations.append(json.dumps(rows[:5], ensure_ascii=False))
+                                observations.append(f"answer: {item_content.get('answer', 'n/a')}")
+                            # Проверяем новый формат observation
+                            elif "type" in item_content and item_content.get("type") in ("raw_data", "summary"):
+                                from core.components.skills.utils.observation_formatter import ObservationFormatter
+                                obs_type = item_content.get("type")
+                                if obs_type == "raw_data" and "data" in item_content:
+                                    rows = item_content["data"]
+                                    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+                                    md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
+                                    if md_table:
+                                        observations.append(f"📊 raw_data ({len(rows)} строк):\n{md_table}")
+                                else:
+                                    observations.append(ObservationFormatter.render_for_prompt(item_content))
                             else:
-                                observations.append(str(serialized))
+                                serialized = serialize_for_prompt(item_content)
+                                if isinstance(serialized, dict):
+                                    observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
+                                else:
+                                    observations.append(str(serialized))
                         elif hasattr(item_content, 'model_dump'):
-                            # Pydantic модель (результат _validate_output)
                             content_dict = serialize_for_prompt(item_content)
                             if isinstance(content_dict, dict):
                                 observations.append(json.dumps(content_dict, ensure_ascii=False, indent=1))

@@ -40,9 +40,8 @@ class PromptBuilderService:
     }
     
     DISPLAY_LIMITS = {
-        'max_rows_display': 20,      # Сколько строк показывать
-        'max_chars_display': 1000,    # Макс символов в промпте
-        'max_observations': 5,       # Макс наблюдений в истории
+        'max_rows_display': 20,
+        'max_chars_display': 1000,
     }
 
     def build_reasoning_prompt(
@@ -121,6 +120,39 @@ class PromptBuilderService:
             return session_context.dialogue_history.format_for_prompt()
         return ""
     
+    def _format_table_markdown(self, rows: list, max_rows: int = 5) -> str:
+        """Формирует Markdown таблицу из списка dict."""
+        if not rows or not isinstance(rows, list):
+            return ""
+        
+        if not rows or not isinstance(rows[0], dict):
+            return str(rows[:max_rows])[:500]
+        
+        # Берём все колонки из первой строки
+        columns = list(rows[0].keys())[:10]  # Макс 10 колонок
+        
+        # Заголовок
+        header = "| " + " | ".join(columns) + " |"
+        separator = "| " + " | ".join(["---"] * len(columns)) + " |"
+        
+        # Строки
+        table_rows = []
+        for row in rows[:max_rows]:
+            values = []
+            for col in columns:
+                val = row.get(col, "")
+                val_str = str(val)[:50]  # Ограничиваем длину ячейки
+                val_str = val_str.replace("|", "\\|")
+                values.append(val_str)
+            table_rows.append("| " + " | ".join(values) + " |")
+        
+        lines = [header, separator] + table_rows
+        
+        if len(rows) > max_rows:
+            lines.append(f"| ... и ещё {len(rows) - max_rows} строк |")
+        
+        return "\n".join(lines)
+
     def _build_step_history(
         self,
         last_steps: list,
@@ -131,7 +163,7 @@ class PromptBuilderService:
             return "Шаги не выполнены"
 
         step_lines = []
-        for i, step in enumerate(last_steps[-5:], 1):  # Последние 5 шагов
+        for i, step in enumerate(last_steps, 1):  # Все шаги
             if hasattr(step, 'capability_name'):
                 # Это объект AgentStep
                 capability = step.capability_name
@@ -244,7 +276,7 @@ class PromptBuilderService:
         observations = []
         total_rows = 0
         
-        for obs_id in observation_item_ids[:self.DISPLAY_LIMITS['max_observations']]:
+        for obs_id in observation_item_ids:
             try:
                 item = session_context.data_context.get_item(
                     obs_id, 
@@ -252,6 +284,11 @@ class PromptBuilderService:
                 )
                 
                 if item and hasattr(item, 'content'):
+                    # Используем quick_content если есть (отформатированное наблюдение)
+                    if hasattr(item, 'quick_content') and item.quick_content:
+                        observations.append(item.quick_content)
+                        continue
+
                     content = item.content
 
                     # Проверяем, это observation с ошибкой?
@@ -361,14 +398,19 @@ class PromptBuilderService:
             return "\n".join(observations)
         return "Нет доступных данных"
 
-    def _format_small_data(self, rows: list) -> list:
+    def _format_small_data(self, rows: list, use_markdown: bool = True) -> list:
         """Форматирование небольших данных для отображения."""
+        if not rows:
+            return []
+        
+        if use_markdown and rows and isinstance(rows[0], dict):
+            return self._format_table_markdown(rows, self.DISPLAY_LIMITS['max_rows_display'])
+        
         formatted = []
         for row in rows[:self.DISPLAY_LIMITS['max_rows_display']]:
             if isinstance(row, dict):
-                # Форматируем как читаемую строку
                 row_parts = []
-                for k, v in list(row.items())[:5]:  # Макс 5 полей
+                for k, v in list(row.items())[:5]:
                     row_parts.append(f"{k}: {v}")
                 row_str = ", ".join(row_parts)
                 formatted.append(f"   - {row_str}")

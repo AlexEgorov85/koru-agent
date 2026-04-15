@@ -20,6 +20,8 @@ from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
+from core.agent.observation_formatter import format_observation
+from core.components.skills.utils.observation_policy import ObservationPolicy
 
 
 class AgentRuntime:
@@ -397,36 +399,23 @@ class AgentRuntime:
                 elif result.data is not None:
                     from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
                     
-                    # Проверяем, нужно ли добавить предупреждение об усечении данных
                     additional_metadata = {}
                     parameters = decision.parameters or {}
                     
-                    # Извлекаем LIMIT из параметров (max_rows или limit)
-                    limit_value = parameters.get('max_rows') or parameters.get('limit')
-                    
-                    # Проверяем, есть ли rows в результате
-                    result_rows = None
-                    if isinstance(result.data, dict) and 'rows' in result.data:
-                        result_rows = result.data['rows']
-                    elif hasattr(result.data, 'rows'):
-                        result_rows = result.data.rows
-                    
-                    # Если количество строк равно LIMIT — данные могут быть обрезаны
-                    if limit_value and result_rows is not None:
-                        actual_row_count = len(result_rows) if isinstance(result_rows, list) else 0
-                        if actual_row_count == limit_value:
-                            additional_metadata['truncated_warning'] = True
-                            additional_metadata['truncated_message'] = (
-                                f"⚠️ Получено {actual_row_count} строк (LIMIT={limit_value}). "
-                                f"Возможно, данные обрезаны. Увеличьте лимит для получения полного списка."
-                            )
-                    
+# Все навыки используют format_observation (читаемая строка с данными)
+                    formatted_observation = format_observation(
+                        result_data=result.data,
+                        capability_name=decision.action,
+                        parameters=decision.parameters
+                    )
+                    quick_content = formatted_observation
+
                     observation_item = ContextItem(
                         item_id='',
                         session_id=self.session_context.session_id,
                         item_type=ContextItemType.OBSERVATION,
                         content=result.data,
-                        quick_content=str(result.data) if result.data else None,
+                        quick_content=formatted_observation if isinstance(formatted_observation, str) else quick_content,
                         metadata=ContextItemMetadata(
                             source=decision.action,
                             step_number=executed_steps + 1,

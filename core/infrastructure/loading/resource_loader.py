@@ -348,6 +348,12 @@ class ResourceLoader:
                         f"Ошибка парсинга переменной в {file_path}: {e}",
                         resource_path=str(file_path)
                     )
+            elif isinstance(var, str):
+                parsed_variables.append(PromptVariable(
+                    name=var,
+                    description=f"Переменная {var} (автогенерирована)",
+                    required=True
+                ))
 
         # Инференция component_type
         component_type_str = raw.get("component_type")
