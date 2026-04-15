@@ -127,13 +127,12 @@ class TextAnalysisSkill(Skill):
         if step_id is None:
             raise ValueError("Параметр 'step_id' обязателен")
 
-        step = self._get_step_data(execution_context, step_id)
-        data = self._extract_data_from_step(step)
+        data = self._get_step_data(execution_context, step_id)
 
         if data is None:
             self._log_warning(
                 f"❌ Данные шага {step_id} не найдены. "
-                f"step={step}, execution_context type={type(execution_context).__name__}",
+                f"execution_context type={type(execution_context).__name__}",
                 event_type=LogEventType.WARNING
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
