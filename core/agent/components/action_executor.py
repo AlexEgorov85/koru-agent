@@ -446,10 +446,23 @@ class ActionExecutor:
             # Получаем step_history из session_context
             if hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'steps'):
                 steps = session_context.step_context.steps
+                data_context = getattr(session_context, 'data_context', None)
+                
                 # Конвертируем шаги в dict формат
                 steps_data = []
                 for step in steps:
                     if hasattr(step, '__dict__'):
+                        # Получаем observation данные из data_context
+                        observation_content = None
+                        obs_ids = getattr(step, 'observation_item_ids', [])
+                        if obs_ids and data_context:
+                            try:
+                                obs_item = data_context.get_item(obs_ids[0], raise_on_missing=False)
+                                if obs_item and hasattr(obs_item, 'content'):
+                                    observation_content = obs_item.content
+                            except Exception:
+                                pass
+                        
                         # AgentStep: capability_name, summary, status, observation_item_ids
                         steps_data.append({
                             "step_number": getattr(step, 'step_number', 0),
@@ -457,8 +470,8 @@ class ActionExecutor:
                             "skill_name": getattr(step, 'skill_name', ''),
                             "summary": getattr(step, 'summary', ''),
                             "status": getattr(step, 'status', ''),
-                            "observation": getattr(step, 'observation', ''),
-                            "result": getattr(step, 'result', ''),
+                            "observation_item_ids": obs_ids,
+                            "observation": observation_content,
                             "parameters": getattr(step, 'parameters', {})
                         })
                     else:

@@ -399,8 +399,8 @@ class FinalAnswerSkill(Skill):
                         status = step.get("status", "")
                         parameters = step.get("parameters", {})
 
-                        # Получаем данные наблюдения
-                        result_data = step.get("observation", "") or step.get("result", "")
+                        # Получаем данные наблюдения (observation содержит сырые данные)
+                        result_data = step.get("observation", "")
 
                         step_entry = {
                             "action": capability,
@@ -420,7 +420,7 @@ class FinalAnswerSkill(Skill):
                         summary = getattr(step, 'summary', '')
                         status = getattr(step, 'status', '')
                         parameters = getattr(step, 'parameters', {})
-                        result_data = getattr(step, 'observation', '') or getattr(step, 'result', '')
+                        result_data = getattr(step, 'observation', '')
 
                         step_entry = {
                             "action": capability,
