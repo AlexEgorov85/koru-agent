@@ -30,8 +30,12 @@ from core.infrastructure.logging.event_types import LogEventType
 class DataAnalysisSkill(Skill):
     name: str = "data_analysis"
 
-    DEFAULT_MAX_CHUNK_CHARS = 3000
+    DEFAULT_CONTEXT_WINDOW = 4096
+    DEFAULT_MAX_NEW_TOKENS = 2000
+    DEFAULT_RESERVE_TOKENS = 500
     DEFAULT_MAX_CONCURRENT = 5
+    CHARS_PER_TOKEN = 4
+    REDUCE_SAFETY_FACTOR = 0.7
 
     @property
     def description(self) -> str:
@@ -50,6 +54,47 @@ class DataAnalysisSkill(Skill):
             executor=executor,
             application_context=application_context
         )
+        self._context_window = self.DEFAULT_CONTEXT_WINDOW
+        self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
+
+    def _calculate_max_chars(
+        self,
+        prompt_chars: int,
+        safety_factor: float = None
+    ) -> int:
+        """Расчёт максимального размера контента в символах."""
+        if safety_factor is None:
+            safety_factor = self.REDUCE_SAFETY_FACTOR
+
+        prompt_tokens = prompt_chars // self.CHARS_PER_TOKEN
+        available_tokens = (
+            self._context_window
+            - self._max_new_tokens
+            - self.DEFAULT_RESERVE_TOKENS
+            - prompt_tokens
+        )
+        max_content_tokens = max(available_tokens, 1000) * safety_factor
+        return int(max_content_tokens * self.CHARS_PER_TOKEN)
+
+    def _update_llm_config(self, execution_context: Any) -> None:
+        """Обновляет LLM конфиг из контекста или использует значения по умолчанию."""
+        try:
+            app_ctx = getattr(execution_context, 'application_context', None)
+            if app_ctx is None and hasattr(execution_context, 'session_context'):
+                app_ctx = getattr(execution_context.session_context, 'application_context', None)
+            
+            if app_ctx and hasattr(app_ctx, 'infrastructure_context'):
+                infra = app_ctx.infrastructure_context
+                if hasattr(infra, 'resource_registry') and infra.resource_registry:
+                    from core.models.enums.common_enums import ResourceType
+                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
+                    if default_llm_info and default_llm_info.instance:
+                        provider = default_llm_info.instance
+                        self._context_window = getattr(provider, 'n_ctx', self.DEFAULT_CONTEXT_WINDOW)
+                        self._max_new_tokens = getattr(provider, 'max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
+        except Exception:
+            self._context_window = self.DEFAULT_CONTEXT_WINDOW
+            self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -123,6 +168,8 @@ class DataAnalysisSkill(Skill):
         if step_id is None:
             raise ValueError("Параметр 'step_id' обязателен")
 
+        self._update_llm_config(execution_context)
+
         data = self._get_step_data(execution_context, step_id)
 
         if data is None:
@@ -133,9 +180,17 @@ class DataAnalysisSkill(Skill):
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
 
+        max_chunk_chars = self._calculate_max_chars(len(question) + 500)
+
+        self._log_info(
+            f"⚙️ [data_analysis] LLM: context={self._context_window}, "
+            f"max_new={self._max_new_tokens}, max_chunk_chars={max_chunk_chars}",
+            event_type=LogEventType.INFO
+        )
+
         from core.infrastructure.providers.vector.chunking_service import ChunkingService
         chunking_service = ChunkingService(
-            chunk_size_chars=self.DEFAULT_MAX_CHUNK_CHARS,
+            chunk_size_chars=max_chunk_chars,
             chunk_size_rows=50
         )
 
@@ -159,7 +214,8 @@ class DataAnalysisSkill(Skill):
             input_type = "unknown"
 
         summaries = await self._map_phase(chunks, question, execution_context)
-        answer = await self._reduce_phase(summaries, question, execution_context)
+        max_batch_chars = self._calculate_max_chars(len(question) + 500)
+        answer = await self._reduce_phase(summaries, question, execution_context, max_batch_chars)
 
         processing_time = round((time.time() - start_time) * 1000, 2)
 
@@ -328,7 +384,8 @@ class DataAnalysisSkill(Skill):
         self,
         summaries: List[Dict[str, Any]],
         question: str,
-        execution_context: Any
+        execution_context: Any,
+        max_batch_chars: int = 3000
     ) -> str:
         if not summaries:
             return "Нет данных для анализа"
@@ -341,7 +398,7 @@ class DataAnalysisSkill(Skill):
         if len(valid_summaries) == 1:
             return valid_summaries[0].get("content", "")
 
-        return await self._batch_reduce(valid_summaries, question, execution_context)
+        return await self._batch_reduce(valid_summaries, question, execution_context, max_batch_chars)
 
     async def _batch_reduce(
         self,
