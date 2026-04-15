@@ -667,8 +667,9 @@ class ActionExecutor:
                 return component, type_name
 
         # Отладка: логируем доступные сервисы
+        skills = self.application_context.components.all_of_type(ComponentType.SKILL)
         services = self.application_context.components.all_of_type(ComponentType.SERVICE)
-        self._log_debug(f"Компонент '{component_name}' не найден. Доступные сервисы: {[s for s in services]}")
+        self._log_debug(f"Компонент '{component_name}' не найден. Доступные skills: {[s.name for s in skills]}, services: {[s.name for s in services]}")
 
         return None, None
     

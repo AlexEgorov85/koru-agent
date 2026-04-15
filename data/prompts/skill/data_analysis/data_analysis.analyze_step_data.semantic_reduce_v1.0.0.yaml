@@ -20,7 +20,13 @@ content: |
   5. Не выдумывай факты, которых нет в исходных данных
   
   Объединённый анализ:
-variables: []
+variables:
+  - name: question
+    description: Вопрос пользователя
+    required: true
+  - name: summaries
+    description: Фрагменты для объединения
+    required: true
 metadata:
   author: system
   created: '2026-04-14'

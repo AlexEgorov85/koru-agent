@@ -774,9 +774,6 @@ def _cmd_prompt_create(args) -> int:
 
 def _cmd_prompt_promote(args) -> int:
     """Продвинуть промпт в активный статус."""
-    from core.infrastructure.registry.prompt_registry import PromptRegistry
-    from core.models.data.prompt import PromptStatus
-    from datetime import timezone
 
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
     prompt = registry.get_prompt_by_capability_and_version(args.capability, args.version)
@@ -799,7 +796,6 @@ def _cmd_prompt_promote(args) -> int:
 
 def _cmd_prompt_archive(args) -> int:
     """Архивировать промпт."""
-    from core.infrastructure.registry.prompt_registry import PromptRegistry
 
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
     success = registry.archive(args.capability, args.version, args.reason)
@@ -813,7 +809,6 @@ def _cmd_prompt_archive(args) -> int:
 
 def _cmd_prompt_status(args) -> int:
     """Показать статус всех промптов."""
-    from core.infrastructure.registry.prompt_registry import PromptRegistry
 
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
 

@@ -20,7 +20,13 @@ content: |
   5. Включай конкретные цифры и метрики
   
   Финальный ответ:
-variables: []
+variables:
+  - name: question
+    description: Вопрос пользователя
+    required: true
+  - name: result
+    description: Результат анализа данных
+    required: true
 metadata:
   author: system
   created: '2026-04-14'
