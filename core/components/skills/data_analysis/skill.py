@@ -341,45 +341,113 @@ class DataAnalysisSkill(Skill):
         if len(valid_summaries) == 1:
             return valid_summaries[0].get("content", "")
 
-        return await self._tree_reduce(valid_summaries, question, execution_context)
+        return await self._batch_reduce(valid_summaries, question, execution_context)
 
-    async def _tree_reduce(
+    async def _batch_reduce(
         self,
         items: List[Dict[str, Any]],
         question: str,
-        execution_context: Any
+        execution_context: Any,
+        max_batch_chars: int = 3000
     ) -> str:
         if len(items) == 1:
             return items[0].get("content", "")
 
-        if len(items) == 2:
-            result = await self._merge_pair(items, question, execution_context)
-            return result.get("content", "")
-
-        merged = []
-        for i in range(0, len(items), 2):
-            if i + 1 < len(items):
-                pair = [items[i], items[i + 1]]
-                merged_result = await self._merge_pair(pair, question, execution_context)
-                merged.append(merged_result)
-            else:
-                merged.append(items[i])
+        batches = self._create_batches(items, max_batch_chars)
 
         self._log_info(
-            f"🌲 [text_analysis] Reduce: {len(items)} → {len(merged)}",
+            f"🌲 [data_analysis] Reduce: {len(items)} items → {len(batches)} batches",
             event_type=LogEventType.INFO
         )
 
-        return await self._tree_reduce(merged, question, execution_context)
+        merged_results = []
+        for batch in batches:
+            if len(batch) == 1:
+                merged_results.append(batch[0])
+            else:
+                result = await self._merge_batch(batch, question, execution_context)
+                merged_results.append(result)
 
-    async def _merge_pair(
+        if len(merged_results) == 1:
+            return merged_results[0].get("content", "")
+
+        return await self._batch_reduce(merged_results, question, execution_context, max_batch_chars)
+
+    def _create_batches(
         self,
-        pair: List[Dict[str, Any]],
+        items: List[Dict[str, Any]],
+        max_chars: int
+    ) -> List[List[Dict[str, Any]]]:
+        batches = []
+        current_batch = []
+        current_size = 0
+
+        for item in items:
+            item_content = item.get("content", "")
+            item_size = len(item_content)
+
+            if not current_batch:
+                current_batch.append(item)
+                current_size = item_size
+            elif current_size + item_size <= max_chars:
+                current_batch.append(item)
+                current_size += item_size
+            else:
+                if current_batch:
+                    batches.append(current_batch)
+                current_batch = [item]
+                current_size = item_size
+
+        if current_batch:
+            batches.append(current_batch)
+
+        return batches
+
+    async def _merge_batch(
+        self,
+        batch: List[Dict[str, Any]],
         question: str,
         execution_context: Any
     ) -> Dict[str, Any]:
-        content1 = pair[0].get("content", "")
-        content2 = pair[1].get("content", "")
+        if len(batch) == 1:
+            return batch[0]
+
+        if len(batch) == 2:
+            return await self._merge_pair(batch[0], batch[1], question, execution_context)
+
+        contents = [item.get("content", "") for item in batch]
+        combined = "\n\n---\n\n".join(contents)
+
+        executor = self._get_active_executor(execution_context)
+        prompt = self._build_merge_batch_prompt(contents, question)
+
+        try:
+            result = await executor.execute_action(
+                action_name="llm.generate",
+                parameters={
+                    "prompt": prompt,
+                    "temperature": 0.3,
+                    "max_tokens": 2000
+                },
+                context=execution_context
+            )
+
+            if result.status == ExecutionStatus.COMPLETED:
+                return {"content": result.result or combined}
+        except Exception as e:
+            self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=LogEventType.WARNING)
+
+        return {"content": combined}
+
+    async def _merge_pair(
+        self,
+        item1: Dict[str, Any],
+        item2: Dict[str, Any],
+        question: str,
+        execution_context: Any
+    ) -> Dict[str, Any]:
+        content1 = item1.get("content", "")
+        content2 = item2.get("content", "")
 
         prompt = self._build_merge_prompt(content1, content2, question)
         executor = self._get_active_executor(execution_context)
@@ -398,7 +466,7 @@ class DataAnalysisSkill(Skill):
             if result.status == ExecutionStatus.COMPLETED:
                 return {"content": result.result or f"{content1}\n\n{content2}"}
         except Exception as e:
-            self._log_warning(f"⚠️ [text_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
 
         return {"content": f"{content1}\n\n{content2}"}
 
@@ -436,6 +504,28 @@ class DataAnalysisSkill(Skill):
         })
         
         return f"{system}\n\n{user}"
+
+    def _build_merge_batch_prompt(self, contents: List[str], question: str) -> str:
+        fragments = []
+        for i, content in enumerate(contents, 1):
+            fragments.append(f"=== ФРАГМЕНТ {i} ===\n{content}")
+
+        combined = "\n\n".join(fragments)
+
+        return f"""Объедини несколько фрагментов анализа в один связный ответ.
+
+ВОПРОС: {question}
+
+{combined}
+
+Инструкции:
+- Объедини информацию из всех фрагментов
+- Убери дублирующиеся факты
+- Сохрани все ключевые данные
+- Пиши на русском языке
+- Будь краток
+
+Объединённый анализ:"""
 
     def _build_analyze_prompt_fallback(self, content: str, question: str) -> str:
         return f"""Проанализируй данные и ответь на вопрос.
