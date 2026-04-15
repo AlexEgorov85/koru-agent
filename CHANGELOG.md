@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## [5.38.0] - 2026-04-15
+
+### Changed
+- **data_analysis: Полная переработка навыка анализа данных**
+  - Упрощён API: только `question` и `step_id`
+  - MapReduce без обрезки данных - обработка частями через LLM
+  - Динамический расчёт max_chars на основе LLM конфига (context_window, max_tokens)
+  - Batch reduce вместо попарного объединения
+  - Автоматическое сохранение результата в контекст через `record_observation`
+  - Промпты разделены на system/user (как в ReAct)
+  - Улучшенный ChunkingService с расчётом строк на чанк по avg_row_chars
+
+### Added
+- **data_analysis: Промпты и контракты**
+  - `data_analysis.analyze_step_data.system/user`
+  - `data_analysis.merge_step_data.system/user`
+  - `data_analysis.final_step_data.system/user`
+  - Контракты input/output
+
+### Removed
+- **data_analysis: Удалены устаревшие компоненты**
+  - analytics_engine.py, batch_processor.py, safe_code_executor.py
+  - safe_formula_parser.py, planner.py, tree_reducer.py
+  - data_profiler.py, handlers/, text_chunker.py
+
 ## [5.37.0] - 2026-04-14
 
 ### Added
