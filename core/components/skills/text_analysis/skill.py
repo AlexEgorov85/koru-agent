@@ -80,13 +80,17 @@ class TextAnalysisSkill(Skill):
     def _get_step_data(self, execution_context: Any, step_id: int) -> Any:
         if hasattr(execution_context, 'session_context'):
             session = execution_context.session_context
-            if hasattr(session, 'get_step'):
-                return session.get_step(step_id)
+            if hasattr(session, 'step_context') and hasattr(session.step_context, 'steps'):
+                steps = session.step_context.steps
+                if isinstance(steps, list) and 0 <= step_id < len(steps):
+                    return steps[step_id]
             if hasattr(session, 'steps') and hasattr(session.steps, '__getitem__'):
                 if step_id < len(session.steps):
                     return session.steps[step_id]
-        if hasattr(execution_context, 'get_step'):
-            return execution_context.get_step(step_id)
+        if hasattr(execution_context, 'step_context') and hasattr(execution_context.step_context, 'steps'):
+            steps = execution_context.step_context.steps
+            if isinstance(steps, list) and 0 <= step_id < len(steps):
+                return steps[step_id]
         if hasattr(execution_context, 'steps'):
             if isinstance(execution_context.steps, list) and step_id < len(execution_context.steps):
                 return execution_context.steps[step_id]
@@ -138,12 +142,12 @@ class TextAnalysisSkill(Skill):
         data = self._extract_data_from_step(step)
 
         if data is None:
-            return {
-                "answer": f"Данные шага {step_id} не найдены",
-                "execution_status": "error",
-                "confidence": 0.0,
-                "metadata": {"step_id": step_id}
-            }
+            self._log_warning(
+                f"❌ Данные шага {step_id} не найдены. "
+                f"step={step}, execution_context type={type(execution_context).__name__}",
+                event_type=LogEventType.WARNING
+            )
+            raise ValueError(f"Данные шага {step_id} не найдены")
 
         if isinstance(data, list):
             chunks = self._chunking_service.chunk_rows(data)
