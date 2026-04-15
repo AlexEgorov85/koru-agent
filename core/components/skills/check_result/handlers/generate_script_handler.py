@@ -37,6 +37,12 @@ class GenerateScriptHandler(SkillHandler):
         """Получение конфигурации таблиц (использует centralized метод)"""
         return await self._get_tables_config()
 
+    def _get_scripts_info(self) -> str:
+        """Получение списка доступных скриптов"""
+        if hasattr(self.skill, 'get_scripts_info'):
+            return self.skill.get_scripts_info()
+        return ""
+
     async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Генерация и выполнение SQL скрипта.
@@ -156,16 +162,15 @@ class GenerateScriptHandler(SkillHandler):
         """
         exec_context = ExecutionContext()
 
-        # Если есть ошибка — добавляем контекст для LLM
-        prompt = query
-        if error_context:
-            prompt = f"{error_context}\n\nИсходный запрос: {query}"
+        scripts_info = self._get_scripts_info()
 
         result = await self.executor.execute_action(
             action_name="sql_generation.generate_query",
             parameters={
-                "natural_language_query": prompt,
-                "table_schema": table_schema
+                "natural_language_query": query,
+                "table_schema": table_schema,
+                "available_scripts": scripts_info,
+                "error_context": error_context
             },
             context=exec_context
         )

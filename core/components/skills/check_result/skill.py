@@ -215,6 +215,47 @@ class CheckResultSkill(Skill):
         """Получение конфигурации таблиц (для использования в handlers)"""
         return self._tables_config
 
+    def get_scripts_info(self) -> str:
+        """Получение списка доступных скриптов для промта генерации SQL"""
+        from .handlers.execute_script_handler import SCRIPTS_REGISTRY
+        
+        if not SCRIPTS_REGISTRY:
+            return ""
+        
+        lines = ["=== ДОСТУПНЫЕ СКРИПТЫ ==="]
+        lines.append("ПЕРЕД генерацией SQL проверь - возможно подходящий скрипт уже есть:")
+        
+        for name, meta in SCRIPTS_REGISTRY.items():
+            description = meta.get("description", "Без описания")
+            parameters = meta.get("parameters", {})
+            
+            required = []
+            optional = []
+            param_details = []
+            
+            for param_name, param_config in parameters.items():
+                if param_name == "max_rows":
+                    continue
+                if isinstance(param_config, dict):
+                    if param_config.get("required", False):
+                        required.append(param_name)
+                    else:
+                        optional.append(param_name)
+                    if param_config.get("description"):
+                        param_details.append(f"  - {param_name}: {param_config['description']}")
+                else:
+                    optional.append(param_name)
+            
+            params_str = required + optional
+            lines.append(f"\n• {name}")
+            lines.append(f"  Описание: {description}")
+            if params_str:
+                lines.append(f"  Параметры: {', '.join(params_str)}")
+            if param_details:
+                lines.extend(param_details)
+        
+        return "\n".join(lines)
+
     def _get_event_type_for_success(self) -> str:
         return "skill.check_result.executed"
 
