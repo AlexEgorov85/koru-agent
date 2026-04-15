@@ -1,24 +1,26 @@
 """
-Навык анализа текста с LLM и MapReduce.
+Навык анализа данных с LLM и MapReduce.
 
 АРХИТЕКТУРА:
-- MAP: Разбиение текста на чанки (TextChunker)
-- ANALYZE: Параллельный LLM-анализ каждого чанка
+- INPUT: text или rows (List[Dict])
+- MAP: Разбиение на чанки → Параллельный LLM-анализ
 - REDUCE: Объединение ответов через LLM
 
 ИСПОЛЬЗОВАНИЕ:
-    skill = TextAnalysisSkill(
-        name="text_analysis",
-        component_config=config,
-        executor=executor,
-        application_context=app_ctx
-    )
-    
     result = await skill.execute(
         capability=Capability(name="text_analysis.analyze"),
         parameters={
-            "text": "Большой текст для анализа...",
+            "text": "Большой текст...",
             "question": "Какие ключевые темы?"
+        },
+        context=execution_context
+    )
+    
+    # или rows:
+    result = await skill.execute(
+        parameters={
+            "rows": [{"id": 1, "name": "Test"}, ...],
+            "question": "Какие паттерны?"
         },
         context=execution_context
     )
@@ -26,14 +28,13 @@
 import asyncio
 import time
 import json
-import re
 from typing import List, Dict, Any, Optional
 
 from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
 from core.infrastructure.logging.event_types import LogEventType
-from core.components.skills.data_analysis.utils.text_chunker import TextChunker
+from core.infrastructure.providers.vector.chunking_service import ChunkingService
 
 
 class TextAnalysisSkill(Skill):
@@ -41,7 +42,7 @@ class TextAnalysisSkill(Skill):
 
     @property
     def description(self) -> str:
-        return "Анализ текста с LLM и MapReduce"
+        return "Анализ данных с LLM и MapReduce"
 
     def __init__(
         self,
@@ -61,24 +62,22 @@ class TextAnalysisSkill(Skill):
         return [
             Capability(
                 name="text_analysis.analyze",
-                description="Анализ текста с LLM. Для больших данных использует MapReduce.",
+                description="Анализ данных с LLM. Поддерживает text и rows. Для больших данных использует MapReduce.",
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visible=True,
                 meta={
                     "supports_chunking": True,
                     "mapreduce": True,
-                    "max_chunk_size": 4000,
-                    "overlap": 200
+                    "input_types": ["text", "rows"],
+                    "default_chunk_size_chars": 4000,
+                    "default_chunk_size_rows": 50
                 }
             )
         ]
 
     async def initialize(self) -> bool:
-        success = await super().initialize()
-        if not success:
-            return False
-        return True
+        return await super().initialize()
 
     def _get_event_type_for_success(self) -> str:
         return "skill.text_analysis.executed"
@@ -94,34 +93,37 @@ class TextAnalysisSkill(Skill):
         params_dict = self._normalize_parameters(parameters)
 
         text = params_dict.get("text")
+        rows = params_dict.get("rows")
         question = params_dict.get("question")
 
-        if not text:
-            raise ValueError("Параметр 'text' обязателен")
         if not question:
             raise ValueError("Параметр 'question' обязателен")
 
-        self._log_info(
-            f"📝 [text_analysis] Начало анализа, текст={len(text)} символов",
-            event_type=LogEventType.TOOL_CALL
-        )
+        if not text and not rows:
+            raise ValueError("Параметр 'text' или 'rows' обязателен")
 
         meta = params_dict.get("meta", {})
-        chunk_size = meta.get("chunk_size", 4000)
-        overlap = meta.get("overlap", 200)
+        chunk_size_chars = meta.get("chunk_size_chars", 4000)
+        chunk_size_rows = meta.get("chunk_size_rows", 50)
         max_concurrent = meta.get("max_concurrent", 5)
 
-        chunks = TextChunker.split(
-            text,
-            chunk_size=chunk_size,
-            overlap=overlap,
-            min_chunk_size=500
+        chunking_service = ChunkingService(
+            chunk_size_chars=chunk_size_chars,
+            chunk_size_rows=chunk_size_rows
         )
 
-        self._log_info(
-            f"📄 [text_analysis] Создано {len(chunks)} чанков",
-            event_type=LogEventType.INFO
-        )
+        if rows:
+            chunks = chunking_service.chunk_rows(rows)
+            self._log_info(
+                f"📊 [text_analysis] {len(rows)} строк → {len(chunks)} чанков",
+                event_type=LogEventType.INFO
+            )
+        else:
+            chunks = chunking_service.chunk_text(text)
+            self._log_info(
+                f"📄 [text_analysis] {len(text)} символов → {len(chunks)} чанков",
+                event_type=LogEventType.INFO
+            )
 
         summaries = await self._map_phase(chunks, question, execution_context, max_concurrent)
 
@@ -136,6 +138,7 @@ class TextAnalysisSkill(Skill):
             "executed_operations": [f"map:{len(chunks)}", "reduce"],
             "metadata": {
                 "mode_used": "mapreduce",
+                "input_type": "rows" if rows else "text",
                 "chunks_created": len(chunks),
                 "chunks_analyzed": len(summaries),
                 "processing_time_ms": processing_time
@@ -192,7 +195,7 @@ class TextAnalysisSkill(Skill):
         content = chunk.get("content", "")
         chunk_id = chunk.get("chunk_id", 0)
 
-        if len(content) < 50:
+        if len(content) < 20:
             return {"content": "", "chunk_id": chunk_id}
 
         prompt = self._build_analyze_prompt(content, question)
@@ -226,24 +229,22 @@ class TextAnalysisSkill(Skill):
             return "Нет данных для анализа"
 
         valid_summaries = [s for s in summaries if s.get("content")]
-        
+
         if not valid_summaries:
-            return "Не удалось извлечь информацию из текста"
+            return "Не удалось извлечь информацию"
 
         if len(valid_summaries) == 1:
             return valid_summaries[0].get("content", "")
 
         current = valid_summaries
-        iteration = 0
 
         while len(current) > 1:
-            iteration += 1
             merged = []
-            
+
             for i in range(0, len(current), 2):
                 if i + 1 < len(current):
                     pair = [current[i], current[i + 1]]
-                    merged_result = await self._merge_pair(pair, question)
+                    merged_result = await self._merge_pair(pair, question, execution_context)
                     merged.append(merged_result)
                 else:
                     merged.append(current[i])
@@ -251,21 +252,22 @@ class TextAnalysisSkill(Skill):
             current = merged
 
             self._log_info(
-                f"🌲 [text_analysis] Reduce итерация {iteration}: {len(current)} групп",
+                f"🌲 [text_analysis] Reduce: {len(summaries)} → {len(current)}",
                 event_type=LogEventType.INFO
             )
 
         final = current[0].get("content", "")
 
         if len(final) > 3000:
-            final = await self._synthesize_final(final, question)
+            final = await self._synthesize_final(final, question, execution_context)
 
         return final
 
     async def _merge_pair(
         self,
         pair: List[Dict[str, Any]],
-        question: str
+        question: str,
+        execution_context: Any
     ) -> Dict[str, Any]:
         content1 = pair[0].get("content", "")
         content2 = pair[1].get("content", "")
@@ -285,7 +287,7 @@ class TextAnalysisSkill(Skill):
                     "temperature": 0.3,
                     "max_tokens": 1500
                 },
-                context=self
+                context=execution_context
             )
 
             if result.status == ExecutionStatus.COMPLETED:
@@ -295,7 +297,12 @@ class TextAnalysisSkill(Skill):
 
         return {"content": combined}
 
-    async def _synthesize_final(self, content: str, question: str) -> str:
+    async def _synthesize_final(
+        self,
+        content: str,
+        question: str,
+        execution_context: Any
+    ) -> str:
         prompt = self._build_final_prompt(content, question)
 
         try:
@@ -306,7 +313,7 @@ class TextAnalysisSkill(Skill):
                     "temperature": 0.2,
                     "max_tokens": 2000
                 },
-                context=self
+                context=execution_context
             )
 
             if result.status == ExecutionStatus.COMPLETED:
@@ -318,18 +325,18 @@ class TextAnalysisSkill(Skill):
 
     def _build_analyze_prompt(self, content: str, question: str) -> str:
         truncated = content[:5000] if len(content) > 5000 else content
-        return f"""Проанализируй следующий фрагмент текста и ответь на вопрос.
+        return f"""Проанализируй данные и ответь на вопрос.
 
 ВОПРОС: {question}
 
-ТЕКСТ:
+ДАННЫЕ:
 {truncated}
 
 Инструкции:
-- Отвечай ТОЛЬКО на основе информации из текста
+- Отвечай ТОЛЬКО на основе предоставленных данных
 - Если информации недостаточно, укажи это
 - Пиши на русском языке
-- Будь краток (до 500 слов)
+- Будь краток
 
 Ответ:"""
 
@@ -349,13 +356,12 @@ class TextAnalysisSkill(Skill):
 - Убери дублирующиеся факты
 - Сохрани все ключевые данные
 - Пиши на русском языке
-- Будь краток
 
 Объединённый анализ:"""
 
     def _build_final_prompt(self, content: str, question: str) -> str:
         truncated = content[:6000] if len(content) > 6000 else content
-        return f"""Сократи и уточни текст анализа.
+        return f"""Сократи текст анализа, сохранив ключевые факты.
 
 ВОПРОС: {question}
 
@@ -364,9 +370,8 @@ class TextAnalysisSkill(Skill):
 
 Инструкции:
 - Сократи до основных фактов и выводов
-- Сохрани важные цифры и данные
+- Сохрани важные цифры
 - Убери повторы
 - Пиши на русском языке
-- Максимум 1500 слов
 
 Сокращённый анализ:"""
