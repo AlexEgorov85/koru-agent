@@ -317,7 +317,7 @@ class ExecuteScriptHandler(SkillHandler):
         start_time = time.time()
 
         script_name = params.script_name if hasattr(params, 'script_name') else ''
-        max_rows = params.max_rows if hasattr(params, 'max_rows') else 50
+        max_rows = params.max_rows if hasattr(params, 'max_rows') else 1000
 
         # Извлекаем параметры скрипта:
         # 1. Сначала пробуем params.parameters (если LLM обернул в parameters)
@@ -470,7 +470,7 @@ class ExecuteScriptHandler(SkillHandler):
                 
                 sql_params_list.append(value)
 
-        sql_params_list.append(script_params.get("max_rows", 50))
+        sql_params_list.append(script_params.get("max_rows", 1000))
         return sql_params_list
 
     async def _execute_sql(self, sql: str, sql_params: List[Any]) -> tuple:

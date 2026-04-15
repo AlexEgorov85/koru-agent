@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 class SQLQueryServiceInput:
     """Входные данные для SQLQueryService"""
-    def __init__(self, user_question: str, tables: List[str], max_rows: int = 50, context: Optional[str] = None):
+    def __init__(self, user_question: str, tables: List[str], max_rows: int = 1000, context: Optional[str] = None):
         self.user_question = user_question
         self.tables = tables
         self.max_rows = max_rows
@@ -125,7 +125,7 @@ class SQLQueryService(Service):
         self,
         sql_query: str,
         parameters: Dict[str, Any] = None,
-        max_rows: int = 50
+        max_rows: int = 1000
     ) -> DBQueryResult:
         """
         Безопасное выполнение готового SQL-запроса через SQLTool.
@@ -308,7 +308,7 @@ class SQLQueryService(Service):
         self,
         user_question: str,
         tables: List[str],
-        max_rows: int = 50,
+        max_rows: int = 1000,
         execution_context: 'ExecutionContext' = None
     ) -> DBQueryResult:
         """
@@ -384,7 +384,7 @@ class SQLQueryService(Service):
         self,
         sql_query: str,
         parameters: Dict[str, Any] = None,
-        max_rows: int = 50
+        max_rows: int = 1000
     ) -> DBQueryResult:
         """
         Прямое выполнение готового SQL-запроса с валидацией через SQLValidatorservices.
