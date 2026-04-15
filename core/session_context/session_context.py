@@ -127,22 +127,24 @@ class SessionContext(BaseSessionContext):
         observation_item_ids: List[str],
         summary: Optional[str] = None,
         status: Optional[ExecutionStatus] = None,
-        parameters: Optional[Dict[str, Any]] = None,
-        result: Optional[Any] = None
+        parameters: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Регистрация шага агента.
+
+        АРХИТЕКТУРНОЕ ПРАВИЛО:
+        ⚠️ Данные хранятся ТОЛЬКО в data_context!
+        ⚠️ observation_item_ids содержит ссылки на ContextItem с данными
 
         ПАРАМЕТРЫ:
         - step_number: номер шага
         - capability_name: название capability
         - skill_name: название навыка
-        - action_item_id: ID элемента действия
-        - observation_item_ids: ID результатов
+        - action_item_id: ID элемента действия в data_context
+        - observation_item_ids: ID результатов в data_context
         - summary: краткое описание шага
         - status: статус выполнения
         - parameters: параметры запуска действия/инструмента
-        - result: результат выполнения (сериализованный)
         """
         step = AgentStep(
             step_number=step_number,
@@ -152,8 +154,7 @@ class SessionContext(BaseSessionContext):
             observation_item_ids=observation_item_ids,
             summary=summary,
             status=status,
-            parameters=parameters,
-            result=result
+            parameters=parameters
         )
         self.step_context.add_step(step)
         self.last_activity = datetime.now()

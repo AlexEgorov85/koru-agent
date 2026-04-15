@@ -78,47 +78,36 @@ class TextAnalysisSkill(Skill):
         return "skill.text_analysis.executed"
 
     def _get_step_data(self, execution_context: Any, step_id: int) -> Any:
+        """Получает данные шага из data_context через observation_item_ids."""
+        session = None
+        
         if hasattr(execution_context, 'session_context'):
             session = execution_context.session_context
-            if hasattr(session, 'step_context') and hasattr(session.step_context, 'steps'):
-                steps = session.step_context.steps
-                if isinstance(steps, list) and 0 <= step_id < len(steps):
-                    return steps[step_id]
-            if hasattr(session, 'steps') and hasattr(session.steps, '__getitem__'):
-                if step_id < len(session.steps):
-                    return session.steps[step_id]
-        if hasattr(execution_context, 'step_context') and hasattr(execution_context.step_context, 'steps'):
-            steps = execution_context.step_context.steps
-            if isinstance(steps, list) and 0 <= step_id < len(steps):
-                return steps[step_id]
-        if hasattr(execution_context, 'steps'):
-            if isinstance(execution_context.steps, list) and step_id < len(execution_context.steps):
-                return execution_context.steps[step_id]
-        return None
-
-    def _extract_data_from_step(self, step: Any) -> Any:
-        if step is None:
+        elif hasattr(execution_context, 'step_context'):
+            session = execution_context
+        
+        if session is None:
             return None
-        if isinstance(step, str):
-            return step
-        if hasattr(step, 'result'):
-            return step.result
-        if hasattr(step, 'data'):
-            return step.data
-        if hasattr(step, 'output'):
-            return step.output
-        if isinstance(step, dict):
-            if 'result' in step:
-                return step['result']
-            if 'data' in step:
-                return step['data']
-            if 'text' in step:
-                return step['text']
-            if 'rows' in step:
-                return step['rows']
-            if 'content' in step:
-                return step['content']
-        return step
+            
+        if not hasattr(session, 'step_context') or not hasattr(session, 'data_context'):
+            return None
+            
+        steps = session.step_context.steps
+        if not isinstance(steps, list) or not (0 <= step_id < len(steps)):
+            return None
+            
+        step = steps[step_id]
+        
+        if not hasattr(step, 'observation_item_ids') or not step.observation_item_ids:
+            return None
+            
+        obs_id = step.observation_item_ids[0]
+        obs_item = session.data_context.get_item(obs_id, raise_on_missing=False)
+        
+        if obs_item is None:
+            return None
+            
+        return obs_item.content if hasattr(obs_item, 'content') else obs_item
 
     async def _execute_impl(
         self,
