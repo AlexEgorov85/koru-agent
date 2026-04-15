@@ -402,8 +402,11 @@ class ExecuteScriptHandler(SkillHandler):
         validation_warnings = validation_result.get("warnings", [])
         warning_str = "; ".join(validation_warnings) if validation_warnings else None
 
+        columns = list(rows[0].keys()) if rows else []
+        
         result_data = {
             "rows": rows,
+            "columns": columns,
             "rowcount": len(rows),
             "execution_time": total_time,
             "execution_type": "static",
