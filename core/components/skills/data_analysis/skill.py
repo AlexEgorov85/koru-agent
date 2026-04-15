@@ -30,11 +30,8 @@ from core.infrastructure.logging.event_types import LogEventType
 class DataAnalysisSkill(Skill):
     name: str = "data_analysis"
 
-    DEFAULT_CONTEXT_WINDOW = 4096
-    DEFAULT_MAX_NEW_TOKENS = 2000
-    DEFAULT_RESERVE_TOKENS = 500
+    DEFAULT_MAX_CHUNK_CHARS = 3000
     DEFAULT_MAX_CONCURRENT = 5
-    CHARS_PER_TOKEN = 4
 
     @property
     def description(self) -> str:
@@ -53,43 +50,6 @@ class DataAnalysisSkill(Skill):
             executor=executor,
             application_context=application_context
         )
-        self._context_window = self.DEFAULT_CONTEXT_WINDOW
-        self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
-        self._reserve_tokens = self.DEFAULT_RESERVE_TOKENS
-
-    def _calculate_max_chunk_tokens(self, prompt_template_chars: int) -> int:
-        """
-        Расчёт максимального количества токенов для контента.
-
-        Формула:
-        max_chunk_tokens = (context_window - max_new_tokens - reserve - prompt_tokens) * 0.7
-
-        Args:
-            prompt_template_chars: Размер заготовки промпта в символах
-
-        Returns:
-            Максимальное количество токенов для контента
-        """
-        prompt_tokens = prompt_template_chars // self.CHARS_PER_TOKEN
-        available = self._context_window - self._max_new_tokens - self._reserve_tokens - prompt_tokens
-        return max(available, 1000) * 7 // 10
-
-    def _get_llm_config(self) -> Dict[str, int]:
-        """Получает конфигурацию LLM из infrastructure_context через resource_registry."""
-        try:
-            if self._application_context and hasattr(self._application_context, 'infrastructure_context'):
-                infra = self._application_context.infrastructure_context
-                if infra.resource_registry:
-                    from core.models.enums.common_enums import ResourceType
-                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
-                    if default_llm_info and default_llm_info.instance:
-                        provider = default_llm_info.instance
-                        n_ctx = getattr(provider, 'n_ctx', self.DEFAULT_CONTEXT_WINDOW)
-                        max_tokens = getattr(provider, 'max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
-                        return {'context_window': int(n_ctx), 'max_tokens': int(max_tokens)}
-        except Exception as e:
-            self._log_warning(f"Не удалось получить LLM config: {e}", event_type=LogEventType.WARNING)
-        return {'context_window': self.DEFAULT_CONTEXT_WINDOW, 'max_tokens': self.DEFAULT_MAX_NEW_TOKENS}
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -173,24 +133,9 @@ class DataAnalysisSkill(Skill):
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
 
-        llm_config = self._get_llm_config()
-        self._context_window = llm_config.get('context_window', self.DEFAULT_CONTEXT_WINDOW)
-        self._max_new_tokens = llm_config.get('max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
-
-        prompt_template_chars = len(question) + 500
-        max_chunk_tokens = self._calculate_max_chunk_tokens(prompt_template_chars)
-        max_chunk_chars = max_chunk_tokens * self.CHARS_PER_TOKEN
-
-        self._log_info(
-            f"⚙️ [data_analysis] LLM config: context={self._context_window}, "
-            f"max_new={self._max_new_tokens}, max_chunk_tokens={max_chunk_tokens}, "
-            f"max_chunk_chars={max_chunk_chars}",
-            event_type=LogEventType.INFO
-        )
-
         from core.infrastructure.providers.vector.chunking_service import ChunkingService
         chunking_service = ChunkingService(
-            chunk_size_chars=max_chunk_chars,
+            chunk_size_chars=self.DEFAULT_MAX_CHUNK_CHARS,
             chunk_size_rows=50
         )
 
