@@ -163,6 +163,19 @@ class TextAnalysisSkill(Skill):
 
         processing_time = round((time.time() - start_time) * 1000, 2)
 
+        await self._save_result_to_context(
+            execution_context=execution_context,
+            question=question,
+            answer=answer,
+            step_id=step_id,
+            metadata={
+                "input_type": input_type,
+                "chunks_created": len(chunks),
+                "chunks_analyzed": len(summaries),
+                "processing_time_ms": processing_time
+            }
+        )
+
         return {
             "answer": answer,
             "execution_status": "success",
@@ -177,6 +190,57 @@ class TextAnalysisSkill(Skill):
                 "processing_time_ms": processing_time
             }
         }
+
+    async def _save_result_to_context(
+        self,
+        execution_context: Any,
+        question: str,
+        answer: str,
+        step_id: int,
+        metadata: Dict[str, Any]
+    ) -> None:
+        try:
+            session_context = self._get_session_context(execution_context)
+            if not session_context:
+                self._log_warning("Не удалось получить session_context для сохранения результата")
+                return
+
+            result_content = f"""=== РЕЗУЛЬТАТ АНАЛИЗА ===
+Вопрос: {question}
+
+Ответ:
+{answer}
+
+---
+Метаданные: {metadata}
+"""
+            session_context.record_observation(
+                observation_data=result_content,
+                source="text_analysis.analyze",
+                step_number=step_id + 1,
+                metadata={
+                    "skill": "text_analysis",
+                    "question": question,
+                    **metadata
+                }
+            )
+            self._log_info(
+                f"💾 Результат анализа сохранён в контекст (step={step_id + 1})",
+                event_type=LogEventType.INFO
+            )
+        except Exception as e:
+            self._log_warning(f"Не удалось сохранить результат в контекст: {e}", event_type=LogEventType.WARNING)
+
+    def _get_session_context(self, context: Any):
+        if hasattr(context, 'session_context'):
+            sc = context.session_context
+            if sc and hasattr(sc, 'record_observation'):
+                return sc
+        if hasattr(context, '_session_context'):
+            sc = context._session_context
+            if sc and hasattr(sc, 'record_observation'):
+                return sc
+        return None
 
     def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
         if hasattr(parameters, 'model_dump'):
