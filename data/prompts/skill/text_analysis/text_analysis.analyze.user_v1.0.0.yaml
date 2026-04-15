@@ -1,0 +1,21 @@
+capability: text_analysis.analyze.user
+version: v1.0.0
+status: active
+component_type: skill
+description: Пользовательский промпт для MAP-анализа чанка
+content: |
+  === ВОПРОС ===
+  {question}
+  
+  === ДАННЫЕ ДЛЯ АНАЛИЗА ===
+  {content}
+variables:
+  - name: question
+    description: Вопрос пользователя
+    required: true
+  - name: content
+    description: Данные чанка для анализа
+    required: true
+metadata:
+  author: system
+  created: '2026-04-15'

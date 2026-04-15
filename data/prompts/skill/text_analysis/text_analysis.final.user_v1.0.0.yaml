@@ -1,0 +1,21 @@
+capability: text_analysis.final.user
+version: v1.0.0
+status: active
+component_type: skill
+description: Пользовательский промпт для FINAL
+content: |
+  === ВОПРОС ===
+  {question}
+  
+  === ТЕКУЩИЙ АНАЛИЗ ===
+  {content}
+variables:
+  - name: question
+    description: Вопрос пользователя
+    required: true
+  - name: content
+    description: Анализ для сокращения
+    required: true
+metadata:
+  author: system
+  created: '2026-04-15'

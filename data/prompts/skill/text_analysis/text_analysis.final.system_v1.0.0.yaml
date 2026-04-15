@@ -1,0 +1,26 @@
+capability: text_analysis.final.system
+version: v1.0.0
+status: active
+component_type: skill
+description: Системный промпт для FINAL (финальный синтез)
+content: |
+  Сократи и уточни текст анализа.
+  
+  === ПРАВИЛА ===
+  1. Сократи до основных фактов и выводов
+  2. Сохрани важные цифры и данные
+  3. Убери повторы
+  4. Пиши на русском языке
+  5. Максимум 1500 слов
+  
+  Верни результат в формате JSON:
+  {
+    "final_answer": "финальный ответ",
+    "key_findings": ["ключевые находки"],
+    "confidence": 0.0-1.0
+  }
+variables: []
+metadata:
+  author: system
+  created: '2026-04-15'
+  tags: analysis, final, synthesis

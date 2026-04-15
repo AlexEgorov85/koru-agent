@@ -1,0 +1,27 @@
+name: text_analysis.analyze.input
+version: v1.0.0
+status: active
+component_type: skill
+description: Входной контракт для text_analysis.analyze
+fields:
+  - name: text
+    type: string
+    required: false
+    description: Текст для анализа
+  - name: rows
+    type: array
+    items:
+      type: object
+    required: false
+    description: Строки для анализа (List[Dict])
+  - name: question
+    type: string
+    required: true
+    description: Вопрос для анализа
+  - name: meta
+    type: object
+    required: false
+    description: Метаданные (chunk_size_chars, chunk_size_rows, max_concurrent)
+metadata:
+  author: system
+  created: '2026-04-15'
