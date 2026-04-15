@@ -40,11 +40,6 @@ def format_observation(
     # - {'id': 1, 'name': 'Товар А', 'price': 100}
     # - {'id': 2, 'name': 'Товар Б', 'price': 200}
     # - {'id': 3, 'name': 'Товар В', 'price': 300}
-    # 
-    # 💾 КАК ПОЛУЧИТЬ ДОСТУП К ДАННЫМ:
-    # rows = result_data['rows']  # list[dict]
-    # first_row = rows[0]
-    # value = first_row['id']  # 1
     ```
     """
     if result_data is None:
@@ -116,12 +111,6 @@ def _format_sql_observation(data: dict, capability_name: str, parameters: Option
         lines.append("💡 Данные отсутствуют (0 записей)")
         return "\n".join(lines)
 
-    lines.append("💾 КАК ПОЛУЧИТЬ ДОСТУП К ДАННЫМ:")
-    lines.append("  rows = result['rows']              # list[dict]")
-    lines.append("  first_row = rows[0]               # dict")
-    lines.append("  id_value = first_row['id']        # значение колонки")
-    lines.append("")
-    
     # Всегда показываем все записи если их <= 5
     if len(rows) <= 5:
         lines.append(f"📋 ВСЕ {len(rows)} ЗАПИСЕЙ:")

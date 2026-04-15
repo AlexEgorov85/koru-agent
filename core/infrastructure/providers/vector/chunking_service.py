@@ -27,7 +27,7 @@ from core.infrastructure.providers.vector.chunking_factory import ChunkingFactor
 
 class ChunkingService:
     DEFAULT_CHUNK_SIZE_CHARS = 4000
-    DEFAULT_CHUNK_SIZE_ROWS = 50
+    DEFAULT_CHUNK_SIZE_ROWS = 1000
 
     def __init__(
         self,
