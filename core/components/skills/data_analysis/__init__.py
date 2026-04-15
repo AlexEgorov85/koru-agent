@@ -1,13 +1,12 @@
 """
-Data Analysis Skill - анализ сырых данных по шагу.
+Text Analysis Skill — анализ текста с LLM и MapReduce.
 
 Поддерживает:
-- Загрузку данных из файлов, БД и памяти
-- Автоматический чанкинг для больших данных
-- 4 стратегии агрегации: summary, statistical, extractive, generative
-- Валидацию через контракты
+- Анализ текста любого размера
+- MapReduce для параллельной обработки
+- Автоматическое объединение результатов
 """
 
-from core.components.skills.data_analysis.skill import DataAnalysisSkill
+from core.components.skills.data_analysis.skill import TextAnalysisSkill
 
-__all__ = ["DataAnalysisSkill"]
+__all__ = ["TextAnalysisSkill"]
