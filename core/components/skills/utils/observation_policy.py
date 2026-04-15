@@ -9,7 +9,7 @@ from typing import Any
 class ObservationPolicy:
     """Политика определения типа сохранения данных для observation."""
     
-    MAX_ROWS = 20
+    MAX_ROWS = 5
     MAX_JSON_BYTES = 1500
     MAX_TEXT_CHARS = 1500
     MAX_DICT_KEYS = 10

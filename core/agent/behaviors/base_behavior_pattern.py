@@ -182,7 +182,13 @@ class PromptBuilderService:
                             params_parts.append(f"{key}={val_str}")
                         parameters_str = "\n   Параметры: " + ", ".join(params_parts)
 
-                # Извлекаем результат
+                # Извлекаем observation (приоритетнее чем result)
+                observation_text = self._extract_observations_from_step(
+                    session_context,
+                    step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
+                )
+
+                # Result только для fallback если нет observation
                 result_str = ""
                 if hasattr(step, 'result') and step.result is not None:
                     result_data = step.result
@@ -191,15 +197,10 @@ class PromptBuilderService:
                     else:
                         result_str = str(result_data)[:500]
 
-                observation_text = self._extract_observations_from_step(
-                    session_context,
-                    step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
-                )
-
                 step_text = f"{i}. {capability}\n"
                 if parameters_str:
                     step_text += f"   {parameters_str}\n"
-                step_text += f"   Результат: {result_str if result_str else (observation_text if observation_text else 'Нет данных')}\n"
+                step_text += f"   Результат: {observation_text if observation_text != 'Нет доступных данных' else (result_str if result_str else 'Нет данных')}\n"
                 step_text += f"   Статус: {status}"
 
             elif isinstance(step, dict):
@@ -218,16 +219,7 @@ class PromptBuilderService:
                             params_parts.append(f"{key}={val_str}")
                         parameters_str = "\n   Параметры: " + ", ".join(params_parts)
 
-                # Извлекаем результат
-                result_str = ""
-                if 'result' in step and step['result'] is not None:
-                    result_data = step['result']
-                    if isinstance(result_data, dict):
-                        result_str = str(result_data)[:500]
-                    else:
-                        result_str = str(result_data)[:500]
-
-                # Пробуем получить observation из dict
+                # Пробуем получить observation из dict (приоритетнее чем result)
                 if 'observation' in step and step['observation']:
                     observation = step['observation']
                 elif hasattr(session_context, 'data_context') and step.get('observation_item_ids'):
@@ -238,12 +230,21 @@ class PromptBuilderService:
                 else:
                     observation = summary
 
+                # Result только для fallback если нет observation
+                result_str = ""
+                if 'result' in step and step['result'] is not None:
+                    result_data = step['result']
+                    if isinstance(result_data, dict):
+                        result_str = str(result_data)[:500]
+                    else:
+                        result_str = str(result_data)[:500]
+
                 status = step.get('status', 'unknown')
 
                 step_text = f"{i}. {capability}\n"
                 if parameters_str:
                     step_text += f"   {parameters_str}\n"
-                step_text += f"   Результат: {result_str if result_str else (observation if observation else 'Нет данных')}\n"
+                step_text += f"   Результат: {observation if observation and observation != 'Нет доступных данных' else (result_str if result_str else 'Нет данных')}\n"
                 step_text += f"   Статус: {status}"
             else:
                 # Fallback для строки или другого типа

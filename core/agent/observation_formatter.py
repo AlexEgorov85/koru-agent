@@ -68,21 +68,26 @@ def _format_dict_observation(
 ) -> str:
     """Форматирует dict результат."""
     
-    # Определяем тип инструмента
-    if capability_name in ("sql_tool.execute", "sql_tool.execute_query"):
-        return _format_sql_observation(data, capability_name)
+    # Определяем тип по структуре данных
+    if "rows" in data and "rowcount" in data:
+        return _format_sql_observation(data, capability_name, parameters)
+    elif capability_name in ("sql_tool.execute", "sql_tool.execute_query"):
+        return _format_sql_observation(data, capability_name, parameters)
+    elif "results" in data and "query" in data:
+        return _format_vector_search_observation(data, capability_name)
     elif capability_name.startswith("vector_search"):
         return _format_vector_search_observation(data, capability_name)
     else:
         return _format_generic_dict(data, capability_name)
 
 
-def _format_sql_observation(data: dict, capability_name: str) -> str:
+def _format_sql_observation(data: dict, capability_name: str, parameters: Optional[Dict[str, Any]] = None) -> str:
     """Форматирует SQL результат."""
     rows = data.get("rows", [])
     columns = data.get("columns", [])
     rowcount = data.get("rowcount", 0)
     execution_time = data.get("execution_time", 0)
+    warning = data.get("warning")
 
     lines = []
     lines.append("=== ПОЛУЧЕННЫЕ ДАННЫЕ ===")
@@ -90,9 +95,25 @@ def _format_sql_observation(data: dict, capability_name: str) -> str:
     lines.append(f"📋 Количество записей: {rowcount}")
     lines.append(f"📑 Колонки: {columns}")
     lines.append(f"⏱ Время выполнения: {execution_time:.3f} сек")
+    
+    # Предупреждение если есть truncation warning
+    if warning:
+        lines.append(f"⚠️ ВНИМАНИЕ: {warning}")
+    
+    # Проверка max_rows
+    max_rows_param = None
+    if parameters:
+        max_rows_param = parameters.get("max_rows")
+    elif isinstance(parameters, dict) and "parameters" in parameters:
+        max_rows_param = parameters.get("parameters", {}).get("max_rows")
+    
+    if max_rows_param and rowcount >= max_rows_param:
+        lines.append(f"⚠️ ВНИМАНИЕ: Получено {rowcount} записей = лимит {max_rows_param}. Данные могут быть неполными! Увеличьте max_rows для повторного запроса.")
+    
     lines.append("")
 
     if not rows:
+        lines.append("💡 Данные отсутствуют (0 записей)")
         return "\n".join(lines)
 
     lines.append("💾 КАК ПОЛУЧИТЬ ДОСТУП К ДАННЫМ:")
@@ -100,18 +121,19 @@ def _format_sql_observation(data: dict, capability_name: str) -> str:
     lines.append("  first_row = rows[0]               # dict")
     lines.append("  id_value = first_row['id']        # значение колонки")
     lines.append("")
-
+    
+    # Всегда показываем все записи если их <= 5
     if len(rows) <= 5:
-        lines.append("📋 ВСЕ ЗАПИСИ:")
+        lines.append(f"📋 ВСЕ {len(rows)} ЗАПИСЕЙ:")
         for i, row in enumerate(rows):
             lines.append(f"  [{i}] {row}")
     else:
-        lines.append(f"📋 ПЕРВЫЕ 3 ЗАПИСИ:")
-        for row in rows[:3]:
-            lines.append(f"  {row}")
-        lines.append(f"  ... и ещё {len(rows) - 3} записей")
+        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(rows)} ЗАПИСЕЙ:")
+        for i, row in enumerate(rows[:5]):
+            lines.append(f"  [{i}] {row}")
+        lines.append(f"  ... и ещё {len(rows) - 5} записей")
         lines.append("")
-        lines.append("💡 Для полного доступа используйте data_analysis.analyze_step_data")
+        lines.append("💡 Для анализа всех данных используйте: text_analysis.analyze с параметрами question='...', step_id=N")
 
     return "\n".join(lines)
 
@@ -129,6 +151,7 @@ def _format_vector_search_observation(data: dict, capability_name: str) -> str:
     lines.append(f"📋 Найдено результатов: {total_found}")
 
     if not results:
+        lines.append("💡 Результаты не найдены")
         return "\n".join(lines)
 
     lines.append("")
@@ -139,14 +162,27 @@ def _format_vector_search_observation(data: dict, capability_name: str) -> str:
     lines.append("  score = first.score            # релевантность (0-1)")
     lines.append("")
 
-    lines.append("📋 ПЕРВЫЕ 3 РЕЗУЛЬТАТА:")
-    for i, r in enumerate(results[:3]):
-        if hasattr(r, 'text'):
-            text_preview = r.text[:100] + "..." if len(str(r.text)) > 100 else r.text
-            score = getattr(r, 'score', 0)
-            lines.append(f"  [{i}] (score={score:.2f}) {text_preview}")
-        else:
-            lines.append(f"  [{i}] {r}")
+    if len(results) <= 5:
+        lines.append(f"📋 ВСЕ {len(results)} РЕЗУЛЬТАТА:")
+        for i, r in enumerate(results):
+            if hasattr(r, 'text'):
+                text_preview = r.text[:100] + "..." if len(str(r.text)) > 100 else r.text
+                score = getattr(r, 'score', 0)
+                lines.append(f"  [{i}] (score={score:.2f}) {text_preview}")
+            else:
+                lines.append(f"  [{i}] {r}")
+    else:
+        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(results)} РЕЗУЛЬТАТОВ:")
+        for i, r in enumerate(results[:5]):
+            if hasattr(r, 'text'):
+                text_preview = r.text[:100] + "..." if len(str(r.text)) > 100 else r.text
+                score = getattr(r, 'score', 0)
+                lines.append(f"  [{i}] (score={score:.2f}) {text_preview}")
+            else:
+                lines.append(f"  [{i}] {r}")
+        lines.append(f"  ... и ещё {len(results) - 5} результатов")
+        lines.append("")
+        lines.append("💡 Полные данные доступны в data_context")
 
     return "\n".join(lines)
 
@@ -176,9 +212,9 @@ def _format_generic_dict(data: dict, capability_name: str) -> str:
 
 
 def _format_list_observation(data: list, capability_name: str) -> str:
-    """Фор��атирует list результат."""
+    """Формирует list результат."""
     if not data:
-        return "Список пуст (0 элементов)"
+        return "=== ПОЛУЧЕННЫЕ ДАННЫЕ ===\n💡 Список пуст (0 элементов)"
 
     element_type = type(data[0]).__name__ if data else "unknown"
     lines = []
@@ -194,14 +230,16 @@ def _format_list_observation(data: list, capability_name: str) -> str:
     lines.append("")
 
     if len(data) <= 5:
-        lines.append("📋 ВСЕ ЭЛЕМЕНТЫ:")
+        lines.append(f"📋 ВСЕ {len(data)} ЭЛЕМЕНТЫ:")
         for i, item in enumerate(data):
             lines.append(f"  [{i}] {item}")
     else:
-        lines.append("📋 ПЕРВЫЕ 3 ЭЛЕМЕНТА:")
-        for item in data[:3]:
-            lines.append(f"  {item}")
-        lines.append(f"  ... и ещё {len(data) - 3} элементов")
+        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(data)} ЭЛЕМЕНТОВ:")
+        for i, item in enumerate(data[:5]):
+            lines.append(f"  [{i}] {item}")
+        lines.append(f"  ... и ещё {len(data) - 5} элементов")
+        lines.append("")
+        lines.append("💡 Полные данные доступны в data_context. Для анализа используйте data_analysis.analyze_step_data")
 
     return "\n".join(lines)
 

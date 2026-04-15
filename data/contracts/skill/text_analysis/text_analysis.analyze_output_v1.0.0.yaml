@@ -1,35 +1,38 @@
-name: text_analysis.analyze.output
-version: v1.0.0
-status: active
+capability: text_analysis.analyze
 component_type: skill
-description: Выходной контракт для text_analysis.analyze
-fields:
-  - name: answer
-    type: string
-    required: true
-    description: Текстовый ответ на вопрос
-  - name: execution_status
-    type: string
-    required: true
-    description: Статус выполнения (success|error|skipped)
-  - name: execution_error
-    type: string
-    required: false
-    description: Текст ошибки если status=error
-  - name: confidence
-    type: number
-    required: true
-    description: Уверенность 0.0-1.0
-  - name: executed_operations
-    type: array
-    items:
+description: Output contract for text_analysis.analyze - результат анализа данных
+direction: output
+schema_data:
+  type: object
+  properties:
+    answer:
       type: string
-    required: true
-    description: Список выполненных операций
-  - name: metadata
-    type: object
-    required: true
-    description: Метаданные (mode_used, chunks_created, processing_time_ms)
-metadata:
-  author: system
-  created: '2026-04-15'
+      description: Текстовый ответ на вопрос
+    execution_status:
+      type: string
+      enum:
+        - success
+        - error
+        - skipped
+      description: Статус выполнения
+    execution_error:
+      type: string
+      description: Текст ошибки если status=error
+    confidence:
+      type: number
+      description: Уверенность 0.0-1.0
+    executed_operations:
+      type: array
+      items:
+        type: string
+      description: Список выполненных операций
+    metadata:
+      type: object
+      description: Метаданные (mode_used, chunks_created, processing_time_ms)
+  required:
+    - answer
+    - execution_status
+    - confidence
+    - executed_operations
+status: active
+version: v1.0.0

@@ -1,17 +1,17 @@
-name: text_analysis.analyze.input
-version: v1.0.0
-status: active
+capability: text_analysis.analyze
 component_type: skill
-description: Входной контракт для text_analysis.analyze
-fields:
-  - name: question
-    type: string
-    required: true
-    description: Вопрос для анализа
-  - name: step_id
-    type: integer
-    required: true
-    description: Номер шага, данные которого нужно проанализировать
-metadata:
-  author: system
-  created: '2026-04-15'
+description: Input contract for text_analysis.analyze - анализ данных шага с LLM и MapReduce
+direction: input
+schema_data:
+  type: object
+  properties:
+    question:
+      type: string
+      description: Вопрос для анализа
+    step_id:
+      type: integer
+      description: Номер шага, данные которого нужно проанализировать
+  required:
+    - question
+status: active
+version: v1.0.0
