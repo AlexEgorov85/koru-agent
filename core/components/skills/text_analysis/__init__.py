@@ -7,6 +7,6 @@ Text Analysis Skill — анализ текста с LLM и MapReduce.
 - Автоматическое объединение результатов
 """
 
-from core.components.skills.data_analysis.skill import TextAnalysisSkill
+from core.components.skills.text_analysis.skill import TextAnalysisSkill
 
 __all__ = ["TextAnalysisSkill"]

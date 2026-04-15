@@ -30,4 +30,4 @@ variables:
 metadata:
   author: system
   created: '2026-04-15'
-  tags: [analysis, text, llm]
+  tags: analysis, text, llm
