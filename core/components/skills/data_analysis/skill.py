@@ -25,15 +25,16 @@ from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
 from core.infrastructure.logging.event_types import LogEventType
-from core.infrastructure.providers.vector.chunking_service import ChunkingService
 
 
 class DataAnalysisSkill(Skill):
     name: str = "data_analysis"
 
-    DEFAULT_CHUNK_SIZE_CHARS = 4000
-    DEFAULT_CHUNK_SIZE_ROWS = 50
+    DEFAULT_CONTEXT_WINDOW = 4096
+    DEFAULT_MAX_NEW_TOKENS = 2000
+    DEFAULT_RESERVE_TOKENS = 500
     DEFAULT_MAX_CONCURRENT = 5
+    CHARS_PER_TOKEN = 4
 
     @property
     def description(self) -> str:
@@ -52,10 +53,44 @@ class DataAnalysisSkill(Skill):
             executor=executor,
             application_context=application_context
         )
-        self._chunking_service = ChunkingService(
-            chunk_size_chars=self.DEFAULT_CHUNK_SIZE_CHARS,
-            chunk_size_rows=self.DEFAULT_CHUNK_SIZE_ROWS
-        )
+        self._context_window = self.DEFAULT_CONTEXT_WINDOW
+        self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
+        self._reserve_tokens = self.DEFAULT_RESERVE_TOKENS
+
+    def _calculate_max_chunk_tokens(self, prompt_template_chars: int) -> int:
+        """
+        Расчёт максимального количества токенов для контента.
+
+        Формула:
+        max_chunk_tokens = (context_window - max_new_tokens - reserve - prompt_tokens) * 0.7
+
+        Args:
+            prompt_template_chars: Размер заготовки промпта в символах
+
+        Returns:
+            Максимальное количество токенов для контента
+        """
+        prompt_tokens = prompt_template_chars // self.CHARS_PER_TOKEN
+        available = self._context_window - self._max_new_tokens - self._reserve_tokens - prompt_tokens
+        return max(available, 1000) * 7 // 10
+
+    def _get_llm_config(self) -> Dict[str, int]:
+        """Получает конфигурацию LLM из infrastructure_context."""
+        try:
+            if self._application_context and hasattr(self._application_context, 'infrastructure_context'):
+                infra = self._application_context.infrastructure_context
+                if hasattr(infra, 'llm_providers'):
+                    providers = infra.llm_providers
+                    if providers:
+                        provider = list(providers.values())[0]
+                        if hasattr(provider, 'model_kwargs'):
+                            kwargs = provider.model_kwargs or {}
+                            context_window = kwargs.get('context_window', self.DEFAULT_CONTEXT_WINDOW)
+                            max_tokens = kwargs.get('max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
+                            return {'context_window': context_window, 'max_tokens': max_tokens}
+        except Exception:
+            pass
+        return {'context_window': self.DEFAULT_CONTEXT_WINDOW, 'max_tokens': self.DEFAULT_MAX_NEW_TOKENS}
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -139,23 +174,44 @@ class DataAnalysisSkill(Skill):
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
 
+        llm_config = self._get_llm_config()
+        self._context_window = llm_config.get('context_window', self.DEFAULT_CONTEXT_WINDOW)
+        self._max_new_tokens = llm_config.get('max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
+
+        prompt_template_chars = len(question) + 500
+        max_chunk_tokens = self._calculate_max_chunk_tokens(prompt_template_chars)
+        max_chunk_chars = max_chunk_tokens * self.CHARS_PER_TOKEN
+
+        self._log_info(
+            f"⚙️ [data_analysis] LLM config: context={self._context_window}, "
+            f"max_new={self._max_new_tokens}, max_chunk_tokens={max_chunk_tokens}, "
+            f"max_chunk_chars={max_chunk_chars}",
+            event_type=LogEventType.INFO
+        )
+
+        from core.infrastructure.providers.vector.chunking_service import ChunkingService
+        chunking_service = ChunkingService(
+            chunk_size_chars=max_chunk_chars,
+            chunk_size_rows=50
+        )
+
         if isinstance(data, list):
-            chunks = self._chunking_service.chunk_rows(data)
+            chunks = chunking_service.chunk_rows(data)
             self._log_info(
-                f"📊 [text_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
+                f"📊 [data_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
                 event_type=LogEventType.INFO
             )
             input_type = "rows"
         elif isinstance(data, str):
-            chunks = self._chunking_service.chunk_text(data)
+            chunks = chunking_service.chunk_text(data)
             self._log_info(
-                f"📄 [text_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков",
+                f"📄 [data_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков",
                 event_type=LogEventType.INFO
             )
             input_type = "text"
         else:
             data_str = str(data)
-            chunks = self._chunking_service.chunk_text(data_str)
+            chunks = chunking_service.chunk_text(data_str)
             input_type = "unknown"
 
         summaries = await self._map_phase(chunks, question, execution_context)
