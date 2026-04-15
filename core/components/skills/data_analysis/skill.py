@@ -8,7 +8,7 @@
 
 ИСПОЛЬЗОВАНИЕ:
     result = await executor.execute_action(
-        action_name="text_analysis.analyze",
+        action_name="data_analysis.analyze_step_data",
         parameters={
             "question": "Какие ключевые темы?",
             "step_id": 1
@@ -28,8 +28,8 @@ from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.providers.vector.chunking_service import ChunkingService
 
 
-class TextAnalysisSkill(Skill):
-    name: str = "text_analysis"
+class DataAnalysisSkill(Skill):
+    name: str = "data_analysis"
 
     DEFAULT_CHUNK_SIZE_CHARS = 4000
     DEFAULT_CHUNK_SIZE_ROWS = 50
@@ -60,7 +60,7 @@ class TextAnalysisSkill(Skill):
     def get_capabilities(self) -> List[Capability]:
         return [
             Capability(
-                name="text_analysis.analyze",
+                name="data_analysis.analyze_step_data",
                 description="Анализ данных шага с LLM и MapReduce",
                 skill_name=self.name,
                 supported_strategies=["react"],
@@ -75,7 +75,7 @@ class TextAnalysisSkill(Skill):
         return await super().initialize()
 
     def _get_event_type_for_success(self) -> str:
-        return "skill.text_analysis.executed"
+        return "skill.data_analysis.executed"
 
     def _get_step_data(self, execution_context: Any, step_id: int) -> Any:
         """Получает данные шага из data_context через observation_item_ids."""
@@ -216,10 +216,10 @@ class TextAnalysisSkill(Skill):
 """
             session_context.record_observation(
                 observation_data=result_content,
-                source="text_analysis.analyze",
+                source="data_analysis.analyze_step_data",
                 step_number=step_id + 1,
                 metadata={
-                    "skill": "text_analysis",
+                    "skill": "data_analysis",
                     "question": question,
                     **metadata
                 }
@@ -393,7 +393,7 @@ class TextAnalysisSkill(Skill):
         return {"content": f"{content1}\n\n{content2}"}
 
     def _build_analyze_prompt(self, content: str, question: str) -> str:
-        prompt_obj = self.get_prompt("text_analysis.analyze")
+        prompt_obj = self.get_prompt("data_analysis.analyze_step_data")
         if not prompt_obj:
             return self._build_analyze_prompt_fallback(content, question)
         
@@ -403,7 +403,7 @@ class TextAnalysisSkill(Skill):
         })
 
     def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
-        prompt_obj = self.get_prompt("text_analysis.merge")
+        prompt_obj = self.get_prompt("data_analysis.merge_step_data")
         if not prompt_obj:
             return self._build_merge_prompt_fallback(content1, content2, question)
         

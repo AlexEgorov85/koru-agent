@@ -1,6 +1,6 @@
-capability: text_analysis.analyze
+capability: data_analysis.analyze_step_data
 component_type: skill
-description: Input contract for text_analysis.analyze - анализ данных шага с LLM и MapReduce
+description: Input contract for data_analysis.analyze_step_data - анализ данных шага с LLM и MapReduce
 direction: input
 schema_data:
   type: object
@@ -13,5 +13,6 @@ schema_data:
       description: Номер шага, данные которого нужно проанализировать
   required:
     - question
+    - step_id
 status: active
 version: v1.0.0

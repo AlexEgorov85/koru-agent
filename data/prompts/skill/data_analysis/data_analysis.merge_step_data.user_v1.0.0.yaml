@@ -1,4 +1,4 @@
-capability: text_analysis.merge.user
+capability: data_analysis.merge_step_data.user
 version: v1.0.0
 status: active
 component_type: skill

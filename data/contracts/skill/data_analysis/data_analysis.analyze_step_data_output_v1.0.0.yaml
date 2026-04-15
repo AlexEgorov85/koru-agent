@@ -1,6 +1,6 @@
-capability: text_analysis.analyze
+capability: data_analysis.analyze_step_data
 component_type: skill
-description: Output contract for text_analysis.analyze - результат анализа данных
+description: Output contract for data_analysis.analyze_step_data - результат анализа данных
 direction: output
 schema_data:
   type: object

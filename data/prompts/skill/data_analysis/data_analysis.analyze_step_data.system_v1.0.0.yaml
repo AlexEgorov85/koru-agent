@@ -1,4 +1,4 @@
-capability: text_analysis.analyze.system
+capability: data_analysis.analyze_step_data.system
 version: v1.0.0
 status: active
 component_type: skill

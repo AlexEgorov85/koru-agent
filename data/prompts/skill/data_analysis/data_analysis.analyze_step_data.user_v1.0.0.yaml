@@ -1,4 +1,4 @@
-capability: text_analysis.analyze.user
+capability: data_analysis.analyze_step_data.user
 version: v1.0.0
 status: active
 component_type: skill
