@@ -251,6 +251,14 @@ class DataAnalysisSkill(Skill):
             return parameters
         raise ValueError(f"Неподдерживаемый тип параметров: {type(parameters)}")
 
+    def _get_active_executor(self, execution_context: Any):
+        """Получает executor из execution_context."""
+        if hasattr(execution_context, 'executor'):
+            return execution_context.executor
+        if hasattr(execution_context, 'session_context') and hasattr(execution_context.session_context, 'executor'):
+            return execution_context.session_context.executor
+        return self.executor
+
     async def _map_phase(
         self,
         chunks: List[Dict[str, Any]],
@@ -295,9 +303,10 @@ class DataAnalysisSkill(Skill):
             return {"content": "", "chunk_id": chunk_id}
 
         prompt = self._build_analyze_prompt(content, question)
+        executor = self._get_active_executor(execution_context)
 
         try:
-            result = await self.executor.execute_action(
+            result = await executor.execute_action(
                 action_name="llm.generate",
                 parameters={
                     "prompt": prompt,
@@ -373,9 +382,10 @@ class DataAnalysisSkill(Skill):
         content2 = pair[1].get("content", "")
 
         prompt = self._build_merge_prompt(content1, content2, question)
+        executor = self._get_active_executor(execution_context)
 
         try:
-            result = await self.executor.execute_action(
+            result = await executor.execute_action(
                 action_name="llm.generate",
                 parameters={
                     "prompt": prompt,
