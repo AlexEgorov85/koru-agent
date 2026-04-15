@@ -393,25 +393,39 @@ class DataAnalysisSkill(Skill):
         return {"content": f"{content1}\n\n{content2}"}
 
     def _build_analyze_prompt(self, content: str, question: str) -> str:
-        prompt_obj = self.get_prompt("data_analysis.analyze_step_data")
-        if not prompt_obj:
+        system_prompt = self.get_prompt("data_analysis.analyze_step_data.system")
+        user_prompt = self.get_prompt("data_analysis.analyze_step_data.user")
+        
+        if not system_prompt or not user_prompt:
             return self._build_analyze_prompt_fallback(content, question)
         
-        return self._render_prompt(prompt_obj.content, {
+        system = system_prompt.content or ""
+        user_template = user_prompt.content or ""
+        
+        user = self._render_prompt(user_template, {
             "question": question,
             "content": content
         })
+        
+        return f"{system}\n\n{user}"
 
     def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
-        prompt_obj = self.get_prompt("data_analysis.merge_step_data")
-        if not prompt_obj:
+        system_prompt = self.get_prompt("data_analysis.merge_step_data.system")
+        user_prompt = self.get_prompt("data_analysis.merge_step_data.user")
+        
+        if not system_prompt or not user_prompt:
             return self._build_merge_prompt_fallback(content1, content2, question)
         
-        return self._render_prompt(prompt_obj.content, {
+        system = system_prompt.content or ""
+        user_template = user_prompt.content or ""
+        
+        user = self._render_prompt(user_template, {
             "question": question,
             "content1": content1,
             "content2": content2
         })
+        
+        return f"{system}\n\n{user}"
 
     def _build_analyze_prompt_fallback(self, content: str, question: str) -> str:
         return f"""Проанализируй данные и ответь на вопрос.
