@@ -2,25 +2,16 @@
 Навык анализа данных с LLM и MapReduce.
 
 АРХИТЕКТУРА:
-- INPUT: text или rows (List[Dict])
+- INPUT: step_id → получение данных из контекста
 - MAP: Разбиение на чанки → Параллельный LLM-анализ
 - REDUCE: Объединение ответов через LLM
 
 ИСПОЛЬЗОВАНИЕ:
-    result = await skill.execute(
-        capability=Capability(name="text_analysis.analyze"),
+    result = await executor.execute_action(
+        action_name="text_analysis.analyze",
         parameters={
-            "text": "Большой текст...",
-            "question": "Какие ключевые темы?"
-        },
-        context=execution_context
-    )
-    
-    # или rows:
-    result = await skill.execute(
-        parameters={
-            "rows": [{"id": 1, "name": "Test"}, ...],
-            "question": "Какие паттерны?"
+            "question": "Какие ключевые темы?",
+            "step_id": 1
         },
         context=execution_context
     )
@@ -40,6 +31,10 @@ from core.infrastructure.providers.vector.chunking_service import ChunkingServic
 class TextAnalysisSkill(Skill):
     name: str = "text_analysis"
 
+    DEFAULT_CHUNK_SIZE_CHARS = 4000
+    DEFAULT_CHUNK_SIZE_ROWS = 50
+    DEFAULT_MAX_CONCURRENT = 5
+
     @property
     def description(self) -> str:
         return "Анализ данных с LLM и MapReduce"
@@ -57,21 +52,21 @@ class TextAnalysisSkill(Skill):
             executor=executor,
             application_context=application_context
         )
+        self._chunking_service = ChunkingService(
+            chunk_size_chars=self.DEFAULT_CHUNK_SIZE_CHARS,
+            chunk_size_rows=self.DEFAULT_CHUNK_SIZE_ROWS
+        )
 
     def get_capabilities(self) -> List[Capability]:
         return [
             Capability(
                 name="text_analysis.analyze",
-                description="Анализ данных с LLM. Поддерживает text и rows. Для больших данных использует MapReduce.",
+                description="Анализ данных шага с LLM и MapReduce",
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visible=True,
                 meta={
-                    "supports_chunking": True,
-                    "mapreduce": True,
-                    "input_types": ["text", "rows"],
-                    "default_chunk_size_chars": 4000,
-                    "default_chunk_size_rows": 50
+                    "mapreduce": True
                 }
             )
         ]
@@ -81,6 +76,45 @@ class TextAnalysisSkill(Skill):
 
     def _get_event_type_for_success(self) -> str:
         return "skill.text_analysis.executed"
+
+    def _get_step_data(self, execution_context: Any, step_id: int) -> Any:
+        if hasattr(execution_context, 'session_context'):
+            session = execution_context.session_context
+            if hasattr(session, 'get_step'):
+                return session.get_step(step_id)
+            if hasattr(session, 'steps') and hasattr(session.steps, '__getitem__'):
+                if step_id < len(session.steps):
+                    return session.steps[step_id]
+        if hasattr(execution_context, 'get_step'):
+            return execution_context.get_step(step_id)
+        if hasattr(execution_context, 'steps'):
+            if isinstance(execution_context.steps, list) and step_id < len(execution_context.steps):
+                return execution_context.steps[step_id]
+        return None
+
+    def _extract_data_from_step(self, step: Any) -> Any:
+        if step is None:
+            return None
+        if isinstance(step, str):
+            return step
+        if hasattr(step, 'result'):
+            return step.result
+        if hasattr(step, 'data'):
+            return step.data
+        if hasattr(step, 'output'):
+            return step.output
+        if isinstance(step, dict):
+            if 'result' in step:
+                return step['result']
+            if 'data' in step:
+                return step['data']
+            if 'text' in step:
+                return step['text']
+            if 'rows' in step:
+                return step['rows']
+            if 'content' in step:
+                return step['content']
+        return step
 
     async def _execute_impl(
         self,
@@ -92,41 +126,45 @@ class TextAnalysisSkill(Skill):
 
         params_dict = self._normalize_parameters(parameters)
 
-        text = params_dict.get("text")
-        rows = params_dict.get("rows")
         question = params_dict.get("question")
+        step_id = params_dict.get("step_id")
 
         if not question:
             raise ValueError("Параметр 'question' обязателен")
+        if step_id is None:
+            raise ValueError("Параметр 'step_id' обязателен")
 
-        if not text and not rows:
-            raise ValueError("Параметр 'text' или 'rows' обязателен")
+        step = self._get_step_data(execution_context, step_id)
+        data = self._extract_data_from_step(step)
 
-        meta = params_dict.get("meta", {})
-        chunk_size_chars = meta.get("chunk_size_chars", 4000)
-        chunk_size_rows = meta.get("chunk_size_rows", 50)
-        max_concurrent = meta.get("max_concurrent", 5)
+        if data is None:
+            return {
+                "answer": f"Данные шага {step_id} не найдены",
+                "execution_status": "error",
+                "confidence": 0.0,
+                "metadata": {"step_id": step_id}
+            }
 
-        chunking_service = ChunkingService(
-            chunk_size_chars=chunk_size_chars,
-            chunk_size_rows=chunk_size_rows
-        )
-
-        if rows:
-            chunks = chunking_service.chunk_rows(rows)
+        if isinstance(data, list):
+            chunks = self._chunking_service.chunk_rows(data)
             self._log_info(
-                f"📊 [text_analysis] {len(rows)} строк → {len(chunks)} чанков",
+                f"📊 [text_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
                 event_type=LogEventType.INFO
             )
+            input_type = "rows"
+        elif isinstance(data, str):
+            chunks = self._chunking_service.chunk_text(data)
+            self._log_info(
+                f"📄 [text_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков",
+                event_type=LogEventType.INFO
+            )
+            input_type = "text"
         else:
-            chunks = chunking_service.chunk_text(text)
-            self._log_info(
-                f"📄 [text_analysis] {len(text)} символов → {len(chunks)} чанков",
-                event_type=LogEventType.INFO
-            )
+            data_str = str(data)
+            chunks = self._chunking_service.chunk_text(data_str)
+            input_type = "unknown"
 
-        summaries = await self._map_phase(chunks, question, execution_context, max_concurrent)
-
+        summaries = await self._map_phase(chunks, question, execution_context)
         answer = await self._reduce_phase(summaries, question, execution_context)
 
         processing_time = round((time.time() - start_time) * 1000, 2)
@@ -138,7 +176,8 @@ class TextAnalysisSkill(Skill):
             "executed_operations": [f"map:{len(chunks)}", "reduce"],
             "metadata": {
                 "mode_used": "mapreduce",
-                "input_type": "rows" if rows else "text",
+                "input_type": input_type,
+                "step_id": step_id,
                 "chunks_created": len(chunks),
                 "chunks_analyzed": len(summaries),
                 "processing_time_ms": processing_time
@@ -158,13 +197,12 @@ class TextAnalysisSkill(Skill):
         self,
         chunks: List[Dict[str, Any]],
         question: str,
-        execution_context: Any,
-        max_concurrent: int
+        execution_context: Any
     ) -> List[Dict[str, Any]]:
         if len(chunks) == 1:
             return [await self._analyze_chunk(chunks[0], question, execution_context)]
 
-        semaphore = asyncio.Semaphore(max_concurrent)
+        semaphore = asyncio.Semaphore(self.DEFAULT_MAX_CONCURRENT)
 
         async def analyze_with_limit(chunk: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
@@ -206,7 +244,7 @@ class TextAnalysisSkill(Skill):
                 parameters={
                     "prompt": prompt,
                     "temperature": 0.2,
-                    "max_tokens": 1000
+                    "max_tokens": 2000
                 },
                 context=execution_context
             )
@@ -236,32 +274,36 @@ class TextAnalysisSkill(Skill):
         if len(valid_summaries) == 1:
             return valid_summaries[0].get("content", "")
 
-        current = valid_summaries
+        return await self._tree_reduce(valid_summaries, question, execution_context)
 
-        while len(current) > 1:
-            merged = []
+    async def _tree_reduce(
+        self,
+        items: List[Dict[str, Any]],
+        question: str,
+        execution_context: Any
+    ) -> str:
+        if len(items) == 1:
+            return items[0].get("content", "")
 
-            for i in range(0, len(current), 2):
-                if i + 1 < len(current):
-                    pair = [current[i], current[i + 1]]
-                    merged_result = await self._merge_pair(pair, question, execution_context)
-                    merged.append(merged_result)
-                else:
-                    merged.append(current[i])
+        if len(items) == 2:
+            result = await self._merge_pair(items, question, execution_context)
+            return result.get("content", "")
 
-            current = merged
+        merged = []
+        for i in range(0, len(items), 2):
+            if i + 1 < len(items):
+                pair = [items[i], items[i + 1]]
+                merged_result = await self._merge_pair(pair, question, execution_context)
+                merged.append(merged_result)
+            else:
+                merged.append(items[i])
 
-            self._log_info(
-                f"🌲 [text_analysis] Reduce: {len(summaries)} → {len(current)}",
-                event_type=LogEventType.INFO
-            )
+        self._log_info(
+            f"🌲 [text_analysis] Reduce: {len(items)} → {len(merged)}",
+            event_type=LogEventType.INFO
+        )
 
-        final = current[0].get("content", "")
-
-        if len(final) > 3000:
-            final = await self._synthesize_final(final, question, execution_context)
-
-        return final
+        return await self._tree_reduce(merged, question, execution_context)
 
     async def _merge_pair(
         self,
@@ -272,11 +314,6 @@ class TextAnalysisSkill(Skill):
         content1 = pair[0].get("content", "")
         content2 = pair[1].get("content", "")
 
-        combined = f"Часть 1:\n{content1}\n\nЧасть 2:\n{content2}"
-
-        if len(combined) <= 2000:
-            return {"content": combined}
-
         prompt = self._build_merge_prompt(content1, content2, question)
 
         try:
@@ -285,53 +322,26 @@ class TextAnalysisSkill(Skill):
                 parameters={
                     "prompt": prompt,
                     "temperature": 0.3,
-                    "max_tokens": 1500
-                },
-                context=execution_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED:
-                return {"content": result.result or combined}
-        except Exception as e:
-            self._log_warning(f"⚠️ [text_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
-
-        return {"content": combined}
-
-    async def _synthesize_final(
-        self,
-        content: str,
-        question: str,
-        execution_context: Any
-    ) -> str:
-        prompt = self._build_final_prompt(content, question)
-
-        try:
-            result = await self.executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": prompt,
-                    "temperature": 0.2,
                     "max_tokens": 2000
                 },
                 context=execution_context
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return result.result or content[:3000]
-        except Exception:
-            pass
+                return {"content": result.result or f"{content1}\n\n{content2}"}
+        except Exception as e:
+            self._log_warning(f"⚠️ [text_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
 
-        return content[:3000]
+        return {"content": f"{content1}\n\n{content2}"}
 
     def _build_analyze_prompt(self, content: str, question: str) -> str:
         prompt_obj = self.get_prompt("text_analysis.analyze")
         if not prompt_obj:
             return self._build_analyze_prompt_fallback(content, question)
         
-        truncated = content[:5000] if len(content) > 5000 else content
         return self._render_prompt(prompt_obj.content, {
             "question": question,
-            "content": truncated
+            "content": content
         })
 
     def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
@@ -345,31 +355,18 @@ class TextAnalysisSkill(Skill):
             "content2": content2
         })
 
-    def _build_final_prompt(self, content: str, question: str) -> str:
-        prompt_obj = self.get_prompt("text_analysis.final")
-        if not prompt_obj:
-            return self._build_final_prompt_fallback(content, question)
-        
-        truncated = content[:6000] if len(content) > 6000 else content
-        return self._render_prompt(prompt_obj.content, {
-            "question": question,
-            "content": truncated
-        })
-
     def _build_analyze_prompt_fallback(self, content: str, question: str) -> str:
-        truncated = content[:5000] if len(content) > 5000 else content
         return f"""Проанализируй данные и ответь на вопрос.
 
 ВОПРОС: {question}
 
 ДАННЫЕ:
-{truncated}
+{content}
 
 Инструкции:
 - Отвечай ТОЛЬКО на основе предоставленных данных
 - Если информации недостаточно, укажи это
 - Пиши на русском языке
-- Будь краток
 
 Ответ:"""
 
