@@ -225,25 +225,22 @@ class CheckResultSkill(Skill):
         lines = ["### ПРИМЕРЫ SQL ЗАПРОСОВ"]
         lines.append("")
         
-        for name, meta in SCRIPTS_REGISTRY.items():
-            short_desc = meta.get("description", "Без описания")
-            returns = meta.get("returns", "")
-            sql = meta.get("sql", "").strip()
-            parameters = meta.get("parameters", {})
+        for name, script_def in SCRIPTS_REGISTRY.items():
+            short_desc = script_def.description
+            returns = script_def.returns
+            sql = script_def.sql_template.strip()
+            parameters = script_def.parameters
             
             lines.append(f"**{name}** — {short_desc}")
             lines.append(f"- Возвращает: {returns}")
             
             required = []
             optional = []
-            for param_name, param_config in parameters.items():
+            for param_name, param_def in parameters.items():
                 if param_name == "max_rows":
                     continue
-                if isinstance(param_config, dict):
-                    if param_config.get("required", False):
-                        required.append(param_name)
-                    else:
-                        optional.append(param_name)
+                if param_def.required:
+                    required.append(param_name)
                 else:
                     optional.append(param_name)
             
@@ -268,26 +265,22 @@ class CheckResultSkill(Skill):
         from .handlers.execute_script_handler import SCRIPTS_REGISTRY
         
         scripts_lines = ["📜 ДОСТУПНЫЕ СКРИПТЫ (вызывай ТОЛЬКО эти script_name):"]
-        for name, meta in SCRIPTS_REGISTRY.items():
-            parameters = meta.get("parameters", {})
+        for name, script_def in SCRIPTS_REGISTRY.items():
+            parameters = script_def.parameters
             
             required = []
             optional = []
             param_descriptions = {}
             
-            for param_name, param_config in parameters.items():
+            for param_name, param_def in parameters.items():
                 if param_name == "max_rows":
                     continue
-                if isinstance(param_config, dict):
-                    if param_config.get("required", False):
-                        required.append(param_name)
-                    else:
-                        optional.append(param_name)
-                    if param_config.get("description"):
-                        param_descriptions[param_name] = param_config["description"]
+                if param_def.required:
+                    required.append(param_name)
                 else:
-                    # Сокращённая запись - считаем как optional
                     optional.append(param_name)
+                if param_def.description:
+                    param_descriptions[param_name] = param_def.description
             
             all_params = required + optional
             params_str = ", ".join(all_params) if all_params else "нет"
