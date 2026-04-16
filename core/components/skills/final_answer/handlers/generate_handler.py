@@ -174,10 +174,10 @@ class GenerateFinalAnswerHandler(SkillHandler):
             f"Цель: {goal}",
             dialogue_section,
             "## observations:",
-            "\n".join([f"- {o}" for o in observations[:20]]),
+            "\n".join([f"- {o}" for o in observations]),
             "",
             "## thoughts:",
-            "\n".join([f"- {t}" for t in thoughts[:20]]),
+            "\n".join([f"- {t}" for t in thoughts]),
             "",
             "## actions:",
             "\n".join([f"- {a}" for a in actions[:max_sources]])

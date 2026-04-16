@@ -150,7 +150,7 @@ class VectorSearchHandler(SkillHandler):
                     "severity": metadata.get("severity", ""),
                     "status": metadata.get("status", ""),
                     "responsible": metadata.get("responsible", ""),
-                    "matched_text": metadata.get("search_text", "")[:300],
+                    "matched_text": metadata.get("search_text", ""),
                 }
             elif "audit_id" in metadata:
                 # Аудиторская проверка (audits индекс)
@@ -162,7 +162,7 @@ class VectorSearchHandler(SkillHandler):
                     "audit_type": metadata.get("audit_type", ""),
                     "status": metadata.get("status", ""),
                     "auditee_entity": metadata.get("auditee_entity", ""),
-                    "matched_text": metadata.get("search_text", "")[:300],
+                    "matched_text": metadata.get("search_text", ""),
                 }
             else:
                 # Неизвестный тип — возвращаем как есть
@@ -170,7 +170,7 @@ class VectorSearchHandler(SkillHandler):
                     "type": "unknown",
                     "score": round(score, 3),
                     "metadata": metadata,
-                    "matched_text": metadata.get("search_text", metadata.get("content", ""))[:300],
+                    "matched_text": metadata.get("search_text", metadata.get("content", "")),
                 }
 
             formatted.append(formatted_item)
