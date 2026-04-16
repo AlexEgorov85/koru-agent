@@ -274,9 +274,9 @@ class ReActPattern(BaseBehaviorPattern):
                 event_type=LogEventType.LLM_RESPONSE
             )
 
-            # Сохраняем размышление
-            thought = getattr(reasoning_result, "thought", "") or ""
-            session_context.record_decision(decision_data="reasoning", reasoning=thought)
+            # Извлекаем размышление из 10 полей анализа
+            reasoning = self._extract_analysis_reasoning(reasoning_result)
+            session_context.record_decision(decision_data="reasoning", reasoning=reasoning)
 
             # Принятие решения
             decision = await self._make_decision(reasoning_result, available_capabilities)
@@ -307,14 +307,14 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Decision:
         """Преобразовать результат LLM в Decision."""
-        # reasoning_result может быть dict или объектом
+        reasoning = self._extract_analysis_reasoning(reasoning_result)
+        
         if isinstance(reasoning_result, dict):
             stop_condition = reasoning_result.get("stop_condition", False)
             stop_reason = reasoning_result.get("stop_reason", None)
             decision = reasoning_result.get("decision", None)
             capability_name = decision.get("next_action", None) if isinstance(decision, dict) else None
             parameters = decision.get("parameters", {}) if isinstance(decision, dict) else {}
-            reasoning = decision.get("reasoning", "") if isinstance(decision, dict) else ""
         else:
             stop_condition = getattr(reasoning_result, "stop_condition", False)
             stop_reason = getattr(reasoning_result, "stop_reason", None)
@@ -322,11 +322,9 @@ class ReActPattern(BaseBehaviorPattern):
             if isinstance(decision, dict):
                 capability_name = decision.get("next_action", None)
                 parameters = decision.get("parameters", {})
-                reasoning = decision.get("reasoning", "")
             else:
                 capability_name = getattr(decision, "next_action", None) if decision else None
                 parameters = getattr(decision, "parameters", {}) if decision else {}
-                reasoning = getattr(decision, "reasoning", "") if decision else ""
 
         if stop_condition:
             return self._handle_stop_condition(capability_name, parameters, stop_reason)
@@ -412,3 +410,31 @@ class ReActPattern(BaseBehaviorPattern):
         """Обработать ошибку - возвращаем FAIL."""
         self.error_count += 1
         return self.fallback_strategy.create_error(reason, capabilities)
+
+    def _extract_analysis_reasoning(self, reasoning_result: Any) -> str:
+        """
+        Извлекает размышление из 10 полей анализа нового контракта.
+        
+        RETURNS:
+        - str: форматированное размышление для логирования
+        """
+        ANALYSIS_FIELDS = [
+            ("analysis_progress", "Прогресс"),
+            ("analysis_state", "Состояние"),
+            ("analysis_deficit", "Дефицит"),
+            ("analysis_history", "История"),
+            ("analysis_errors", "Ошибки"),
+            ("analysis_tool_choice", "Выбор инструмента"),
+            ("analysis_params", "Параметры"),
+            ("analysis_fallback", "Fallback"),
+            ("analysis_stop", "Остановка"),
+            ("analysis_final", "Итог"),
+        ]
+        
+        lines = []
+        for field_name, label in ANALYSIS_FIELDS:
+            value = getattr(reasoning_result, field_name, None)
+            if value:
+                lines.append(f"{label}: {value}")
+        
+        return "\n".join(lines) if lines else "Размышление не доступно"

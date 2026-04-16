@@ -8,6 +8,7 @@
 - Предоставляет общие сервисы: PromptBuilderService, CapabilityResolverService
 - Логирование через стандартный logging + LogEventType (НЕ через EventBus)
 """
+import json
 import logging
 import typing
 from typing import Dict, Any, Optional, List, Type
@@ -191,20 +192,27 @@ class PromptBuilderService:
                         if hasattr(item, 'quick_content') and item.quick_content:
                             obs_parts.append(item.quick_content)
                         elif hasattr(item, 'content'):
-                            content_str = str(item.content)
-                            obs_parts.append(content_str)
+                            from core.agent.observation_formatter import format_observation
+                            obs_parts.append(format_observation(item.content, capability, parameters))
                 if obs_parts:
                     obs_text = "\n".join(obs_parts)
             elif hasattr(step, 'result') and step.result is not None:
-                obs_text = str(step.result)
+                from core.agent.observation_formatter import format_observation
+                obs_text = format_observation(step.result, capability, parameters)
             elif isinstance(step, dict) and step.get('result'):
-                obs_text = str(step['result'])
+                from core.agent.observation_formatter import format_observation
+                obs_text = format_observation(step['result'], capability, parameters)
 
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
 
             block = f"[ШАГ {i}]\n"
-            block += f"💭 Обоснование: {thought}\n"
+            
+            if "\n" in thought:
+                block += f"💭 Обоснование:\n{thought}\n"
+            else:
+                block += f"💭 Обоснование: {thought}\n"
+            
             block += f"🛠️ Действие: {capability}\n"
             block += f"📥 Параметры: {parameters}\n"
             block += f"👁️ Наблюдение: {obs_text}\n"

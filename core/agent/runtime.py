@@ -20,7 +20,7 @@ from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
-from core.agent.observation_formatter import format_observation
+from core.agent.observation_formatter import format_observation, smart_format_observation
 from core.components.skills.utils.observation_policy import ObservationPolicy
 
 
@@ -402,20 +402,18 @@ class AgentRuntime:
                     additional_metadata = {}
                     parameters = decision.parameters or {}
                     
-# Все навыки используют format_observation (читаемая строка с данными)
-                    formatted_observation = format_observation(
+                    quick_content = smart_format_observation(
                         result_data=result.data,
                         capability_name=decision.action,
                         parameters=decision.parameters
                     )
-                    quick_content = formatted_observation
 
                     observation_item = ContextItem(
                         item_id='',
                         session_id=self.session_context.session_id,
                         item_type=ContextItemType.OBSERVATION,
                         content=result.data,
-                        quick_content=formatted_observation if isinstance(formatted_observation, str) else quick_content,
+                        quick_content=quick_content,
                         metadata=ContextItemMetadata(
                             source=decision.action,
                             step_number=executed_steps + 1,
