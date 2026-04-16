@@ -373,28 +373,26 @@ class PromptBuilderService:
         schema_validator: Optional[Any] = None,
         application_context=None
     ) -> str:
-        """Форматирует список инструментов с параметрами из реальных контрактов компонентов.
+        """Формирует структурированный контекст инструментов для LLM.
 
-        АРХИТЕКТУРА:
-        - Берёт схемы напрямую из component.input_contracts (Pydantic модели)
-        - Использует model_json_schema() для получения полного описания параметров
-        - Включает description, type, required для каждого параметра
-        - Для skills с несколькими capability генерирует правила выбора
+        СТРУКТУРА:
+        1. Для каждого skill - описание с режимами (capabilities)
+        2. Для каждого capability - параметры с описанием
+        3. Для check_result - детальная информация о скриптах
 
         ARGS:
         - available_capabilities: список доступных capability
-        - schema_validator: опциональный валидатор схем (для обратной совместимости)
-        - application_context: контекст приложения для доступа к компонентам
+        - schema_validator: опциональный валидатор схем
+        - application_context: контекст приложения
 
         RETURNS:
-        - str: отформатированный список инструментов с параметрами и правилами выбора
+        - str: структурированный список инструментов
         """
-        # Собираем все input_contracts от всех компонентов (tools + skills)
+        from collections import defaultdict
+        from core.models.enums.common_enums import ComponentType
+
         all_contracts: Dict[str, Dict[str, Any]] = {}
-
         if application_context and hasattr(application_context, 'components'):
-            from core.models.enums.common_enums import ComponentType
-
             for component in application_context.components.all_of_type(ComponentType.TOOL):
                 if hasattr(component, 'input_contracts'):
                     for cap_name, contract_class in component.input_contracts.items():
@@ -407,110 +405,185 @@ class PromptBuilderService:
                         if hasattr(contract_class, 'model_json_schema'):
                             all_contracts[cap_name] = contract_class.model_json_schema()
 
-        # Fallback: пытаемся получить из schema_validator если нет application_context
         if not all_contracts and schema_validator:
-            validator = schema_validator
             for cap in available_capabilities:
                 cap_name = cap.name if hasattr(cap, 'name') else cap.get('name', '')
                 schema_obj = validator.get_capability_schema(cap_name)
                 if schema_obj and hasattr(schema_obj, 'to_dict'):
                     all_contracts[cap_name] = schema_obj.to_dict()
 
-        # Генерируем правила выбора на основе capabilities
-        tools_selection_rules = self._generate_tools_selection_rules(available_capabilities, application_context)
-        lines = [tools_selection_rules] if tools_selection_rules else []
-
-        # Проверяем наличие check_result skill для расширенного контекста скриптов
-        scripts_context = None
+        # Собираем скрипты для check_result
+        scripts_registry = None
+        tables_config = None
         if application_context and hasattr(application_context, 'components'):
-            from core.models.enums.common_enums import ComponentType
-            from core.components.skills.check_result.utils import ScriptsContextBuilder
-            from core.components.skills.check_result.handlers.execute_script_handler import SCRIPTS_REGISTRY
-
-            check_result_skill = None
             for component in application_context.components.all_of_type(ComponentType.SKILL):
                 if hasattr(component, 'name') and component.name == 'check_result':
-                    check_result_skill = component
+                    tables_config = component.get_tables_config() if hasattr(component, 'get_tables_config') else None
                     break
 
-            if check_result_skill and hasattr(check_result_skill, 'get_tables_config'):
-                tables_cfg = check_result_skill.get_tables_config()
-                builder = ScriptsContextBuilder(SCRIPTS_REGISTRY, tables_cfg)
-                scripts_context = builder.build()
-            else:
-                scripts_context = "⚠️ Метаданные таблиц не загружены."
+        if tables_config is None:
+            tables_config = []
+
+        # Импорт SCRIPTS_REGISTRY
+        try:
+            from core.components.skills.check_result.handlers.execute_script_handler import SCRIPTS_REGISTRY as scripts_registry
+        except ImportError:
+            scripts_registry = {}
+
+        # Группируем capabilities по skill
+        skills_data: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            'capabilities': [],
+            'scripts': {}
+        })
+
+        standalone_caps = []
 
         for cap in available_capabilities:
-            visiable = cap.visiable if hasattr(cap, 'visiable') else True
-            if not visiable:
-                continue
+            skill_name = cap.skill_name if hasattr(cap, 'skill_name') and cap.skill_name else None
 
-            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
-            description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
+            if skill_name:
+                skills_data[skill_name]['capabilities'].append({
+                    'name': cap.name,
+                    'description': cap.description
+                })
+            else:
+                standalone_caps.append(cap)
 
-            # Для check_result.execute_script используем расширенный контекст с метаданными
-            if name == "check_result.execute_script" and scripts_context:
-                lines.append(scripts_context)
-                continue
+        lines = ["## ДОСТУПНЫЕ ИНСТРУМЕНТЫ"]
 
-            params_schema = all_contracts.get(name)
+        # Формируем для каждого skill
+        for skill_name, data in sorted(skills_data.items()):
+            caps = data['capabilities']
 
-            line = f"- {name}: {description}"
-            if params_schema and isinstance(params_schema, dict):
-                properties = params_schema.get('properties', {})
-                required_fields = params_schema.get('required', [])
+            if len(caps) > 1:
+                lines.append(f"\n### {skill_name.upper()}")
+                lines.append("Режимы работы:")
 
-                params_list = []
-                for param_name, param_info in properties.items():
-                    param_type = param_info.get('type', 'string')
-                    is_required = param_name in required_fields
-                    req_mark = "(required)" if is_required else "(optional)"
-                    param_desc = param_info.get('description', '')
+                for cap_info in caps:
+                    cap_name = cap_info['name']
+                    cap_desc = cap_info['description']
 
-                    if param_type == 'object' and 'properties' in param_info:
-                        nested_props = param_info.get('properties', {})
-                        nested_required = param_info.get('required', [])
-                        nested_lines = []
-                        for nested_name, nested_info in nested_props.items():
-                            nested_type = nested_info.get('type', 'string')
-                            nested_req = "(required)" if nested_name in nested_required else "(optional)"
-                            nested_desc = nested_info.get('description', '')
-                            default_val = nested_info.get('default')
-                            default_str = f", default: {default_val}" if default_val is not None else ""
+                    # Пропускаем execute_script - он будет детализирован ниже
+                    if 'execute_script' in cap_name and scripts_registry:
+                        lines.append(f"\n#### {cap_name}")
+                        lines.append(f"{cap_desc}\n")
 
-                            if 'enum' in nested_info:
-                                enum_vals = ', '.join([str(e) for e in nested_info['enum']])
-                                nested_desc += f" (варианты: {enum_vals})"
+                        # Детализация скриптов
+                        lines.append("Доступные скрипты:")
+                        for script_name, script_def in scripts_registry.items():
+                            script_desc = getattr(script_def, 'description', '') or ''
+                            script_returns = getattr(script_def, 'returns', '') or ''
+                            script_params = getattr(script_def, 'parameters', {}) or {}
 
-                            if nested_desc:
-                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str} — {nested_desc}")
-                            else:
-                                nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str}")
+                            lines.append(f"\n**Скрипт: {script_name}**")
+                            if script_desc:
+                                lines.append(f"Описание: {script_desc}")
+                            if script_returns:
+                                lines.append(f"Возвращает: {script_returns}")
 
-                        params_list.append(f"{param_name}: object {req_mark} — {param_desc}")
-                        params_list.append(f"    Структура {param_name}:")
-                        for nl in nested_lines:
-                            params_list.append(f"      - {nl}")
+                            # Параметры скрипта
+                            if script_params:
+                                lines.append("Параметры:")
+                                for pname, pdef in script_params.items():
+                                    if pname == 'max_rows':
+                                        continue
+
+                                    if hasattr(pdef, 'required'):
+                                        required = "обязательный" if pdef.required else "опциональный"
+                                    else:
+                                        required = "опциональный"
+
+                                    if hasattr(pdef, 'description'):
+                                        pdesc = pdef.description
+                                    elif isinstance(pdef, dict):
+                                        required = "обязательный" if pdef.get('required') else "опциональный"
+                                        pdesc = pdef.get('description', '')
+                                    else:
+                                        pdesc = ''
+
+                                    # enum values
+                                    if hasattr(pdef, 'validation') and pdef.validation:
+                                        validation = pdef.validation
+                                        if validation.get('type') == 'enum':
+                                            vals = validation.get('allowed_values', [])
+                                            if vals:
+                                                pdesc += f" (варианты: {', '.join(vals)})"
+                                    elif isinstance(pdef, dict) and 'validation' in pdef:
+                                        validation = pdef['validation']
+                                        if validation.get('type') == 'enum':
+                                            vals = validation.get('allowed_values', [])
+                                            if vals:
+                                                pdesc += f" (варианты: {', '.join(vals)})"
+
+                                    if pdesc:
+                                        lines.append(f"  - `{pname}` ({required}): {pdesc}")
+                                    else:
+                                        lines.append(f"  - `{pname}` ({required})")
                     else:
-                        default_val = param_info.get('default')
-                        default_str = f", default: {default_val}" if default_val is not None else ""
+                        # Обычные capabilities - добавляем параметры
+                        lines.append(f"\n#### {cap_name}")
+                        lines.append(f"{cap_desc}")
 
-                        if 'enum' in param_info:
-                            enum_vals = ', '.join([str(e) for e in param_info['enum']])
-                            param_desc += f" (варианты: {enum_vals})"
+                        params_schema = all_contracts.get(cap_name, {})
+                        if params_schema:
+                            properties = params_schema.get('properties', {})
+                            if properties:
+                                lines.append("Параметры:")
+                                for param_name, param_info in properties.items():
+                                    param_type = param_info.get('type', 'string')
+                                    required = param_info.get('required', False)
+                                    req_str = "обязательный" if required else "опциональный"
+                                    param_desc = param_info.get('description', '')
 
-                        if param_desc:
-                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str} — {param_desc}")
+                                    if 'enum' in param_info:
+                                        enum_vals = ', '.join([str(e) for e in param_info['enum']])
+                                        param_desc += f" (варианты: {enum_vals})"
+
+                                    if param_desc:
+                                        lines.append(f"  - `{param_name}` ({param_type}, {req_str}): {param_desc}")
+                                    else:
+                                        lines.append(f"  - `{param_name}` ({param_type}, {req_str})")
                         else:
-                            params_list.append(f"{param_name}: {param_type} {req_mark}{default_str}")
+                            lines.append("  (параметры не описаны)")
 
-                if params_list:
-                    line += "\n    Параметры:"
-                    for p in params_list:
-                        line += f"\n      {p}"
-            lines.append(line)
+            else:
+                # Skill с одним capability
+                cap_info = caps[0]
+                lines.append(f"\n### {skill_name.upper()}")
+                lines.append(f"**{cap_info['name']}**: {cap_info['description']}")
+
+        # Добавляем standalone capabilities
+        if standalone_caps:
+            lines.append("\n### ДРУГИЕ ИНСТРУМЕНТЫ")
+            for cap in standalone_caps:
+                cap_name = cap.name if hasattr(cap, 'name') else 'unknown'
+                cap_desc = cap.description if hasattr(cap, 'description') else ''
+
+                lines.append(f"\n#### {cap_name}")
+                lines.append(f"{cap_desc}")
+
+                params_schema = all_contracts.get(cap_name, {})
+                if params_schema:
+                    properties = params_schema.get('properties', {})
+                    if properties:
+                        lines.append("Параметры:")
+                        for param_name, param_info in properties.items():
+                            param_type = param_info.get('type', 'string')
+                            required = param_info.get('required', False)
+                            req_str = "обязательный" if required else "опциональный"
+                            param_desc = param_info.get('description', '')
+
+                            if 'enum' in param_info:
+                                enum_vals = ', '.join([str(e) for e in param_info['enum']])
+                                param_desc += f" (варианты: {enum_vals})"
+
+                            if param_desc:
+                                lines.append(f"  - `{param_name}` ({param_type}, {req_str}): {param_desc}")
+                            else:
+                                lines.append(f"  - `{param_name}` ({param_type}, {req_str})")
+
         return "\n".join(lines)
-    
+
     def _render_prompt(self, template: str, variables: Dict[str, Any]) -> str:
         """Рендерит шаблон с подстановкой переменных."""
         rendered = template
