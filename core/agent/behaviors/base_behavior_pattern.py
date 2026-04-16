@@ -379,6 +379,7 @@ class PromptBuilderService:
         - Берёт схемы напрямую из component.input_contracts (Pydantic модели)
         - Использует model_json_schema() для получения полного описания параметров
         - Включает description, type, required для каждого параметра
+        - Для skills с несколькими capability генерирует правила выбора
 
         ARGS:
         - available_capabilities: список доступных capability
@@ -386,7 +387,7 @@ class PromptBuilderService:
         - application_context: контекст приложения для доступа к компонентам
 
         RETURNS:
-        - str: отформатированный список инструментов с параметрами
+        - str: отформатированный список инструментов с параметрами и правилами выбора
         """
         # Собираем все input_contracts от всех компонентов (tools + skills)
         all_contracts: Dict[str, Dict[str, Any]] = {}
@@ -415,9 +416,31 @@ class PromptBuilderService:
                 if schema_obj and hasattr(schema_obj, 'to_dict'):
                     all_contracts[cap_name] = schema_obj.to_dict()
 
-        lines = []
+        # Генерируем правила выбора на основе capabilities
+        tools_selection_rules = self._generate_tools_selection_rules(available_capabilities, application_context)
+        lines = [tools_selection_rules] if tools_selection_rules else []
+
+        # Проверяем наличие check_result skill для расширенного контекста скриптов
+        scripts_context = None
+        if application_context and hasattr(application_context, 'components'):
+            from core.models.enums.common_enums import ComponentType
+            from core.components.skills.check_result.utils import ScriptsContextBuilder
+            from core.components.skills.check_result.handlers.execute_script_handler import SCRIPTS_REGISTRY
+
+            check_result_skill = None
+            for component in application_context.components.all_of_type(ComponentType.SKILL):
+                if hasattr(component, 'name') and component.name == 'check_result':
+                    check_result_skill = component
+                    break
+
+            if check_result_skill and hasattr(check_result_skill, 'get_tables_config'):
+                tables_cfg = check_result_skill.get_tables_config()
+                builder = ScriptsContextBuilder(SCRIPTS_REGISTRY, tables_cfg)
+                scripts_context = builder.build()
+            else:
+                scripts_context = "⚠️ Метаданные таблиц не загружены."
+
         for cap in available_capabilities:
-            # Учитываем флаг видимости
             visiable = cap.visiable if hasattr(cap, 'visiable') else True
             if not visiable:
                 continue
@@ -425,7 +448,11 @@ class PromptBuilderService:
             name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
             description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
 
-            # Получаем схему из собранных контрактов
+            # Для check_result.execute_script используем расширенный контекст с метаданными
+            if name == "check_result.execute_script" and scripts_context:
+                lines.append(scripts_context)
+                continue
+
             params_schema = all_contracts.get(name)
 
             line = f"- {name}: {description}"
@@ -440,9 +467,7 @@ class PromptBuilderService:
                     req_mark = "(required)" if is_required else "(optional)"
                     param_desc = param_info.get('description', '')
 
-                    # Раскрываем вложенные объекты
                     if param_type == 'object' and 'properties' in param_info:
-                        # Это сложный объект — форматируем с вложенными полями
                         nested_props = param_info.get('properties', {})
                         nested_required = param_info.get('required', [])
                         nested_lines = []
@@ -452,32 +477,28 @@ class PromptBuilderService:
                             nested_desc = nested_info.get('description', '')
                             default_val = nested_info.get('default')
                             default_str = f", default: {default_val}" if default_val is not None else ""
-                            
-                            # Добавляем enum если есть
+
                             if 'enum' in nested_info:
                                 enum_vals = ', '.join([str(e) for e in nested_info['enum']])
                                 nested_desc += f" (варианты: {enum_vals})"
-                            
+
                             if nested_desc:
                                 nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str} — {nested_desc}")
                             else:
                                 nested_lines.append(f"{nested_name}: {nested_type} {nested_req}{default_str}")
-                        
-                        # Форматируем как блок с вложенностью
+
                         params_list.append(f"{param_name}: object {req_mark} — {param_desc}")
                         params_list.append(f"    Структура {param_name}:")
                         for nl in nested_lines:
                             params_list.append(f"      - {nl}")
                     else:
-                        # Простой тип
                         default_val = param_info.get('default')
                         default_str = f", default: {default_val}" if default_val is not None else ""
-                        
-                        # Добавляем enum если есть
+
                         if 'enum' in param_info:
                             enum_vals = ', '.join([str(e) for e in param_info['enum']])
                             param_desc += f" (варианты: {enum_vals})"
-                        
+
                         if param_desc:
                             params_list.append(f"{param_name}: {param_type} {req_mark}{default_str} — {param_desc}")
                         else:
@@ -583,6 +604,74 @@ class PromptBuilderService:
             cap for cap in capabilities
             if pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
         ]
+
+    def _generate_tools_selection_rules(
+        self,
+        available_capabilities: List[Capability],
+        application_context=None
+    ) -> str:
+        """Генерирует унифицированные правила выбора инструментов на основе capabilities.
+
+        ПРАВИЛА:
+        - Группирует capabilities по skill
+        - Для каждого skill с несколькими capability генерирует правила выбора
+        - Для одиночных capabilities просто перечисляет их
+
+        ВОЗВРАЩАЕТ:
+        - str: markdown с правилами выбора
+        """
+        from collections import defaultdict
+
+        # Группируем capabilities по skill
+        skills_caps: Dict[str, List[Capability]] = defaultdict(list)
+        standalone_caps = []
+
+        for cap in available_capabilities:
+            skill_name = cap.skill_name if hasattr(cap, 'skill_name') and cap.skill_name else "other"
+            if skill_name and skill_name != "other":
+                skills_caps[skill_name].append(cap)
+            else:
+                standalone_caps.append(cap)
+
+        lines = ["=== ПРАВИЛА ВЫБОРА ИНСТРУМЕНТОВ ==="]
+
+        # Обрабатываем каждый skill с несколькими capabilities
+        for skill_name, caps in skills_caps.items():
+            if len(caps) > 1:
+                # Skill с несколькими capabilities - генерируем правила выбора
+                lines.append(f"\n🔷 **{skill_name.upper()}**")
+                lines.append("Выбери подходящий режим:")
+
+                # Сортируем: сначала execute, потом generate, потом другие
+                sorted_caps = sorted(caps, key=lambda c: (
+                    0 if "execute" in c.name else
+                    1 if "generate" in c.name else
+                    2 if "search" in c.name else
+                    3
+                ))
+
+                for i, cap in enumerate(sorted_caps, 1):
+                    desc = cap.description if hasattr(cap, 'description') else ""
+                    # Обрезаем длинные описания
+                    if len(desc) > 150:
+                        desc = desc[:147] + "..."
+                    lines.append(f"  {i}. `{cap.name}` — {desc}")
+
+            elif len(caps) == 1:
+                # Одиночная capability - просто добавляем в конец
+                cap = caps[0]
+                lines.append(f"\n- `{cap.name}`")
+
+        # Добавляем standalone capabilities
+        if standalone_caps:
+            lines.append("\n📌 Другие инструменты:")
+            for cap in standalone_caps:
+                desc = cap.description if hasattr(cap, 'description') else ""
+                if len(desc) > 100:
+                    desc = desc[:97] + "..."
+                lines.append(f"- `{cap.name}` — {desc}")
+
+        return "\n".join(lines)
 
 
 class BaseBehaviorPattern(Component, BehaviorPatternInterface):
