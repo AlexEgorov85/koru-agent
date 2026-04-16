@@ -2,50 +2,55 @@ capability: behavior.react.think.user
 component_type: behavior
 version: v1.0.0
 status: active
-description: User prompt для рассуждения в цикле ReAct
+description: User prompt для рассуждения в цикле ReAct с контекстом сессии
 content: |
-  === КОНТЕКСТ ===
-  {input}
-  {dialogue_history}
+  === КОНТЕКСТ СЕССИИ ===
   Цель: {goal}
-  История: {step_history}
+  Текущий запрос: 
+  {input}
 
-  === ИНСТРУМЕНТЫ ===
+  История диалога: 
+  {dialogue_history}
+
+  История шагов: 
+  {step_history}
+
+  Доступные инструменты: 
   {available_tools}
 
-  === ПРАВИЛА ВЫБОРА ИНСТРУМЕНТА ===
-  Выбирай инструмент на основе доступности и контекста задачи.
+  === ИНСТРУКЦИЯ ПО ЗАПОЛНЕНИЮ КОНТРАКТА ===
+  Проанализируй контекст выше и последовательно ответь на следующие вопросы. Ответы автоматически станут значениями полей анализа:
 
-  1. check_result.execute_script — для ПРОСТЫХ запросов к БД:
-     - "открытые отклонения" → get_violations_by_status (параметр status='Открыто')
-     - "проверки в работе" → get_audit_by_status (параметр status='В работе')
-     - "просроченные отклонения" → get_overdue_violations
-     - "отклонения по проверке N" → get_violations_by_audit (параметр audit_id=N)
-     - "статистика проверок" → get_audit_statistics
+  1. `analysis_progress`: Насколько я близок к цели? Что уже выполнено?
+  2. `analysis_state`: Какие конкретные данные уже собраны и сохранены?
+  3. `analysis_deficit`: Чего критически не хватает для финального ответа?
+  4. `analysis_history`: Вызывались ли уже похожие инструменты? Есть ли повторы подряд?
+  5. `analysis_errors`: Были ли ошибки (FAILED) ранее? Как их избежать сейчас?
+  6. `analysis_tool_choice`: Какой из доступных инструментов оптимально закрывает дефицит?
+  7. `analysis_params`: Все ли обязательные параметры известны? Если нет, как их получить?
+  8. `analysis_fallback`: Что я сделаю, если инструмент снова вернёт ошибку или 0 результатов?
+  9. `analysis_stop`: Выполнены ли условия для `stop_condition=true`?
+  10. `analysis_final`: Итоговое резюме: почему выбран именно этот `next_action`?
 
-  2. check_result.generate_script — для СЛОЖНЫХ запросов:
-     - запросы НЕ покрываемые готовыми скриптами
-     - требуется генерация SQL через LLM
-
-  3. final_answer.generate — когда данные получены и нужно сформировать ответ
+  === ФОРМАТ ОТВЕТА ===
+  Верни строго JSON, заполнив все 10 полей анализа и объект `decision` согласно схеме контракта.
 variables:
   - name: input
-    description: Текущий контекст задачи и состояние
+    description: Текущий контекст задачи
     required: true
   - name: dialogue_history
-    description: История предыдущих диалогов (вопросы и ответы)
+    description: История предыдущих диалогов
     required: false
   - name: goal
     description: Исходная цель задачи
     required: true
   - name: step_history
-    description: История выполненных шагов с результатами
+    description: "История шагов в формате: Мысль → Действие → Параметры → Наблюдение"
     required: false
   - name: available_tools
-    description: Список доступных инструментов с описаниями и параметрами
+    description: Список доступных инструментов с параметрами
     required: false
 metadata:
   author: system
-  created: '2026-02-19'
-  description: User prompt для behavior.react.think с примерами форматов
-  version_notes: 'Добавлена переменная {dialogue_history} для сохранения контекста между запросами'
+  created: '2026-04-16'
+  description: User prompt с явным маппингом на 10 полей анализа контракта
