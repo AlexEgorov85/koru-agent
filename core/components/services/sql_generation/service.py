@@ -217,7 +217,8 @@ class SQLGenerationService(Service):
         available_scripts: str = None,
         available_tables: str = None,
         input_data: SQLGenerationInput = None,
-        context: Optional[Any] = None
+        context: Optional[Any] = None,
+        **kwargs
     ) -> SQLGenerationResult:
         """
         Генерация безопасного параметризованного SQL-запроса.
