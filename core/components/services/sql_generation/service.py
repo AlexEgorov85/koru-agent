@@ -256,11 +256,7 @@ class SQLGenerationService(Service):
             "available_tables": available_tables or "",
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows,
-<<<<<<< HEAD
-            "hints": error_context or ""
-=======
             "hints": hints_value
->>>>>>> fde8dde (Fix: исправлен параметр hints в generate_query - теперь передаётся корректно)
         }
 
         # Используем кэшированный промпт из компонента
