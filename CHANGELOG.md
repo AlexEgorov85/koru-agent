@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## [5.39.0] - 2026-04-16
+
+### Changed
+- **LLM-контекст инструментов: унифицированное описание компонентов**
+  - Добавлен абстрактный метод `get_tool_description()` в Component base class
+  - Реализован в CheckResultSkill с полными параметрами capabilities
+  - Добавлен `get_scripts_description()` для детального описания скриптов
+  - Переписан `_format_available_tools_with_params` - использует `get_tool_description()` компонентов
+  - Структурированный вывод: skill → capability → параметры → скрипты
+  - Убран дублирующий код и Sources, оставлены только Available fields
+
+### Added
+- **check_result: улучшенный формат описания скриптов**
+  - Description: краткое описание скрипта
+  - Available fields: поля с описаниями из tables.yaml
+  - Parameters: типы, обязательность, описания и enum-варианты
+  - Sources убран как избыточная информация
+
 ## [5.38.0] - 2026-04-15
 
 ### Changed
