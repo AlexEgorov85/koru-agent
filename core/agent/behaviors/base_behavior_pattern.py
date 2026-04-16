@@ -375,10 +375,9 @@ class PromptBuilderService:
     ) -> str:
         """Формирует структурированный контекст инструментов для LLM.
 
-        СТРУКТУРА:
-        1. Для каждого skill - описание с режимами (capabilities)
-        2. Для каждого capability - параметры с описанием
-        3. Для check_result - детальная информация о скриптах
+        ИСПОЛЬЗУЕТ:
+        - get_tool_description() каждого компонента для получения полного описания
+        - input_contracts для параметров каждой capability
 
         ARGS:
         - available_capabilities: список доступных capability
@@ -388,65 +387,148 @@ class PromptBuilderService:
         RETURNS:
         - str: структурированный список инструментов
         """
-        from collections import defaultdict
         from core.models.enums.common_enums import ComponentType
 
-        all_contracts: Dict[str, Dict[str, Any]] = {}
-        if application_context and hasattr(application_context, 'components'):
-            for component in application_context.components.all_of_type(ComponentType.TOOL):
-                if hasattr(component, 'input_contracts'):
-                    for cap_name, contract_class in component.input_contracts.items():
-                        if hasattr(contract_class, 'model_json_schema'):
-                            all_contracts[cap_name] = contract_class.model_json_schema()
+        lines = ["## Доступные инструменты"]
 
-            for component in application_context.components.all_of_type(ComponentType.SKILL):
-                if hasattr(component, 'input_contracts'):
-                    for cap_name, contract_class in component.input_contracts.items():
-                        if hasattr(contract_class, 'model_json_schema'):
-                            all_contracts[cap_name] = contract_class.model_json_schema()
-
-        if not all_contracts and schema_validator:
+        if not application_context or not hasattr(application_context, 'components'):
+            # Fallback: простой формат
             for cap in available_capabilities:
-                cap_name = cap.name if hasattr(cap, 'name') else cap.get('name', '')
-                schema_obj = validator.get_capability_schema(cap_name)
-                if schema_obj and hasattr(schema_obj, 'to_dict'):
-                    all_contracts[cap_name] = schema_obj.to_dict()
+                lines.append(f"- {cap.name}: {cap.description}")
+            return "\n".join(lines)
 
-        # Собираем скрипты для check_result
-        scripts_registry = None
-        tables_config = None
-        if application_context and hasattr(application_context, 'components'):
-            for component in application_context.components.all_of_type(ComponentType.SKILL):
-                if hasattr(component, 'name') and component.name == 'check_result':
-                    tables_config = component.get_tables_config() if hasattr(component, 'get_tables_config') else None
-                    break
+        # Получаем описания от компонентов через get_tool_description()
+        component_descriptions: Dict[str, Dict[str, Any]] = {}
 
-        if tables_config is None:
-            tables_config = []
-
-        # Импорт SCRIPTS_REGISTRY
-        try:
-            from core.components.skills.check_result.handlers.execute_script_handler import SCRIPTS_REGISTRY as scripts_registry
-        except ImportError:
-            scripts_registry = {}
+        for component in application_context.components.all_components():
+            if hasattr(component, 'get_tool_description'):
+                try:
+                    desc = component.get_tool_description()
+                    if desc and hasattr(component, 'name'):
+                        component_descriptions[component.name] = desc
+                except Exception:
+                    pass
 
         # Группируем capabilities по skill
-        skills_data: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-            'capabilities': [],
-            'scripts': {}
-        })
-
+        skills_data: Dict[str, List[Dict[str, Any]]] = {}
         standalone_caps = []
 
         for cap in available_capabilities:
             skill_name = cap.skill_name if hasattr(cap, 'skill_name') and cap.skill_name else None
 
             if skill_name:
-                skills_data[skill_name]['capabilities'].append({
+                if skill_name not in skills_data:
+                    skills_data[skill_name] = []
+                skills_data[skill_name].append({
                     'name': cap.name,
                     'description': cap.description
                 })
             else:
+                standalone_caps.append(cap)
+
+        # Формируем секцию для каждого skill
+        for skill_name, caps in sorted(skills_data.items()):
+            skill_desc = component_descriptions.get(skill_name, {})
+            lines.append(f"\n### {skill_name.upper()}")
+
+            if skill_desc.get('description'):
+                lines.append(f"{skill_desc['description']}")
+
+            lines.append("\nРежимы работы:")
+
+            for cap_info in caps:
+                cap_name = cap_info['name']
+                cap_desc = cap_info['description']
+
+                # Пытаемся получить параметры из input_contracts
+                params_info = ""
+                for component in application_context.components.all_of_type(ComponentType.SKILL):
+                    if hasattr(component, 'name') and component.name == skill_name:
+                        if hasattr(component, 'input_contracts') and cap_name in component.input_contracts:
+                            contract_class = component.input_contracts[cap_name]
+                            if hasattr(contract_class, 'model_json_schema'):
+                                schema = contract_class.model_json_schema()
+                                props = schema.get('properties', {})
+                                if props:
+                                    params_info = self._format_params_from_schema(props, schema.get('required', []))
+
+                # Для execute_script добавляем детализацию скриптов
+                if 'execute_script' in cap_name:
+                    lines.append(f"\n#### {cap_name}")
+                    lines.append(f"{cap_desc}")
+
+                    # Детализация скриптов
+                    for component in application_context.components.all_of_type(ComponentType.SKILL):
+                        if hasattr(component, 'name') and component.name == skill_name:
+                            if hasattr(component, 'get_scripts_description'):
+                                try:
+                                    scripts_desc = component.get_scripts_description()
+                                    if scripts_desc:
+                                        lines.append(scripts_desc)
+                                except Exception:
+                                    pass
+
+                    if params_info:
+                        lines.append(params_info)
+                else:
+                    lines.append(f"\n#### {cap_name}")
+                    lines.append(f"{cap_desc}")
+                    if params_info:
+                        lines.append(params_info)
+
+        # Добавляем standalone capabilities (tools без skill_name)
+        if standalone_caps:
+            lines.append("\n### Другие инструменты")
+            for cap in standalone_caps:
+                cap_name = cap.name if hasattr(cap, 'name') else 'unknown'
+                cap_desc = cap.description if hasattr(cap, 'description') else ''
+
+                lines.append(f"\n#### {cap_name}")
+                lines.append(f"{cap_desc}")
+
+                # Параметры из component
+                tool_desc = component_descriptions.get(cap_name, {})
+                caps_list = tool_desc.get('capabilities', [])
+                if caps_list:
+                    for cap_item in caps_list:
+                        if cap_item.get('name') == cap_name:
+                            params = cap_item.get('parameters', {})
+                            if params:
+                                lines.append("Параметры:")
+                                for pname, pinfo in params.items():
+                                    ptype = pinfo.get('type', 'string')
+                                    preq = pinfo.get('required', False)
+                                    pdesc = pinfo.get('description', '')
+                                    req_str = "обязательный" if preq else "опциональный"
+                                    if pdesc:
+                                        lines.append(f"  - `{pname}` ({ptype}, {req_str}): {pdesc}")
+                                    else:
+                                        lines.append(f"  - `{pname}` ({ptype}, {req_str})")
+
+        return "\n".join(lines)
+
+    def _format_params_from_schema(self, properties: Dict[str, Any], required: List[str]) -> str:
+        """Форматирует параметры из JSON Schema в читаемый текст."""
+        if not properties:
+            return ""
+
+        lines = ["Параметры:"]
+        for param_name, param_info in properties.items():
+            param_type = param_info.get('type', 'string')
+            is_required = param_name in required
+            req_str = "обязательный" if is_required else "опциональный"
+            param_desc = param_info.get('description', '')
+
+            if 'enum' in param_info:
+                enum_vals = ', '.join([str(e) for e in param_info['enum']])
+                param_desc += f" (варианты: {enum_vals})"
+
+            if param_desc:
+                lines.append(f"  - `{param_name}` ({param_type}, {req_str}): {param_desc}")
+            else:
+                lines.append(f"  - `{param_name}` ({param_type}, {req_str})")
+
+        return "\n".join(lines)
                 standalone_caps.append(cap)
 
         lines = ["## ДОСТУПНЫЕ ИНСТРУМЕНТЫ"]

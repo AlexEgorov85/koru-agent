@@ -300,6 +300,24 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         """Описание компонента."""
         return f"Компонент {self.name} ({self._component_type})"
 
+    def get_tool_description(self) -> Dict[str, Any]:
+        """Возвращает описание компонента для LLM в структурированном формате.
+
+        RETURNS:
+        - Dict с ключами:
+          - name: имя компонента
+          - type: тип (skill/tool/service)
+          - description: краткое описание
+          - capabilities: список capabilities с параметрами
+          - scripts: для skills - доступные скрипты (опционально)
+        """
+        return {
+            "name": self.name,
+            "type": self._component_type,
+            "description": self.description,
+            "capabilities": []
+        }
+
     @property
     def application_context(self):
         """Доступ к ApplicationContext (только для чтения)."""

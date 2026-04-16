@@ -60,6 +60,42 @@ class CheckResultSkill(Skill):
 
     name: str = "check_result"
 
+    def get_tool_description(self) -> Dict[str, Any]:
+        """Возвращает описание навыка для LLM."""
+        caps = self.get_capabilities()
+        return {
+            "name": self.name,
+            "type": "skill",
+            "description": self.description,
+            "capabilities": [
+                {
+                    "name": c.name,
+                    "description": c.description,
+                    "parameters": self._get_capability_params(c.name)
+                }
+                for c in caps
+            ],
+            "scripts": self.get_scripts_description()
+        }
+
+    def _get_capability_params(self, capability_name: str) -> Dict[str, Any]:
+        """Получает параметры capability из input_contracts."""
+        if hasattr(self, 'input_contracts') and capability_name in self.input_contracts:
+            contract_class = self.input_contracts[capability_name]
+            if hasattr(contract_class, 'model_json_schema'):
+                schema = contract_class.model_json_schema()
+                props = schema.get('properties', {})
+                required = schema.get('required', [])
+                result = {}
+                for pname, pinfo in props.items():
+                    result[pname] = {
+                        "type": pinfo.get('type', 'string'),
+                        "required": pname in required,
+                        "description": pinfo.get('description', '')
+                    }
+                return result
+        return {}
+
     def __init__(
         self,
         name: str,
@@ -215,47 +251,67 @@ class CheckResultSkill(Skill):
         """Получение конфигурации таблиц (для использования в handlers)"""
         return self._tables_config
 
-    def get_scripts_info(self) -> str:
-        """Получение списка доступных скриптов для промта генерации SQL"""
+    def get_scripts_description(self) -> str:
+        """Получение структурированного описания скриптов для LLM.
+
+        RETURNS:
+        - str: форматированное описание скриптов с параметрами
+        """
         from .handlers.execute_script_handler import SCRIPTS_REGISTRY
-        
+
         if not SCRIPTS_REGISTRY:
             return ""
-        
-        lines = ["### ПРИМЕРЫ SQL ЗАПРОСОВ"]
-        lines.append("")
-        
+
+        lines = ["Доступные скрипты:"]
+
         for name, script_def in SCRIPTS_REGISTRY.items():
-            short_desc = script_def.description
-            returns = script_def.returns
-            sql = script_def.sql_template.strip()
-            parameters = script_def.parameters
-            
-            lines.append(f"**{name}** — {short_desc}")
-            lines.append(f"- Возвращает: {returns}")
-            
-            required = []
-            optional = []
-            for param_name, param_def in parameters.items():
-                if param_name == "max_rows":
-                    continue
-                if param_def.required:
-                    required.append(param_name)
-                else:
-                    optional.append(param_name)
-            
-            if required or optional:
-                params_list = required + optional
-                lines.append(f"- Параметры: {', '.join(params_list)}")
-            
-            if sql:
-                lines.append("")
-                lines.append("```sql")
-                lines.append(sql)
-                lines.append("```")
-            
-            lines.append("")
-        
+            short_desc = getattr(script_def, 'description', '') or ''
+            returns = getattr(script_def, 'returns', '') or ''
+            parameters = getattr(script_def, 'parameters', {}) or {}
+
+            lines.append(f"\n**Скрипт: {name}**")
+            if short_desc:
+                lines.append(f"Описание: {short_desc}")
+            if returns:
+                lines.append(f"Возвращает: {returns}")
+
+            if parameters:
+                lines.append("Параметры:")
+                for param_name, param_def in parameters.items():
+                    if param_name == "max_rows":
+                        continue
+
+                    if hasattr(param_def, 'required'):
+                        required = "обязательный" if param_def.required else "опциональный"
+                    else:
+                        required = "опциональный"
+
+                    if hasattr(param_def, 'description'):
+                        pdesc = param_def.description
+                    elif isinstance(param_def, dict):
+                        required = "обязательный" if param_def.get('required') else "опциональный"
+                        pdesc = param_def.get('description', '')
+                    else:
+                        pdesc = ''
+
+                    if hasattr(param_def, 'validation') and param_def.validation:
+                        validation = param_def.validation
+                        if validation.get('type') == 'enum':
+                            vals = validation.get('allowed_values', [])
+                            if vals:
+                                pdesc += f" (варианты: {', '.join(vals)})"
+                    elif isinstance(param_def, dict) and 'validation' in param_def:
+                        validation = param_def['validation']
+                        if validation.get('type') == 'enum':
+                            vals = validation.get('allowed_values', [])
+                            if vals:
+                                pdesc += f" (варианты: {', '.join(vals)})"
+
+                    if pdesc:
+                        lines.append(f"  - `{param_name}` ({required}): {pdesc}")
+                    else:
+                        lines.append(f"  - `{param_name}` ({required})")
+
         return "\n".join(lines)
 
     def _get_event_type_for_success(self) -> str:
