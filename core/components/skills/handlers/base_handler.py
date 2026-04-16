@@ -219,19 +219,20 @@ class SkillHandler(Component, ABC):
         description = metadata.get("description", "")
         columns = metadata.get("columns", [])
         
+        table_comment = f" -- {description}" if description else ""
+        result = f'"{schema_name}"."{table_name}"{table_comment} (\n'
+        
         cols_str = []
         for col in columns:
             col_name = col.get("column_name", "")
             data_type = col.get("data_type", "unknown")
             nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
-            default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
-            cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
+            col_desc = col.get("description", "")
+            col_comment = f" -- {col_desc}" if col_desc else ""
+            cols_str.append(f"    {col_name} {data_type} {nullable}{col_comment}")
         
-        result = f'"{schema_name}"."{table_name}" (\n'
-        result += ",\n".join(f"    {c}" for c in cols_str)
+        result += ",\n".join(cols_str)
         result += "\n)"
-        if description:
-            result += f" -- {description}"
         return result
     
     async def get_table_descriptions(self, tables_config: list, format_for_llm: bool = False) -> str:
@@ -271,23 +272,24 @@ class SkillHandler(Component, ABC):
             description = t.get("description", "")
             columns = t.get("columns", [])
             
+            table_comment = f" -- {description}" if description else ""
+            result = f'"{schema}"."{table}"{table_comment} (\n'
+            
             if columns:
                 cols_str = []
                 for col in columns:
                     col_name = col.get("column_name", "")
                     data_type = col.get("data_type", "unknown")
                     nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
-                    default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
-                    cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
+                    col_desc = col.get("description", "")
+                    col_comment = f" -- {col_desc}" if col_desc else ""
+                    cols_str.append(f"    {col_name} {data_type} {nullable}{col_comment}")
                 
-                result = f'"{schema}"."{table}" (\n'
-                result += ",\n".join(f"    {c}" for c in cols_str)
+                result += ",\n".join(cols_str)
                 result += "\n)"
             else:
-                result = f'"{schema}"."{table}"'
+                result = f'"{schema}"."{table}"{table_comment}'
             
-            if description:
-                result += f" -- {description}"
             schema_parts.append(result)
         
         return ",\n\n".join(schema_parts)
