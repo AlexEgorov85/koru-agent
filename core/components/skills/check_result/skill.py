@@ -222,17 +222,20 @@ class CheckResultSkill(Skill):
         if not SCRIPTS_REGISTRY:
             return ""
         
-        lines = ["=== ДОСТУПНЫЕ СКРИПТЫ ==="]
-        lines.append("ПЕРЕД генерацией SQL проверь - возможно подходящий скрипт уже есть:")
+        lines = ["### ПРИМЕРЫ SQL ЗАПРОСОВ"]
+        lines.append("")
         
         for name, meta in SCRIPTS_REGISTRY.items():
-            description = meta.get("description", "Без описания")
+            short_desc = meta.get("description", "Без описания")
+            returns = meta.get("returns", "")
+            sql = meta.get("sql", "").strip()
             parameters = meta.get("parameters", {})
+            
+            lines.append(f"**{name}** — {short_desc}")
+            lines.append(f"- Возвращает: {returns}")
             
             required = []
             optional = []
-            param_details = []
-            
             for param_name, param_config in parameters.items():
                 if param_name == "max_rows":
                     continue
@@ -241,18 +244,20 @@ class CheckResultSkill(Skill):
                         required.append(param_name)
                     else:
                         optional.append(param_name)
-                    if param_config.get("description"):
-                        param_details.append(f"  - {param_name}: {param_config['description']}")
                 else:
                     optional.append(param_name)
             
-            params_str = required + optional
-            lines.append(f"\n• {name}")
-            lines.append(f"  Описание: {description}")
-            if params_str:
-                lines.append(f"  Параметры: {', '.join(params_str)}")
-            if param_details:
-                lines.extend(param_details)
+            if required or optional:
+                params_list = required + optional
+                lines.append(f"- Параметры: {', '.join(params_list)}")
+            
+            if sql:
+                lines.append("")
+                lines.append("```sql")
+                lines.append(sql)
+                lines.append("```")
+            
+            lines.append("")
         
         return "\n".join(lines)
 

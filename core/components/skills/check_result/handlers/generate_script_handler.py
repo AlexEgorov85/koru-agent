@@ -125,7 +125,7 @@ class GenerateScriptHandler(SkillHandler):
 
             except Exception as e:
                 last_error = str(e)
-                await self.log_error(f"Ошибка генерации/выполнения SQL (попытка {attempt}): {last_error}")
+                self._log_error(f"Ошибка генерации/выполнения SQL (попытка {attempt}): {last_error}")
 
         # Все попытки исчерпаны
         total_time = time.time() - start_time

@@ -52,7 +52,9 @@ from core.components.skills.utils.param_validator import ParamValidator
 
 SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
     "get_all_audits": {
-        "description": "Получить все аудиторские проверки",
+        "description": "Список всех проверок (без фильтрации)",
+        "returns": "id, название, тип, даты, статус, объект проверки",
+        "long_description": "Возвращает ВСЕ проверки без фильтрации. Подходит когда пользователь спрашивает 'покажи все проверки', 'список проверок' без уточнений.",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
             FROM oarb.audits
@@ -64,7 +66,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_audit_by_status": {
-        "description": "Получить проверки по статусу",
+        "description": "Проверки с фильтром по статусу",
+        "returns": "id, название, тип, даты, статус, объект проверки",
+        "long_description": "ТОЛЬКО если пользователь ЯВНО указал статус в запросе: 'завершенные проверки', 'проверки в работе', 'отмененные проверки'. Не используй если статус не упомянут.",
         "sql": '''
             SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
             FROM oarb.audits
@@ -76,7 +80,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "status": {
                 "type": "like",
                 "required": True,
-                "description": "Статус проверки: 'В работе', 'Завершена', 'Отменена' и т.д.",
+                "description": "Статус: 'В работе', 'Завершена', 'Отменена', 'Планируется'",
                 "validation": {
                     "type": "enum",
                     "allowed_values": ["В работе", "Завершена", "Отменена", "Планируется"]
@@ -86,7 +90,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_audit_reports": {
-        "description": "Получить акты аудиторской проверки по ID проверки",
+        "description": "Акты конкретной проверки по её ID",
+        "returns": "id акта, номер, дата, название, полный текст",
+        "long_description": "ТОЛЬКО если известен ID проверки и нужно получить её акты. Обычно используется после получения списка проверок.",
         "sql": '''
             SELECT ar.id, ar.report_number, ar.report_date, ar.title, ar.full_text
             FROM oarb.audit_reports ar
@@ -98,13 +104,15 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "audit_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID аудиторской проверки (число из поля id таблицы oarb.audits)"
+                "description": "ID проверки (число)"
             },
             "max_rows": "limit"
         }
     },
     "get_report_items": {
-        "description": "Получить пункты акта по ID акта",
+        "description": "Пункты конкретного акта по его ID",
+        "returns": "id пункта, номер, название пункта, содержание, порядок",
+        "long_description": "ТОЛЬКО если известен ID акта. Используется после получения актов проверки.",
         "sql": '''
             SELECT id, item_number, item_title, item_content, order_index
             FROM oarb.report_items
@@ -116,13 +124,15 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "report_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID акта проверки (число из поля id таблицы oarb.audit_reports)"
+                "description": "ID акта (число)"
             },
             "max_rows": "limit"
         }
     },
     "get_violations_by_audit": {
-        "description": "Получить все отклонения по проверке",
+        "description": "Все отклонения конкретной проверки по ID",
+        "returns": "id, код, описание, рекомендация, критичность, статус, ответственный, срок",
+        "long_description": "ТОЛЬКО если известен ID проверки. Возвращает отклонения отсортированные по критичности (Высокая→Средняя→Низкая).",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline
@@ -141,13 +151,15 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "audit_id": {
                 "type": "exact",
                 "required": True,
-                "description": "ID аудиторской проверки (число из поля id таблицы oarb.audits)"
+                "description": "ID проверки (число)"
             },
             "max_rows": "limit"
         }
     },
     "get_violations_by_status": {
-        "description": "Получить отклонения по статусу",
+        "description": "Отклонения с фильтром по статусу",
+        "returns": "id, код, описание, рекомендация, критичность, статус, ответственный, срок, название проверки",
+        "long_description": "ТОЛЬКО если пользователь ЯВНО указал статус отклонения: 'открытые отклонения', 'устраненные нарушения', 'на проверке'. НЕ используй для общего списка отклонений.",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -167,7 +179,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "status": {
                 "type": "like",
                 "required": True,
-                "description": "Статус отклонения: 'Открыто', 'В работе', 'Устранено', 'На проверке'",
+                "description": "Статус: 'Открыто', 'В работе', 'Устранено', 'На проверке'",
                 "validation": {
                     "type": "enum",
                     "allowed_values": ["Открыто", "В работе", "Устранено", "На проверке"]
@@ -177,7 +189,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_violations_by_severity": {
-        "description": "Получить отклонения по уровню критичности",
+        "description": "Отклонения с фильтром по критичности",
+        "returns": "id, код, описание, рекомендация, критичность, статус, ответственный, срок, название проверки",
+        "long_description": "ТОЛЬКО если пользователь ЯВНО указал уровень критичности: 'высококритичные нарушения', 'средние отклонения'. НЕ используй для общего списка.",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -192,7 +206,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "severity": {
                 "type": "like",
                 "required": True,
-                "description": "Уровень критичности: 'Высокая', 'Средняя', 'Низкая'",
+                "description": "Критичность: 'Высокая', 'Средняя', 'Низкая'",
                 "validation": {
                     "type": "enum",
                     "allowed_values": ["Высокая", "Средняя", "Низкая"]
@@ -202,7 +216,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_overdue_violations": {
-        "description": "Получить просроченные отклонения (deadline < текущей даты)",
+        "description": "Просроченные отклонения (срок < сегодня)",
+        "returns": "id, код, описание, рекомендация, критичность, статус, ответственный, срок, название проверки, дней просрочки",
+        "long_description": "ТОЛЬКО если спрашивают про просроченные/просрочку/пропущенные сроки. Автоматически исключает устранённые. Сортировка: сначала самые просроченные.",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -220,7 +236,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_violations_by_responsible": {
-        "description": "Получить отклонения по ответственному лицу",
+        "description": "Отклонения конкретного ответственного",
+        "returns": "id, код, описание, рекомендация, критичность, статус, ответственный, срок, название проверки",
+        "long_description": "ТОЛЬКО если пользователь указал конкретного ответственного: 'нарушения Иванова', 'задачи Петровой'. Поддерживает частичный поиск по ФИО.",
         "sql": '''
             SELECT v.id, v.violation_code, v.description, v.recommendation,
                    v.severity, v.status, v.responsible, v.deadline,
@@ -235,7 +253,7 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
             "responsible": {
                 "type": "like",
                 "required": True,
-                "description": "ФИО ответственного лица (или часть имени для поиска)",
+                "description": "ФИО ответственного (частичный поиск)",
                 "validation": {
                     "table": "violations",
                     "search_fields": ["responsible"],
@@ -246,7 +264,9 @@ SCRIPTS_REGISTRY: Dict[str, Dict[str, Any]] = {
         }
     },
     "get_audit_statistics": {
-        "description": "Получить статистику по проверкам и отклонениям",
+        "description": "Статистика: количество проверок и отклонений",
+        "returns": "id проверки, название, тип, общее число отклонений, из них открытых/высоких/средних/низких",
+        "long_description": "ТОЛЬКО если спрашивают про статистику, количество, сводку, отчёты по проверкам. НЕ используй для получения детального списка нарушений.",
         "sql": '''
             SELECT
                 a.id as audit_id,
