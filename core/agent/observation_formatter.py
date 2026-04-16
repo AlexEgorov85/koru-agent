@@ -147,9 +147,15 @@ def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = 
     """Форматирует SQL результат (dataclass/pydantic объект)."""
     rows = getattr(data, 'rows', []) or []
     warning = getattr(data, 'warning', None)
+    sql_query = getattr(data, 'sql_query', "")
     max_display = 10
 
     lines = []
+    
+    if sql_query:
+        lines.append(f"SQL: {sql_query}")
+        if rows:
+            lines.append("")
     
     if warning:
         lines.append(f"⚠️ {warning}")
@@ -203,9 +209,15 @@ def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = N
     """Форматирует SQL результат."""
     rows = data.get("rows", [])
     warning = data.get("warning")
+    sql_query = data.get("sql_query", "")
     max_display = 10
 
     lines = []
+    
+    if sql_query:
+        lines.append(f"SQL: {sql_query}")
+        if rows:
+            lines.append("")
     
     if warning:
         lines.append(f"⚠️ {warning}")
