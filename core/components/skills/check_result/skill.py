@@ -255,25 +255,98 @@ class CheckResultSkill(Skill):
         """Получение структурированного описания скриптов для LLM.
 
         RETURNS:
-        - str: форматированное описание скриптов с параметрами
+        - str: форматированное описание скриптов с параметрами и полями таблиц
         """
+        import re
         from .handlers.execute_script_handler import SCRIPTS_REGISTRY
 
         if not SCRIPTS_REGISTRY:
             return ""
 
-        lines = ["Доступные скрипты:"]
+        lines = ["### ДОСТУПНЫЕ СКРИПТЫ (check_result.execute_script)"]
 
         for name, script_def in SCRIPTS_REGISTRY.items():
             short_desc = getattr(script_def, 'description', '') or ''
-            returns = getattr(script_def, 'returns', '') or ''
             parameters = getattr(script_def, 'parameters', {}) or {}
+            sql_template = getattr(script_def, 'sql_template', '') or ''
 
-            lines.append(f"\n**Скрипт: {name}**")
+            lines.append(f"\n**`{name}`**")
             if short_desc:
-                lines.append(f"Описание: {short_desc}")
-            if returns:
-                lines.append(f"Возвращает: {returns}")
+                lines.append(f"Description: {short_desc}")
+
+            tables_in_sql = re.findall(
+                r'(?:FROM|JOIN)\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)',
+                sql_template,
+                re.IGNORECASE
+            )
+
+            if tables_in_sql:
+                tables_str = ", ".join(set(t.split('.')[-1] for t in tables_in_sql[:2]))
+                lines.append(f"Sources: {tables_str}")
+
+                if self._tables_config:
+                    cols = []
+                    for t_name in tables_in_sql[:2]:
+                        for table in self._tables_config:
+                            table_name = table.get('table', '')
+                            if table_name in t_name or t_name in table_name:
+                                for col in table.get('columns', [])[:6]:
+                                    col_name = col.get('column_name', '')
+                                    col_desc = col.get('description', '')
+                                    if col_name:
+                                        cols.append(f"{col_name} — {col_desc}" if col_desc else col_name)
+                    if cols:
+                        lines.append("Available fields:")
+                        for col in cols[:8]:
+                            lines.append(f"  {col}")
+
+            if parameters:
+                filtered_params = {k: v for k, v in parameters.items() if k != 'max_rows'}
+                if filtered_params:
+                    lines.append("Parameters:")
+                    for pname, pdef in filtered_params.items():
+                        if hasattr(pdef, 'required'):
+                            required = "required" if pdef.required else "optional"
+                        elif isinstance(pdef, dict):
+                            required = "required" if pdef.get('required') else "optional"
+                        else:
+                            required = "optional"
+
+                        p_type = getattr(pdef, 'type', 'string') if hasattr(pdef, 'type') else 'string'
+                        if isinstance(pdef, dict):
+                            p_type = pdef.get('type', 'string')
+
+                        pdesc = getattr(pdef, 'description', '') or ''
+                        if isinstance(pdef, dict):
+                            pdesc = pdef.get('description', '')
+
+                        if hasattr(pdef, 'validation') and pdef.validation:
+                            validation = pdef.validation
+                            if validation.get('type') == 'enum':
+                                vals = validation.get('allowed_values', [])
+                                if vals:
+                                    pdesc += f" Variants: {', '.join(vals)}"
+                        elif isinstance(pdef, dict) and 'validation' in pdef:
+                            validation = pdef['validation']
+                            if validation.get('type') == 'enum':
+                                vals = validation.get('allowed_values', [])
+                                if vals:
+                                    pdesc += f" Variants: {', '.join(vals)}"
+
+                        pdesc = pdesc.strip()
+
+                        max_rows_default = getattr(script_def, 'max_rows_default', 50)
+                        if pname == 'max_rows' and pdesc:
+                            pdesc += f", default: {max_rows_default}"
+                        elif pname == 'max_rows':
+                            pdesc = f"optional, default: {max_rows_default}"
+
+                        if pdesc:
+                            lines.append(f"  - {pname} ({p_type}, {required}): {pdesc}")
+                        else:
+                            lines.append(f"  - {pname} ({p_type}, {required})")
+
+        return "\n".join(lines)
 
             if parameters:
                 lines.append("Параметры:")
