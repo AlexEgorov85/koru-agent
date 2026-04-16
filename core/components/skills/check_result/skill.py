@@ -355,7 +355,7 @@ class CheckResultSkill(Skill):
                 description="Выполнение предопределённых SQL скриптов для получения данных о проверках и отклонениях",
                 skill_name=self.name,
                 supported_strategies=["react"],
-                visiable=True
+                visiable=False
             ),
             Capability(
                 name="check_result.generate_script",
