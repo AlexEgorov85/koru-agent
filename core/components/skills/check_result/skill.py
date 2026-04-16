@@ -280,25 +280,21 @@ class CheckResultSkill(Skill):
                 re.IGNORECASE
             )
 
-            if tables_in_sql:
-                tables_str = ", ".join(set(t.split('.')[-1] for t in tables_in_sql[:2]))
-                lines.append(f"Sources: {tables_str}")
-
-                if self._tables_config:
-                    cols = []
-                    for t_name in tables_in_sql[:2]:
-                        for table in self._tables_config:
-                            table_name = table.get('table', '')
-                            if table_name in t_name or t_name in table_name:
-                                for col in table.get('columns', [])[:6]:
-                                    col_name = col.get('column_name', '')
-                                    col_desc = col.get('description', '')
-                                    if col_name:
-                                        cols.append(f"{col_name} — {col_desc}" if col_desc else col_name)
-                    if cols:
-                        lines.append("Available fields:")
-                        for col in cols[:8]:
-                            lines.append(f"  {col}")
+            if tables_in_sql and self._tables_config:
+                cols = []
+                for t_name in tables_in_sql[:2]:
+                    for table in self._tables_config:
+                        table_name = table.get('table', '')
+                        if table_name in t_name or t_name in table_name:
+                            for col in table.get('columns', [])[:6]:
+                                col_name = col.get('column_name', '')
+                                col_desc = col.get('description', '')
+                                if col_name:
+                                    cols.append(f"{col_name} — {col_desc}" if col_desc else col_name)
+                if cols:
+                    lines.append("Available fields:")
+                    for col in cols[:8]:
+                        lines.append(f"  {col}")
 
             if parameters:
                 filtered_params = {k: v for k, v in parameters.items() if k != 'max_rows'}
@@ -352,42 +348,11 @@ class CheckResultSkill(Skill):
         return "skill.check_result.executed"
 
     def get_capabilities(self) -> List[Capability]:
-        from .handlers.execute_script_handler import SCRIPTS_REGISTRY
-        
-        scripts_lines = ["📜 ДОСТУПНЫЕ СКРИПТЫ (вызывай ТОЛЬКО эти script_name):"]
-        for name, script_def in SCRIPTS_REGISTRY.items():
-            parameters = script_def.parameters
-            
-            required = []
-            optional = []
-            param_descriptions = {}
-            
-            for param_name, param_def in parameters.items():
-                if param_name == "max_rows":
-                    continue
-                if param_def.required:
-                    required.append(param_name)
-                else:
-                    optional.append(param_name)
-                if param_def.description:
-                    param_descriptions[param_name] = param_def.description
-            
-            all_params = required + optional
-            params_str = ", ".join(all_params) if all_params else "нет"
-            req_str = ", ".join(required) if required else "нет"
-            
-            scripts_lines.append(f"  • `{name}` → параметры: `{params_str}` | обязательные: `{req_str}`")
-            
-            if param_descriptions:
-                for param, desc in param_descriptions.items():
-                    scripts_lines.append(f"      - `{param}`: {desc}")
-        
-        execute_script_desc = "\n".join(scripts_lines)
-
+        """Получение списка capabilities навыка."""
         return [
             Capability(
                 name="check_result.execute_script",
-                description=execute_script_desc,  # ← Список скриптов ВСТРОЕН сюда
+                description="Выполнение предопределённых SQL скриптов для получения данных о проверках и отклонениях",
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visiable=True
