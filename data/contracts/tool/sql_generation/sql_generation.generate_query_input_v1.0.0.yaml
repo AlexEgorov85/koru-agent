@@ -5,10 +5,16 @@ direction: input
 schema_data:
   properties:
     natural_language_query:
-      description: Request in natural language
+      description: Запрос пользователя на естественном языке
       type: string
     table_schema:
-      description: Database schema
+      description: DDL или описание структуры таблиц
+      type: string
+    available_scripts:
+      description: Примеры SQL запросов в формате few-shot
+      type: string
+    available_tables:
+      description: Список доступных таблиц и колонок
       type: string
   required:
   - natural_language_query
@@ -16,3 +22,6 @@ schema_data:
   type: object
 status: active
 version: v1.0.0
+metadata:
+  author: system
+  created: '2026-04-15'

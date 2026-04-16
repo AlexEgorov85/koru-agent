@@ -2,21 +2,50 @@ capability: sql_generation.generate_query
 component_type: service
 version: v1.0.0
 status: active
-description: Генерация SQL запроса из естественного языка
+description: User prompt для генерации SQL-запросов
 content: |
-  {natural_language_request}
+  === ЗАПРОС ПОЛЬЗОВАТЕЛЯ ===
+  {natural_language_query}
 
-  Используя схему базы данных:
-
+  === СХЕМА БАЗЫ ДАННЫХ ===
   {table_schema}
+
+  === ПРИМЕРЫ SQL ЗАПРОСОВ ===
+  {available_scripts}
+
+  === ДОСТУПНЫЕ ТАБЛИЦЫ ===
+  {available_tables}
+
+  === ИНСТРУКЦИЯ ПО ЗАПОЛНЕНИЮ КОНТРАКТА ===
+  Проанализируй запрос и схему, затем последовательно ответь на следующие вопросы. Ответы автоматически станут значениями полей анализа:
+
+  1. analysis_understanding: Как я понимаю запрос пользователя? Какие сущности, условия и связи упоминаются?
+  2. analysis_schema: Какие таблицы и колонки требуются? Есть ли необходимые JOIN или WHERE?
+  3. analysis_strategy: Будет ли это простой SELECT, JOIN, GROUP BY, подзапрос или CTE? Почему выбран этот подход?
+  4. analysis_validation: Все ли условия из запроса учтены? Корректны ли типы данных и фильтры?
+  5. analysis_security: Соответствует ли запрос политике SELECT-ONLY? Нет ли потенциальных инъекций?
+  6. analysis_optimization: Можно ли упростить структуру или улучшить производительность запроса?
+  7. generated_sql: Какой итоговый SQL я генерирую? (ТОЛЬКО код запроса)
+  8. confidence_score: Насколько я уверен в корректности запроса? (0.0-1.0)
+  9. potential_issues: Какие есть ограничения, риски или возможные неточности?
+  10. final_check: Соответствует ли итоговый SQL исходному запросу и предоставленной схеме?
+
+  === ФОРМАТ ОТВЕТА ===
+  Верни строго JSON, заполнив все поля анализа и итоговые поля согласно схеме контракта.
 variables:
-  - name: natural_language_request
-    description: Запрос на естественном языке
+  - name: natural_language_query
+    description: Текстовый запрос пользователя на естественном языке
     required: true
   - name: table_schema
-    description: Схема базы данных
+    description: DDL или описание структуры таблиц
     required: true
+  - name: available_scripts
+    description: Примеры SQL запросов в формате few-shot
+    required: false
+  - name: available_tables
+    description: Список доступных таблиц и колонок для запроса
+    required: false
 metadata:
   author: system
-  created: '2026-02-15'
-  description: Prompt for sql_generation.generate_query
+  created: '2026-04-15'
+  description: User prompt с явным маппингом на поля анализа SQL
