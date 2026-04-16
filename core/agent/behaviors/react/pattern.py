@@ -413,11 +413,17 @@ class ReActPattern(BaseBehaviorPattern):
 
     def _extract_analysis_reasoning(self, reasoning_result: Any) -> str:
         """
-        Извлекает размышление из 10 полей анализа нового контракта.
-        
-        RETURNS:
-        - str: форматированное размышление для логирования
+        Универсальное извлечение размышления из ответа LLM.
+        Поддерживает: Pydantic-модели, dict, а также как 10 полей анализа, так и простое поле reasoning.
         """
+        import json
+
+        def safe_get(obj: Any, key: str) -> Any:
+            if isinstance(obj, dict):
+                return obj.get(key)
+            return getattr(obj, key, None)
+
+        # 1. Попытка извлечь 10 аналитических полей (старая схема)
         ANALYSIS_FIELDS = [
             ("analysis_progress", "Прогресс"),
             ("analysis_state", "Состояние"),
@@ -430,11 +436,28 @@ class ReActPattern(BaseBehaviorPattern):
             ("analysis_stop", "Остановка"),
             ("analysis_final", "Итог"),
         ]
-        
+
         lines = []
         for field_name, label in ANALYSIS_FIELDS:
-            value = getattr(reasoning_result, field_name, None)
+            value = safe_get(reasoning_result, field_name)
             if value:
                 lines.append(f"{label}: {value}")
-        
-        return "\n".join(lines) if lines else "Размышление не доступно"
+
+        if lines:
+            return "\n".join(lines)
+
+        # 2. Fallback: ищем стандартные поля размышления
+        for key in ("reasoning", "thought", "reason", "explanation", "logic"):
+            val = safe_get(reasoning_result, key)
+            if val:
+                return str(val).strip()
+
+        # 3. Fallback: если это Pydantic-модель или dict, сериализуем содержимое
+        if hasattr(reasoning_result, 'model_dump'):
+            dump = reasoning_result.model_dump()
+            if dump:
+                return json.dumps(dump, ensure_ascii=False, indent=2)
+        elif isinstance(reasoning_result, dict) and reasoning_result:
+            return json.dumps(reasoning_result, ensure_ascii=False, indent=2)
+
+        return "Размышление не доступно"
