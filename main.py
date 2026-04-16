@@ -76,7 +76,7 @@ async def run_agent(
     """
     config = get_config(profile='prod', data_dir='data')
 
-    print("🚀 Agent v5.39.1 | Создание инфраструктурного контекста...", flush=True)
+    print("🚀 Agent v5.40 | Создание инфраструктурного контекста...", flush=True)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
 
