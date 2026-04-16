@@ -348,45 +348,6 @@ class CheckResultSkill(Skill):
 
         return "\n".join(lines)
 
-            if parameters:
-                lines.append("Параметры:")
-                for param_name, param_def in parameters.items():
-                    if param_name == "max_rows":
-                        continue
-
-                    if hasattr(param_def, 'required'):
-                        required = "обязательный" if param_def.required else "опциональный"
-                    else:
-                        required = "опциональный"
-
-                    if hasattr(param_def, 'description'):
-                        pdesc = param_def.description
-                    elif isinstance(param_def, dict):
-                        required = "обязательный" if param_def.get('required') else "опциональный"
-                        pdesc = param_def.get('description', '')
-                    else:
-                        pdesc = ''
-
-                    if hasattr(param_def, 'validation') and param_def.validation:
-                        validation = param_def.validation
-                        if validation.get('type') == 'enum':
-                            vals = validation.get('allowed_values', [])
-                            if vals:
-                                pdesc += f" (варианты: {', '.join(vals)})"
-                    elif isinstance(param_def, dict) and 'validation' in param_def:
-                        validation = param_def['validation']
-                        if validation.get('type') == 'enum':
-                            vals = validation.get('allowed_values', [])
-                            if vals:
-                                pdesc += f" (варианты: {', '.join(vals)})"
-
-                    if pdesc:
-                        lines.append(f"  - `{param_name}` ({required}): {pdesc}")
-                    else:
-                        lines.append(f"  - `{param_name}` ({required})")
-
-        return "\n".join(lines)
-
     def _get_event_type_for_success(self) -> str:
         return "skill.check_result.executed"
 
