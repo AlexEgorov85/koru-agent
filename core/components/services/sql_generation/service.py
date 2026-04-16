@@ -23,13 +23,22 @@ from core.models.types.db_types import DBQueryResult
 
 
 class SQLGenerationResult(BaseModel):
-    """Результат генерации с метаданными для анализа ошибок"""
+    """Результат генерации с метаданными для анализа ошибок и самоанализом"""
     sql: str = ""
     parameters: Dict[str, Any] = Field(default_factory=dict)
     reasoning: str = ""
     tables_used: List[str] = Field(default_factory=list)
     safety_score: float = 0.0
     generation_id: str = ""
+    analysis_understanding: str = ""
+    analysis_schema: str = ""
+    analysis_strategy: str = ""
+    analysis_validation: str = ""
+    analysis_security: str = ""
+    analysis_optimization: str = ""
+    confidence_score: float = 0.0
+    potential_issues: List[str] = Field(default_factory=list)
+    final_check: str = ""
 
 class SQLGenerationService(Service):
     """
@@ -222,10 +231,13 @@ class SQLGenerationService(Service):
         - Параметризованный запрос + параметры (никакой конкатенации!)
         """
         # Поддержка обоих способов вызова: через параметры или через input_data
+        available_scripts = None
+        available_tables = ""
         if input_data is not None:
             natural_language_query = input_data.natural_language_query
             table_schema = input_data.table_schema
             available_scripts = getattr(input_data, 'available_scripts', None)
+            available_tables = getattr(input_data, 'available_tables', '')
         elif natural_language_query is None or table_schema is None:
             raise ValueError("generate_query requires either natural_language_query and table_schema, or input_data")
 
@@ -234,9 +246,10 @@ class SQLGenerationService(Service):
 
         # 2. Формирование промпта через централизованный сервис
         prompt_vars = {
-            "natural_language_request": natural_language_query,
+            "natural_language_query": natural_language_query,
             "table_schema": table_schema if isinstance(table_schema, str) else str(table_schema),
             "available_scripts": available_scripts or "Скрипты не доступны",
+            "available_tables": available_tables,
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows
         }
@@ -271,9 +284,12 @@ class SQLGenerationService(Service):
                     action_name="llm.generate_structured",
                     parameters={
                         "prompt": prompt,
-                        "system_prompt": "Ты — SQL генератор. Верни СТРОГО JSON объект без дополнительного текста. Схема: {\"generated_sql\": str, \"confidence_score\": float, \"explanation\": str, \"potential_issues\": list}",
+                        "system_prompt": """Ты — эксперт по безопасной генерации SQL-запросов.
+Перед генерацией SQL ОБЯЗАТЕЛЬНО ответь на 6 аналитических вопросов.
+Верни СТРОГО JSON объект без дополнительного текста.
+СХЕМА: {\"analysis_understanding\": str, \"analysis_schema\": str, \"analysis_strategy\": str, \"analysis_validation\": str, \"analysis_security\": str, \"analysis_optimization\": str, \"generated_sql\": str, \"confidence_score\": float, \"potential_issues\": list, \"final_check\": str}""",
                         "temperature": 0.2,
-                        "max_tokens": 2000,
+                        "max_tokens": 3000,
                         "structured_output": {
                             "output_model": "SQLGenerationOutput",
                             "schema_def": SQLGenerationOutput.model_json_schema(),
@@ -371,14 +387,49 @@ class SQLGenerationService(Service):
                 error_msg = "; ".join(validated.validation_errors) if hasattr(validated, 'validation_errors') else "Validation failed"
                 raise RuntimeError(f"SQL validation failed: {error_msg}")
 
+            # Извлекаем поля самоанализа из результата
+            if isinstance(output, dict):
+                analysis_understanding = output.get('analysis_understanding', '')
+                analysis_schema = output.get('analysis_schema', '')
+                analysis_strategy = output.get('analysis_strategy', '')
+                analysis_validation = output.get('analysis_validation', '')
+                analysis_security = output.get('analysis_security', '')
+                analysis_optimization = output.get('analysis_optimization', '')
+                confidence_score = output.get('confidence_score', 0.0)
+                potential_issues = output.get('potential_issues', [])
+                final_check = output.get('final_check', '')
+            else:
+                analysis_understanding = getattr(output, 'analysis_understanding', '')
+                analysis_schema = getattr(output, 'analysis_schema', '')
+                analysis_strategy = getattr(output, 'analysis_strategy', '')
+                analysis_validation = getattr(output, 'analysis_validation', '')
+                analysis_security = getattr(output, 'analysis_security', '')
+                analysis_optimization = getattr(output, 'analysis_optimization', '')
+                confidence_score = getattr(output, 'confidence_score', 0.0)
+                potential_issues = getattr(output, 'potential_issues', [])
+                final_check = getattr(output, 'final_check', '')
+
+            # Логируем поля самоанализа
+            log.info(f"SQL Generation Analysis: understanding={analysis_understanding[:50]}...", extra={"event_type": LogEventType.LLM_RESPONSE})
+            log.info(f"SQL confidence_score={confidence_score}, potential_issues={len(potential_issues)}", extra={"event_type": LogEventType.LLM_RESPONSE})
+
             # 5. Формирование результата
             result = SQLGenerationResult(
                 sql=validated.sql,
                 parameters=validated.parameters,
-                reasoning=getattr(output, 'explanation', '') if not isinstance(output, dict) else output.get('explanation', ''),
+                reasoning=analysis_strategy,
                 tables_used=[],
                 safety_score=validated.safety_score,
-                generation_id=f"gen_{hash(natural_language_query)}"
+                generation_id=f"gen_{hash(natural_language_query)}",
+                analysis_understanding=analysis_understanding,
+                analysis_schema=analysis_schema,
+                analysis_strategy=analysis_strategy,
+                analysis_validation=analysis_validation,
+                analysis_security=analysis_security,
+                analysis_optimization=analysis_optimization,
+                confidence_score=confidence_score,
+                potential_issues=potential_issues,
+                final_check=final_check
             )
 
             # Создаём временный объект для публикации события
