@@ -24,9 +24,11 @@ class ScriptsContextBuilder:
 
         for name, meta in scripts:
             lines.append(f"\n**`{name}`**")
-            lines.append(f"📖 {meta.get('description', '')}")
+            # ScriptDefinition - это dataclass, обращаемся через атрибуты
+            description = getattr(meta, 'description', '') or ''
+            lines.append(f"📖 {description}")
 
-            params = meta.get('parameters', {})
+            params = getattr(meta, 'parameters', {}) or {}
             if params:
                 lines.append("⚙️ Параметры:")
                 for pname, pmeta in params.items():
@@ -47,7 +49,7 @@ class ScriptsContextBuilder:
 
                     lines.append(f"  • `{pname}` ({p_type}, {p_req}): {p_desc}")
 
-            sql = meta.get('sql_template', '') or meta.get('sql', '')
+            sql = getattr(meta, 'sql_template', '') or getattr(meta, 'sql', '') or ''
             tables_in_sql = re.findall(
                 r'(?:FROM|JOIN)\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)',
                 sql,
