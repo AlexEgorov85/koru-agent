@@ -86,27 +86,26 @@ def smart_format_observation(
     
     lines = []
     
+    # Показываем только данные без метаинформации
     if isinstance(result_data, list) and result_data:
-        lines.append(f"Пример ({sample_count} из {row_count}):")
         for i, item in enumerate(result_data[:sample_count]):
             if hasattr(item, '__dict__'):
                 item = item.__dict__
             if isinstance(item, dict):
                 row_str = ", ".join(f"{k}={v}" for k, v in item.items())
-                lines.append(f"  [{i}] {row_str}")
+                lines.append(f"[{i}] {row_str}")
             else:
-                lines.append(f"  [{i}] {str(item)}")
+                lines.append(f"[{i}] {str(item)}")
     elif hasattr(result_data, 'rows') and result_data.rows:
         sample_rows = list(result_data.rows)[:sample_count]
-        lines.append(f"Пример ({len(sample_rows)} из {row_count}):")
         for i, row in enumerate(sample_rows):
             if hasattr(row, '__dict__'):
                 row = row.__dict__
             if isinstance(row, dict):
                 row_str = ", ".join(f"{k}={v}" for k, v in row.items())
-                lines.append(f"  [{i}] {row_str}")
+                lines.append(f"[{i}] {row_str}")
             else:
-                lines.append(f"  [{i}] {str(row)}")
+                lines.append(f"[{i}] {str(row)}")
     elif isinstance(result_data, str):
         lines.append(f"Начало ({min(100, len(result_data))} символов):")
         lines.append(f"  {result_data[:100]}")
@@ -167,10 +166,8 @@ def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = 
     if not rows:
         lines.append("0 записей")
         return "\n".join(lines)
-
-    lines.append(f"{len(rows)} записей, колонки: {columns}")
-    lines.append("")
     
+    # Показываем только данные - метаинформация (кол-во записей, колонки) не нужна
     for i, row in enumerate(rows[:max_display]):
         if hasattr(row, '__dict__'):
             row = row.__dict__
@@ -227,10 +224,8 @@ def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = N
     if not rows:
         lines.append("0 записей")
         return "\n".join(lines)
-
-    lines.append(f"{rowcount} записей, колонки: {columns}")
-    lines.append("")
     
+    # Показываем только данные - метаинформация не нужна
     for i, row in enumerate(rows[:max_display]):
         if isinstance(row, dict):
             row_str = ", ".join(f"{k}={v}" for k, v in row.items())
