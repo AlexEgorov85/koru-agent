@@ -14,6 +14,7 @@ class SQLGenerationInput(BaseModel):
     required_columns: Optional[List[str]] = None
     filters: Optional[Dict[str, Any]] = None
     connection_name: Optional[str] = None
+    available_scripts: Optional[str] = None
 
 
 class SQLGenerationOutput(BaseModel):
