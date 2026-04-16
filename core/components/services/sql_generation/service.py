@@ -214,6 +214,8 @@ class SQLGenerationService(Service):
         self,
         natural_language_query: str = None,
         table_schema: str = None,
+        available_scripts: str = None,
+        available_tables: str = None,
         input_data: SQLGenerationInput = None,
         context: Optional[Any] = None
     ) -> SQLGenerationResult:
@@ -231,13 +233,11 @@ class SQLGenerationService(Service):
         - Параметризованный запрос + параметры (никакой конкатенации!)
         """
         # Поддержка обоих способов вызова: через параметры или через input_data
-        available_scripts = None
-        available_tables = ""
         if input_data is not None:
             natural_language_query = input_data.natural_language_query
             table_schema = input_data.table_schema
-            available_scripts = getattr(input_data, 'available_scripts', None)
-            available_tables = getattr(input_data, 'available_tables', '')
+            available_scripts = available_scripts or getattr(input_data, 'available_scripts', None)
+            available_tables = available_tables or getattr(input_data, 'available_tables', '')
         elif natural_language_query is None or table_schema is None:
             raise ValueError("generate_query requires either natural_language_query and table_schema, or input_data")
 
@@ -249,7 +249,7 @@ class SQLGenerationService(Service):
             "natural_language_query": natural_language_query,
             "table_schema": table_schema if isinstance(table_schema, str) else str(table_schema),
             "available_scripts": available_scripts or "Скрипты не доступны",
-            "available_tables": available_tables,
+            "available_tables": available_tables or "",
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows
         }
