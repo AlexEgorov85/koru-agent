@@ -216,6 +216,7 @@ class SQLGenerationService(Service):
         table_schema: str = None,
         available_scripts: str = None,
         available_tables: str = None,
+        hints: str = None,
         input_data: SQLGenerationInput = None,
         context: Optional[Any] = None,
         **kwargs
@@ -239,6 +240,7 @@ class SQLGenerationService(Service):
             table_schema = input_data.table_schema
             available_scripts = available_scripts or getattr(input_data, 'available_scripts', None)
             available_tables = available_tables or getattr(input_data, 'available_tables', '')
+            hints = hints or getattr(input_data, 'hints', None)
         elif natural_language_query is None or table_schema is None:
             raise ValueError("generate_query requires either natural_language_query and table_schema, or input_data")
 
@@ -246,6 +248,7 @@ class SQLGenerationService(Service):
         # table_metadata = await self._get_table_metadata(input_data.tables)
 
         # 2. Формирование промпта через централизованный сервис
+        hints_value = hints if hints is not None else ""
         prompt_vars = {
             "natural_language_query": natural_language_query,
             "table_schema": table_schema if isinstance(table_schema, str) else str(table_schema),
@@ -253,7 +256,11 @@ class SQLGenerationService(Service):
             "available_tables": available_tables or "",
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows,
+<<<<<<< HEAD
             "hints": error_context or ""
+=======
+            "hints": hints_value
+>>>>>>> fde8dde (Fix: исправлен параметр hints в generate_query - теперь передаётся корректно)
         }
 
         # Используем кэшированный промпт из компонента

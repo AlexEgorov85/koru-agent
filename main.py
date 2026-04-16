@@ -1,7 +1,5 @@
 """
 Точка входа в систему агентов.
-
-ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
 """
 import asyncio
 import logging
@@ -27,10 +25,10 @@ from core.config.agent_config import AgentConfig
 from core.config.app_config import AppConfig
 from core.config import get_config
 from core.errors.error_handler import ErrorContext, ErrorSeverity, get_error_handler
-from core.infrastructure.event_bus.unified_event_bus import EventType, UnifiedEventBus
-from core.infrastructure.logging.session import LoggingSession
-from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.infrastructure.logging.event_types import LogEventType
+
+logger = logging.getLogger("main")
 from core.application_context.application_context import ApplicationContext
 from core.utils.encoding import setup_encoding
 
@@ -78,53 +76,19 @@ async def run_agent(
     """
     config = get_config(profile='prod', data_dir='data')
 
-    print("🚀 Agent v5.39 | Создание инфраструктурного контекста...", flush=True)
+    print("🚀 Agent v5.39.1 | Создание инфраструктурного контекста...", flush=True)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
 
     session_id = str(infrastructure_context.id)
-
-    # Простая async-обёртка для логирования
-    # Логгер агента создаётся ТОЛЬКО в AgentRuntime (runtime.py:82)
-    # Здесь используем app_logger для общих сообщений сессии
-    class SessionLogger:
-        """Async-обёртка для стандартного logging.Logger."""
-        def __init__(self, logger: logging.Logger):
-            self._logger = logger
-
-        async def start_session(self, goal: str):
-            self._logger.info(f"🚀 Сессия начата: {session_id}", extra={"event_type": LogEventType.AGENT_START})
-            self._logger.info(f"📝 Цель: {goal}", extra={"event_type": LogEventType.USER_PROGRESS})
-
-        async def info(self, message: str):
-            self._logger.info(message, extra={"event_type": LogEventType.INFO})
-
-        async def error(self, message: str):
-            self._logger.error(message, extra={"event_type": LogEventType.ERROR})
-
-        async def warning(self, message: str):
-            self._logger.warning(message, extra={"event_type": LogEventType.WARNING})
-
-        async def end_session(self, success: bool, result: str):
-            status = "успешно" if success else "с ошибкой"
-            self._logger.info(f"✅ Сессия завершена {status}: {session_id}", extra={"event_type": LogEventType.AGENT_STOP})
-
-        async def exception(self, message: str, exc: Exception):
-            self._logger.exception(f"{message}: {exc}", extra={"event_type": LogEventType.CRITICAL})
-
-        def error_sync(self, message: str):
-            self._logger.error(message, extra={"event_type": LogEventType.ERROR})
-
-    session_logger = SessionLogger(infrastructure_context.log_session.app_logger)
 
     session_info = infrastructure_context.session_handler.get_session_info()
 
     error_handler = get_error_handler()
 
     try:
-        await session_logger.start_session(goal=goal)
-        await session_logger.info(f"🚀 Сессия начата: {session_id}")
-        await session_logger.info(f"📝 Цель: {goal}")
+        logger.info(f"Сессия начата: {session_id}")
+        logger.info(f"Цель: {goal}")
 
         app_config = AppConfig.from_discovery(
             profile="prod",
@@ -139,11 +103,7 @@ async def run_agent(
         success = await application_context.initialize()
 
         if not success:
-            await session_logger.error(f"❌ ApplicationContext.initialize() вернул False")
-            await session_logger.error(f"   is_initialized = {application_context.is_initialized}")
             raise RuntimeError("ApplicationContext не удалось инициализировать")
-
-        await session_logger.info("🚀 Запуск агента...")
 
         agent_factory = AgentFactory(application_context)
 
@@ -158,30 +118,25 @@ async def run_agent(
         agent = await agent_factory.create_agent(
             goal=goal,
             config=agent_config,
-            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
+            dialogue_history=dialogue_history
         )
 
-        await session_logger.info("🔄 Запуск выполнения агента...")
+        logger.info("Запуск агента...")
 
         try:
             result = await agent.run(goal)
-            await session_logger.info("✅ Выполнение агента завершено")
+            logger.info("Агент завершён")
         except Exception as run_error:
-            session_logger.error_sync(f"❌ КРИТИЧЕСКАЯ ОШИБКА при выполнении agent.run(): {run_error}")
-            session_logger.error_sync(f"📋 Тип: {type(run_error).__name__}")
-            session_logger.error_sync(f"📝 Traceback:\n{traceback.format_exc()}")
+            logger.error(f"Ошибка выполнения: {run_error}")
+            logger.error(f"Тип: {type(run_error).__name__}")
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
             raise
 
         if isinstance(result, str):
-            await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: agent.run() вернул строку вместо объекта!")
-            await session_logger.error(f"📋 Значение: {result}")
+            logger.error(f"agent.run() вернул строку: {result}")
             raise RuntimeError(f"agent.run() вернул строку вместо ExecutionResult: {result}")
 
         if hasattr(result, 'error') and result.error:
-            if isinstance(result.error, str):
-                await session_logger.error(f"⚠️ result.error это строка (не Exception): {result.error}")
-                await session_logger.error(f"📋 Это может быть причиной проблемы 'str object has no attribute get'")
-
             error_details = {
                 "error": result.error,
                 "error_type": type(result.error).__name__ if hasattr(result.error, '__class__') else type(result.error),
@@ -191,8 +146,7 @@ async def run_agent(
             if hasattr(result, 'metadata'):
                 metadata = getattr(result, 'metadata', None)
                 if metadata is not None and not isinstance(metadata, dict):
-                    await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: result.metadata это не dict (тип: {type(metadata).__name__})")
-                    await session_logger.error(f"📋 Значение: {metadata}")
+                    logger.error(f"result.metadata не dict: {type(metadata).__name__}")
                     error_details["metadata_type"] = type(metadata).__name__
                     error_details["metadata_value"] = str(metadata)
                 elif isinstance(metadata, dict):
@@ -200,14 +154,13 @@ async def run_agent(
                     if 'error' in metadata:
                         meta_error = metadata.get('error')
                         if isinstance(meta_error, str):
-                            await session_logger.error(f"⚠️ metadata['error'] это строка: {meta_error}")
+                            logger.warning(f"metadata['error'] строка: {meta_error}")
 
             if isinstance(result.error, dict):
                 error_details["error_dict"] = result.error
             elif hasattr(result, 'state'):
                 error_details["state"] = getattr(result, 'state', None)
 
-            import traceback
             error_details["traceback"] = traceback.format_exc()
 
             error_context = ErrorContext(
@@ -224,9 +177,7 @@ async def run_agent(
                 context=error_context,
                 severity=ErrorSeverity.HIGH
             )
-            await session_logger.error(f"❌ Ошибка агента: {result.error}")
-            await session_logger.error(f"📋 Детали ошибки: {error_details}")
-            raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__}, файл: main.py, строка: 176)")
+            raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__})")
 
         if hasattr(result, 'metadata') and result.metadata:
             metadata = result.metadata
@@ -256,14 +207,12 @@ async def run_agent(
                         context=error_context,
                         severity=ErrorSeverity.HIGH
                     )
-                    await session_logger.error(f"❌ Ошибка в metadata: {error_msg}")
-                    await session_logger.error(f"📋 Детали metadata: {metadata}")
-                    raise RuntimeError(f"Ошибка агента: {error_msg} (из metadata, файл: main.py, строка: 200)")
+                    logger.error(f"Ошибка в metadata: {error_msg}")
+                    raise RuntimeError(f"Ошибка агента: {error_msg} (из metadata)")
 
         result_preview = str(result)
-        await session_logger.end_session(success=True, result=result_preview)
-        await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
-        await session_logger.info(f"📊 Результат:")
+        logger.info(f"Сессия завершена: {session_id}")
+        logger.info(f"Результат: {result_preview[:200]}...")
 
         RESET = "\033[0m"
         BOLD = "\033[1m"
@@ -291,13 +240,12 @@ async def run_agent(
             severity=ErrorSeverity.CRITICAL
         )
 
-        await session_logger.exception(f"❌ Ошибка сессии: {e}", e)
-        await session_logger.end_session(success=False, result=str(e))
+        logger.exception(f"Ошибка сессии: {e}")
 
         RESET = "\033[0m"
         RED = "\033[31m"
         BOLD = "\033[1m"
-        print(f"\n{RED}{BOLD}❌ ОШИБКА: {e}{RESET}\n")
+        print(f"\n{RED}{BOLD}ОШИБКА: {e}{RESET}\n")
         raise
 
     finally:

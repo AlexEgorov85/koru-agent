@@ -10,14 +10,18 @@ schema_data:
       description: Запрос на естественном языке для генерации SQL
     schema_context:
       type: string
-      description: Список таблиц для генерации SQL (опционально, через запятую)
+      description: Список таблиц для генерации SQL (опционально - через запятую)
     max_results:
       type: integer
       description: Максимальное количество возвращаемых строк
       default: 50
     hints:
       type: string
+<<<<<<< HEAD
       description: Подсказки для генератора SQL (например: предыдущая попытка была неверной, добавь фильтр по дате, используй JOIN с таблицей audits)
+=======
+      description: Подсказки для генератора SQL (например - предыдущая попытка была неверной, добавь фильтр по дате)
+>>>>>>> fde8dde (Fix: исправлен параметр hints в generate_query - теперь передаётся корректно)
   required:
     - query
 status: active

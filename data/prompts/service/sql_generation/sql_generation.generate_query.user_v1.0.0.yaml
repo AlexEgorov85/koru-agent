@@ -48,7 +48,11 @@ variables:
     description: Список доступных таблиц и колонок для запроса
     required: false
   - name: hints
+<<<<<<< HEAD
     description: Подсказки для генератора (например: предыдущая ошибка, рекомендации)
+=======
+    description: Подсказки для генератора (например - предыдущая ошибка, рекомендации)
+>>>>>>> fde8dde (Fix: исправлен параметр hints в generate_query - теперь передаётся корректно)
     required: false
 metadata:
   author: system
