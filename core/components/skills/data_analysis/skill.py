@@ -599,42 +599,6 @@ class DataAnalysisSkill(Skill):
 
 Ответ:"""
 
-    def _build_merge_prompt_fallback(self, content1: str, content2: str, question: str) -> str:
-        return f"""Объедини два фрагмента анализа в один связный ответ.
-
-ВОПРОС: {question}
-
-ФРАГМЕНТ 1:
-{content1}
-
-ФРАГМЕНТ 2:
-{content2}
-
-Инструкции:
-- Объедини информацию из обоих фрагментов
-- Убери дублирующиеся факты
-- Сохрани все ключевые данные
-- Пиши на русском языке
-
-Объединённый анализ:"""
-
-    def _build_final_prompt_fallback(self, content: str, question: str) -> str:
-        truncated = content[:6000] if len(content) > 6000 else content
-        return f"""Сократи текст анализа, сохранив ключевые факты.
-
-ВОПРОС: {question}
-
-ТЕКУЩИЙ АНАЛИЗ:
-{truncated}
-
-Инструкции:
-- Сократи до основных фактов и выводов
-- Сохрани важные цифры
-- Убери повторы
-- Пиши на русском языке
-
-Сокращённый анализ:"""
-
     def _render_prompt(self, template: str, variables: Dict[str, Any]) -> str:
         result = template
         for key, value in variables.items():
