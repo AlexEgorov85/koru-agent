@@ -402,11 +402,24 @@ class AgentRuntime:
                     additional_metadata = {}
                     parameters = decision.parameters or {}
                     
-                    quick_content = smart_format_observation(
-                        result_data=result.data,
-                        capability_name=decision.action,
-                        parameters=decision.parameters
-                    )
+                    # Проверяем, нужно ли использовать smart_format или полный формат
+                    # data_analysis уже сохраняет результат в observation - используем полный формат
+                    is_data_analysis = decision.action and 'data_analysis' in decision.action
+                    
+                    if is_data_analysis:
+                        # Для data_analysis - используем полный формат (данные уже структурированы)
+                        quick_content = format_observation(
+                            result_data=result.data,
+                            capability_name=decision.action,
+                            parameters=decision.parameters
+                        )
+                    else:
+                        # Для остальных - smart_format с усечением
+                        quick_content = smart_format_observation(
+                            result_data=result.data,
+                            capability_name=decision.action,
+                            parameters=decision.parameters
+                        )
 
                     observation_item = ContextItem(
                         item_id='',

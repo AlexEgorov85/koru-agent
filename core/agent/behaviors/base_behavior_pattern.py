@@ -338,8 +338,22 @@ class PromptBuilderService:
             except Exception as e:
                 observations.append(f"- [Ошибка чтения {obs_id}: {e}]")
         
-        # Добавляем итоговую статистику если данных много
-        if total_rows > self.DATA_SIZE_LIMITS['medium']:
+        # Добавляем итоговую статистику если данных много (ИСКЛЮЧАЯ data_analysis результаты)
+        # Проверяем, есть ли наблюдения от data_analysis - они уже полные и не требуют рекомендаций
+        has_data_analysis_result = False
+        for obs_id in observation_item_ids:
+            try:
+                if session_context and hasattr(session_context, 'data_context'):
+                    item = session_context.data_context.get_item(obs_id, raise_on_missing=False)
+                    if item and hasattr(item, 'metadata'):
+                        if item.metadata.get('skill') == 'data_analysis' or 'data_analysis' in str(item.metadata):
+                            has_data_analysis_result = True
+                            break
+            except:
+                pass
+
+        # Только если нет результатов data_analysis и данные превышают лимит - добавляем рекомендацию
+        if total_rows > self.DATA_SIZE_LIMITS['medium'] and not has_data_analysis_result:
             observations.append(f"\n⚠️ ОБЩИЙ ОБЪЁМ: {total_rows} строк")
             observations.append("💡 Эти данные не доступны для final_answer. Рекомендация: Используйте data_analysis.analyze_step_data")
         

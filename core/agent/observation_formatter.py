@@ -85,13 +85,6 @@ def smart_format_observation(
         return format_observation(result_data, capability_name, parameters)
     
     lines = []
-    lines.append(f"Тип: {data_type}")
-    
-    if row_count > 0:
-        lines.append(f"Строк: {row_count}")
-    
-    lines.append(f"Размер: {char_count} символов")
-    lines.append("")
     
     if isinstance(result_data, list) and result_data:
         lines.append(f"Пример ({sample_count} из {row_count}):")
