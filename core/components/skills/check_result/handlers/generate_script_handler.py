@@ -40,7 +40,8 @@ class GenerateScriptHandler(SkillHandler):
     def _get_scripts_info(self) -> str:
         """Получение списка доступных скриптов"""
         if hasattr(self.skill, 'get_scripts_info'):
-            return self.skill.get_scripts_info()
+            result = self.skill.get_scripts_info()
+            return result
         return ""
 
     async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
@@ -180,7 +181,7 @@ class GenerateScriptHandler(SkillHandler):
                 "natural_language_query": query,
                 "table_schema": table_schema,
                 "available_scripts": scripts_info,
-                "error_context": error_context
+                "hints": error_context
             },
             context=exec_context
         )
