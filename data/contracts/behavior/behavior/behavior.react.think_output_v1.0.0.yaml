@@ -1,86 +1,66 @@
 capability: behavior.react.think
 component_type: behavior
-description: Output contract for behavior.react.think - результат рассуждения ReAct
+description: "Выходной контракт для рассуждения ReAct с обязательным пошаговым самоанализом"
 direction: output
 schema_data:
   type: object
   properties:
-    thought:
+    stop_condition:
+      type: boolean
+      description: "Флаг завершения цикла (true, если цель достигнута)"
+    stop_reason:
       type: string
-      description: Развёрнутое рассуждение о текущей ситуации
-    analysis:
-      type: object
-      description: Анализ текущей ситуации
-      required:
-        - progress
-        - current_state
-        - issues
-      properties:
-        progress:
-          type: string
-          description: Описание прогресса к цели
-        current_state:
-          type: string
-          description: Текущее состояние задачи
-        issues:
-          type: array
-          items:
-            type: string
-          description: Список проблем, если есть
+      description: "Причина остановки (пустая строка если не остановлен)"
+    analysis_progress:
+      type: string
+      description: "Прогресс: Насколько я близок к цели? Что уже собрано?"
+    analysis_state:
+      type: string
+      description: "Текущее состояние: Какие данные уже есть в step_history?"
+    analysis_deficit:
+      type: string
+      description: "Дефицит: Чего критически не хватает для финального ответа?"
+    analysis_history:
+      type: string
+      description: "История и повторы: Какие инструменты уже вызывались? Были ли повторы?"
+    analysis_errors:
+      type: string
+      description: "Ошибки: Были ли ошибки или пустые результаты ранее? Как избежать?"
+    analysis_tool_choice:
+      type: string
+      description: "Выбор инструмента: Какой из available_tools оптимально закрывает дефицит?"
+    analysis_params:
+      type: string
+      description: "Валидация параметров: Все ли обязательные поля известны и корректны?"
+    analysis_fallback:
+      type: string
+      description: "План Б: Что я сделаю, если инструмент снова вернёт ошибку или 0 результатов?"
+    analysis_stop:
+      type: string
+      description: "Критерий остановки: Выполнены ли условия для stop_condition=true?"
+    analysis_final:
+      type: string
+      description: "Фиксация решения: Какое конкретное next_action и parameters я выбираю сейчас?"
     decision:
       type: object
-      description: Решение о следующем действии
-      required:
-        - next_action
-        - reasoning
-        - parameters
-        - expected_outcome
       properties:
         next_action:
           type: string
-          description: Название следующего действия (capability_name)
-        reasoning:
-          type: string
-          description: Обоснование выбора
+          description: "Имя следующего действия (capability_name)"
         parameters:
           type: object
-          description: Параметры для capability
-          additionalProperties: true
-        expected_outcome:
-          type: string
-          description: Ожидаемый результат
-    confidence:
-      type: number
-      description: Уверенность в решении (0.0-1.0)
-      minimum: 0
-      maximum: 1
-    alternative_actions:
-      type: array
-      items:
-        type: object
-        properties:
-          next_action:
-            type: string
-          reasoning:
-            type: string
-          parameters:
-            type: object
-            additionalProperties: true
-          expected_outcome:
-            type: string
-      description: Альтернативные действия (массив объектов с полями next_action, reasoning, parameters, expected_outcome)
-    stop_condition:
-      type: boolean
-      description: Флаг завершения работы
-    stop_reason:
-      type: string
-      description: Причина остановки
-  required:
-    - thought
-    - analysis
-    - decision
-    - confidence
-    - stop_condition
-  additionalProperties: true
+          description: "Словарь параметров для next_action"
+      required: ["next_action", "parameters"]
+  required: [
+    "stop_condition", 
+    "analysis_progress", "analysis_state", "analysis_deficit", "analysis_history", 
+    "analysis_errors", "analysis_tool_choice", "analysis_params", "analysis_fallback", 
+    "analysis_stop", "analysis_final", 
+    "decision"
+  ]
+metadata:
+  author: system
+  created: '2026-04-16'
+  description: "Контракт с 10 обязательными полями анализа перед принятием решения"
 status: active
 version: v1.0.0
