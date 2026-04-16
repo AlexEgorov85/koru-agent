@@ -344,6 +344,10 @@ class CheckResultSkill(Skill):
 
         return "\n".join(lines)
 
+    def get_scripts_info(self) -> str:
+        """Алиас для get_scripts_description() - для совместимости с generate_script_handler."""
+        return self.get_scripts_description()
+
     def _get_event_type_for_success(self) -> str:
         return "skill.check_result.executed"
 
