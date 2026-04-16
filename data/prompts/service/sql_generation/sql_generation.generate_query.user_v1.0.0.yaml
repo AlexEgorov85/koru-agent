@@ -16,6 +16,8 @@ content: |
   === ДОСТУПНЫЕ ТАБЛИЦЫ ===
   {available_tables}
 
+  {hints}
+
   === ИНСТРУКЦИЯ ПО ЗАПОЛНЕНИЮ КОНТРАКТА ===
   Проанализируй запрос и схему, затем последовательно ответь на следующие вопросы. Ответы автоматически станут значениями полей анализа:
 
@@ -44,6 +46,9 @@ variables:
     required: false
   - name: available_tables
     description: Список доступных таблиц и колонок для запроса
+    required: false
+  - name: hints
+    description: Подсказки для генератора (например: предыдущая ошибка, рекомендации)
     required: false
 metadata:
   author: system

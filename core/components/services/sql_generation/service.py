@@ -252,7 +252,8 @@ class SQLGenerationService(Service):
             "available_scripts": available_scripts or "Скрипты не доступны",
             "available_tables": available_tables or "",
             "allowed_operations": ", ".join(self.allowed_operations),
-            "max_rows": self.max_result_rows
+            "max_rows": self.max_result_rows,
+            "hints": error_context or ""
         }
 
         # Используем кэшированный промпт из компонента

@@ -60,8 +60,11 @@ class GenerateScriptHandler(SkillHandler):
 
         query = params.query if hasattr(params, 'query') else ''
         max_results = params.max_results if hasattr(params, 'max_results') else 50
+        hints = params.hints if hasattr(params, 'hints') and params.hints else ''
 
         await self.log_info(f"Запуск генерации скрипта: {query}")
+        if hints:
+            await self.log_info(f"Подсказки: {hints}")
 
         table_schema = await self._get_schema()
 
@@ -72,13 +75,20 @@ class GenerateScriptHandler(SkillHandler):
 
         for attempt in range(1, max_attempts + 1):
             try:
-                # Генерация SQL (с учетом предыдущих ошибок)
+                # Генерация SQL (с учетом предыдущих ошибок и подсказок)
                 error_context = None
                 if last_error:
                     error_context = f"Предыдущая ошибка: {last_error}\nИсправь SQL запрос."
                     await self.log_warning(
                         f"Попытка {attempt}/{max_attempts}: корректировка после ошибки",
                     )
+                
+                # Добавляем подсказки к контексту
+                if hints and attempt == 1:
+                    if error_context:
+                        error_context = f"{hints}\n\n{error_context}"
+                    else:
+                        error_context = hints
                 
                 sql_query = await self._generate_sql(query, table_schema, error_context)
 

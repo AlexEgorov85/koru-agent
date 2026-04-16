@@ -15,6 +15,9 @@ schema_data:
       type: integer
       description: Максимальное количество возвращаемых строк
       default: 50
+    hints:
+      type: string
+      description: Подсказки для генератора SQL (например: предыдущая попытка была неверной, добавь фильтр по дате, используй JOIN с таблицей audits)
   required:
     - query
 status: active
