@@ -126,30 +126,23 @@ class PromptBuilderService:
             return ""
         
         if not rows or not isinstance(rows[0], dict):
-            return str(rows[:max_rows])[:500]
+            return str(rows)
         
-        # Берём все колонки из первой строки
-        columns = list(rows[0].keys())[:10]  # Макс 10 колонок
+        columns = list(rows[0].keys())
         
-        # Заголовок
         header = "| " + " | ".join(columns) + " |"
         separator = "| " + " | ".join(["---"] * len(columns)) + " |"
         
-        # Строки
         table_rows = []
-        for row in rows[:max_rows]:
+        for row in rows:
             values = []
             for col in columns:
                 val = row.get(col, "")
-                val_str = str(val)[:50]  # Ограничиваем длину ячейки
-                val_str = val_str.replace("|", "\\|")
+                val_str = str(val).replace("|", "\\|")
                 values.append(val_str)
             table_rows.append("| " + " | ".join(values) + " |")
         
         lines = [header, separator] + table_rows
-        
-        if len(rows) > max_rows:
-            lines.append(f"| ... и ещё {len(rows) - max_rows} строк |")
         
         return "\n".join(lines)
 
@@ -158,101 +151,67 @@ class PromptBuilderService:
         last_steps: list,
         session_context=None
     ) -> str:
-        """Формирует читаемую историю шагов с реальными данными."""
+        """Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение."""
         if not last_steps:
             return "Шаги не выполнены"
 
-        step_lines = []
-        for i, step in enumerate(last_steps, 1):  # Все шаги
+        lines = ["=== ИСТОРИЯ ВЫПОЛНЕНИЯ ===\n"]
+
+        for i, step in enumerate(last_steps, 1):
+            capability = None
+            summary = None
+            status = "unknown"
+            parameters = {}
+            obs_ids = []
+
             if hasattr(step, 'capability_name'):
-                # Это объект AgentStep
                 capability = step.capability_name
-                summary = step.summary or "Без описания"
+                summary = step.summary or ""
                 status = step.status.value if hasattr(step.status, 'value') else str(step.status)
-
-                # Извлекаем параметры
-                parameters_str = ""
-                if hasattr(step, 'parameters') and step.parameters:
-                    params = step.parameters
-                    if isinstance(params, dict):
-                        # Форматируем параметры компактно
-                        params_parts = []
-                        for key, value in params.items():
-                            val_str = str(value)[:200]  # Ограничиваем длину
-                            params_parts.append(f"{key}={val_str}")
-                        parameters_str = "\n   Параметры: " + ", ".join(params_parts)
-
-                # Извлекаем observation (приоритетнее чем result)
-                observation_text = self._extract_observations_from_step(
-                    session_context,
-                    step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
-                )
-
-                # Result только для fallback если нет observation
-                result_str = ""
-                if hasattr(step, 'result') and step.result is not None:
-                    result_data = step.result
-                    if isinstance(result_data, dict):
-                        result_str = str(result_data)[:500]
-                    else:
-                        result_str = str(result_data)[:500]
-
-                step_text = f"{i}. {capability}\n"
-                if parameters_str:
-                    step_text += f"   {parameters_str}\n"
-                step_text += f"   Результат: {observation_text if observation_text != 'Нет доступных данных' else (result_str if result_str else 'Нет данных')}\n"
-                step_text += f"   Статус: {status}"
-
+                parameters = step.parameters or {}
+                obs_ids = step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
             elif isinstance(step, dict):
-                # Это словарь (новый формат)
                 capability = step.get('capability_name', step.get('capability', 'unknown'))
                 summary = step.get('summary', '')
-
-                # Извлекаем параметры
-                parameters_str = ""
-                if 'parameters' in step and step['parameters']:
-                    params = step['parameters']
-                    if isinstance(params, dict):
-                        params_parts = []
-                        for key, value in params.items():
-                            val_str = str(value)[:200]
-                            params_parts.append(f"{key}={val_str}")
-                        parameters_str = "\n   Параметры: " + ", ".join(params_parts)
-
-                # Пробуем получить observation из dict (приоритетнее чем result)
-                if 'observation' in step and step['observation']:
-                    observation = step['observation']
-                elif hasattr(session_context, 'data_context') and step.get('observation_item_ids'):
-                    observation = self._extract_observations_from_step(
-                        session_context,
-                        step['observation_item_ids']
-                    )
-                else:
-                    observation = summary
-
-                # Result только для fallback если нет observation
-                result_str = ""
-                if 'result' in step and step['result'] is not None:
-                    result_data = step['result']
-                    if isinstance(result_data, dict):
-                        result_str = str(result_data)[:500]
-                    else:
-                        result_str = str(result_data)[:500]
-
                 status = step.get('status', 'unknown')
-
-                step_text = f"{i}. {capability}\n"
-                if parameters_str:
-                    step_text += f"   {parameters_str}\n"
-                step_text += f"   Результат: {observation if observation and observation != 'Нет доступных данных' else (result_str if result_str else 'Нет данных')}\n"
-                step_text += f"   Статус: {status}"
+                parameters = step.get('parameters', {}) or {}
+                obs_ids = step.get('observation_item_ids', [])
             else:
-                # Fallback для строки или другого типа
-                step_text = f"{i}. {str(step)}"
+                lines.append(f"[ШАГ {i}]\n{str(step)}\n")
+                continue
 
-            step_lines.append(step_text)
+            thought = summary.strip() if summary else "Не указано"
 
-        return "\n\n".join(step_lines)
+            obs_text = "Нет данных"
+            if obs_ids and session_context and hasattr(session_context, 'data_context'):
+                obs_parts = []
+                for obs_id in obs_ids:
+                    item = session_context.data_context.get_item(obs_id, raise_on_missing=False)
+                    if item:
+                        if hasattr(item, 'quick_content') and item.quick_content:
+                            obs_parts.append(item.quick_content)
+                        elif hasattr(item, 'content'):
+                            content_str = str(item.content)
+                            obs_parts.append(content_str)
+                if obs_parts:
+                    obs_text = "\n".join(obs_parts)
+            elif hasattr(step, 'result') and step.result is not None:
+                obs_text = str(step.result)
+            elif isinstance(step, dict) and step.get('result'):
+                obs_text = str(step['result'])
+
+            if status == "FAILED":
+                obs_text = f"❌ Ошибка: {obs_text}"
+
+            block = f"[ШАГ {i}]\n"
+            block += f"💭 Обоснование: {thought}\n"
+            block += f"🛠️ Действие: {capability}\n"
+            block += f"📥 Параметры: {parameters}\n"
+            block += f"👁️ Наблюдение: {obs_text}\n"
+            block += f"📊 Статус: {status}\n"
+            lines.append(block)
+
+        return "\n".join(lines)
 
     def _extract_observations_from_step(
         self, 
@@ -272,7 +231,7 @@ class PromptBuilderService:
             return "Нет наблюдений"
         
         if not session_context or not hasattr(session_context, 'data_context'):
-            return f"ID наблюдений: {observation_item_ids[:20]}..."
+            return f"ID наблюдений: {observation_item_ids}"
         
         observations = []
         total_rows = 0
@@ -311,7 +270,7 @@ class PromptBuilderService:
                             
                             # Показываем параметры вызова
                             if parameters:
-                                params_str = ", ".join([f"{k}={str(v)[:100]}" for k, v in list(parameters.items())[:3]])
+                                params_str = ", ".join([f"{k}={str(v)}" for k, v in parameters.items()])
                                 observations.append(f"   Параметры: {params_str}")
                             
                             # Показываем traceback если есть (сокращённо)
@@ -323,7 +282,7 @@ class PromptBuilderService:
                             
                             observations.append("💡 Возможно, нужно: проверить параметры, вызвать skill с другими параметрами, или использовать другой skill")
                         else:
-                            observations.append(f"❌ ОШИБКА: {str(content)[:500]}")
+                            observations.append(f"❌ ОШИБКА: {str(content)}")
                         continue
 
                     # Извлекаем полезную информацию
@@ -337,13 +296,13 @@ class PromptBuilderService:
                         if 'rows' in content:
                             rows = content['rows']
                         elif 'result' in content:
-                            result_str = str(content['result'])[:self.DISPLAY_LIMITS['max_chars_display']]
+                            result_str = str(content['result'])
                             observations.append(f"- {result_str}")
                         elif 'data' in content:
-                            data_str = str(content['data'])[:self.DISPLAY_LIMITS['max_chars_display']]
+                            data_str = str(content['data'])
                             observations.append(f"- {data_str}")
                         else:
-                            content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
+                            content_str = str(content)
                             observations.append(f"- {content_str}")
                     
                     # Обработка rows
@@ -358,33 +317,14 @@ class PromptBuilderService:
                                 truncated_warning = item.metadata.additional_data.get('truncated_warning', False)
                                 truncated_message = item.metadata.additional_data.get('truncated_message', '')
 
-                        # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
-                        if len(rows) <= self.DATA_SIZE_LIMITS['small']:
-                            # Маленькие данные → показываем всё
-                            observations.extend(self._format_small_data(rows))
-                            # Добавляем предупреждение об усечении
-                            if truncated_warning:
-                                observations.append(f"⚠️ {truncated_message}")
-                        elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
-                            # Средние данные → статистика + первые N
-                            observations.append(f"📊 Найдено {len(rows)} записей")
-                            observations.append("⚠️ Эти данные не доступны для final_answer, для полного анализа используйте data_analysis.analyze_step_data")
-                            observations.append("📋 Первые 5:")
-                            observations.extend(self._format_small_data(rows[:5]))
-                            observations.append(f"... и ещё {len(rows) - 5} записей")
-                        elif len(rows) <= self.DATA_SIZE_LIMITS['large']:
-                            # Большие данные → только статистика
-                            observations.append(f"📊 Найдено {len(rows)} записей (большие данные)")
-                            observations.append("⚠️ Эти данные не доступны для final_answer, для полного анализа используйте data_analysis.analyze_step_data")
-                            observations.append("📋 Пример (3 записи):")
-                            observations.extend(self._format_small_data(rows[:3]))
-                        else:
-                            # Очень большие данные → только мета
-                            observations.append(f"📊 Найдено {len(rows)} записей (очень большие данные)")
-                            observations.append("💡 Эти данные не доступны для final_answer, вызовите data_analysis.analyze_step_data для суммаризации")
+                        # Все данные показываем полностью
+                        observations.extend(self._format_small_data(rows))
+                        # Добавляем предупреждение об усечении
+                        if truncated_warning:
+                            observations.append(f"⚠️ {truncated_message}")
                     elif not observations:
                         # Fallback для других типов
-                        content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
+                        content_str = str(content)
                         observations.append(f"- {content_str}")
                         
             except Exception as e:
@@ -400,18 +340,18 @@ class PromptBuilderService:
         return "Нет доступных данных"
 
     def _format_small_data(self, rows: list, use_markdown: bool = True) -> list:
-        """Форматирование небольших данных для отображения."""
+        """Форматирование данных для отображения."""
         if not rows:
             return []
         
         if use_markdown and rows and isinstance(rows[0], dict):
-            return self._format_table_markdown(rows, self.DISPLAY_LIMITS['max_rows_display'])
+            return self._format_table_markdown(rows)
         
         formatted = []
-        for row in rows[:self.DISPLAY_LIMITS['max_rows_display']]:
+        for row in rows:
             if isinstance(row, dict):
                 row_parts = []
-                for k, v in list(row.items())[:5]:
+                for k, v in row.items():
                     row_parts.append(f"{k}: {v}")
                 row_str = ", ".join(row_parts)
                 formatted.append(f"   - {row_str}")

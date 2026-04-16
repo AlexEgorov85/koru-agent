@@ -111,18 +111,9 @@ def _format_sql_observation(data: dict, capability_name: str, parameters: Option
         lines.append("💡 Данные отсутствуют (0 записей)")
         return "\n".join(lines)
 
-    # Всегда показываем все записи если их <= 5
-    if len(rows) <= 5:
-        lines.append(f"📋 ВСЕ {len(rows)} ЗАПИСЕЙ:")
-        for i, row in enumerate(rows):
-            lines.append(f"  [{i}] {row}")
-    else:
-        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(rows)} ЗАПИСЕЙ:")
-        for i, row in enumerate(rows[:5]):
-            lines.append(f"  [{i}] {row}")
-        lines.append(f"  ... и ещё {len(rows) - 5} записей")
-        lines.append("")
-        lines.append("💡 Для анализа всех данных используйте: text_analysis.analyze с параметрами question='...', step_id=N")
+    lines.append(f"📋 ВСЕ {len(rows)} ЗАПИСЕЙ:")
+    for i, row in enumerate(rows):
+        lines.append(f"  [{i}] {row}")
 
     return "\n".join(lines)
 
@@ -151,27 +142,13 @@ def _format_vector_search_observation(data: dict, capability_name: str) -> str:
     lines.append("  score = first.score            # релевантность (0-1)")
     lines.append("")
 
-    if len(results) <= 5:
-        lines.append(f"📋 ВСЕ {len(results)} РЕЗУЛЬТАТА:")
-        for i, r in enumerate(results):
-            if hasattr(r, 'text'):
-                text_preview = r.text[:100] + "..." if len(str(r.text)) > 100 else r.text
-                score = getattr(r, 'score', 0)
-                lines.append(f"  [{i}] (score={score:.2f}) {text_preview}")
-            else:
-                lines.append(f"  [{i}] {r}")
-    else:
-        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(results)} РЕЗУЛЬТАТОВ:")
-        for i, r in enumerate(results[:5]):
-            if hasattr(r, 'text'):
-                text_preview = r.text[:100] + "..." if len(str(r.text)) > 100 else r.text
-                score = getattr(r, 'score', 0)
-                lines.append(f"  [{i}] (score={score:.2f}) {text_preview}")
-            else:
-                lines.append(f"  [{i}] {r}")
-        lines.append(f"  ... и ещё {len(results) - 5} результатов")
-        lines.append("")
-        lines.append("💡 Полные данные доступны в data_context")
+    lines.append(f"📋 ВСЕ {len(results)} РЕЗУЛЬТАТОВ:")
+    for i, r in enumerate(results):
+        if hasattr(r, 'text'):
+            score = getattr(r, 'score', 0)
+            lines.append(f"  [{i}] (score={score:.2f}) {r.text}")
+        else:
+            lines.append(f"  [{i}] {r}")
 
     return "\n".join(lines)
 
@@ -218,25 +195,15 @@ def _format_list_observation(data: list, capability_name: str) -> str:
     lines.append("  value = result[0].field       # если объект")
     lines.append("")
 
-    if len(data) <= 5:
-        lines.append(f"📋 ВСЕ {len(data)} ЭЛЕМЕНТЫ:")
-        for i, item in enumerate(data):
-            lines.append(f"  [{i}] {item}")
-    else:
-        lines.append(f"📋 ПЕРВЫЕ 5 ИЗ {len(data)} ЭЛЕМЕНТОВ:")
-        for i, item in enumerate(data[:5]):
-            lines.append(f"  [{i}] {item}")
-        lines.append(f"  ... и ещё {len(data) - 5} элементов")
-        lines.append("")
-        lines.append("💡 Полные данные доступны в data_context. Для анализа используйте data_analysis.analyze_step_data")
+    lines.append(f"📋 ВСЕ {len(data)} ЭЛЕМЕНТЫ:")
+    for i, item in enumerate(data):
+        lines.append(f"  [{i}] {item}")
 
     return "\n".join(lines)
 
 
 def _format_string_observation(data: str, capability_name: str) -> str:
     """Форматирует string результат."""
-    preview = data[:500] + "..." if len(data) > 500 else data
-    
     lines = []
     lines.append("=== ПОЛУЧЕННЫЕ ДАННЫЕ ===")
     lines.append(f"📊 Тип: str")
@@ -246,7 +213,7 @@ def _format_string_observation(data: str, capability_name: str) -> str:
     lines.append("  text = result                # str")
     lines.append("")
     lines.append("📄 СОДЕРЖИМОЕ:")
-    lines.append(preview)
+    lines.append(data)
 
     return "\n".join(lines)
 
@@ -259,6 +226,6 @@ def _format_generic_observation(data: Any, capability_name: str) -> str:
     lines.append("=== ПОЛУЧЕННЫЕ ДАННЫЕ ===")
     lines.append(f"📊 Тип: {data_type}")
     lines.append("")
-    lines.append(f"💾 ЗНАЧЕНИЕ: {str(data)[:500]}")
+    lines.append(f"💾 ЗНАЧЕНИЕ: {str(data)}")
 
     return "\n".join(lines)

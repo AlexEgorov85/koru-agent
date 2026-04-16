@@ -58,7 +58,7 @@ class ObservationFormatter:
     def _extract_profile(cls, data: Any) -> Dict[str, Any]:
         """Извлекает профиль данных."""
         if isinstance(data, list) and data and isinstance(data[0], dict):
-            cols = list(data[0].keys())[:15]
+            cols = list(data[0].keys())
             numeric = [c for c in cols if isinstance(data[0][c], (int, float))]
             stats = {}
             for c in numeric:
@@ -86,7 +86,7 @@ class ObservationFormatter:
             return {
                 "type": "dict",
                 "key_count": len(data),
-                "keys": list(data.keys())[:10]
+                "keys": list(data.keys())
             }
         return {"type": type(data).__name__}
     
@@ -96,10 +96,10 @@ class ObservationFormatter:
         if isinstance(data, list):
             return data[:n]
         if isinstance(data, str):
-            return data[:300]
+            return data
         if isinstance(data, dict):
-            return {k: v for i, (k, v) in enumerate(data.items()) if i < n}
-        return str(data)[:300]
+            return dict(list(data.items())[:n])
+        return str(data)
     
     @classmethod
     def render_for_prompt(cls, obs: Dict[str, Any]) -> str:
@@ -124,8 +124,6 @@ class ObservationFormatter:
             if data is not None:
                 preview = cls._safe_sample(data, 3)
                 preview_str = json.dumps(preview, ensure_ascii=False)
-                if len(preview_str) > 350:
-                    preview_str = preview_str[:350] + "..."
                 lines.append(f"📦 НАБЛЮДЕНИЕ (шаг {step_id}, тип: raw)")
                 lines.append(f"📊 Данные: {preview_str}")
                 lines.append(f"💡 Доступ: observation['data'] (полный набор)")
@@ -140,7 +138,7 @@ class ObservationFormatter:
                 if ptype == "tabular":
                     rows = profile.get("row_count", "?")
                     cols = profile.get("columns", [])
-                    lines.append(f"• Профиль: таблица, {rows} строк, колонки: {cols[:5]}...")
+                    lines.append(f"• Профиль: таблица, {rows} строк, колонки: {cols}")
                 elif ptype == "text":
                     chars = profile.get("char_count", "?")
                     lines.append(f"• Профиль: текст, {chars} символов")
@@ -150,8 +148,6 @@ class ObservationFormatter:
             sample = obs.get("sample")
             if sample:
                 sample_str = json.dumps(cls._safe_sample(sample, 3), ensure_ascii=False)
-                if len(sample_str) > 250:
-                    sample_str = sample_str[:250] + "..."
                 lines.append(f"• Пример: {sample_str}")
             
             access_hint = obs.get("access_hint", "")
