@@ -214,7 +214,7 @@ class LoggingSession:
         import sys
         console = logging.StreamHandler(sys.stdout)
         console.setLevel(self.config.console.level)
-        console.setFormatter(logging.Formatter("%(levelname)-7s | %(message)s"))
+        console.setFormatter(logging.Formatter("%(message)s"))
         allowed_events = getattr(self.config.console, "allowed_terminal_events", None)
         if allowed_events:
             console.addFilter(EventTypeFilter(allowed_events))
@@ -246,6 +246,8 @@ class LoggingSession:
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_path = self.agents_dir / f"{ts}.log"
         logger = self._setup_file_logger(f"agent.{agent_id}", log_path)
+        # Добавляем консольный хендлер с фильтрацией для агента
+        self._add_console_handler(logger)
         self._agent_loggers[agent_id] = logger
         return logger
 
@@ -329,7 +331,7 @@ class LoggingSession:
         )
         console.setLevel(console_level)
         console.setFormatter(logging.Formatter(
-            "%(levelname)-7s | %(message)s"
+            "%(message)s"
         ))
 
         # Добавляем фильтр по типам событий если настроен
