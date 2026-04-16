@@ -106,18 +106,10 @@ def smart_format_observation(
                 lines.append(f"[{i}] {row_str}")
             else:
                 lines.append(f"[{i}] {str(row)}")
-    elif isinstance(result_data, str):
-        lines.append(f"Начало ({min(100, len(result_data))} символов):")
-        lines.append(f"  {result_data[:100]}")
-    elif data_dict:
-        if isinstance(data_dict, dict):
-            keys = list(data_dict.keys())[:5]
-            lines.append(f"Ключи: {keys}")
-        lines.append(f"Пример (100 символов):")
-        lines.append(f"  {data_str[:100]}...")
-    
-    lines.append("")
-    lines.append("💡 Для анализа всех данных используй: data_analysis.analyze_step_data")
+    elif isinstance(result_data, str) and result_data:
+        lines.append(result_data[:100])
+    else:
+        lines.append("Нет данных")
     
     return "\n".join(lines)
 
@@ -154,7 +146,6 @@ def _to_dict(data: Any) -> dict:
 def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = None) -> str:
     """Форматирует SQL результат (dataclass/pydantic объект)."""
     rows = getattr(data, 'rows', []) or []
-    columns = getattr(data, 'columns', []) or []
     warning = getattr(data, 'warning', None)
     max_display = 10
 
@@ -164,10 +155,10 @@ def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = 
         lines.append(f"⚠️ {warning}")
 
     if not rows:
-        lines.append("0 записей")
+        lines.append("Нет данных")
         return "\n".join(lines)
     
-    # Показываем только данные - метаинформация (кол-во записей, колонки) не нужна
+    # Показываем только данные
     for i, row in enumerate(rows[:max_display]):
         if hasattr(row, '__dict__'):
             row = row.__dict__
@@ -211,8 +202,6 @@ def _format_vector_search_result_object(data: Any) -> str:
 def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = None) -> str:
     """Форматирует SQL результат."""
     rows = data.get("rows", [])
-    columns = data.get("columns", [])
-    rowcount = data.get("rowcount", 0)
     warning = data.get("warning")
     max_display = 10
 
@@ -222,10 +211,10 @@ def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = N
         lines.append(f"⚠️ {warning}")
 
     if not rows:
-        lines.append("0 записей")
+        lines.append("Нет данных")
         return "\n".join(lines)
     
-    # Показываем только данные - метаинформация не нужна
+    # Показываем только данные
     for i, row in enumerate(rows[:max_display]):
         if isinstance(row, dict):
             row_str = ", ".join(f"{k}={v}" for k, v in row.items())
