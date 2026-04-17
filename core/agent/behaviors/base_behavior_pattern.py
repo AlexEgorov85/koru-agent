@@ -156,7 +156,7 @@ class PromptBuilderService:
         if not last_steps:
             return "Шаги не выполнены"
 
-        lines = ["=== ИСТОРИЯ ВЫПОЛНЕНИЯ ===\n"]
+        lines = ["\n"]
 
         for i, step in enumerate(last_steps, 1):
             capability = None

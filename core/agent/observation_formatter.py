@@ -212,32 +212,39 @@ def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = N
     sql_query = data.get("sql_query", "")
     max_display = 10
 
-    lines = []
-    
-    if sql_query:
-        lines.append(f"SQL: {sql_query}")
-        if rows:
-            lines.append("")
-    
     if warning:
-        lines.append(f"⚠️ {warning}")
+        return f"⚠️ {warning}"
 
     if not rows:
-        lines.append("Нет данных")
-        return "\n".join(lines)
-    
-    # Показываем только данные
-    for i, row in enumerate(rows[:max_display]):
-        if isinstance(row, dict):
-            row_str = ", ".join(f"{k}={v}" for k, v in row.items())
-            lines.append(f"[{i}] {row_str}")
-        else:
-            lines.append(f"[{i}] {str(row)}")
-    
-    if len(rows) > max_display:
-        lines.append(f"... и ещё {len(rows) - max_display} записей")
+        return "Запрос выполнен, данных не найдено"
 
-    return "\n".join(lines)
+    display_rows = rows[:max_display]
+    row_count = len(rows)
+    total_chars = sum(len(str(r)) for r in display_rows)
+
+    is_small = len(display_rows) < 5 and total_chars < 500
+
+    if is_small:
+        lines = []
+        for row in display_rows:
+            if isinstance(row, dict):
+                line = "| " + " | ".join(str(v) for v in row.values()) + " |"
+                lines.append(line)
+            else:
+                lines.append(f"| {row} |")
+
+        if len(rows) > max_display:
+            lines.append(f"| ... (+ ещё {len(rows) - max_display} записей) |")
+
+        table = "\n".join(lines)
+    else:
+        table = f"Получено {row_count} строк ({total_chars} символов). Для анализа запустите data_analysis."
+
+    if sql_query:
+        clean_sql = sql_query.replace('\n', ' ').strip()
+        return f"Выполнен запрос {clean_sql};\n{table}"
+
+    return table
 
 
 def _format_vector_search_observation(data: dict) -> str:

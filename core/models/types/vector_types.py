@@ -199,6 +199,93 @@ class VectorIndexInfo(BaseModel):
     )
 
 
+class RowMetadata(BaseModel):
+    """
+    Универсальные метаданные строки БД для векторного индекса.
+
+    Структура:
+    - source: имя источника (audits, violations, books, ...)
+    - table: полное имя таблицы (schema.table)
+    - primary_key: имя primary key поля
+    - pk_value: значение primary key
+    - row: все поля строки БД
+    - chunk_index: индекс чанка (0 если строка не разбита)
+    - total_chunks: количество чанков (1 если строка не разбита)
+    - search_text: текст для поиска (может отличаться от content)
+    - content: текст конкретного чанка (для чанкнутых документов)
+
+    Пример для violations:
+        source: "violations"
+        table: "oarb.violations"
+        primary_key: "id"
+        pk_value: 123
+        row: {"id": 123, "violation_code": "V-001", "description": "...", ...}
+        chunk_index: 0
+        total_chunks: 1
+        search_text: "Описание нарушения..."
+        content: "Описание нарушения..."
+
+    Пример для books с chunking:
+        source: "books"
+        table: "lib.books"
+        primary_key: "id"
+        pk_value: 456
+        row: {"id": 456, "title": "Война и мир", "author": "Толстой", ...}
+        chunk_index: 2
+        total_chunks: 5
+        search_text: "полный текст главы 3..."
+        content: "часть текста чанка..."
+    """
+    source: str = Field(description="Имя источника (audits, violations, books, ...)")
+    table: str = Field(description="Полное имя таблицы (schema.table)")
+    primary_key: str = Field(description="Имя поля primary key")
+    pk_value: Any = Field(description="Значение primary key")
+    row: Dict[str, Any] = Field(description="Все поля строки из БД")
+    chunk_index: int = Field(default=0, description="Индекс чанка в документе")
+    total_chunks: int = Field(default=1, description="Всего чанков в документе")
+    search_text: str = Field(description="Текст который был векторизован")
+    content: str = Field(description="Текст конкретного чанка")
+
+    def get_row_field(self, field_name: str, default: Any = None) -> Any:
+        """Получить значение поля из строки БД."""
+        return self.row.get(field_name, default)
+
+    def get_id(self) -> Any:
+        """Получить значение primary key."""
+        return self.pk_value
+
+    def is_single_chunk(self) -> bool:
+        """Проверяет что документ не разбит на чанки."""
+        return self.total_chunks == 1
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source": "violations",
+                "table": "oarb.violations",
+                "primary_key": "id",
+                "pk_value": 123,
+                "row": {
+                    "id": 123,
+                    "violation_code": "V-2024-001",
+                    "description": "Недостаточная проверка поставщика",
+                    "recommendation": "Усилить контроль",
+                    "severity": "Средняя",
+                    "status": "Открыто",
+                    "responsible": "Иванов И.И.",
+                    "deadline": "2024-03-15",
+                    "audit_id": 45,
+                    "audit_title": "Аудит закупок"
+                },
+                "chunk_index": 0,
+                "total_chunks": 1,
+                "search_text": "Недостаточная проверка поставщика V-2024-001",
+                "content": "Недостаточная проверка поставщика V-2024-001"
+            }
+        }
+    )
+
+
 class VectorSearchStats(BaseModel):
     """
     Статистика поиска.

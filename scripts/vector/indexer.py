@@ -139,7 +139,7 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     print("=" * 60)
 
     from core.config import get_config
-    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.models.types.vector_types import RowMetadata
     import psycopg2
 
     config = get_config(profile="dev")
@@ -160,26 +160,47 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT DISTINCT a.last_name as author_name
-        FROM "Lib".authors a
-        WHERE a.last_name IS NOT NULL
-        ORDER BY author_name
+        SELECT id, last_name, first_name, birth_year
+        FROM "Lib".authors
+        WHERE last_name IS NOT NULL
+        ORDER BY last_name, first_name
     """)
-    authors = [row[0] for row in cursor.fetchall()]
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    print(f"Найдено авторов в БД: {len(authors)}\n")
+    print(f"Найдено авторов в БД: {len(rows)}\n")
 
     all_vectors = []
     all_metadata = []
 
-    for author in authors:
-        vector = await embedding.generate_single(author)
-        metadata = {"author": author, "search_text": author}
+    for row in rows:
+        row_dict = {
+            "id": row[0],
+            "last_name": row[1],
+            "first_name": row[2],
+            "birth_year": row[3],
+        }
+
+        search_text = f"{row_dict['first_name']} {row_dict['last_name']}"
+
+        vector = await embedding.generate_single(search_text)
+
+        metadata = RowMetadata(
+            source="authors",
+            table="Lib.authors",
+            primary_key="id",
+            pk_value=row_dict["id"],
+            row=row_dict,
+            chunk_index=0,
+            total_chunks=1,
+            search_text=search_text,
+            content=search_text,
+        )
+
         all_vectors.append(vector)
-        all_metadata.append(metadata)
-        print(f"   {author}: {len(vector)}d vector")
+        all_metadata.append(metadata.model_dump())
+        print(f"   [{row_dict['id']}] {search_text}: {len(vector)}d vector")
 
     print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
@@ -199,7 +220,8 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
     print("=" * 60)
 
     from core.config import get_config
-    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.models.types.vector_types import RowMetadata
+    import psycopg2
 
     config = get_config(profile="dev")
     db_config = config.db_providers.get("default_db")
@@ -209,7 +231,6 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
 
     params = db_config.parameters
 
-    import psycopg2
     conn = psycopg2.connect(
         host=params.get("host", "localhost"),
         port=params.get("port", 5432),
@@ -227,36 +248,43 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
         ORDER BY b.id
     """)
     rows = cursor.fetchall()
-    books = [
-        {
-            "id": r[0],
-            "title": r[1],
-            "author_id": r[2],
-            "last_name": r[3],
-            "first_name": r[4],
-        }
-        for r in rows
-    ]
     cursor.close()
     conn.close()
 
-    print(f"Найдено книг в БД: {len(books)}\n")
+    print(f"Найдено книг в БД: {len(rows)}\n")
 
     all_vectors = []
     all_metadata = []
 
-    for book in books:
-        text = f"{book['title']} {book['first_name']} {book['last_name']}"
-        vector = await embedding.generate_single(text)
-        metadata = {
-            "book_id": book["id"],
-            "title": book["title"],
-            "author": f"{book['first_name']} {book['last_name']}",
-            "search_text": text,
+    for row in rows:
+        row_dict = {
+            "id": row[0],
+            "title": row[1],
+            "author_id": row[2],
+            "last_name": row[3],
+            "first_name": row[4],
+            "author": f"{row[4]} {row[3]}",
         }
+
+        search_text = f"{row_dict['title']} {row_dict['first_name']} {row_dict['last_name']}"
+
+        vector = await embedding.generate_single(search_text)
+
+        metadata = RowMetadata(
+            source="books",
+            table="Lib.books",
+            primary_key="id",
+            pk_value=row_dict["id"],
+            row=row_dict,
+            chunk_index=0,
+            total_chunks=1,
+            search_text=search_text,
+            content=search_text,
+        )
+
         all_vectors.append(vector)
-        all_metadata.append(metadata)
-        print(f"   [{book['id']}] {book['title']} — {book['first_name']} {book['last_name']}")
+        all_metadata.append(metadata.model_dump())
+        print(f"   [{row_dict['id']}] {row_dict['title']} — {row_dict['first_name']} {row_dict['last_name']}")
 
     print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
@@ -442,6 +470,7 @@ async def index_audits(embedding, faiss_provider, vs_config) -> int:
     print("=" * 60)
 
     from core.config import get_config
+    from core.models.types.vector_types import RowMetadata
     import psycopg2
 
     config = get_config(profile="dev")
@@ -462,8 +491,8 @@ async def index_audits(embedding, faiss_provider, vs_config) -> int:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, audit_type, status, auditee_entity
-        FROM audits
+        SELECT id, title, audit_type, planned_date, actual_date, status, auditee_entity
+        FROM oarb.audits
         WHERE title IS NOT NULL
         ORDER BY id
     """)
@@ -477,27 +506,40 @@ async def index_audits(embedding, faiss_provider, vs_config) -> int:
     all_metadata = []
 
     for row in rows:
-        audit_id, title, audit_type, status, auditee_entity = row
-        # Формируем поисковый текст из всех значимых полей
-        search_parts = [title]
-        if auditee_entity:
-            search_parts.append(auditee_entity)
-        if audit_type:
-            search_parts.append(audit_type)
+        row_dict = {
+            "id": row[0],
+            "title": row[1],
+            "audit_type": row[2],
+            "planned_date": str(row[3]) if row[3] else None,
+            "actual_date": str(row[4]) if row[4] else None,
+            "status": row[5],
+            "auditee_entity": row[6],
+        }
+
+        search_parts = [row_dict["title"]]
+        if row_dict["auditee_entity"]:
+            search_parts.append(row_dict["auditee_entity"])
+        if row_dict["audit_type"]:
+            search_parts.append(row_dict["audit_type"])
         search_text = " ".join(str(p) for p in search_parts if p)
 
         vector = await embedding.generate_single(search_text)
-        metadata = {
-            "audit_id": audit_id,
-            "title": title,
-            "audit_type": audit_type or "",
-            "status": status or "",
-            "auditee_entity": auditee_entity or "",
-            "search_text": search_text,
-        }
+
+        metadata = RowMetadata(
+            source="audits",
+            table="oarb.audits",
+            primary_key="id",
+            pk_value=row_dict["id"],
+            row=row_dict,
+            chunk_index=0,
+            total_chunks=1,
+            search_text=search_text,
+            content=search_text,
+        )
+
         all_vectors.append(vector)
-        all_metadata.append(metadata)
-        print(f"   [{audit_id}] {title[:60]}... | {auditee_entity or '—'} | {status}")
+        all_metadata.append(metadata.model_dump())
+        print(f"   [{row_dict['id']}] {row_dict['title'][:60]}... | {row_dict['auditee_entity'] or '—'} | {row_dict['status']}")
 
     print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
@@ -517,6 +559,7 @@ async def index_violations(embedding, faiss_provider, vs_config) -> int:
     print("=" * 60)
 
     from core.config import get_config
+    from core.models.types.vector_types import RowMetadata
     import psycopg2
 
     config = get_config(profile="dev")
@@ -537,10 +580,11 @@ async def index_violations(embedding, faiss_provider, vs_config) -> int:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT v.id, v.violation_code, v.description, v.severity, v.status,
-               v.responsible, a.title as audit_title
-        FROM violations v
-        JOIN audits a ON v.audit_id = a.id
+        SELECT v.id, v.violation_code, v.description, v.recommendation,
+               v.severity, v.status, v.responsible, v.deadline, v.audit_id,
+               a.title as audit_title, a.status as audit_status
+        FROM oarb.violations v
+        JOIN oarb.audits a ON v.audit_id = a.id
         WHERE v.description IS NOT NULL
         ORDER BY v.id
     """)
@@ -554,30 +598,46 @@ async def index_violations(embedding, faiss_provider, vs_config) -> int:
     all_metadata = []
 
     for row in rows:
-        viol_id, viol_code, description, severity, status, responsible, audit_title = row
+        row_dict = {
+            "id": row[0],
+            "violation_code": row[1],
+            "description": row[2],
+            "recommendation": row[3],
+            "severity": row[4],
+            "status": row[5],
+            "responsible": row[6],
+            "deadline": str(row[7]) if row[7] else None,
+            "audit_id": row[8],
+            "audit_title": row[9],
+            "audit_status": row[10],
+        }
+
         search_parts = []
-        if description:
-            search_parts.append(description)
-        if viol_code:
-            search_parts.append(viol_code)
-        if audit_title:
-            search_parts.append(audit_title)
+        if row_dict["description"]:
+            search_parts.append(row_dict["description"])
+        if row_dict["violation_code"]:
+            search_parts.append(row_dict["violation_code"])
+        if row_dict["audit_title"]:
+            search_parts.append(row_dict["audit_title"])
         search_text = " ".join(str(p) for p in search_parts if p)
 
         vector = await embedding.generate_single(search_text)
-        metadata = {
-            "violation_id": viol_id,
-            "violation_code": viol_code or "",
-            "description": description or "",
-            "severity": severity or "",
-            "status": status or "",
-            "responsible": responsible or "",
-            "audit_title": audit_title or "",
-            "search_text": search_text,
-        }
+
+        metadata = RowMetadata(
+            source="violations",
+            table="oarb.violations",
+            primary_key="id",
+            pk_value=row_dict["id"],
+            row=row_dict,
+            chunk_index=0,
+            total_chunks=1,
+            search_text=search_text,
+            content=search_text,
+        )
+
         all_vectors.append(vector)
-        all_metadata.append(metadata)
-        print(f"   [{viol_id}] {viol_code or '—'} | {severity} | {status} | {description[:50]}...")
+        all_metadata.append(metadata.model_dump())
+        print(f"   [{row_dict['id']}] {row_dict['violation_code'] or '—'} | {row_dict['severity']} | {row_dict['status']} | {row_dict['description'][:50]}...")
 
     print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)

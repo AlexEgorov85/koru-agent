@@ -6,6 +6,7 @@ from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.execution import ExecutionStatus
 from core.agent.components.action_executor import ExecutionContext
 from core.components.skills.handlers.base_handler import SkillHandler
+from core.components.tools.vector_search_tool import VectorSearchDefaults
 
 
 class VectorSearchHandler(SkillHandler):
@@ -42,10 +43,11 @@ class VectorSearchHandler(SkillHandler):
 
         query = params.query if hasattr(params, 'query') else ''
         source = getattr(params, 'source', 'audits')
-        top_k = getattr(params, 'top_k', 10)
-        min_score = getattr(params, 'min_score', 0.5)
+        top_k = getattr(params, 'top_k', VectorSearchDefaults.TOP_K_ALL)
+        min_score = getattr(params, 'min_score', VectorSearchDefaults.MIN_SCORE_DEFAULT)
 
-        await self.log_info(f"Запуск векторного поиска: '{query[:80]}...' (source={source}, top_k={top_k})")
+        limit_str = f"top_k={top_k}" if top_k is not None else "без лимита"
+        await self.log_info(f"Запуск векторного поиска: '{query[:80]}...' ({limit_str}, min_score={min_score})")
 
         # Выполняем векторный поиск через vector_search_tool
         results = await self._vector_search(query, source, top_k, min_score)
@@ -122,7 +124,9 @@ class VectorSearchHandler(SkillHandler):
         """
         Форматирование результатов векторного поиска.
 
-        Преобразует сырые метаданные FAISS в читаемый формат с контекстом.
+        Поддерживает два формата:
+        - Новый (RowMetadata): {row, source, score, content, ...}
+        - Старый (legacy): {metadata, score, ...}
 
         ARGS:
         - results: Сырые результаты vector_search.search
@@ -133,46 +137,102 @@ class VectorSearchHandler(SkillHandler):
         formatted = []
 
         for item in results:
-            metadata = item.get("metadata", {})
             score = item.get("score", 0.0)
+            source = item.get("source", "")
+            row = item.get("row", {})
+            content = item.get("content", "")
+            search_text = item.get("search_text", content)
 
-            # Определяем тип результата по полям метаданных
-            if "audit_id" in metadata and "violation_id" in metadata:
-                # Нарушение (violations индекс)
-                formatted_item = {
-                    "type": "violation",
-                    "score": round(score, 3),
-                    "audit_id": metadata.get("audit_id"),
-                    "audit_title": metadata.get("audit_title", ""),
-                    "violation_id": metadata.get("violation_id"),
-                    "violation_code": metadata.get("violation_code", ""),
-                    "description": metadata.get("description", ""),
-                    "severity": metadata.get("severity", ""),
-                    "status": metadata.get("status", ""),
-                    "responsible": metadata.get("responsible", ""),
-                    "matched_text": metadata.get("search_text", ""),
-                }
-            elif "audit_id" in metadata:
-                # Аудиторская проверка (audits индекс)
-                formatted_item = {
-                    "type": "audit",
-                    "score": round(score, 3),
-                    "audit_id": metadata.get("audit_id"),
-                    "title": metadata.get("title", ""),
-                    "audit_type": metadata.get("audit_type", ""),
-                    "status": metadata.get("status", ""),
-                    "auditee_entity": metadata.get("auditee_entity", ""),
-                    "matched_text": metadata.get("search_text", ""),
-                }
+            if row:
+                formatted_item = self._format_from_row(row, source, score, search_text)
             else:
-                # Неизвестный тип — возвращаем как есть
-                formatted_item = {
-                    "type": "unknown",
-                    "score": round(score, 3),
-                    "metadata": metadata,
-                    "matched_text": metadata.get("search_text", metadata.get("content", "")),
-                }
+                metadata = item.get("metadata", {})
+                formatted_item = self._format_from_metadata(metadata, score)
 
             formatted.append(formatted_item)
 
         return formatted
+
+    def _format_from_row(
+        self,
+        row: Dict[str, Any],
+        source: str,
+        score: float,
+        search_text: str
+    ) -> Dict[str, Any]:
+        """Форматирование из нового формата RowMetadata."""
+        formatted = {
+            "type": source,
+            "score": round(score, 3),
+            "source": source,
+            "row": row,
+            "matched_text": search_text,
+        }
+
+        if source == "violations":
+            formatted.update({
+                "violation_id": row.get("id"),
+                "violation_code": row.get("violation_code", ""),
+                "description": row.get("description", ""),
+                "recommendation": row.get("recommendation", ""),
+                "severity": row.get("severity", ""),
+                "status": row.get("status", ""),
+                "responsible": row.get("responsible", ""),
+                "deadline": row.get("deadline"),
+                "audit_id": row.get("audit_id"),
+                "audit_title": row.get("audit_title", ""),
+            })
+        elif source == "audits":
+            formatted.update({
+                "audit_id": row.get("id"),
+                "title": row.get("title", ""),
+                "audit_type": row.get("audit_type", ""),
+                "status": row.get("status", ""),
+                "auditee_entity": row.get("auditee_entity", ""),
+                "planned_date": row.get("planned_date"),
+                "actual_date": row.get("actual_date"),
+            })
+        elif source == "books":
+            formatted.update({
+                "book_id": row.get("id"),
+                "title": row.get("title", ""),
+                "author": row.get("author", ""),
+            })
+
+        return formatted
+
+    def _format_from_metadata(
+        self,
+        metadata: Dict[str, Any],
+        score: float
+    ) -> Dict[str, Any]:
+        """Форматирование из старого формата (legacy)."""
+        if "violation_id" in metadata:
+            return {
+                "type": "violation",
+                "score": round(score, 3),
+                "violation_id": metadata.get("violation_id"),
+                "violation_code": metadata.get("violation_code", ""),
+                "description": metadata.get("description", ""),
+                "severity": metadata.get("severity", ""),
+                "status": metadata.get("status", ""),
+                "responsible": metadata.get("responsible", ""),
+                "matched_text": metadata.get("search_text", ""),
+            }
+        elif "audit_id" in metadata:
+            return {
+                "type": "audit",
+                "score": round(score, 3),
+                "audit_id": metadata.get("audit_id"),
+                "title": metadata.get("title", ""),
+                "audit_type": metadata.get("audit_type", ""),
+                "status": metadata.get("status", ""),
+                "matched_text": metadata.get("search_text", ""),
+            }
+        else:
+            return {
+                "type": "unknown",
+                "score": round(score, 3),
+                "metadata": metadata,
+                "matched_text": metadata.get("search_text", ""),
+            }

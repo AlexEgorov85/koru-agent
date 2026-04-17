@@ -10,7 +10,8 @@ from core.models.types.vector_types import (
     VectorDocument,
     VectorChunk,
     VectorIndexInfo,
-    VectorSearchStats
+    VectorSearchStats,
+    RowMetadata
 )
 
 
@@ -234,3 +235,90 @@ class TestVectorSearchStats:
         assert stats.query_time_ms == 45.2
         assert stats.total_found == 150
         assert stats.returned_count == 10
+
+
+class TestRowMetadata:
+    """Тесты RowMetadata."""
+    
+    def test_create_valid(self):
+        """Создание валидных метаданных строки."""
+        row_data = {
+            "id": 123,
+            "violation_code": "V-001",
+            "description": "Test violation",
+            "severity": "Средняя",
+        }
+        metadata = RowMetadata(
+            source="violations",
+            table="oarb.violations",
+            primary_key="id",
+            pk_value=123,
+            row=row_data,
+            search_text="Test violation V-001",
+            content="Test violation V-001",
+        )
+        assert metadata.source == "violations"
+        assert metadata.table == "oarb.violations"
+        assert metadata.pk_value == 123
+        assert metadata.row["description"] == "Test violation"
+        assert metadata.is_single_chunk() is True
+
+    def test_get_row_field(self):
+        """Получение поля из строки."""
+        metadata = RowMetadata(
+            source="audits",
+            table="oarb.audits",
+            primary_key="id",
+            pk_value=1,
+            row={"id": 1, "title": "Audit 1", "status": "Завершена"},
+            search_text="Audit 1",
+            content="Audit 1",
+        )
+        assert metadata.get_row_field("title") == "Audit 1"
+        assert metadata.get_row_field("status") == "Завершена"
+        assert metadata.get_row_field("missing", "default") == "default"
+
+    def test_is_single_chunk(self):
+        """Проверка чанкинга."""
+        single = RowMetadata(
+            source="books",
+            table="lib.books",
+            primary_key="id",
+            pk_value=1,
+            row={"id": 1, "title": "Book"},
+            search_text="Book",
+            content="Book",
+            total_chunks=1,
+        )
+        assert single.is_single_chunk() is True
+
+        chunked = RowMetadata(
+            source="books",
+            table="lib.books",
+            primary_key="id",
+            pk_value=1,
+            row={"id": 1, "title": "Book"},
+            search_text="Book content...",
+            content="Part of book...",
+            chunk_index=2,
+            total_chunks=5,
+        )
+        assert chunked.is_single_chunk() is False
+        assert chunked.chunk_index == 2
+        assert chunked.total_chunks == 5
+
+    def test_model_dump(self):
+        """Сериализация в словарь."""
+        metadata = RowMetadata(
+            source="violations",
+            table="oarb.violations",
+            primary_key="id",
+            pk_value=456,
+            row={"id": 456, "code": "V-456"},
+            search_text="test",
+            content="test",
+        )
+        data = metadata.model_dump()
+        assert data["source"] == "violations"
+        assert data["pk_value"] == 456
+        assert data["row"]["code"] == "V-456"

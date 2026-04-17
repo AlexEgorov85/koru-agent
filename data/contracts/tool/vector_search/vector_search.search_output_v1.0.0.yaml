@@ -3,7 +3,7 @@ version: v1.0.0
 status: active
 component_type: tool
 direction: output
-description: Output contract for vector search operation (any source)
+description: Output contract for vector search operation (any source) with full row data
 schema_data:
   type: object
   properties:
@@ -13,25 +13,41 @@ schema_data:
       items:
         type: object
         properties:
-          chunk_id:
-            type: string
-          document_id:
-            type: string
-          book_id:
-            type: integer
-          audit_id:
-            type: integer
-          violation_id:
-            type: integer
-          chapter:
-            type: integer
           score:
             type: number
+            description: "Релевантность (0-1)"
           content:
             type: string
-          metadata:
+            description: "Текст чанка (для поиска по чанкнутым документам)"
+          source:
+            type: string
+            description: "Источник данных (violations, audits, books, authors)"
+          table:
+            type: string
+            description: "Полное имя таблицы (schema.table)"
+          pk_value:
+            description: "Значение primary key"
+          row:
             type: object
+            description: "Все поля строки из БД"
             additionalProperties: true
+          chunk_index:
+            type: integer
+            description: "Индекс чанка (0 если не чанкнуто)"
+          total_chunks:
+            type: integer
+            description: "Всего чанков (1 если не чанкнуто)"
+          search_text:
+            type: string
+            description: "Текст который был векторизован"
+        required:
+          - score
+          - content
+          - source
+          - table
+          - pk_value
+          - row
+        additionalProperties: false
     total_found:
       type: integer
       description: "Общее количество найденных результатов"

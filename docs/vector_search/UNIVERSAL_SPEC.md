@@ -1,7 +1,7 @@
 # 📘 Универсальная спецификация Vector Search
 
-**Версия:** 2.0.0  
-**Дата:** 2026-02-19  
+**Версия:** 3.0.0  
+**Дата:** 2026-04-17  
 **Статус:** ✅ Утверждено
 
 ---
@@ -243,6 +243,173 @@ class VectorIndexInfo(BaseModel):
     index_type: str
     created_at: datetime
     updated_at: datetime
+
+
+class RowMetadata(BaseModel):
+    """
+    Универсальные метаданные строки БД для векторного индекса.
+
+    Структура хранит полную строку из БД для возврата без дополнительных запросов.
+    Поддерживает как обычные записи, так и чанкнутые документы.
+    """
+    source: str = Field(description="Имя источника (audits, violations, books, ...)")
+    table: str = Field(description="Полное имя таблицы (schema.table)")
+    primary_key: str = Field(description="Имя поля primary key")
+    pk_value: Any = Field(description="Значение primary key")
+    row: Dict[str, Any] = Field(description="Все поля строки из БД")
+    chunk_index: int = Field(default=0, description="Индекс чанка в документе")
+    total_chunks: int = Field(default=1, description="Всего чанков в документе")
+    search_text: str = Field(description="Текст который был векторизован")
+    content: str = Field(description="Текст конкретного чанка")
+
+    def get_row_field(self, field_name: str, default: Any = None) -> Any:
+        """Получить значение поля из строки БД."""
+        return self.row.get(field_name, default)
+
+    def get_id(self) -> Any:
+        """Получить значение primary key."""
+        return self.pk_value
+
+    def is_single_chunk(self) -> bool:
+        """Проверяет что документ не разбит на чанки."""
+        return self.total_chunks == 1
+```
+
+---
+
+## 📊 Управление top_k
+
+### Безлимитный поиск
+
+Для поиска всех релевантных результатов (без ограничения по количеству):
+
+```python
+# input contract: top_k: nullable: true
+{"query": "...", "top_k": null, "min_score": 0.5}
+```
+
+### Константы (core/components/tools/vector_search_tool.py)
+
+```python
+class VectorSearchDefaults:
+    """Константы для типичных сценариев поиска."""
+    TOP_K_DEFAULT = 10        # ограничить 10 результатами
+    TOP_K_ALL = None         # без лимита
+    MIN_SCORE_DEFAULT = 0.5
+    MIN_SCORE_LENIENT = 0.3  # для широкого поиска
+    MIN_SCORE_STRICT = 0.7   # для точного поиска
+```
+
+### Примеры использования
+
+```python
+# 1. Ограничить 10 результатами (по умолчанию)
+{"query": "...", "top_k": 10}
+
+# 2. Без лимита — только min_score
+{"query": "...", "top_k": null, "min_score": 0.5}
+
+# 3. Все с score > 0.3
+{"query": "...", "top_k": null, "min_score": 0.3}
+
+# 4. Для валидации — top_k=1
+{"query": "...", "top_k": 1, "source": "violations"}
+```
+
+### Логика отбора
+
+| top_k | min_score | Поведение |
+|-------|-----------|-----------|
+| 10 | 0.5 | Макс 10, score ≥ 0.5 |
+| null | 0.5 | Все с score ≥ 0.5 (без лимита) |
+| null | 0.3 | Все с score ≥ 0.3 |
+| 1 | 0.0 | Только 1 лучший результат |
+
+---
+
+## 🔍 ParamValidator — каскадная валидация параметров
+
+### Пайплайн (3 ступени)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ШАГ 1: Enum ИЛИ SQL ILIKE (развилка)                    │
+│  ├── type="enum" → проверка по списку allowed_values      │
+│  └── type="search" → SQL ILIKE поиск в БД                │
+│      Что быстрее найдёт — то и возвращаем                  │
+├─────────────────────────────────────────────────────────────┤
+│  ШАГ 2: Vector search (если ШАГ 1 не нашёл)              │
+│  └── Семантический поиск через FAISS                       │
+├─────────────────────────────────────────────────────────────┤
+│  ШАГ 3: Fuzzy matching (если ШАГ 2 не нашёл)             │
+│  └── Расстояние Левенштейна                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Ключевая особенность: НЕ блокирующий
+
+```python
+{
+    "valid": True,              # всегда True
+    "corrected_value": "...",   # найденное значение (или None)
+    "warning": "...",          # предупреждение
+    "suggestions": [...]       # варианты для выбора
+}
+```
+
+### Конфигурация в скриптах
+
+```python
+SCRIPTS_REGISTRY = {
+    "get_violations_by_status": {
+        "parameters": {
+            "status": {
+                "type": "like",
+                "validation": {
+                    "type": "enum",
+                    "allowed_values": ["Открыто", "В работе", "Устранено"]
+                }
+            },
+            "author": {
+                "type": "like",
+                "validation": {
+                    "type": "search",
+                    "table": "authors",
+                    "search_fields": ["first_name", "last_name"],
+                    "vector_source": "authors",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
+            }
+        }
+    }
+}
+```
+
+### Примеры Flow
+
+**"Открыто" (enum):**
+```
+Шаг 1 (enum): found → {"corrected_value": "Открыто"} ✅
+```
+
+**"Пушк" (SQL ILIKE):**
+```
+Шаг 1 (enum): not found
+Шаг 1 (SQL): "Пушк%" → "Пушкин" ✅
+```
+
+**"писатель 19 века" (semantic):**
+```
+Шаг 1 (SQL): not found
+Шаг 2 (Vector): score=0.82 → "Пушкин" ✅
+```
+
+**"Пушкн" (опечатка):**
+```
+Шаг 1 (SQL): not found
+Шаг 2 (Vector): score < 0.7, skip
+Шаг 3 (Fuzzy): Levenshtein("Пушкн", candidates) → "Пушкин" ✅
 ```
 
 ---
