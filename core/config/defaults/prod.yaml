@@ -69,4 +69,4 @@ vector_search:
     violations: violations_index.faiss
   storage:
     base_path: data/vector
-version: 5.15.0
+version: 5.40.2
