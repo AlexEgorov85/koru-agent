@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## [5.40.2] - 2026-04-17
+
+### Changed
+- **Логирование: улучшенная структура и убрано дублирование**
+  - Добавлены новые event types: LLM_CALL_REQUEST, LLM_CALL_RESPONSE, LLM_CALL_START, LLM_CALL_END
+  - Создан отдельный файл llm_calls.log для LLM вызовов
+  - Убрано дублирование промтов между infra_context.log и app_context.log
+  - Заменены verbose debug логи парсинга JSON на компактные
+  - LLMOrchestrator использует отдельный llm_calls_logger для компактного логирования
+  - Восстановлено DEBUG логирование полных промтов и ответов LLM
+  - Исправлено дублирование decision логов в runtime.py
+  - Добавлено observation в формате промта (INFO уровень)
+  - Убрано дублирование между infra/app логами
+  - Сокращены verbose debug логи парсинга
+
+- **indexer: рефакторинг для prod профиля**
+  - Изменены индексы в prod.yaml: books → audits, authors → violations
+  - Упрощена валидация indexes в vector_config.py
+  - Рефакторинг indexer.py: профиль prod вместо dev
+  - Убрана зависимость от InfrastructureContext (вызывала перезапись FAISS файлов)
+
 ## [5.40.1] - 2026-04-17
 
 ### Changed
