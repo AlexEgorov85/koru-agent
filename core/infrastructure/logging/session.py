@@ -137,6 +137,7 @@ class LoggingSession:
 
         self.infra_logger: Optional[logging.Logger] = None
         self.app_logger: Optional[logging.Logger] = None
+        self.llm_calls_logger: Optional[logging.Logger] = None
         self._agent_loggers: Dict[str, logging.Logger] = {}
         self._handlers_setup = False
 
@@ -147,6 +148,7 @@ class LoggingSession:
         Создаёт:
         - base_dir/infra_context.log
         - base_dir/app_context.log
+        - base_dir/llm_calls.log
         - Консольный StreamHandler с фильтрацией
         """
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -164,7 +166,13 @@ class LoggingSession:
             self.base_dir / "app_context.log"
         )
 
-        # 3. Консоль (терминал)
+        # 3. LLM вызовы (отдельный файл)
+        self.llm_calls_logger = self._setup_file_logger(
+            "llm_calls",
+            self.base_dir / "llm_calls.log"
+        )
+
+        # 4. Консоль (терминал)
         self._setup_console_handler()
         self._handlers_setup = True
 
@@ -280,7 +288,7 @@ class LoggingSession:
 
     def shutdown(self) -> None:
         """Корректно закрывает все обработчики."""
-        for logger in [self.infra_logger, self.app_logger]:
+        for logger in [self.infra_logger, self.app_logger, self.llm_calls_logger]:
             if logger:
                 for handler in logger.handlers:
                     handler.close()

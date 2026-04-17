@@ -14,10 +14,11 @@ schema_data:
       maxLength: 10000
     top_k:
       type: integer
-      description: "Количество результатов"
+      description: "Количество результатов (null = без лимита, только min_score)"
       default: 10
       minimum: 1
       maximum: 100
+      nullable: true
     min_score:
       type: number
       description: "Минимальный порог схожести"

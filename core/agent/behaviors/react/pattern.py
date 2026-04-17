@@ -151,12 +151,9 @@ class ReActPattern(BaseBehaviorPattern):
                 application_context=self.application_context
             )
 
-            # Логируем ПОЛНЫЙ запрос ПЕРЕД вызовом LLM (только в файл)
+            # Логируем метаданные запроса ПЕРЕД вызовом LLM (только в файл)
             self._log_debug(
-                f"🔵 [ReAct.decide] === ПОЛНЫЙ ЗАПРОС К LLM ===\n"
-                f"--- System Prompt (len={len(system)}) ---\n{system}\n\n"
-                f"--- User Prompt (рендер, len={len(full_prompt)}) ---\n{full_prompt}\n\n"
-                f"--- Output Schema (JSON Schema) ---\n{schema}",
+                f"[ReAct.decide] prompt loaded: system={len(system)} chars, user={len(full_prompt)} chars, schema_keys={list(schema.keys())}",
                 event_type=LogEventType.LLM_CALL
             )
             

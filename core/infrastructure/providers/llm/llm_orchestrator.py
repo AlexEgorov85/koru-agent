@@ -247,6 +247,9 @@ class LLMOrchestrator:
         # Логгер с компонентом (LoggerAdapter)
         self._logger: Optional[logging.LoggerAdapter] = None
 
+        # Отдельный логгер для LLM вызовов (в файл llm_calls.log)
+        self._llm_call_logger: Optional[logging.Logger] = None
+
         # Флаг работы
         self._running = False
 
@@ -275,6 +278,13 @@ class LLMOrchestrator:
                 base_logger,
                 extra={"component": "LLMOrchestrator"}
             )
+
+            # Отдельный логгер для LLM вызовов (из LoggingSession или отдельный файл)
+            if self._log_session is not None and hasattr(self._log_session, 'llm_calls_logger'):
+                self._llm_call_logger = self._log_session.llm_calls_logger
+            else:
+                # Fallback: создаём独立的 логгер если log_session не предоставлен
+                self._llm_call_logger = logging.getLogger("llm_calls")
 
             # Запуск фоновой задачи очистки
             self._running = True
@@ -1082,27 +1092,25 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
+        schema_name = request.structured_output.output_model if request.structured_output else "unknown"
+
         self._logger.info(
             f"📋 Structured LLM | call_id={call_id} | "
             f"session={session_id} | "
-            f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}",
+            f"schema={schema_name}",
             extra={"event_type": LogEventType.LLM_CALL}
         )
 
-        # Логирование текста запроса (DEBUG уровень — только в файл)
-        if request.system_prompt:
-            self._logger.debug(
-                f"🔵 [LLM REQUEST] System Prompt (call_id={call_id}):\n{request.system_prompt}",
-                extra={"event_type": LogEventType.LLM_CALL}
+        # Компактное логирование метаданных запроса в отдельный логгер
+        if self._llm_call_logger:
+            self._llm_call_logger.info(
+                f"LLM_REQ | call_id={call_id} | session={session_id} | "
+                f"schema={schema_name} | "
+                f"system_len={len(request.system_prompt) if request.system_prompt else 0} | "
+                f"user_len={len(request.prompt)} | "
+                f"temp={request.temperature} | max_tokens={request.max_tokens}",
+                extra={"event_type": LogEventType.LLM_CALL_REQUEST}
             )
-        self._logger.debug(
-            f"🔵 [LLM REQUEST] User Prompt (call_id={call_id}):\n{request.prompt}",
-            extra={"event_type": LogEventType.LLM_CALL}
-        )
-        self._logger.debug(
-            f"🔵 [LLM REQUEST] Параметры: temperature={request.temperature}, max_tokens={request.max_tokens}",
-            extra={"event_type": LogEventType.LLM_CALL}
-        )
 
         # Публикация события LLM_PROMPT_GENERATED
         if self._event_bus:
@@ -1129,7 +1137,6 @@ class LLMOrchestrator:
                 agent_id=None,
                 correlation_id=call_id
             )
-            self._logger.debug("Опубликовано LLM_PROMPT_GENERATED: call_id=%s", call_id, extra={"event_type": LogEventType.LLM_CALL})
 
     async def _log_structured_success(
         self,
@@ -1152,17 +1159,25 @@ class LLMOrchestrator:
             extra={"event_type": LogEventType.LLM_RESPONSE}
         )
 
-        # Логирование текста ответа (DEBUG уровень — только в файл)
-        if response_content:
-            self._logger.debug(
-                f"🟢 [LLM RESPONSE] Ответ (call_id={call_id}):\n{response_content}",
-                extra={"event_type": LogEventType.LLM_RESPONSE}
-            )
-        else:
-            self._logger.warning(
-                f"⚠️ [LLM RESPONSE] Ответ пустой! (call_id={call_id})",
-                extra={"event_type": LogEventType.LLM_RESPONSE}
-            )
+        # Компактное логирование ответа в отдельный логгер
+        if self._llm_call_logger:
+            if response_content:
+                self._llm_call_logger.info(
+                    f"LLM_RESP | call_id={call_id} | attempt={attempt_num} | "
+                    f"response_len={len(response_content)} | tokens={tokens_used} | "
+                    f"duration={duration:.2f}s | model={model}",
+                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                )
+                # Полный ответ в DEBUG
+                self._llm_call_logger.debug(
+                    f"[LLM_RESP] Response (call_id={call_id}):\n{response_content}",
+                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                )
+            else:
+                self._llm_call_logger.warning(
+                    f"LLM_RESP | call_id={call_id} | attempt={attempt_num} | EMPTY",
+                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                )
 
         # Публикация события LLM_RESPONSE_RECEIVED
         if self._event_bus:
@@ -1188,7 +1203,6 @@ class LLMOrchestrator:
                 agent_id=None,
                 correlation_id=call_id
             )
-            self._logger.debug("Опубликовано LLM_RESPONSE_RECEIVED: call_id=%s", call_id, extra={"event_type": LogEventType.LLM_RESPONSE})
 
     async def _log_structured_retry(
         self,
@@ -1210,6 +1224,16 @@ class LLMOrchestrator:
             f"will_retry={will_retry}",
             extra={"event_type": LogEventType.LLM_ERROR}
         )
+
+        # Логирование в llm_calls логгер
+        if self._llm_call_logger:
+            level = logging.WARNING if will_retry else logging.ERROR
+            self._llm_call_logger.log(
+                level,
+                f"LLM_RETRY | call_id={call_id} | attempt={attempt_num} | "
+                f"error={error_type} | will_retry={will_retry}",
+                extra={"event_type": LogEventType.LLM_ERROR}
+            )
 
     async def _log_structured_exhausted(
         self,

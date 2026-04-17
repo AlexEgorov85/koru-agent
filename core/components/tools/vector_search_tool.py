@@ -14,6 +14,17 @@ Capabilities:
 - audits: Индекс аудиторских проверок
 - violations: Индекс отклонений
 """
+
+NO_LIMIT = None
+
+class VectorSearchDefaults:
+    """Константы для типичных сценариев поиска."""
+    TOP_K_DEFAULT = 10
+    TOP_K_ALL = None
+    MIN_SCORE_DEFAULT = 0.5
+    MIN_SCORE_LENIENT = 0.3
+    MIN_SCORE_STRICT = 0.7
+
 from typing import Optional, Dict, Any, List
 from core.components.tools.tool import Tool
 from core.application_context.application_context import ApplicationContext
@@ -223,7 +234,7 @@ class VectorSearchTool(Tool):
     async def _search(
         self,
         query: str,
-        top_k: int = 10,
+        top_k: Optional[int] = 10,
         min_score: float = 0.5,
         filters: Optional[Dict[str, Any]] = None,
         source: str = "books"
@@ -231,7 +242,15 @@ class VectorSearchTool(Tool):
         """
         Семантический поиск через FAISS.
 
-        РАБОТАЕТ: Динамически получает FAISS провайдер для указанного source.
+        ARGS:
+            query: Текст запроса
+            top_k: Количество результатов (None = без лимита, только min_score)
+            min_score: Минимальный порог релевантности (0-1)
+            filters: Фильтры по метаданным
+            source: Источник данных (books/authors/audits/violations)
+
+        RETURNS:
+            {"results": [...], "total_found": int}
         """
         import time
         import numpy as np
@@ -272,22 +291,26 @@ class VectorSearchTool(Tool):
             faiss_results = await faiss.search(query_vector.tolist() if query_vector is not None else [], top_k=top_k)
             self._log_debug(f"[_search] FAISS done | results={len(faiss_results)}", event_type=LogEventType.DEBUG)
 
-            # 4. Преобразуем результаты
             results = []
             for result in faiss_results:
                 if result.get("score", 0) < min_score:
                     continue
-                results.append({
-                    "chunk_id": result.get("metadata", {}).get("chunk_id"),
-                    "document_id": result.get("metadata", {}).get("document_id"),
-                    "book_id": result.get("metadata", {}).get("book_id"),
-                    "audit_id": result.get("metadata", {}).get("audit_id"),
-                    "violation_id": result.get("metadata", {}).get("violation_id"),
-                    "chapter": result.get("metadata", {}).get("chapter"),
+
+                meta = result.get("metadata", {})
+
+                result_item = {
                     "score": result.get("score"),
-                    "content": result.get("metadata", {}).get("content", ""),
-                    "metadata": result.get("metadata")
-                })
+                    "content": meta.get("content", ""),
+                    "source": meta.get("source"),
+                    "table": meta.get("table"),
+                    "pk_value": meta.get("pk_value"),
+                    "row": meta.get("row", {}),
+                    "chunk_index": meta.get("chunk_index", 0),
+                    "total_chunks": meta.get("total_chunks", 1),
+                    "search_text": meta.get("search_text", ""),
+                }
+
+                results.append(result_item)
 
             total_time = time.time() - start_time
             self._log_debug(f"[_search] COMPLETE: {total_time:.2f}s, found={len(results)}", event_type=LogEventType.DEBUG)

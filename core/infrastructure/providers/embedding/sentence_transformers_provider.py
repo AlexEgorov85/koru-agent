@@ -10,6 +10,11 @@ from typing import List, Optional
 from core.infrastructure.providers.embedding.base_embedding_provider import IEmbeddingProvider
 from core.config.vector_config import EmbeddingConfig
 
+# Импортируем hf_hub_utils ДО блокировки онлайна
+try:
+    from huggingface_hub import try_to_load_from_cache
+except ImportError:
+    try_to_load_from_cache = None
 
 # Полностью отключаем онлайн режим для HF Hub
 os.environ['HF_HUB_OFFLINE'] = '1'
@@ -40,33 +45,36 @@ class SentenceTransformersProvider(IEmbeddingProvider):
         # Резолвим относительные пути относительно проекта
         path = Path(model_path)
         if not path.is_absolute():
-            # Пробуем найти относительно проекта
             project_root = Path(__file__).parent.parent.parent.parent.parent
             path = project_root / model_path
         
-        # Если это путь к файлу/папке
         if path.exists():
             return
 
-        # Если это имя модели (не путь), проверяем наличие в кэше
         if not any(x in model_path for x in ['/', '\\']):
-            from huggingface_hub import try_to_load_from_cache
-            try:
-                # Проверяем кэш
-                cache_path = try_to_load_from_cache(
-                    repo_id=model_path,
-                    filename='modules.json'
-                )
-                if cache_path is not None:
-                    return
-            except Exception:
-                pass
+            if try_to_load_from_cache is not None:
+                # Пробуем разные форматы имени модели
+                repo_ids = [
+                    model_path,
+                    f"sentence-transformers/{model_path}",
+                    f"{model_path}-v1",  # fallback для других неймспейсов
+                ]
+                for repo_id in repo_ids:
+                    try:
+                        resolved_path = try_to_load_from_cache(
+                            repo_id=repo_id,
+                            filename='modules.json'
+                        )
+                        if resolved_path is not None:
+                            return
+                    except Exception:
+                        pass
 
         raise FileNotFoundError(
             f"Локальная модель не найдена: {model_path}\n"
-            f"Онлайн загрузка отключена.\n"
-            f"Скачайте модель командой:\n"
-            f"  python download_model.py"
+            f"Искали в: {path}\n"
+            f"Также проверьте HF кэш: ~/.cache/huggingface/hub/\n"
+            f"Онлайн загрузка отключена."
         )
 
     async def initialize(self):

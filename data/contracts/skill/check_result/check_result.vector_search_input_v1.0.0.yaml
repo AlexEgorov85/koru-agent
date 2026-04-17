@@ -17,10 +17,11 @@ schema_data:
       default: audits
     top_k:
       type: integer
-      description: Количество возвращаемых результатов
-      default: 10
+      description: Количество возвращаемых результатов (null = без лимита)
+      default: null
       minimum: 1
       maximum: 100
+      nullable: true
     min_score:
       type: number
       description: Минимальный порог схожести (от 0.0 до 1.0)

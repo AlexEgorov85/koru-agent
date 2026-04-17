@@ -5,9 +5,10 @@ import asyncio
 import logging
 import os
 import sys
-import traceback
 import warnings
 from typing import Optional
+
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 # Загрузка .env файла (если есть) — для переменных вроде OPENROUTER_API_KEY
 _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -51,7 +52,7 @@ os.environ["TQDM_DISABLE"] = "1"
 # КОНФИГУРАЦИЯ
 # ============================================================================
 
-GOAL = "Сколько открытых отклонений с 2025 года?"
+GOAL = "Сколько открытых отклонений в 2026 года?" # Какие отклонения связаны с документами
 MAX_STEPS = 10
 TEMPERATURE = 0.3
 

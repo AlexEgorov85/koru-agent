@@ -1,13 +1,23 @@
 """
-Универсальный валидатор параметров с 4 ступенями:
-1. Enum (проверка по списку допустимых значений)
-2. SQL ILIKE поиск
-3. Vector search
-4. Fuzzy matching
+Универсальный валидатор параметров с 3 ступенями:
+
+ПАЙПЛАЙН:
+┌─────────────────────────────────────────────────────────────┐
+│  ШАГ 1: Enum ИЛИ SQL ILIKE (развилка)                    │
+│  ├── type="enum" → проверка по списку allowed_values      │
+│  └── type="search" → SQL ILIKE поиск в БД                │
+│      Что быстрее найдёт — то и возвращаем                  │
+├─────────────────────────────────────────────────────────────┤
+│  ШАГ 2: Vector search (если ШАГ 1 не нашёл)              │
+│  └── Семантический поиск через FAISS                       │
+├─────────────────────────────────────────────────────────────┤
+│  ШАГ 3: Fuzzy matching (если ШАГ 2 не нашёл)             │
+│  └── Расстояние Левенштейна                               │
+└─────────────────────────────────────────────────────────────┘
 
 ВАЖНО: Валидация НЕ БЛОКИРУЕТ выполнение.
-- Успех → corrected_value (если нашлось точнее)
-- Неудача → warning + suggestions (продолжаем с исходным значением)
+- Найдено → corrected_value
+- Не найдено → warning + suggestions (продолжаем с исходным)
 
 ИСПОЛЬЗОВАНИЕ:
 ```python
@@ -218,7 +228,15 @@ class ParamValidator:
     ):
         self.executor = executor
         self.schema = schema  # None = без указания схемы (public)
-        self._log = log_callback or (lambda x: None)
+        self._log_callback = log_callback
+
+    async def _safe_log(self, message: str) -> None:
+        """Безопасное логирование (async-safe)."""
+        if self._log_callback:
+            result = self._log_callback(message)
+            if hasattr(result, '__await__'):
+                await result
+            # else: sync функция, просто вызываем
 
     async def validate(
         self,
@@ -228,17 +246,22 @@ class ParamValidator:
         """
         Валидация параметра.
 
-        АРХИТЕКТУРА: Валидация НЕ БЛОКИРУЕТ выполнение.
-        - Успех → corrected_value (если нашлось точнее)
-        - Неудача → warning + suggestions (продолжаем с исходным значением)
+        ПАЙПЛАЙН (3 ступени):
+        1. Enum ИЛИ SQL ILIKE — что-то одно (что быстрее найдёт)
+        2. Vector search — если не найдено на шаге 1
+        3. Fuzzy matching — если не найдено на шаге 2
+
+        ВАЖНО: Валидация НЕ БЛОКИРУЕТ выполнение.
+        - Найдено → corrected_value
+        - Не найдено → warning + suggestions (продолжаем с исходным)
 
         ARGS:
         - param_value: значение для валидации
         - config: конфигурация валидации
             {
-                "type": "enum",                    # или "search" (по умолчанию)
-                "allowed_values": [...],           # для type="enum"
-                "table": "authors",                # для type="search"
+                "type": "enum" | "search",       # тип валидации
+                "allowed_values": [...],          # для type="enum"
+                "table": "authors",               # для type="search"
                 "search_fields": [...],
                 "vector_source": "authors"
             }
@@ -246,47 +269,61 @@ class ParamValidator:
         RETURNS:
         - Dict с ключами: valid (всегда True), corrected_value, warning, suggestions
         """
+        # =========================================================
+        # ШАГ 1: Enum ИЛИ SQL ILIKE (развилка)
+        # =========================================================
         validation_type = config.get("type", "search")
-
-        # Ступень 1: Enum validation (быстрая проверка по списку)
-        if validation_type == "enum":
-            return await self._validate_enum(param_value, config)
-
-        # Ступень 1-3: Search validation (SQL → Vector → Fuzzy)
         table = config.get("table", "")
         search_fields = config.get("search_fields", [])
-        vector_source = config.get("vector_source", table)
 
-        if not table or not search_fields:
-            return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
-
-        # Ступень 1: SQL ILIKE
-        try:
-            result = await self._validate_sql(param_value, table, search_fields)
+        # 1a. Enum — быстрая проверка по списку
+        enum_suggestions = []
+        if validation_type == "enum":
+            result = await self._validate_enum(param_value, config)
             if result.get("corrected_value") is not None:
-                return result  # Нашли точное совпадение в БД — возвращаем
-        except Exception as e:
-            await self._log(f"SQL validation failed: {e}")
+                return result
+            # Сохраняем suggestions от enum на случай если ничего не найдётся
+            enum_suggestions = result.get("suggestions", [])
 
-        # Ступень 2: Vector search
-        try:
-            result = await self._validate_vector(param_value, vector_source, config)
-            if result.get("corrected_value") is not None:
-                return result  # Нашли через векторный поиск — возвращаем
-        except Exception as e:
-            await self._log(f"Vector validation failed: {e}")
+        # 1b. SQL ILIKE — поиск точного совпадения в БД
+        if table and search_fields:
+            try:
+                result = await self._validate_sql(param_value, table, search_fields)
+                if result.get("corrected_value") is not None:
+                    return result
+            except Exception as e:
+                await self._safe_log(f"SQL validation failed: {e}")
 
-        # Ступень 3: Fuzzy matching (последняя попытка)
-        try:
-            return await self._validate_fuzzy(param_value, table, search_fields)
-        except Exception as e:
-            await self._log(f"Fuzzy validation failed: {e}")
-            return {
-                "valid": True,  # НЕ блокируем!
-                "corrected_value": None,
-                "warning": f"'{param_value}' не найдено в БД",
-                "suggestions": []
-            }
+        # =========================================================
+        # ШАГ 2: Vector search — семантический поиск
+        # =========================================================
+        # vector_source должен быть явно указан в config
+        if "vector_source" in config:
+            try:
+                result = await self._validate_vector(param_value, config["vector_source"], config)
+                if result.get("corrected_value") is not None:
+                    return result
+            except Exception as e:
+                await self._safe_log(f"Vector validation failed: {e}")
+
+        # =========================================================
+        # ШАГ 3: Fuzzy matching — нечёткое совпадение
+        # =========================================================
+        if table and search_fields:
+            try:
+                result = await self._validate_fuzzy(param_value, table, search_fields)
+                if result.get("corrected_value") is not None:
+                    return result
+            except Exception as e:
+                await self._safe_log(f"Fuzzy validation failed: {e}")
+
+        # Ничего не найдено — возвращаем suggestions от enum если были
+        return {
+            "valid": True,
+            "corrected_value": None,
+            "warning": f"'{param_value}' не найдено в БД",
+            "suggestions": enum_suggestions
+        }
 
     async def _validate_enum(
         self,
@@ -393,7 +430,8 @@ class ParamValidator:
 
                 # Определяем поле с именем по source
                 if vector_source == "authors":
-                    found_value = metadata.get("author_name", metadata.get("last_name", metadata.get("name", "")))
+                    found_value = metadata.get("author", metadata.get("author_name", 
+                        metadata.get("last_name", metadata.get("name", ""))))
                 elif vector_source == "genres":
                     found_value = metadata.get("genre_name", metadata.get("name", ""))
                 elif vector_source == "audits":

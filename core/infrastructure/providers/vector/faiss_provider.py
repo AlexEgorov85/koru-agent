@@ -106,29 +106,38 @@ class FAISSProvider(IFAISSProvider):
     async def search(
         self,
         query_vector: List[float],
-        top_k: int = 10,
+        top_k: Optional[int] = 10,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """Поиск ближайших векторов."""
+        """Поиск ближайших векторов.
+        
+        Args:
+            query_vector: Вектор запроса
+            top_k: Количество результатов (None = без лимита)
+            filters: Фильтры по метаданным
+        
+        Returns:
+            Список результатов, отсортированных по score (descending)
+        """
         
         if self.index is None or self.index.ntotal == 0:
             return []
         
-        # Конвертируем и нормализуем запрос
         query_array = np.array([query_vector], dtype=np.float32)
         faiss.normalize_L2(query_array)
         
-        # Поиск
-        scores, indices = self.index.search(query_array, top_k * 3)  # Берём с запасом для фильтрации
+        # Если top_k None - берём все векторы из индекса
+        search_limit = top_k * 3 if top_k is not None else self.index.ntotal
+        
+        scores, indices = self.index.search(query_array, search_limit)
         
         results = []
         for score, idx in zip(scores[0], indices[0]):
-            if idx == -1:  # FAISS возвращает -1 для пустых результатов
+            if idx == -1:
                 continue
             
             meta = self.metadata.get(idx, {})
             
-            # Применяем фильтры
             if filters and not self._matches_filters(meta, filters):
                 continue
             
@@ -138,7 +147,8 @@ class FAISSProvider(IFAISSProvider):
                 "metadata": meta
             })
             
-            if len(results) >= top_k:
+            # Ограничиваем только если задан top_k
+            if top_k is not None and len(results) >= top_k:
                 break
         
         return results

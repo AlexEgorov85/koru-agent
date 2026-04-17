@@ -180,24 +180,17 @@ class JsonParsingService(Service):
 
         # Шаг 1: Ищем markdown блоки с json
         self._log_debug(
-            f"� [JsonParsing.extract_json] Шаг 1: поиск markdown блоков ```json...```",
-            event_type=LogEventType.INFO
+            f"[JsonParsing.extract_json] input={len(content)} chars",
+            event_type=LogEventType.DEBUG
         )
+
         markdown_json_pattern = r'```json\s*(.*?)\s*```'
         matches = re.findall(markdown_json_pattern, content, re.DOTALL | re.IGNORECASE)
-        self._log_debug(
-            f"📊 [JsonParsing.extract_json] Шаг 1: найдено {len(matches)} блоков ```json```",
-            event_type=LogEventType.INFO
-        )
         for idx, match in enumerate(matches):
             json_content = match.strip()
             if json_content.startswith('{') or json_content.startswith('['):
                 self._log_info(
-                    f"✅ [JsonParsing.extract_json] JSON извлечён из ```json блока #{idx+1}: {len(json_content)} симв.",
-                    event_type=LogEventType.INFO
-                )
-                self._log_debug(
-                    f"🟢 [JsonParsing.extract_json] Извлечённый JSON:\n{json_content}",
+                    f"[JsonParsing] extracted from ```json block: {len(json_content)} chars",
                     event_type=LogEventType.INFO
                 )
                 return JsonParseResult(
@@ -212,25 +205,13 @@ class JsonParsingService(Service):
                 ).to_dict()
 
         # Шаг 2: Ищем просто ``` без указания языка
-        self._log_debug(
-            f"🔍 [JsonParsing.extract_json] Шаг 2: поиск markdown блоков ```...```",
-            event_type=LogEventType.INFO
-        )
         markdown_pattern = r'```\s*(.*?)\s*```'
         matches = re.findall(markdown_pattern, content, re.DOTALL)
-        self._log_debug(
-            f"📊 [JsonParsing.extract_json] Шаг 2: найдено {len(matches)} блоков ``` ```",
-            event_type=LogEventType.INFO
-        )
         for idx, match in enumerate(matches):
             json_content = match.strip()
             if json_content.startswith('{') or json_content.startswith('['):
                 self._log_info(
-                    f"✅ [JsonParsing.extract_json] JSON извлечён из ``` блока #{idx+1}: {len(json_content)} симв.",
-                    event_type=LogEventType.INFO
-                )
-                self._log_debug(
-                    f"🟢 [JsonParsing.extract_json] Извлечённый JSON:\n{json_content}",
+                    f"[JsonParsing] extracted from ``` block: {len(json_content)} chars",
                     event_type=LogEventType.INFO
                 )
                 return JsonParseResult(
@@ -245,19 +226,11 @@ class JsonParsingService(Service):
                 ).to_dict()
 
         # Шаг 3: Robust extraction с балансировкой скобок
-        self._log_debug(
-            f"🔍 [JsonParsing.extract_json] Шаг 3: robust extraction с балансировкой",
-            event_type=LogEventType.INFO
-        )
         json_content, steps = robust_extractor.robust_extract_json(content)
-        
+
         if json_content:
             self._log_info(
-                f"✅ [JsonParsing.extract_json] JSON извлечён robust_extract: {len(json_content)} симв.",
-                event_type=LogEventType.INFO
-            )
-            self._log_debug(
-                f"🟢 [JsonParsing.extract_json] Извлечённый JSON:\n{json_content}",
+                f"[JsonParsing] extracted via robust_extract: {len(json_content)} chars",
                 event_type=LogEventType.INFO
             )
             return JsonParseResult(
@@ -271,7 +244,7 @@ class JsonParsingService(Service):
 
         # Ничего не нашли
         self._log_debug(
-            f"❌ [JsonParsing.extract_json] JSON не найден в тексте ({len(content)} симв.)",
+            f"[JsonParsing.extract_json] JSON not found in {len(content)} chars",
             event_type=LogEventType.WARNING
         )
         return JsonParseResult(
