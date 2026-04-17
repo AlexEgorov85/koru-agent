@@ -219,16 +219,16 @@ class InfrastructureContext:
             self.log.info("Вызов lifecycle_manager.initialize_all()...",
                           extra={"event_type": LogEventType.SYSTEM_INIT})
             await self.lifecycle_manager.initialize_all()
-            self.log.info("✅ LifecycleManager инициализирован",
+            self.log.info("[OK] LifecycleManager initialized",
                           extra={"event_type": LogEventType.SYSTEM_READY})
         except Exception as e:
-            self.log.error("❌ Ошибка инициализации провайдеров: %s", str(e),
+            self.log.error("[ERROR] Provider init error: %s", str(e),
                            extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
             return False
 
         await self.event_bus.publish(
             EventType.USER_RESULT,
-            data={"message": "InfrastructureContext инициализирован", "icon": "✅"},
+            data={"message": "InfrastructureContext initialized", "icon": "[OK]"},
             session_id=str(self.id),
         )
         return True
@@ -345,7 +345,7 @@ class InfrastructureContext:
                     info_db.is_default = True
                     self.resource_registry.register_resource(info_db)
                 except Exception as e:
-                    self.log.error("❌ Ошибка регистрации DB провайдера '%s': %s",
+                    self.log.error("[ERROR] DB provider registration error '%s': %s",
                                    provider_name, str(e),
                                    extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
 
@@ -381,7 +381,7 @@ class InfrastructureContext:
                         "path": str(index_path),
                         "vectors": count
                     }
-                    self.log.info("✅ Загружен индекс %s: %s (%d векторов)",
+                    self.log.info("[OK] Loaded index %s: %s (%d vectors)",
                                   source, index_path, count,
                                   extra={"event_type": LogEventType.SYSTEM_INIT})
                 else:
@@ -390,7 +390,7 @@ class InfrastructureContext:
                         "path": str(index_path),
                         "vectors": 0
                     }
-                    self.log.warning("⚠️ Индекс %s не найден: %s. Требуется индексация.",
+                    self.log.warning("[WARN] Index %s not found: %s. Indexing required.",
                                  source, index_path,
                                  extra={"event_type": LogEventType.WARNING})
 
@@ -400,7 +400,7 @@ class InfrastructureContext:
                     "status": "error",
                     "error": str(e)
                 }
-                self.log.error("❌ Ошибка инициализации FAISS провайдера %s: %s",
+                self.log.error("[ERROR] FAISS provider init error %s: %s",
                                source, str(e),
                                extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
                 continue
@@ -418,7 +418,7 @@ class InfrastructureContext:
         try:
             self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
             await self._embedding_provider.initialize()
-            self.log.info("✅ Инициализирован Embedding: %s",
+            self.log.info("[OK] Embedding initialized: %s",
                           vs_config.embedding.model_name,
                           extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:
@@ -433,7 +433,7 @@ class InfrastructureContext:
                 chunk_overlap=vs_config.chunking.chunk_overlap,
                 min_chunk_size=vs_config.chunking.min_chunk_size
             )
-            self.log.info("✅ Инициализирован Chunking: %d символов",
+            self.log.info("[OK] Chunking initialized: %d chars",
                           vs_config.chunking.chunk_size,
                           extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:

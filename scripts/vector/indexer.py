@@ -38,27 +38,31 @@ if str(project_root) not in sys.path:
 # Утилиты
 # ===========================================================================
 
-async def init_infrastructure(profile: str = "dev", data_dir: str = "data"):
-    """Инициализация инфраструктуры (контексты + embedding + FAISS)."""
+async def init_infrastructure(profile: str = "prod", data_dir: str = "data"):
+    """Инициализация инфраструктуры (контексты + embedding + FAISS).
+    
+    NOTE: Не используем InfrastructureContext, так как его shutdown()
+    перезаписывает FAISS файлы своими внутренними провайдерами.
+    """
     from core.config import get_config
-    from core.infrastructure_context.infrastructure_context import InfrastructureContext
     from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
     from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
     from core.config.vector_config import EmbeddingConfig
 
     config = get_config(profile=profile, data_dir=data_dir)
 
-    infra = InfrastructureContext(config)
-    await infra.initialize()
-
+    # Empty infra mock для совместимости с shutdown
+    class DummyInfra:
+        async def shutdown(self):
+            pass
+    
+    infra = DummyInfra()
     vs_config = config.vector_search
 
     # Embedding
-    embedding = infra.get_embedding_provider()
-    if not embedding:
-        embedding_config = EmbeddingConfig(model_name=vs_config.embedding.model_name)
-        embedding = SentenceTransformersProvider(embedding_config)
-        await embedding.initialize()
+    embedding_config = EmbeddingConfig(model_name=vs_config.embedding.model_name)
+    embedding = SentenceTransformersProvider(embedding_config)
+    await embedding.initialize()
 
     # FAISS провайдер (базовый)
     faiss_provider = FAISSProvider(
@@ -104,11 +108,11 @@ async def create_empty_indexes(vs_config) -> int:
 
     for source, index_file in vs_config.indexes.items():
         index_path = storage_path / index_file
-        status = "✅" if index_path.exists() else "❌"
+        status = "[OK]" if index_path.exists() else "[FAIL]"
         print(f"  {status} {source}: {index_file}")
 
     print("\n" + "=" * 60)
-    print("✅ ИНДЕКСЫ СОЗДАНЫ!")
+    print("[OK] ИНДЕКСЫ СОЗДАНЫ!")
     print("=" * 60)
     return 0
 
@@ -123,8 +127,8 @@ async def save_index(provider, vs_config, source: str) -> Path:
     await provider.save(str(index_path))
 
     count = await provider.count()
-    print(f"\n✅ Сохранено: {index_path}")
-    print(f"✅ Всего векторов: {count}")
+    print(f"\n[OK] Saved: {index_path}")
+    print(f"[OK] Total vectors: {count}")
     return index_path
 
 
@@ -145,7 +149,7 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     config = get_config(profile="dev")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден в конфигурации")
+        print("[ERROR] DB provider 'default_db' not found in config")
         return 1
 
     params = db_config.parameters
@@ -202,13 +206,13 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
         all_metadata.append(metadata.model_dump())
         print(f"   [{row_dict['id']}] {search_text}: {len(vector)}d vector")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "authors")
 
     print("\n" + "=" * 60)
-    print("✅ ИНДЕКСАЦИЯ АВТОРОВ ЗАВЕРШЕНА!")
+    print("[OK] AUTHORS INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 
@@ -226,7 +230,7 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
     config = get_config(profile="dev")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
+        print("[ERROR] DB provider 'default_db' not found")
         return 1
 
     params = db_config.parameters
@@ -286,13 +290,13 @@ async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
         all_metadata.append(metadata.model_dump())
         print(f"   [{row_dict['id']}] {row_dict['title']} — {row_dict['first_name']} {row_dict['last_name']}")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "books")
 
     print("\n" + "=" * 60)
-    print("✅ ИНДЕКСАЦИЯ КНИГ ЗАВЕРШЕНА!")
+    print("[OK] BOOKS INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 
@@ -310,7 +314,7 @@ async def index_books_full(embedding, faiss_provider, vs_config) -> int:
     config = get_config(profile="dev")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
+        print("[ERROR] DB provider 'default_db' not found")
         return 1
 
     params = db_config.parameters
@@ -386,10 +390,10 @@ async def index_books_full(embedding, faiss_provider, vs_config) -> int:
             all_metadata.append(chunk.metadata)
             total_chars += len(chunk.content)
 
-        print(f"  📖 [{book_id}] {book_title} — глава {chapter_number}: "
+        print(f"  [BOOK] [{book_id}] {book_title} - chapter {chapter_number}: "
               f"{len(chapter_text)} символов → {len(chunks)} чанков")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "books")
@@ -402,7 +406,7 @@ async def index_books_full(embedding, faiss_provider, vs_config) -> int:
     print(f"  Векторов проиндексировано: {len(all_vectors)}")
 
     print("\n" + "=" * 60)
-    print("✅ ПОЛНАЯ ИНДЕКСАЦИЯ ЗАВЕРШЕНА!")
+    print("[OK] FULL BOOKS INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 
@@ -420,7 +424,7 @@ async def index_table(table: str, column: str, source: str, embedding, faiss_pro
     config = get_config(profile="dev")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
+        print("[ERROR] DB provider 'default_db' not found")
         return 1
 
     params = db_config.parameters
@@ -452,13 +456,13 @@ async def index_table(table: str, column: str, source: str, embedding, faiss_pro
         all_metadata.append(metadata)
         print(f"   [{row_id}] {str(text)[:60]}...")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, source)
 
     print("\n" + "=" * 60)
-    print(f"✅ ИНДЕКСАЦИЯ {source} ЗАВЕРШЕНА!")
+    print(f"[OK] {source} INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 
@@ -466,17 +470,17 @@ async def index_table(table: str, column: str, source: str, embedding, faiss_pro
 async def index_audits(embedding, faiss_provider, vs_config) -> int:
     """Индексация аудиторских проверок — по заголовкам и проверяемым объектам."""
     print("=" * 60)
-    print("ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
+    print("AUDITS INDEXING")
     print("=" * 60)
 
     from core.config import get_config
     from core.models.types.vector_types import RowMetadata
     import psycopg2
 
-    config = get_config(profile="dev")
+    config = get_config(profile="prod")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
+        print("[ERROR] DB provider 'default_db' not found")
         return 1
 
     params = db_config.parameters
@@ -541,13 +545,13 @@ async def index_audits(embedding, faiss_provider, vs_config) -> int:
         all_metadata.append(metadata.model_dump())
         print(f"   [{row_dict['id']}] {row_dict['title'][:60]}... | {row_dict['auditee_entity'] or '—'} | {row_dict['status']}")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "audits")
 
     print("\n" + "=" * 60)
-    print("✅ ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК ЗАВЕРШЕНА!")
+    print("[OK] AUDITS INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 
@@ -555,17 +559,17 @@ async def index_audits(embedding, faiss_provider, vs_config) -> int:
 async def index_violations(embedding, faiss_provider, vs_config) -> int:
     """Индексация отклонений — по описанию и коду нарушения."""
     print("=" * 60)
-    print("ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ")
+    print("VIOLATIONS INDEXING")
     print("=" * 60)
 
     from core.config import get_config
     from core.models.types.vector_types import RowMetadata
     import psycopg2
 
-    config = get_config(profile="dev")
+    config = get_config(profile="prod")
     db_config = config.db_providers.get("default_db")
     if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
+        print("[ERROR] DB provider 'default_db' not found")
         return 1
 
     params = db_config.parameters
@@ -639,13 +643,13 @@ async def index_violations(embedding, faiss_provider, vs_config) -> int:
         all_metadata.append(metadata.model_dump())
         print(f"   [{row_dict['id']}] {row_dict['violation_code'] or '—'} | {row_dict['severity']} | {row_dict['status']} | {row_dict['description'][:50]}...")
 
-    print(f"\n📊 Добавление {len(all_vectors)} векторов в FAISS...")
+    print(f"\nAdding {len(all_vectors)} vectors to FAISS...")
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "violations")
 
     print("\n" + "=" * 60)
-    print("✅ ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ ЗАВЕРШЕНА!")
+    print("VIOLATIONS INDEXING COMPLETED!")
     print("=" * 60)
     return 0
 

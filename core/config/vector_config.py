@@ -155,8 +155,9 @@ class VectorSearchConfig(BaseModel):
     @field_validator('indexes')
     @classmethod
     def validate_indexes(cls, v):
-        """Валидация индексов."""
-        required = {"books", "authors", "audits", "violations"}
-        if set(v.keys()) != required:
-            raise ValueError(f"Indexes must include: {required}")
+        """Валидация индексов (допускается любой набор)."""
+        allowed = {"books", "authors", "audits", "violations", "docs", "knowledge"}
+        unknown = set(v.keys()) - allowed
+        if unknown:
+            raise ValueError(f"Unknown indexes: {unknown}. Allowed: {allowed}")
         return v
