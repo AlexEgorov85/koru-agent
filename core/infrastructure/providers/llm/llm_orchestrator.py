@@ -283,7 +283,7 @@ class LLMOrchestrator:
             if self._log_session is not None and hasattr(self._log_session, 'llm_calls_logger'):
                 self._llm_call_logger = self._log_session.llm_calls_logger
             else:
-                # Fallback: создаём独立的 логгер если log_session не предоставлен
+                # Fallback: создаём отдельный логгер если log_session не предоставлен
                 self._llm_call_logger = logging.getLogger("llm_calls")
 
             # Запуск фоновой задачи очистки
@@ -1109,6 +1109,16 @@ class LLMOrchestrator:
                 f"system_len={len(request.system_prompt) if request.system_prompt else 0} | "
                 f"user_len={len(request.prompt)} | "
                 f"temp={request.temperature} | max_tokens={request.max_tokens}",
+                extra={"event_type": LogEventType.LLM_CALL_REQUEST}
+            )
+            # Полный промт в DEBUG
+            if request.system_prompt:
+                self._llm_call_logger.debug(
+                    f"[LLM_REQ] System Prompt (call_id={call_id}):\n{request.system_prompt}",
+                    extra={"event_type": LogEventType.LLM_CALL_REQUEST}
+                )
+            self._llm_call_logger.debug(
+                f"[LLM_REQ] User Prompt (call_id={call_id}):\n{request.prompt}",
                 extra={"event_type": LogEventType.LLM_CALL_REQUEST}
             )
 
