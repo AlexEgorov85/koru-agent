@@ -229,11 +229,6 @@ class AgentRuntime:
             )
             self.log.info(decision_msg, extra={"event_type": LogEventType.AGENT_DECISION})
 
-            self.log.info(
-                f"🎯 Выбрано действие: {decision.action}",
-                extra={"event_type": LogEventType.AGENT_DECISION}
-            )
-            
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
                 self.log.info(
@@ -441,6 +436,12 @@ class AgentRuntime:
                         f"📝 Сохранено observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
                         extra={"event_type": LogEventType.STEP_COMPLETED}
                     )
+                    # Логируем наблюдение в формате промта (DEBUG)
+                    if quick_content:
+                        self.log.debug(
+                            f"[OBSERVATION] step={executed_steps + 1} | capability={decision.action}\n{quick_content}",
+                            extra={"event_type": LogEventType.STEP_COMPLETED}
+                        )
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
