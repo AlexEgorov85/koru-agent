@@ -26,10 +26,10 @@ class SentenceTransformersProvider(IEmbeddingProvider):
     """
     Реализация Embedding провайдера через SentenceTransformers.
 
-    Модель по умолчанию: all-MiniLM-L6-v2
-    - Размерность: 384
-    - Скорость: ~1000 предложений/сек (CPU)
-    - Качество: STS benchmark ~0.82
+    Модель по умолчанию: Giga-Embeddings-instruct
+    - Размерность: 2048
+    - Тип: LLM-based embeddings (GigaChat Instruct)
+    - Конфигурация: models/embedding/Giga-Embeddings-instruct
 
     ⚠️ ТОЛЬКО ЛОКАЛЬНАЯ МОДЕЛЬ — онлайн загрузка отключена.
     """

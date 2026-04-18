@@ -53,8 +53,8 @@ vector_search:
     chunk_size: 500
     min_chunk_size: 50
   embedding:
-    dimension: 384
-    model_name: models/embedding/all-MiniLM-L6-v2
+    dimension: 2048
+    model_name: C:/Users/Алексей/Documents/WORK/llm_models/Giga-Embeddings-instruct
   enabled: true
   faiss:
     index_type: Flat

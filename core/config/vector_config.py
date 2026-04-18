@@ -47,8 +47,8 @@ class EmbeddingConfig(BaseModel):
         batch_size: Размер батча
         max_length: Максимальная длина токенов
     """
-    model_name: str = "all-MiniLM-L6-v2"
-    dimension: int = 384
+    model_name: str = "C:/Users/Алексей/Documents/WORK/llm_models/Giga-Embeddings-instruct"
+    dimension: int = 2048
     device: Literal["cpu", "cuda"] = "cpu"
     batch_size: int = 32
     max_length: int = 512
