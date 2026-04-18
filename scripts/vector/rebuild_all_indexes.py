@@ -85,84 +85,10 @@ async def main():
     await authors_provider.shutdown()
 
     # =========================================================================
-    # 2. ИНДЕКСАЦИЯ КНИГ (с главами из chapters)
+    # 2. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК
     # =========================================================================
     print("\n" + "=" * 60)
-    print("2. ИНДЕКСАЦИЯ КНИГ (с главами)")
-    print("=" * 60)
-
-    cursor.execute("""
-        SELECT c.book_id, c.chapter_id, c.chapter_number, c.chapter_text
-        FROM "Lib".chapters c
-        ORDER BY c.book_id, c.chapter_number
-    """)
-    chapters = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT b.id, b.title, a.last_name, a.first_name
-        FROM "Lib".books b
-        JOIN "Lib".authors a ON b.author_id = a.id
-        ORDER BY b.id
-    """)
-    books_info = {row[0]: {"title": row[1], "author": f"{row[2]} {row[3]}"} for row in cursor.fetchall()}
-
-    print(f"Найдено глав: {len(chapters)}")
-    print(f"Найдено книг: {len(books_info)}")
-
-    books_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
-    await books_provider.initialize()
-
-    books_vectors = []
-    books_metadata = []
-
-    # Используем ChunkingService для правильного разбиения (абзацы/предложения/overlap)
-    from core.infrastructure.providers.vector.chunking_service import ChunkingService
-    chunking = ChunkingService.from_config(vs_config.chunking)
-
-    for chapter in chapters:
-        book_id, chapter_id, chapter_number, chapter_text = chapter
-
-        if not chapter_text or not chapter_text.strip():
-            continue
-
-        book_info = books_info.get(book_id, {})
-        book_title = book_info.get("title", f"Book {book_id}")
-        book_author = book_info.get("author", "Unknown")
-
-        doc_id = f"book_{book_id}"
-        chunks = await chunking.split(
-            content=chapter_text,
-            document_id=doc_id,
-            metadata={
-                "book_title": book_title,
-                "book_author": book_author,
-                "chapter_number": chapter_number,
-            },
-        )
-
-        for chunk in chunks:
-            vector = await embedding.generate_single(chunk.content)
-            chunk.metadata.update({
-                "book_id": book_id,
-            })
-            books_vectors.append(vector)
-            books_metadata.append(chunk.metadata)
-
-        print(f"  📖 [{book_id}] {book_title} — глава {chapter_number}: "
-              f"{len(chapter_text)} символов → {len(chunks)} чанков")
-
-    await books_provider.add(books_vectors, books_metadata)
-    books_index_path = storage_path / vs_config.indexes["books"]
-    await books_provider.save(str(books_index_path))
-    count = await books_provider.count()
-    print(f"✅ Сохранено books_index: {count} векторов")
-    await books_provider.shutdown()
-
-    # =========================================================================
-    # 3. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК
-    # =========================================================================
-    print("\n" + "=" * 60)
-    print("3. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
+    print("2. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
     print("=" * 60)
 
     cursor.execute("""

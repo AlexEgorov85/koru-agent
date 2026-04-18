@@ -4,8 +4,6 @@
 
 Объединяет функциональность:
 - index_authors.py
-- index_books.py
-- rebuild_books_index.py
 - initial_indexing.py
 
 ИСПОЛЬЗОВАНИЕ:
@@ -15,14 +13,11 @@
     # Индексация авторов из БД
     python -m scripts.vector.indexer authors
 
-    # Индексация книг из БД (полная, с чанками)
-    python -m scripts.vector.indexer books --full
+    # Индексация аудитов
+    python -m scripts.vector.indexer audits
 
-    # Индексация книг из БД (упрощённая, по заголовкам)
-    python -m scripts.vector.indexer books
-
-    # Индексация произвольной таблицы
-    python -m scripts.vector.indexer table --table "Lib.genres" --column "name" --source genres
+    # Индексация нарушений
+    python -m scripts.vector.indexer violations
 """
 import asyncio
 import sys
@@ -45,8 +40,6 @@ async def init_infrastructure(profile: str = "prod", data_dir: str = "data"):
     перезаписывает FAISS файлы своими внутренними провайдерами.
     """
     from core.config import get_config
-    from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-    from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
     from core.config.vector_config import EmbeddingConfig
 
     config = get_config(profile=profile, data_dir=data_dir)
@@ -59,9 +52,16 @@ async def init_infrastructure(profile: str = "prod", data_dir: str = "data"):
     infra = DummyInfra()
     vs_config = config.vector_search
 
-    # Embedding
-    embedding_config = EmbeddingConfig(model_name=vs_config.embedding.model_name)
-    embedding = SentenceTransformersProvider(embedding_config)
+# Выбор провайдера на основе модели
+    model_name = vs_config.embedding.model_name
+    if "Giga-Embeddings" in model_name or "giga" in model_name.lower():
+        from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
+        embedding = GigaEmbeddingsProvider(vs_config.embedding)
+    else:
+        from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
+        embedding_config = EmbeddingConfig(model_name=vs_config.embedding.model_name, dimension=vs_config.embedding.dimension)
+        embedding = SentenceTransformersProvider(embedding_config)
+    
     await embedding.initialize()
 
     # FAISS провайдер (базовый)
@@ -164,7 +164,7 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, last_name, first_name, birth_year
+        SELECT id, last_name, first_name, birth_date
         FROM "Lib".authors
         WHERE last_name IS NOT NULL
         ORDER BY last_name, first_name
@@ -183,7 +183,7 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
             "id": row[0],
             "last_name": row[1],
             "first_name": row[2],
-            "birth_year": row[3],
+            "birth_date": str(row[3]) if row[3] else None,
         }
 
         search_text = f"{row_dict['first_name']} {row_dict['last_name']}"
@@ -210,261 +210,6 @@ async def index_authors(embedding, faiss_provider, vs_config) -> int:
     await faiss_provider.add(all_vectors, all_metadata)
 
     await save_index(faiss_provider, vs_config, "authors")
-
-    print("\n" + "=" * 60)
-    print("[OK] AUTHORS INDEXING COMPLETED!")
-    print("=" * 60)
-    return 0
-
-
-async def index_books_simple(embedding, faiss_provider, vs_config) -> int:
-    """Упрощённая индексация книг — по заголовкам из БД."""
-    print("=" * 60)
-    print("ИНДЕКСАЦИЯ КНИГ (по заголовкам)")
-    print("=" * 60)
-
-    from core.config import get_config
-    from core.models.types.vector_types import RowMetadata
-    import psycopg2
-
-    config = get_config(profile="dev")
-    db_config = config.db_providers.get("default_db")
-    if not db_config:
-        print("[ERROR] DB provider 'default_db' not found")
-        return 1
-
-    params = db_config.parameters
-
-    conn = psycopg2.connect(
-        host=params.get("host", "localhost"),
-        port=params.get("port", 5432),
-        database=params.get("database", "postgres"),
-        user=params.get("user", "postgres"),
-        password=params.get("password", ""),
-    )
-    conn.autocommit = True
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT b.id, b.title, b.author_id, a.last_name, a.first_name
-        FROM "Lib".books b
-        JOIN "Lib".authors a ON b.author_id = a.id
-        ORDER BY b.id
-    """)
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    print(f"Найдено книг в БД: {len(rows)}\n")
-
-    all_vectors = []
-    all_metadata = []
-
-    for row in rows:
-        row_dict = {
-            "id": row[0],
-            "title": row[1],
-            "author_id": row[2],
-            "last_name": row[3],
-            "first_name": row[4],
-            "author": f"{row[4]} {row[3]}",
-        }
-
-        search_text = f"{row_dict['title']} {row_dict['first_name']} {row_dict['last_name']}"
-
-        vector = await embedding.generate_single(search_text)
-
-        metadata = RowMetadata(
-            source="books",
-            table="Lib.books",
-            primary_key="id",
-            pk_value=row_dict["id"],
-            row=row_dict,
-            chunk_index=0,
-            total_chunks=1,
-            search_text=search_text,
-            content=search_text,
-        )
-
-        all_vectors.append(vector)
-        all_metadata.append(metadata.model_dump())
-        print(f"   [{row_dict['id']}] {row_dict['title']} — {row_dict['first_name']} {row_dict['last_name']}")
-
-    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
-    await faiss_provider.add(all_vectors, all_metadata)
-
-    await save_index(faiss_provider, vs_config, "books")
-
-    print("\n" + "=" * 60)
-    print("[OK] BOOKS INDEXING COMPLETED!")
-    print("=" * 60)
-    return 0
-
-
-async def index_books_full(embedding, faiss_provider, vs_config) -> int:
-    """Полная индексация книг — с главами из таблицы chapters."""
-    print("=" * 60)
-    print("ПОЛНАЯ ИНДЕКСАЦИЯ КНИГ (с главами)")
-    print("=" * 60)
-
-    from core.config import get_config
-    from core.infrastructure_context.infrastructure_context import InfrastructureContext
-    import psycopg2
-
-    config = get_config(profile="dev")
-    db_config = config.db_providers.get("default_db")
-    if not db_config:
-        print("[ERROR] DB provider 'default_db' not found")
-        return 1
-
-    params = db_config.parameters
-    conn = psycopg2.connect(
-        host=params.get("host", "localhost"),
-        port=params.get("port", 5432),
-        database=params.get("database", "postgres"),
-        user=params.get("user", "postgres"),
-        password=params.get("password", ""),
-    )
-    conn.autocommit = True
-    cursor = conn.cursor()
-
-    # Получаем главы всех книг
-    cursor.execute("""
-        SELECT c.book_id, c.chapter_id, c.chapter_number, c.chapter_text
-        FROM "Lib".chapters c
-        ORDER BY c.book_id, c.chapter_number
-    """)
-    chapters = cursor.fetchall()
-
-    # Получаем информацию о книгах
-    cursor.execute("""
-        SELECT b.id, b.title, a.last_name, a.first_name
-        FROM "Lib".books b
-        JOIN "Lib".authors a ON b.author_id = a.id
-        ORDER BY b.id
-    """)
-    books_info = {row[0]: {"title": row[1], "author": f"{row[2]} {row[3]}"} for row in cursor.fetchall()}
-
-    cursor.close()
-    conn.close()
-
-    print(f"Найдено глав: {len(chapters)}")
-    print(f"Найдено книг: {len(books_info)}\n")
-
-    all_vectors = []
-    all_metadata = []
-
-    for chapter in chapters:
-        book_id, chapter_id, chapter_number, chapter_text = chapter
-
-        if not chapter_text or not chapter_text.strip():
-            continue
-
-        book_info = books_info.get(book_id, {})
-        book_title = book_info.get("title", f"Book {book_id}")
-        book_author = book_info.get("author", "Unknown")
-
-        # Разбиваем главу на чанки через ChunkingService
-        # (рекурсивно по абзацам/предложениям, с overlap)
-        from core.infrastructure.providers.vector.chunking_service import ChunkingService
-        chunking = ChunkingService.from_config(vs_config.chunking)
-        doc_id = f"book_{book_id}"
-        chunks = await chunking.split(
-            content=chapter_text,
-            document_id=doc_id,
-            metadata={
-                "book_title": book_title,
-                "book_author": book_author,
-                "chapter_number": chapter_number,
-            },
-        )
-
-        total_chars = 0
-        for chunk in chunks:
-            vector = await embedding.generate_single(chunk.content)
-            chunk.metadata.update({
-                "book_id": book_id,
-                "chapter": chapter_number,
-            })
-            all_vectors.append(vector)
-            all_metadata.append(chunk.metadata)
-            total_chars += len(chunk.content)
-
-        print(f"  [BOOK] [{book_id}] {book_title} - chapter {chapter_number}: "
-              f"{len(chapter_text)} символов → {len(chunks)} чанков")
-
-    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
-    await faiss_provider.add(all_vectors, all_metadata)
-
-    await save_index(faiss_provider, vs_config, "books")
-
-    print("\n" + "=" * 60)
-    print("СТАТИСТИКА")
-    print("=" * 60)
-    print(f"  Книг: {len(books_info)}")
-    print(f"  Глав обработано: {len(chapters)}")
-    print(f"  Векторов проиндексировано: {len(all_vectors)}")
-
-    print("\n" + "=" * 60)
-    print("[OK] FULL BOOKS INDEXING COMPLETED!")
-    print("=" * 60)
-    return 0
-
-
-async def index_table(table: str, column: str, source: str, embedding, faiss_provider, vs_config) -> int:
-    """Индексация произвольной таблицы."""
-    print("=" * 60)
-    print(f"ИНДЕКСАЦИЯ ТАБЛИЦЫ: {table}.{column}")
-    print("=" * 60)
-
-    from core.config import get_config
-    from core.infrastructure_context.infrastructure_context import InfrastructureContext
-    import psycopg2
-
-    config = get_config(profile="dev")
-    db_config = config.db_providers.get("default_db")
-    if not db_config:
-        print("[ERROR] DB provider 'default_db' not found")
-        return 1
-
-    params = db_config.parameters
-    conn = psycopg2.connect(
-        host=params.get("host", "localhost"),
-        port=params.get("port", 5432),
-        database=params.get("database", "postgres"),
-        user=params.get("user", "postgres"),
-        password=params.get("password", ""),
-    )
-    conn.autocommit = True
-    cursor = conn.cursor()
-
-    cursor.execute(f'SELECT id, "{column}" FROM {table} WHERE "{column}" IS NOT NULL ORDER BY id')
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    print(f"Найдено записей: {len(rows)}\n")
-
-    all_vectors = []
-    all_metadata = []
-
-    for row in rows:
-        row_id, text = row
-        vector = await embedding.generate_single(str(text))
-        metadata = {"id": row_id, source: str(text), "search_text": str(text)}
-        all_vectors.append(vector)
-        all_metadata.append(metadata)
-        print(f"   [{row_id}] {str(text)[:60]}...")
-
-    print(f"\n[STAT] Adding {len(all_vectors)} vectors to FAISS...")
-    await faiss_provider.add(all_vectors, all_metadata)
-
-    await save_index(faiss_provider, vs_config, source)
-
-    print("\n" + "=" * 60)
-    print(f"[OK] {source} INDEXING COMPLETED!")
-    print("=" * 60)
-    return 0
 
 
 async def index_audits(embedding, faiss_provider, vs_config) -> int:
@@ -672,24 +417,11 @@ def build_parser():
     # authors
     subparsers.add_parser("authors", help="Индексация авторов из таблицы authors")
 
-    # books
-    books_parser = subparsers.add_parser("books", help="Индексация книг из БД")
-    books_parser.add_argument(
-        "--full", action="store_true",
-        help="Полная индексация с чанками содержимого (медленнее, но точнее)"
-    )
-
     # audits
     subparsers.add_parser("audits", help="Индексация аудиторских проверок")
 
     # violations
     subparsers.add_parser("violations", help="Индексация отклонений")
-
-    # table — произвольная таблица
-    table_parser = subparsers.add_parser("table", help="Индексация произвольной таблицы")
-    table_parser.add_argument("--table", required=True, help="Имя таблицы (например, Lib.genres)")
-    table_parser.add_argument("--column", required=True, help="Столбец для индексации")
-    table_parser.add_argument("--source", required=True, help="Имя источника для FAISS")
 
     return parser
 
@@ -709,22 +441,15 @@ async def async_main():
         return await create_empty_indexes(vs_config)
 
     # Для всех остальных команд нужна инфраструктура
-    infra, embedding, faiss_provider, vs_config = await init_infrastructure()
+    infra, embedding, faiss_provider, vs_config = await init_infrastructure(profile="dev")
 
     try:
         if args.command == "authors":
             return await index_authors(embedding, faiss_provider, vs_config)
-        elif args.command == "books":
-            if args.full:
-                return await index_books_full(embedding, faiss_provider, vs_config)
-            else:
-                return await index_books_simple(embedding, faiss_provider, vs_config)
         elif args.command == "audits":
             return await index_audits(embedding, faiss_provider, vs_config)
         elif args.command == "violations":
             return await index_violations(embedding, faiss_provider, vs_config)
-        elif args.command == "table":
-            return await index_table(args.table, args.column, args.source, embedding, faiss_provider, vs_config)
         else:
             parser.print_help()
             return 1

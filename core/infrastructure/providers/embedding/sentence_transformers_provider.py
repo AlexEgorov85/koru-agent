@@ -88,7 +88,8 @@ class SentenceTransformersProvider(IEmbeddingProvider):
             self.model = SentenceTransformer(
                 self.config.model_name,
                 device=self.config.device,
-                local_files_only=True  # Только локальные файлы
+                local_files_only=True,  # Только локальные файлы
+                trust_remote_code=True  # Для моделей с кастомным кодом
             )
         except ImportError:
             raise ImportError(
@@ -104,8 +105,13 @@ class SentenceTransformersProvider(IEmbeddingProvider):
                 f"Онлайн загрузка отключена."
             )
     
-    async def generate(self, texts: List[str]) -> List[List[float]]:
-        """Генерация эмбеддингов для текстов."""
+    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
+        """Генерация эмбеддингов для текстов.
+        
+        Args:
+            texts: Список текстов
+            apply_instruction: Ignored for SentenceTransformers (for interface compatibility)
+        """
         
         if not self.model:
             await self.initialize()
@@ -123,9 +129,14 @@ class SentenceTransformersProvider(IEmbeddingProvider):
         
         return embeddings.tolist()
     
-    async def generate_single(self, text: str) -> List[float]:
-        """Генерация эмбеддинга для одного текста."""
-        embeddings = await self.generate([text])
+    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
+        """Генерация эмбеддинга для одного текста.
+        
+        Args:
+            text: Текст
+            apply_instruction: Ignored for SentenceTransformers
+        """
+        embeddings = await self.generate([text], apply_instruction=False)
         return embeddings[0] if embeddings else []
     
     def get_dimension(self) -> int:

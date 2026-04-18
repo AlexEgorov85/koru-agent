@@ -55,12 +55,13 @@ vector_search:
   embedding:
     dimension: 2048
     model_name: C:/Users/Алексей/Documents/WORK/llm_models/Giga-Embeddings-instruct
+    instruction: "Дан вопрос, необходимо найти абзац текста с ответом"
+    use_instruction: true
   enabled: true
   faiss:
     index_type: Flat
     metric: IP
   indexes:
-    books: books_index.faiss
     authors: authors_index.faiss
     audits: audits_index.faiss
     violations: violations_index.faiss
