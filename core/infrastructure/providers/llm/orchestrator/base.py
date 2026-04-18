@@ -49,6 +49,7 @@ class LLMMetrics:
     orphaned_calls: int = 0  # Вызовы завершившиеся после таймаута
     total_generation_time: float = 0.0
     total_wait_time: float = 0.0  # Время ожидания в таймаутах
+    cache_hits: int = 0
     
     # Метрики для структурированного вывода
     structured_calls: int = 0
