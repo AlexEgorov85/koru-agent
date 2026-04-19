@@ -1,53 +1,74 @@
-```gitignore
-# Python compiled files
-__pycache__/
+```
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
+__pycache__/
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+build/
+dist/
+target/
 
-# Logs
-logs/
-*.log
-
-# Session data
-data/logs/
-
-# Coverage reports
-.coverage
-htmlcov/
-coverage/
-
-# Virtual environments
+# Dependencies
+node_modules/
 venv/
 .venv/
-env/
-.ENV/
-
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS specific
-.DS_Store
-Thumbs.db
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-
-# Environment variables
 .env
 .env.local
 *.env.*
 
-# Temporary files
+# Logs and temp files
+*.log
 *.tmp
-*.temp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+.mypy_cache/
+.pytest_cache/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```

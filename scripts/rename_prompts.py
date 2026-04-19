@@ -26,13 +26,13 @@ PROMPT_RENAMES = {
     "service/sql_generation/sql_generation.generate_query_v1.0.0.yaml": "service/sql_generation/sql_generation.generate_query.user_v1.0.0.yaml",
 
     # Behaviors (уже переименованы, но проверим)
-    "behavior/behavior/behavior_v1.0.0.yaml": "behavior/behavior/behavior.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.planning_v1.0.0.yaml": "behavior/behavior/behavior.planning.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.planning.decompose_v1.0.0.yaml": "behavior/behavior/behavior.planning.decompose.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.planning.sequence_v1.0.0.yaml": "behavior/behavior/behavior.planning.sequence.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.react_v1.0.0.yaml": "behavior/behavior/behavior.react.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.react.act_v1.0.0.yaml": "behavior/behavior/behavior.react.act.user_v1.0.0.yaml",
-    "behavior/behavior/behavior.react.observe_v1.0.0.yaml": "behavior/behavior/behavior.react.observe.user_v1.0.0.yaml",
+    "behavior/behavior.user_v1.0.0.yaml": "behavior/behavior.user_v1.0.0.yaml",
+    "behavior/behavior.planning.user_v1.0.0.yaml": "behavior/behavior.planning.user_v1.0.0.yaml",
+    "behavior/behavior.planning.decompose.user_v1.0.0.yaml": "behavior/behavior.planning.decompose.user_v1.0.0.yaml",
+    "behavior/behavior.planning.sequence.user_v1.0.0.yaml": "behavior/behavior.planning.sequence.user_v1.0.0.yaml",
+    "behavior/behavior.react.user_v1.0.0.yaml": "behavior/behavior.react.user_v1.0.0.yaml",
+    "behavior/behavior.react.act.user_v1.0.0.yaml": "behavior/behavior.react.act.user_v1.0.0.yaml",
+    "behavior/behavior.react.observe.user_v1.0.0.yaml": "behavior/behavior.react.observe.user_v1.0.0.yaml",
 }
 
 
