@@ -29,6 +29,7 @@ from core.agent.observation_formatter import (
     smart_format_observation,
 )
 from core.components.skills.utils.observation_policy import ObservationPolicy
+from core.agent.components.observer import Observer
 
 
 class AgentRuntime:

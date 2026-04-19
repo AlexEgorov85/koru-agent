@@ -26,11 +26,19 @@ from core.infrastructure.interfaces import (
     VectorInterface,
     CacheInterface,
     EventBusInterface,
-    PromptStorageInterface,
-    ContractStorageInterface,
     MetricsStorageInterface,
     LogStorageInterface,
 )
+
+
+class PromptStorageInterface:
+    """Mock PromptStorageInterface — placeholder."""
+    pass
+
+
+class ContractStorageInterface:
+    """Mock ContractStorageInterface — placeholder."""
+    pass
 
 
 class MockDatabase(DatabaseInterface):
@@ -133,39 +141,63 @@ class MockLLM(LLMInterface):
     Mock LLM для тестов.
 
     FEATURES:
-    - Предопределённые ответы
+    - Предопределённые ответы по промптам (точное совпадение или contains)
     - Подсчёт вызовов
     - Симуляция задержки
+    - history промптов для debug
+
+    ИСПОЛЬЗОВАНИЕ:
+    ```python
+    mock_llm = MockLLM()
+    mock_llm.register_response("сколько", "В 2025 году было 10 проверок")
+    mock_llm.register_response(" ReasoningResult", '{"stop_condition": false, "decision": {"next_action": "check_result.generate_script"}}')
+
+    # Или автоответ по ключевым словам
+    mock_llm.set_default_response('{"answer": "default"}')
+    ```
     """
 
     def __init__(
         self,
-        predefined_responses: Optional[List[str]] = None,
+        predefined_responses: Optional[Dict[str, str]] = None,
         delay_seconds: float = 0.0,
-        should_fail: bool = False
+        should_fail: bool = False,
+        default_response: str = "Mock LLM response"
     ):
         """
         ARGS:
-        - predefined_responses: Список ответов (циклически)
+        - predefined_responses: Словарь {ключ_в_промпте: ответ}
         - delay_seconds: Имитация задержки ответа
         - should_fail: Симулировать ошибку
+        - default_response: Ответ по умолчанию если не найден по ключу
         """
         import asyncio
 
         self._asyncio = asyncio
-        self._responses = predefined_responses or ["Mock LLM response"]
+        self._responses = predefined_responses or {}
+        self._default_response = default_response
         self._delay = delay_seconds
         self._should_fail = should_fail
         self._call_count = 0
-        self._messages_history: List[List[Dict[str, str]]] = []
+        self._prompt_history: List[str] = []
+
+    def register_response(self, prompt_contains: str, response: str) -> None:
+        """Зарегистрировать ответ для промпта содержащего prompt_contains."""
+        self._responses[prompt_contains] = response
+
+    def set_default_response(self, response: str) -> None:
+        """Установить ответ по умолчанию."""
+        self._default_response = response
 
     async def generate(
         self,
-        messages: List[Dict[str, str]],
+        prompt: str,
+        system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None
     ) -> str:
+        """Сгенерировать текстовый ответ."""
         if self._should_fail:
             raise TimeoutError("Mock LLM timeout")
 
@@ -173,30 +205,45 @@ class MockLLM(LLMInterface):
             await self._asyncio.sleep(self._delay)
 
         self._call_count += 1
-        self._messages_history.append(messages)
+        self._prompt_history.append(prompt)
 
-        return self._responses[(self._call_count - 1) % len(self._responses)]
+        response = self._find_response(prompt)
+        return response
 
     async def generate_structured(
         self,
-        messages: List[Dict[str, str]],
+        prompt: str,
         response_schema: Dict[str, Any],
-        temperature: float = 0.7
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.1
     ) -> Dict[str, Any]:
+        """Сгенерировать структурированный ответ (JSON)."""
         if self._should_fail:
             raise TimeoutError("Mock LLM timeout")
 
         self._call_count += 1
-        self._messages_history.append(messages)
+        self._prompt_history.append(prompt)
 
-        # Mock: вернуть первую схему с дефолтными значениями
-        return self._mock_structured_response(response_schema)
+        full_prompt = f"{prompt} {response_schema}"
+        response_text = self._find_response(full_prompt)
 
-    async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
-        total = 0
-        for msg in messages:
-            total += len(msg.get("content", "").split())
-        return total
+        try:
+            import json
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            return self._mock_structured_response(response_schema)
+
+    async def health_check(self) -> "LLMHealthStatus":
+        """Проверка здоровья LLM."""
+        from core.models.types.llm_types import LLMHealthStatus
+        return LLMHealthStatus.HEALTHY
+
+    def _find_response(self, prompt: str) -> str:
+        """Найти ответ по ключевой фразе в промпте."""
+        for key, response in self._responses.items():
+            if key in prompt:
+                return response
+        return self._default_response
 
     def _mock_structured_response(self, schema: Dict[str, Any]) -> Dict[str, Any]:
         """Сгенерировать mock-ответ по схеме."""
@@ -225,14 +272,43 @@ class MockLLM(LLMInterface):
         return self._call_count
 
     @property
-    def messages_history(self) -> List[List[Dict[str, str]]]:
-        """История всех сообщений для assert."""
-        return self._messages_history
+    def prompt_history(self) -> List[str]:
+        """История промптов для assert."""
+        return self._prompt_history
 
-    def reset(self) -> None:
+def reset(self) -> None:
         """Сбросить состояние для следующего теста."""
         self._call_count = 0
-        self._messages_history.clear()
+        self._prompt_history.clear()
+
+
+def create_audit_mock_llm() -> MockLLM:
+    """
+    Фабрика: MockLLM с реалистичными ответами для аудиторских тестов.
+
+    RESPONSES:
+    - ReasoningResult → решения ReAct (decision с next_action)
+    - SQLGenerationOutput → сгенерированный SQL
+    - final_answer.generate → финальный ответ
+
+    RESPONSES из llm_responses.py:
+    """
+    from tests.mocks.llm_responses import (
+        DEFAULT_MOCK_RESPONSES,
+        REASONING_EMPTY_CONTEXT,
+        SQL_COUNT_CHECKS,
+        REASONING_EMPTY_RESULTS,
+        FINAL_ANSWER_DEFAULT,
+    )
+
+    mock = MockLLM()
+
+    mock.register_response(" ReasoningResult", REASONING_EMPTY_CONTEXT)
+    mock.register_response("SQLGenerationOutput", SQL_COUNT_CHECKS)
+    mock.register_response("final_answer.generate", FINAL_ANSWER_DEFAULT)
+
+    mock.set_default_response('{"answer": "Mock response"}')
+    return mock
 
 
 class MockVector(VectorInterface):

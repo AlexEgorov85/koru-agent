@@ -1,0 +1,58 @@
+# Конфигурация для интеграционных тестов с MockLLM
+# Использование: TEST_PROFILE=test_mock_llm pytest ...
+
+agent:
+  default_strategy: react
+  enable_context_window_management: true
+  enable_self_reflection: true
+  llm_timeout_seconds: 10.0
+  max_retries: 3
+  max_steps: 5
+  temperature: 0.3
+data_dir: data
+db_providers:
+  default_db:
+    enabled: true
+    parameters:
+      database: postgres
+      host: localhost
+      password: '1'
+      pool_size: 5
+      port: 5432
+      sslmode: disable
+      timeout: 30.0
+      username: postgres
+    provider_type: postgres
+debug: true
+llm_providers:
+  default_llm:
+    enabled: true
+    provider_type: mock
+    model_name: mock-llm
+    parameters:
+      model_name: mock-llm
+      temperature: 0.0
+      max_tokens: 1000
+      default_response: '{"answer": "mock response"}'
+      verbose: true
+      strict_mode: false
+    timeout_seconds: 1.0
+log_dir: logs/test
+log_level: DEBUG
+profile: test_mock_llm
+providers:
+  cache:
+    enabled: false
+  monitoring:
+    enabled: false
+security:
+  secrets_path: null
+  token_expiry_minutes: 60
+vector_search:
+  chunking:
+    chunk_overlap: 50
+    chunk_size: 500
+    min_chunk_size: 50
+  embedding:
+    model: all-MiniLM-L6-v2
+    device: cpu
