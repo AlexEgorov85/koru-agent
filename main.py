@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import sys
+import traceback
 import warnings
 from typing import Optional
 
@@ -52,7 +53,7 @@ os.environ["TQDM_DISABLE"] = "1"
 # КОНФИГУРАЦИЯ
 # ============================================================================
 
-GOAL = "В каких проверках были отклонения связанные с документами?" # Какие отклонения связаны с документами
+GOAL = "Сколько проверок было проведено в 2025 и 2026 годах?" # Какие отклонения связаны с документами
 MAX_STEPS = 10
 TEMPERATURE = 0.3
 

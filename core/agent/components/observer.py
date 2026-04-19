@@ -54,14 +54,14 @@ class Observer:
         """Логирование info уровня."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
             log_session = self.application_context.infrastructure_context.log_session
-            logger = log_session.get_logger("observer")
+            logger = log_session.get_component_logger("observer")
             logger.info(message, extra={"event_type": event_type or LogEventType.INFO})
-    
+
     def _log_error(self, message: str, exc_info=False):
         """Логирование error уровня."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
             log_session = self.application_context.infrastructure_context.log_session
-            logger = log_session.get_logger("observer")
+            logger = log_session.get_component_logger("observer")
             logger.error(message, extra={"event_type": LogEventType.ERROR}, exc_info=exc_info)
     
     async def analyze(
