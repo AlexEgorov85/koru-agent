@@ -70,6 +70,9 @@ class SessionContext(BaseSessionContext):
         # Централизованное состояние цикла агента
         self.agent_state = AgentState()
 
+        # Лог пустых результатов для исследования данных
+        self._empty_query_log: List[Dict[str, Any]] = []
+
     def set_goal(self, goal: str) -> None:
         """
         Установка цели сессии.
@@ -479,3 +482,35 @@ class SessionContext(BaseSessionContext):
                     role=msg.role, content=msg.content, tools_used=list(msg.tools_used)
                 )
             )
+
+    @property
+    def empty_query_log(self) -> List[Dict[str, Any]]:
+        return self._empty_query_log
+
+    def record_empty_result(
+        self,
+        tool: str,
+        tables: List[str],
+        filters: Optional[Dict[str, Any]] = None,
+        columns_used: Optional[List[str]] = None,
+    ) -> None:
+        self._empty_query_log.append({
+            "tool": tool,
+            "tables": tables,
+            "filters": filters or {},
+            "columns_used": columns_used or [],
+            "recorded_at": datetime.now().isoformat(),
+        })
+
+    def get_last_empty_query(self) -> Optional[Dict[str, Any]]:
+        if not self._empty_query_log:
+            return None
+        return self._empty_query_log[-1]
+
+    def clear_empty_query_log(self) -> None:
+        self._empty_query_log.clear()
+
+    def needs_exploration(self, threshold: int = 1) -> bool:
+        if not self._empty_query_log:
+            return False
+        return len(self._empty_query_log) >= threshold

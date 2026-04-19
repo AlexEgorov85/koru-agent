@@ -125,7 +125,7 @@ class PromptBuilderService:
             available_capabilities, pattern_id
         )
 
-        # Форматируем инструменты с параметрами — передаём application_context для доступа к контрактам
+        # Форматируем инструменты с параметрами - передаём application_context для доступа к контрактам
         tools_str = self.capability_resolver.format_available_tools_with_params(
             filtered_caps, schema_validator, application_context
         )
@@ -167,7 +167,7 @@ class PromptBuilderService:
     def _build_input_context(
         self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]
     ) -> str:
-        """Формирует секцию {input} для промпта — только мета-информация, без деталей шагов."""
+        """Формирует секцию {input} для промпта - только мета-информация, без деталей шагов."""
         goal = context_analysis.get("goal", "Неизвестная цель")
         last_steps = context_analysis.get("last_steps", [])
         parts = [
@@ -378,7 +378,7 @@ class PromptBuilderService:
         if not session_context or not hasattr(session_context, 'needs_exploration'):
             return ""
 
-        if not session_context.needs_exploration(threshold=2):
+        if not session_context.needs_exploration(threshold=1):
             return ""
 
         last_empty = session_context.get_last_empty_query()
@@ -456,7 +456,7 @@ class PromptBuilderService:
                         )
 
                     if is_error_observation:
-                        # Обработка ошибки — показываем детали
+                        # Обработка ошибки - показываем детали
                         if isinstance(content, dict):
                             error_msg = content.get("error", "Неизвестная ошибка")
                             capability = content.get("capability", "unknown")
@@ -837,7 +837,7 @@ class PromptBuilderService:
         ВОЗВРАЩАЕТ:
         - validated параметры или оригинальные если валидация не удалась
         """
-        # Упрощённая валидация — если нет schema_validator, возвращаем как есть
+        # Упрощённая валидация - если нет schema_validator, возвращаем как есть
         if not hasattr(self, "schema_validator") or self.schema_validator is None:
             return parameters
 
@@ -922,7 +922,7 @@ class PromptBuilderService:
                     # Обрезаем длинные описания
                     if len(desc) > 150:
                         desc = desc[:147] + "..."
-                    lines.append(f"  {i}. `{cap.name}` — {desc}")
+                    lines.append(f"  {i}. `{cap.name}` - {desc}")
 
             elif len(caps) == 1:
                 # Одиночная capability - просто добавляем в конец
@@ -936,7 +936,7 @@ class PromptBuilderService:
                 desc = cap.description if hasattr(cap, "description") else ""
                 if len(desc) > 100:
                     desc = desc[:97] + "..."
-                lines.append(f"- `{cap.name}` — {desc}")
+                lines.append(f"- `{cap.name}` - {desc}")
 
         return "\n".join(lines)
 
@@ -985,7 +985,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
 
         # === ОБЩИЕ СЕРВИСЫ ===
         self.prompt_builder = PromptBuilderService()
-        # capability_resolver удалён — методы перенесены в BaseBehaviorPattern
+        # capability_resolver удалён - методы перенесены в BaseBehaviorPattern
 
     def get_prompt(self, key: str) -> Prompt:
         """
@@ -1014,6 +1014,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
         """
         Рендерит шаблон промпта с подстановкой переменных.
+        """
 
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
         """Рендерит шаблон с подстановкой переменных."""
@@ -1104,7 +1105,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         """
         Реализация бизнес-логики паттерна поведения (СИНХРОННАЯ).
 
-        ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ напрямую — они генерируют решения через generate_decision().
+        ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ напрямую - они генерируют решения через generate_decision().
         Этот метод предоставляет интерфейс для Component.execute().
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в Component.execute()
