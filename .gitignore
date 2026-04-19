@@ -1,85 +1,26 @@
-```
-# Dependencies
+```gitignore
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
+
+# Dependencies
+.venv/
+venv/
+env/
+ENV/
 
 # Build artifacts
-dist/
 build/
+dist/
 *.egg-info/
-
-# Virtual environments
-venv/
-.venv/
-env/
-.env/
 
 # Logs
 *.log
-logs/
-.benchmarks/
-data/metrics/
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# Distribution / packaging
-*.tar.gz
-*.whl
-*.egg
-
-# Environment specific
-.env*
-!.env.example
-
-# Compiled Python
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Jupyter
-.ipynb_checkpoints/
-Untitled.ipynb
-*.ipynb
-
-# Qwen Code
-.qwen/
-
-# Temporary test files
-test_appconfig.txt
-test_output.txt
-
-# Generated vector indexes (too large, regenerate on demand)
-data/vector/*.faiss
-data/vector/*_metadata.json
-
-# Embedding models (binary weights — download on demand)
-models/embedding/*/model.safetensors
-models/embedding/*/tokenizer.json
-models/embedding/*/*.json
-models/embedding/*/*/*.json
-
-# UI launch script (local convenience, not part of codebase)
-run_ui.bat
-
-# IDE settings (local)
-.vscode/
+# Environment variables
+.env
+.env.local
+.env.*
+```
