@@ -520,7 +520,7 @@ class SessionPromptAnalyzer:
         if execute_count > search_count * 1.5 and search_count > 0:
             self.issues.append(SessionBasedIssue(
                 capability='behavior.react.think',
-                prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
+                prompt_file='data/prompts/behavior/behavior.react.think.user_v1.0.0.yaml',
                 issue_type='wrong_tool_selection',
                 severity='high',
                 description=f"Agent uses execute_script ({execute_count}) more than search_books ({search_count})",
@@ -531,7 +531,7 @@ class SessionPromptAnalyzer:
         if loops >= 2:
             self.issues.append(SessionBasedIssue(
                 capability='behavior.react.think',
-                prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
+                prompt_file='data/prompts/behavior/behavior.react.think.user_v1.0.0.yaml',
                 issue_type='looping',
                 severity='high',
                 description=f"Agent loops {loops} times",
@@ -546,7 +546,7 @@ class SessionPromptAnalyzer:
             if 'Input validation failed' in error_text and 'get_books_by_year_range' in error_text:
                 self.issues.append(SessionBasedIssue(
                     capability='behavior.react.act',
-                    prompt_file='data/prompts/behavior/behavior/behavior.react.act.user_v1.0.0.yaml',
+                    prompt_file='data/prompts/behavior/behavior.react.act.user_v1.0.0.yaml',
                     issue_type='incorrect_parameters',
                     severity='high',
                     description="Agent calls get_books_by_year_range with incomplete parameters",

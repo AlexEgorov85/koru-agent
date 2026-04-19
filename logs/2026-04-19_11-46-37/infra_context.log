@@ -1,0 +1,175 @@
+2026-04-19 11:46:37,383 | INFO     | SYSTEM_INIT          | infra.context                  | 🚀 Инициализация инфраструктуры...
+2026-04-19 11:46:37,383 | INFO     | SYSTEM_INIT          | infra.context                  | Инициализирована шина событий: UnifiedEventBus
+2026-04-19 11:46:37,383 | INFO     | SYSTEM_INIT          | infra.context                  | SessionLogHandler инициализирован
+2026-04-19 11:46:37,383 | INFO     | SYSTEM_INIT          | infra.context                  | MetricsPublisher инициализирован
+2026-04-19 11:46:37,383 | INFO     | SYSTEM_INIT          | infra.context                  | === ЭТАП 3.5: ResourceLoader — загрузка промптов и контрактов ===
+2026-04-19 11:46:37,844 | INFO     | SYSTEM_INIT          | infra.context                  | Инициализация Vector Search...
+2026-04-19 11:46:37,844 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Loaded index audits: data/vector/audits_index.faiss (0 vectors)
+2026-04-19 11:46:37,844 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Loaded index violations: data/vector/violations_index.faiss (0 vectors)
+2026-04-19 11:46:37,844 | INFO     | SYSTEM_INIT          | infra.context                  | Vector Search статус: 2 загружено, 0 отсутствует, всего векторов: 0
+2026-04-19 11:46:37,845 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ошибка инициализации Embedding провайдера: SentenceTransformers is not installed. Install with: pip install sentence-transformers
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/embedding/sentence_transformers_provider.py", line 83, in initialize
+    from sentence_transformers import SentenceTransformer
+ModuleNotFoundError: No module named 'sentence_transformers'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure_context/infrastructure_context.py", line 427, in _init_vector_search
+    await self._embedding_provider.initialize()
+  File "/workspace/core/infrastructure/providers/embedding/sentence_transformers_provider.py", line 95, in initialize
+    raise ImportError(
+ImportError: SentenceTransformers is not installed. Install with: pip install sentence-transformers
+2026-04-19 11:46:37,846 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Chunking initialized: 500 chars
+2026-04-19 11:46:37,846 | INFO     | SYSTEM_INIT          | infra.context                  | === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
+2026-04-19 11:46:37,846 | INFO     | SYSTEM_INIT          | infra.context                  | [LLM] - default_llm: enabled=True, type=llama_cpp
+2026-04-19 11:46:37,846 | DEBUG    | SYSTEM_INIT          | infra.context                  | Зарегистрирован ресурс 'default_llm' типа llm
+2026-04-19 11:46:37,847 | DEBUG    | SYSTEM_INIT          | infra.context                  | Зарегистрирован ресурс 'default_db' типа database
+2026-04-19 11:46:37,847 | INFO     | SYSTEM_INIT          | infra.context                  | Вызов lifecycle_manager.initialize_all()...
+2026-04-19 11:46:37,847 | INFO     | SYSTEM_INIT          | infra.context                  | Начало инициализации 2 инфраструктурных ресурсов
+2026-04-19 11:46:37,847 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ресурс 'default_llm' вернул False при инициализации
+2026-04-19 11:46:37,847 | INFO     | SYSTEM_INIT          | infra.context                  | Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-04-19 11:46:37,850 | ERROR    | DB_ERROR             | infra.context                  | Ошибка инициализации PostgreSQL провайдера: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 41, in initialize
+    self.pool = await asyncpg.create_pool(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 439, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 466, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 153, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 538, in _get_new_connection
+    con = await self._connect(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 1140, in create_connection
+    raise OSError('Multiple exceptions: {}'.format(
+OSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2026-04-19 11:46:37,862 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ресурс 'default_db' вернул False при инициализации
+2026-04-19 11:46:37,862 | INFO     | SYSTEM_READY         | infra.context                  | Все инфраструктурные ресурсы инициализированы: 0/2 успешно
+2026-04-19 11:46:37,862 | INFO     | SYSTEM_READY         | infra.context                  | [OK] LifecycleManager initialized
+2026-04-19 11:46:37,923 | INFO     | -                    | LLMOrchestrator                | LLMOrchestrator инициализирован: max_workers=1, cleanup_interval=600с
+2026-04-19 11:46:37,923 | INFO     | -                    | infra.context                  | Начало сканирования компонентов (root=/workspace)
+2026-04-19 11:46:37,947 | DEBUG    | -                    | infra.context                  |   skill: check_result -> CheckResultSkill
+2026-04-19 11:46:37,948 | DEBUG    | -                    | infra.context                  |   skill: data_analysis -> DataAnalysisSkill
+2026-04-19 11:46:37,963 | DEBUG    | -                    | infra.context                  |   skill: final_answer -> FinalAnswerSkill
+2026-04-19 11:46:38,003 | DEBUG    | -                    | infra.context                  |   skill: meta_component_creator -> MetaComponentCreator
+2026-04-19 11:46:38,008 | DEBUG    | -                    | infra.context                  |   skill: planning -> PlanningSkill
+2026-04-19 11:46:38,009 | DEBUG    | -                    | infra.context                  |   skill: пропущено 5 — __init__.py (не директория), __pycache__ (не директория), handlers (нет skill.py), skill.py (не директория), utils (нет skill.py)
+2026-04-19 11:46:38,009 | INFO     | -                    | infra.context                  |   skill: найдено 5 — check_result, data_analysis, final_answer, meta_component_creator, planning (85ms)
+2026-04-19 11:46:38,023 | DEBUG    | -                    | infra.context                  |   tool: sql_tool -> SQLTool
+2026-04-19 11:46:38,024 | DEBUG    | -                    | infra.context                  |   tool: vector_search_tool -> VectorSearchTool
+2026-04-19 11:46:38,024 | WARNING  | -                    | infra.context                  |   tool: пропущено 2: __pycache__ (не *_tool.py), tool.py (не *_tool.py)
+2026-04-19 11:46:38,024 | INFO     | -                    | infra.context                  |   tool: найдено 2 — sql_tool, vector_search_tool (15ms)
+2026-04-19 11:46:38,206 | WARNING  | -                    | infra.context                  |   В модуле core.components.services.document_indexing_service не найден конкретный компонент
+2026-04-19 11:46:38,247 | WARNING  | -                    | infra.context                  |   Не удалось импортировать core.components.services.sql_validator.service: No module named 'sqlparse'
+2026-04-19 11:46:38,247 | ERROR    | -                    | infra.context                  | Ошибка загрузки компонента: Не удалось загрузить компонент core.components.services.sql_validator.service: No module named 'sqlparse'
+Traceback (most recent call last):
+  File "/workspace/core/agent/components/component_discovery.py", line 371, in _load_class_from_module
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/workspace/core/components/services/sql_validator/service.py", line 6, in <module>
+    import sqlparse
+ModuleNotFoundError: No module named 'sqlparse'
+
+2026-04-19 11:46:38,248 | WARNING  | -                    | infra.context                  |   В модуле core.components.services.validation_service не найден конкретный компонент
+2026-04-19 11:46:38,248 | DEBUG    | -                    | infra.context                  |   service: пропущено 6 — __pycache__ (приватный), document_indexing (класс не найден), registry (нет service.py или класс не найден), sql_validator (нет service.py или класс не найден), storage (нет service.py или класс не найден), validation (класс не найден)
+2026-04-19 11:46:38,248 | INFO     | -                    | infra.context                  |   service: найдено 6 — contract, json_parsing, prompt, sql_generation, sql_query, table_description (224ms)
+2026-04-19 11:46:38,284 | WARNING  | -                    | infra.context                  |   Не удалось импортировать core.agent.behaviors.evaluation.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+2026-04-19 11:46:38,284 | ERROR    | -                    | infra.context                  | Ошибка загрузки компонента: Не удалось загрузить компонент core.agent.behaviors.evaluation.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+Traceback (most recent call last):
+  File "/workspace/core/agent/components/component_discovery.py", line 371, in _load_class_from_module
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/workspace/core/agent/behaviors/evaluation/pattern.py", line 1, in <module>
+    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+  File "/workspace/core/agent/behaviors/base_behavior_pattern.py", line 1112
+    """
+    ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1150)
+
+2026-04-19 11:46:38,307 | WARNING  | -                    | infra.context                  |   Не удалось импортировать core.agent.behaviors.planning.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+2026-04-19 11:46:38,307 | ERROR    | -                    | infra.context                  | Ошибка загрузки компонента: Не удалось загрузить компонент core.agent.behaviors.planning.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+Traceback (most recent call last):
+  File "/workspace/core/agent/components/component_discovery.py", line 371, in _load_class_from_module
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/workspace/core/agent/behaviors/planning/pattern.py", line 2, in <module>
+    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+  File "/workspace/core/agent/behaviors/base_behavior_pattern.py", line 1112
+    """
+    ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1150)
+
+2026-04-19 11:46:38,341 | WARNING  | -                    | infra.context                  |   Не удалось импортировать core.agent.behaviors.react.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+2026-04-19 11:46:38,341 | ERROR    | -                    | infra.context                  | Ошибка загрузки компонента: Не удалось загрузить компонент core.agent.behaviors.react.pattern: unterminated triple-quoted string literal (detected at line 1150) (base_behavior_pattern.py, line 1112)
+Traceback (most recent call last):
+  File "/workspace/core/agent/components/component_discovery.py", line 371, in _load_class_from_module
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/workspace/core/agent/behaviors/react/pattern.py", line 11, in <module>
+    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+  File "/workspace/core/agent/behaviors/base_behavior_pattern.py", line 1112
+    """
+    ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1150)
+
+2026-04-19 11:46:38,341 | DEBUG    | -                    | infra.context                  |   behavior: пропущено 7 — __pycache__ (не директория), base.py (не директория), base_behavior_pattern.py (не директория), evaluation (класс не найден), planning (класс не найден), react (класс не найден), services (нет pattern.py)
+2026-04-19 11:46:38,341 | INFO     | -                    | infra.context                  |   behavior: найдено 0 — нет (93ms)
+2026-04-19 11:46:38,342 | INFO     | -                    | infra.context                  | Сканирование завершено: всего 13 компонентов за 418ms
