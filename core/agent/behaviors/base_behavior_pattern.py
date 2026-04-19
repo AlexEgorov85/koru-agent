@@ -349,6 +349,9 @@ class PromptBuilderService:
 
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
+            elif status == "blocked":
+                block_reason = step.get("reason", "неизвестная причина") if isinstance(step, dict) else ""
+                obs_text = f"⛔ ЗАБЛОКИРОВАНО: {block_reason}"
 
             block = f"[ШАГ {i}]\n"
 

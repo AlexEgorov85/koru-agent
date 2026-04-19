@@ -21,7 +21,8 @@ from core.agent.components.action_executor import ActionExecutor, ExecutionConte
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.observation_signal import ObservationSignalService
-from core.agent.components.policy import RetryPolicy
+from core.agent.components.policy import RetryPolicy, AgentPolicy
+from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.behaviors.base import DecisionType
 from core.agent.observation_formatter import (
     format_observation,
@@ -376,6 +377,15 @@ class AgentRuntime:
                 if not policy_allowed:
                     self.session_context.agent_state.errors.append(
                         f"POLICY:{policy_reason}"
+                    )
+                    self.session_context.record_action(
+                        action_data={
+                            "action": decision.action,
+                            "parameters": decision.parameters,
+                            "status": "blocked",
+                            "reason": policy_reason,
+                        },
+                        step_number=step + 1,
                     )
                     await event_bus.publish(
                         EventType.ERROR_OCCURRED,
