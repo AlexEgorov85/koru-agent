@@ -1,53 +1,53 @@
-# Python
+```gitignore
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.ipynb
-
-# Dependencies
-.venv/
-venv/
-env/
-ENV/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
 
 # Logs
-*.log
-data/logs/
 logs/
+*.log
 
-# Data & Models
-data/
-models/
-core/data/
-data/metrics/
-data/vector/
-vector_cache/
+# Session data
+data/logs/
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.ENV/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
 
 # Environment variables
 .env
 .env.local
-.env.*
+*.env.*
 
-# IDE
-.vscode/
-.idea/
-.qwen/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb_checkpoints/
-
-# Test & temp files
-test_*.py
-check_db.py
-my_report.txt
-run_ui.bat
-scripts/convert_logs.py
-test_appconfig.txt
-test_config.py
+# Temporary files
+*.tmp
+*.temp
+```
