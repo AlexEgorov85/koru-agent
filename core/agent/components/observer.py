@@ -92,18 +92,84 @@ class Observer:
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
             
-            # Получаем контракт
+            # Получаем контракт через contract_service если доступен
             output_contract = None
-            if self.application_context and hasattr(self.application_context, 'get_output_contract'):
-                output_contract = self.application_context.get_output_contract("behavior.react.observe")
-            
-            # Schema из контракта
             schema = None
+            
+            # Попытка 1: Через application_context.get_output_contract (если метод есть)
+            if self.application_context and hasattr(self.application_context, 'get_output_contract'):
+                try:
+                    output_contract = self.application_context.get_output_contract("behavior.react.observe")
+                except Exception:
+                    pass
+            
+            # Попытка 2: Через contract_service если доступен
+            if output_contract is None and self.application_context and hasattr(self.application_context, 'contract_service'):
+                try:
+                    contract_service = self.application_context.contract_service
+                    if hasattr(contract_service, 'get_contract_schema_from_cache'):
+                        # Получаем схему напрямую из кэша контрактов
+                        schema = contract_service.get_contract_schema_from_cache("behavior.react.observe", "output")
+                        # schema будет Dict с полями контракта, включая schema_data
+                        if isinstance(schema, dict) and 'schema_data' in schema:
+                            schema = schema['schema_data']
+                    elif hasattr(contract_service, 'get_contract'):
+                        output_contract = contract_service.get_contract("behavior.react.observe", direction="output")
+                except Exception as e:
+                    self._log_info(f"⚠️ [Observer.analyze] ContractService не вернул контракт: {e}", event_type=LogEventType.WARNING)
+                    pass
+            
+            # Извлекаем схему из контракта
             if output_contract:
                 if hasattr(output_contract, 'model_json_schema'):
                     schema = output_contract.model_json_schema()
                 elif hasattr(output_contract, 'model_schema'):
                     schema = output_contract.model_schema
+                elif isinstance(output_contract, dict):
+                    schema = output_contract.get('schema_data')
+            
+            # Fallback схема если контракт не найден
+            if schema is None:
+                schema = {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["success", "partial", "error", "empty"],
+                            "description": "Статус выполнения действия"
+                        },
+                        "observation": {
+                            "type": "string",
+                            "description": "Краткое описание наблюдаемого результата"
+                        },
+                        "key_findings": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Список важных фактов"
+                        },
+                        "data_quality": {
+                            "type": "object",
+                            "properties": {
+                                "completeness": {"type": "number", "minimum": 0, "maximum": 1},
+                                "reliability": {"type": "number", "minimum": 0, "maximum": 1}
+                            }
+                        },
+                        "errors": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "next_step_suggestion": {
+                            "type": "string",
+                            "description": "Рекомендация для следующего шага"
+                        },
+                        "requires_additional_action": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": ["status", "observation", "requires_additional_action"],
+                    "additionalProperties": True
+                }
+                self._log_info("⚠️ [Observer.analyze] Контракт behavior.react.observe не найден, используем fallback схему", event_type=LogEventType.WARNING)
             
             # Форматируем результат
             result_str = self._format_result(result)
@@ -136,7 +202,7 @@ class Observer:
                 temperature=0.2,
                 max_tokens=800,
                 structured_output=StructuredOutputConfig(
-                    output_model="ObservationResult",
+                    output_model=None,  # Не используем имя модели, передаём схему напрямую
                     schema_def=schema,
                     max_retries=2,
                     strict_mode=False
