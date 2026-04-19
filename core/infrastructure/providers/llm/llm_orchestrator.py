@@ -81,6 +81,7 @@ class LLMMetrics:
     completed_calls: int = 0
     failed_calls: int = 0
     total_generation_time: float = 0.0
+    cache_hits: int = 0
 
     # Метрики для структурированного вывода
     structured_calls: int = 0
