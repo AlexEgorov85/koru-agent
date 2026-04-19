@@ -1,54 +1,21 @@
-```gitignore
-# Python
-__pycache__/
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
-*.ipynb
+__pycache__/
 
 # Dependencies
 .venv/
 venv/
-env/
-ENV/
 
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Logs
+# Logs and temp files
 *.log
-data/logs/
-logs/
+*.tmp
+*.swp
 
-# Data & Models
-data/
-models/
-core/data/
-data/metrics/
-data/vector/
-vector_cache/
-
-# Environment variables
+# Environment
 .env
 .env.local
-.env.*
+*.env.*
 
-# IDE
+# Editors
 .vscode/
 .idea/
-.qwen/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb_checkpoints/
-
-# Test & temp files
-test_*.py
-check_db.py
-my_report.txt
-run_ui.bat
-scripts/convert_logs.py
-test_appconfig.txt
-```

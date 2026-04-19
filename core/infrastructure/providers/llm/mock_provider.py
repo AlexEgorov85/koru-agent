@@ -31,6 +31,7 @@ class MockLLMConfig(BaseModel):
     max_tokens: int = Field(default=1000, description="Максимальное количество токенов")
     verbose: bool = Field(default=False, description="Подробный вывод")
     default_response: str = Field(default='{"status": "ok"}', description="Ответ по умолчанию")
+    strict_mode: bool = Field(default=False, description="Если True, выбрасывать ошибку при отсутствии зарегистрированного ответа")
 
 
 class MockLLMProvider(BaseLLMProvider):
@@ -38,6 +39,28 @@ class MockLLMProvider(BaseLLMProvider):
     Mock LLM провайдер для тестирования.
 
     Поддерживает регистрацию ответов для конкретных промптов и ведение истории вызовов.
+    
+    КАК ИСПОЛЬЗОВАТЬ:
+    
+    1. Базовое использование:
+        mock_llm = MockLLMProvider()
+        mock_llm.register_response("привет", "Привет! Как дела?")
+        response = await mock_llm.generate(LLMRequest(prompt="привет"))
+    
+    2. Строгий режим (ошибка если ответ не найден):
+        config = MockLLMConfig(strict_mode=True)
+        mock_llm = MockLLMProvider(config=config)
+    
+    3. Ответ по умолчанию для всех незаregistered запросов:
+        config = MockLLMConfig(default_response="Стандартный ответ")
+        mock_llm = MockLLMProvider(config=config)
+    
+    4. Regex паттерны для гибкого匹配:
+        mock_llm.register_regex_response(r"\\d+", "Вы ввели число")
+    
+    5. Проверка истории вызовов:
+        history = mock_llm.get_call_history()
+        assert len(history) == 1
     """
 
     def __init__(self, config: MockLLMConfig = None, model_name: str = None):
@@ -49,14 +72,53 @@ class MockLLMProvider(BaseLLMProvider):
 
         self._prompt_responses: Dict[Union[str, Pattern], str] = {}
         self._default_response = config.default_response
+        self._strict_mode = config.strict_mode
         self._call_history: List[Dict[str, Any]] = []
 
-    def register_response(self, prompt_pattern: str, response: str):
-        """Регистрация ответа для конкретного паттерна промпта."""
-        self._prompt_responses[prompt_pattern] = response
+    def register_response(self, prompt_pattern: str, response: str, use_exact_match: bool = False):
+        """
+        Регистрация ответа для конкретного паттерна промпта.
+        
+        ARGS:
+        - prompt_pattern: Строка или паттерн для поиска в промпте
+        - response: Ответ который вернуть при совпадении
+        - use_exact_match: Если True, точное совпадение (по умолчанию substring поиск)
+        
+        EXAMPLES:
+        >>> mock_llm.register_response("привет", "Привет! Как дела?")
+        >>> mock_llm.register_response("как дела", "Отлично!", use_exact_match=True)
+        """
+        if use_exact_match:
+            self._prompt_responses[f"exact:{prompt_pattern}"] = response
+        else:
+            # Для обычного substring поиска добавляем маркер чтобы отличать от regex
+            self._prompt_responses[f"substring:{prompt_pattern}"] = response
         self.log.debug("Зарегистрирован ответ для паттерна: %s...",
                        prompt_pattern[:50],
                        extra={"event_type": LogEventType.DEBUG})
+
+    def register_exact_response(self, prompt: str, response: str):
+        """Регистрация ответа для точного совпадения промпта."""
+        return self.register_response(prompt, response, use_exact_match=True)
+    
+    def register_responses_batch(self, responses: Dict[str, str]):
+        """
+        Массовая регистрация ответов.
+        
+        ARGS:
+        - responses: Словарь {паттерн: ответ}
+        
+        EXAMPLE:
+        >>> mock_llm.register_responses_batch({
+        ...     "привет": "Привет!",
+        ...     "пока": "До свидания!",
+        ...     r"\\d+": "Число найдено"
+        ... })
+        """
+        for pattern, response in responses.items():
+            self.register_response(pattern, response)
+        self.log.info("Зарегистрировано %d ответов批量", len(responses),
+                     extra={"event_type": LogEventType.DEBUG})
 
     def register_regex_response(self, pattern: str, response: str):
         """Регистрация ответа для regex-паттерна."""
@@ -170,25 +232,42 @@ class MockLLMProvider(BaseLLMProvider):
         response = None
         matched_pattern = None
 
+        # Сначала проверяем точные совпадения
         for pattern, resp in self._prompt_responses.items():
-            if isinstance(pattern, Pattern):
-                if pattern.search(request.prompt):
+            if isinstance(pattern, str) and pattern.startswith("exact:"):
+                exact_prompt = pattern[6:]  # Убираем префикс "exact:"
+                if exact_prompt == request.prompt:
                     response = resp
-                    matched_pattern = pattern.pattern
+                    matched_pattern = f"exact:{exact_prompt}"
                     break
-            else:
-                if pattern in request.prompt:
-                    response = resp
-                    matched_pattern = pattern
-                    break
+        
+        # Если не найдено точное совпадение, ищем по substring или regex
+        if response is None:
+            for pattern, resp in self._prompt_responses.items():
+                if isinstance(pattern, Pattern):
+                    if pattern.search(request.prompt):
+                        response = resp
+                        matched_pattern = pattern.pattern
+                        break
+                elif isinstance(pattern, str) and pattern.startswith("substring:"):
+                    search_text = pattern[10:]  # Убираем префикс "substring:"
+                    if search_text in request.prompt:
+                        response = resp
+                        matched_pattern = f"substring:{search_text}"
+                        break
 
         if response is None:
-            from core.errors.exceptions import MockProviderError
-            raise MockProviderError(
-                f"Не зарегистрирован ответ для промпта: {request.prompt[:200]}. "
-                f"Зарегистрируйте ответ через register_response() или register_regex_response().",
-                prompt=request.prompt
-            )
+            if self._strict_mode:
+                from core.errors.exceptions import MockProviderError
+                raise MockProviderError(
+                    f"Не зарегистрирован ответ для промпта: {request.prompt[:200]}. "
+                    f"Зарегистрируйте ответ через register_response() или register_regex_response().",
+                    prompt=request.prompt
+                )
+            else:
+                # В не-strict режиме используем ответ по умолчанию
+                response = self._default_response
+                matched_pattern = "default"
 
         self._call_history.append({
             'prompt': request.prompt,
