@@ -264,7 +264,7 @@ def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
 
-    skills_dir = project_root / "core" / "application" / "skills"
+    skills_dir = project_root / "core" / "components" / "skills"
 
     print("[CHECK] Проверка архитектуры навыков...")
     print(f"[CHECK] Директория навыков: {skills_dir}")
