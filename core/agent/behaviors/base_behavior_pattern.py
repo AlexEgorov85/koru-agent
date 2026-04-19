@@ -95,6 +95,13 @@ class PromptBuilderService:
             lines.append(f"- {name}: {description}")
         return "\n".join(lines)
     
+    def _render_prompt(self, template: str, variables: Dict[str, Any]) -> str:
+        """Рендерит шаблон с подстановкой переменных."""
+        rendered = template
+        for key, value in variables.items():
+            rendered = rendered.replace(f"{{{key}}}", str(value))
+        return rendered
+    
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
         """Формирует секцию {input} для промпта — только мета-информация, без деталей шагов."""
         goal = context_analysis.get("goal", "Неизвестная цель")

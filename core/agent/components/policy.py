@@ -6,7 +6,7 @@
 - RetryPolicy: alias для обратной совместимости
 """
 import random
-from typing import TYPE_CHECKING, Tuple, Any, Dict, List
+from typing import TYPE_CHECKING, Tuple, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     # Delay import to avoid circular imports
