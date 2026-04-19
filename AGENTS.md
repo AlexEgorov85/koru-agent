@@ -303,31 +303,56 @@ new_ctx = await old_ctx.clone_with_version_override(
 )  # < 50 ms (cache-only)
 ```
 
-### 12. `_execute_impl` returns `Dict[str, Any]`, NOT `ExecutionResult`
-### 13. No retry logic in skills — handled by infrastructure
-### 14. No Fallback in Component Loading
+### 13. `_execute_impl` returns `Dict[str, Any]`, NOT `ExecutionResult`
+### 14. No retry logic in skills — handled by infrastructure
 
-Все компоненты загружаются автоматически из discovery. Fallback запрещён.
-
+### 15. Empty Query Log — статистика пустых результатов
 ```python
-# ❌ FORBIDDEN: Fallback при загрузке компонентов
-if component_name in discovered_components:
-    component = discovered_components[component_name]
-else:
-    component = DEFAULT_COMPONENT  # ЗАПРЕЩЕНО!
+# Запись пустого результата в SessionContext
+session_context.record_empty_result(
+    tool="sql_tool.execute",
+    tables=["audits", "violations"],
+    filters={"planned_date": "2030"},
+    columns_used=["id", "planned_date"]
+)
 
-# ❌ FORBIDDEN: Fallback промпты
-DEFAULT_PROMPT = "Default prompt for ..."  # ЗАПРЕЩЕНО
-fallback_prompt = prompt or DEFAULT_PROMPT  # ЗАПРЕЩЕНО
-
-# ❌ FORBIDDEN: Fallback версии
-version = versions.get(capability) or "v1.0.0"  # ЗАПРЕЩЕНО
+# Проверка порога для активации режима исследования
+if session_context.needs_exploration(threshold=2):
+    exploration_context = session_context.get_exploration_context()
 ```
 
-**Почему:**
-- Fallback создаёт скрытые баги — система работает но с неправильными промптами/компонентами
-- Ошибка должна всплывать сразу при инициализации
-- Discovery должен находить ВСЕ компоненты автоматически
+### 16. Exploration Mode — автоматическое зондирование данных
+Когда 2+ запроса вернули 0 строк, LLM получает универсальные правила зондирования:
+- `SELECT MIN(col), MAX(col), COUNT(*) FROM {table}`
+- `SELECT DISTINCT col, COUNT(*) GROUP BY col LIMIT 10`
+- `SELECT COUNT(*) WHERE col IS NULL`
+
+---
+
+## Matrix of Responsibility
+
+| Component | ✅ Does | 🚫 Does NOT | 🔄 Communicates via |
+|-----------|---------|------------|-----------------|
+| `AgentRuntime` | Loop, step counter, final result | Decision-making, execution, parsing | `Pattern.decide()`, `Executor.execute()` |
+| `ReActPattern` | Context analysis, reasoning, decision generation | Direct LLM/DB calls, state storage | `LLMOrchestrator`, `SessionContext` (read) |
+| `ActionExecutor` | Routing, contract validation, metric collection | Business logic, decision logic | `Skill.execute_impl()`, `ContractRegistry` |
+| `SafeExecutor` | Retry, circuit breaker, idempotency | Response generation, parsing | `ActionExecutor`, `RetryPolicy` |
+| `LLMOrchestrator` | Provider calls, structured JSON parsing, timeout | Result interpretation | `LLMProvider`, `StructuredOutputParser` |
+| `SessionContext` | Step/observation/plan storage | Branching logic, fallback | Read/write via runtime |
+| Skills/Tools | Business logic, input validation | Agent loop, direct calls | `ActionExecutor` only |
+
+---
+
+## Hard Architectural Prohibitions (What Breaks the System)
+
+| Component | Prohibition | Why |
+|-----------|-------------|-----|
+| `ReActPattern` | Direct `executor.execute()` without `Decision` | Breaks decision/execution separation |
+| `ActionExecutor` | Store `confidence` or `no_progress` | This is analysis state, not routing |
+| `LLMOrchestrator` | Interpret result (`row_count`, `schema mismatch`) | Business validation belongs in Skill/Analysis |
+| Skills/Tools | Import `AgentRuntime` / `SessionContext` | Breaks isolation, makes untestable |
+| `SessionContext` | Branching logic or fallback | Passive storage, not active agent |
+| `SafeExecutor` | Generate prompts or parse LLM | Orchestrator responsibility |
 
 ---
 

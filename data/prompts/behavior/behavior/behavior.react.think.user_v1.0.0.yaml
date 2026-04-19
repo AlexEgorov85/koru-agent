@@ -9,10 +9,12 @@ content: |
   {dialogue_history}
   Цель: {goal}
   История: {step_history}
-  
+
   === ИНСТРУМЕНТЫ И ПРАВИЛА ВЫБОРА ===
   {available_tools}
-  
+
+  {exploration_rules}
+
   === ФОРМАТ ОТВЕТА ===
   Верни строго JSON согласно схеме контракта.
 variables:
@@ -31,7 +33,10 @@ variables:
   - name: available_tools
     description: Список доступных инструментов с параметрами
     required: false
+  - name: exploration_rules
+    description: Правила исследования данных при повторных пустых результатах
+    required: false
 metadata:
   author: system
-  created: '2026-04-16'
-  description: User prompt с явным маппингом на 10 полей анализа контракта
+  created: '2026-04-19'
+  description: User prompt с правилами зондирования данных

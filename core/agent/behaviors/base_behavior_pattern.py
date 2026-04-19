@@ -365,6 +365,49 @@ class PromptBuilderService:
 
         return "\n".join(lines)
 
+    def _build_exploration_rules(self, session_context) -> str:
+        """
+        Генерирует универсальные правила зондирования на основе статистики пустых результатов.
+
+        ВОЗВРАЩАЕТ:
+        - str: markdown блок с правилами исследования данных или пустая строка
+        """
+        if not session_context or not hasattr(session_context, 'needs_exploration'):
+            return ""
+
+        if not session_context.needs_exploration(threshold=2):
+            return ""
+
+        last_empty = session_context.get_last_empty_query()
+        if not last_empty:
+            return ""
+
+        tables = last_empty.get("tables", [])
+        filters = last_empty.get("filters", {})
+
+        if not tables:
+            return ""
+
+        table_names = ", ".join([f"`{t}`" for t in tables])
+        filter_str = str(filters) if filters else "без фильтров"
+
+        rules = [
+            "\n🧭 **РЕЖИМ ИССЛЕДОВАНИЯ ДАННЫХ**",
+            "Предыдущие запросы вернули 0 строк. НЕ повторяй фильтры.",
+            f"Таблицы: {table_names}",
+            f"Последний фильтр: {filter_str}",
+            "",
+            "Сгенерируй ЗАПРОС НА ЗОНДИРОВАНИЕ:",
+            "1. 📅 Даты: `SELECT MIN(col), MAX(col), COUNT(*) FROM {table}`",
+            "2. 🏷️ Категории: `SELECT DISTINCT col, COUNT(*) FROM {table} GROUP BY col ORDER BY 2 DESC LIMIT 10`",
+            "3. 📊 Объём: `SELECT COUNT(*) FROM {table}`",
+            "4. 🔍 NULL-анализ: `SELECT COUNT(*) FROM {table} WHERE col IS NULL`",
+            "",
+            "🎯 Цель: понять реальный диапазон данных. Верни результат зондирования, затем скорректируй запрос."
+        ]
+
+        return "\n".join(rules)
+
     def _extract_observations_from_step(
         self, session_context, observation_item_ids: list
     ) -> str:
@@ -969,15 +1012,8 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         """
         Рендерит шаблон промпта с подстановкой переменных.
 
-        ПАРАМЕТРЫ:
-        - prompt_template: Шаблон промпта
-        - variables: Переменные для подстановки
-
-        ВОЗВРАЩАЕТ:
-        - str: Отрендеренный промпт
-        """
-        if not prompt_template:
-            return ""  # Пустой шаблон
+    def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
+        """Рендерит шаблон с подстановкой переменных."""
         rendered = prompt_template
         for key, value in variables.items():
             rendered = rendered.replace(f"{{{key}}}", str(value))

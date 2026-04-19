@@ -53,14 +53,15 @@ vector_search:
     chunk_size: 500
     min_chunk_size: 50
   embedding:
-    dimension: 384
-    model_name: models/embedding/all-MiniLM-L6-v2
+    dimension: 2048
+    model_name: C:/Users/Алексей/Documents/WORK/llm_models/Giga-Embeddings-instruct
+    instruction: "Дан вопрос, необходимо найти абзац текста с ответом"
+    use_instruction: true
   enabled: true
   faiss:
     index_type: Flat
     metric: IP
   indexes:
-    books: books_index.faiss
     authors: authors_index.faiss
     audits: audits_index.faiss
     violations: violations_index.faiss

@@ -416,7 +416,14 @@ class InfrastructureContext:
 
         # Инициализация Embedding провайдера
         try:
-            self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
+            model_name = vs_config.embedding.model_name
+            if "Giga-Embeddings" in model_name or "giga" in model_name.lower():
+                from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
+                self._embedding_provider = GigaEmbeddingsProvider(vs_config.embedding)
+            else:
+                from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
+                self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
+            
             await self._embedding_provider.initialize()
             self.log.info("[OK] Embedding initialized: %s",
                           vs_config.embedding.model_name,
