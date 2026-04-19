@@ -1,4 +1,3 @@
-```gitignore
 # Python
 __pycache__/
 *.pyc
@@ -51,4 +50,4 @@ my_report.txt
 run_ui.bat
 scripts/convert_logs.py
 test_appconfig.txt
-```
+test_config.py
