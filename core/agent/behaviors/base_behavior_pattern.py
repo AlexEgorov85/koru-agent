@@ -8,6 +8,7 @@
 - Предоставляет общие сервисы: PromptBuilderService, CapabilityResolverService
 - Логирование через стандартный logging + LogEventType (НЕ через EventBus)
 """
+
 import json
 import logging
 import typing
@@ -29,20 +30,21 @@ from core.utils.async_utils import safe_async_call
 # ОБЩИЕ СЕРВИСЫ ДЛЯ ВСЕХ ПАТТЕРНОВ
 # ============================================================================
 
+
 class PromptBuilderService:
     """Сервис для построения структурированных промптов."""
 
     # НАСТРАИВАЕМЫЕ ЛИМИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
     DATA_SIZE_LIMITS = {
-        'small': 50,       # Показываем полностью
-        'medium': 500,     # Суммаризация + примеры
-        'large': 1000,     # Только статистика
-        'huge': 5000,      # Требуется data_analysis skill
+        "small": 50,  # Показываем полностью
+        "medium": 500,  # Суммаризация + примеры
+        "large": 1000,  # Только статистика
+        "huge": 5000,  # Требуется data_analysis skill
     }
-    
+
     DISPLAY_LIMITS = {
-        'max_rows_display': 20,
-        'max_chars_display': 1000,
+        "max_rows_display": 20,
+        "max_chars_display": 1000,
     }
 
     def build_reasoning_prompt(
@@ -53,49 +55,60 @@ class PromptBuilderService:
         schema_validator: Optional[Any] = None,
         session_context=None,
         pattern_id: str = "react",
-        application_context=None
+        application_context=None,
     ) -> str:
         """Строит полный промпт для рассуждения."""
         # Фильтруем capability по supported_strategies
         # Если вызывается на PromptBuilderService, используем available_capabilities напрямую
-        if hasattr(self, '_filter_capabilities'):
-            filtered_caps = self._filter_capabilities(available_capabilities, pattern_id)
+        if hasattr(self, "_filter_capabilities"):
+            filtered_caps = self._filter_capabilities(
+                available_capabilities, pattern_id
+            )
         else:
             filtered_caps = available_capabilities
 
         # Форматируем инструменты с параметрами — передаём application_context для доступа к контрактам
-        if hasattr(self, '_format_available_tools_with_params'):
+        if hasattr(self, "_format_available_tools_with_params"):
             tools_str = self._format_available_tools_with_params(
                 filtered_caps, schema_validator, application_context
             )
         else:
             # Fallback для PromptBuilderService
             tools_str = self._format_tools_fallback(filtered_caps, schema_validator)
-        
+
         variables = {
             "input": self._build_input_context(context_analysis, filtered_caps),
             "goal": context_analysis.get("goal", "Неизвестная цель"),
             "dialogue_history": self._build_dialogue_history(session_context),
             "step_history": self._build_step_history(
-                context_analysis.get("last_steps", []),
-                session_context=session_context
+                context_analysis.get("last_steps", []), session_context=session_context
             ),
             "available_tools": tools_str,
             "no_progress_steps": context_analysis.get("no_progress_steps", 0),
-            "consecutive_errors": context_analysis.get("consecutive_errors", 0)
+            "consecutive_errors": context_analysis.get("consecutive_errors", 0),
         }
         return self._render_prompt(templates.get("user", ""), variables)
-    
-    def _format_tools_fallback(self, available_capabilities: List[Capability], schema_validator: Optional[Any] = None) -> str:
+
+    def _format_tools_fallback(
+        self,
+        available_capabilities: List[Capability],
+        schema_validator: Optional[Any] = None,
+    ) -> str:
         """Fallback форматирование без параметров."""
         lines = []
         for cap in available_capabilities:
-            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
-            description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
+            name = cap.name if hasattr(cap, "name") else cap.get("name", "unknown")
+            description = (
+                cap.description
+                if hasattr(cap, "description")
+                else cap.get("description", "no description")
+            )
             lines.append(f"- {name}: {description}")
         return "\n".join(lines)
-    
-    def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
+
+    def _build_input_context(
+        self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]
+    ) -> str:
         """Формирует секцию {input} для промпта — только мета-информация, без деталей шагов."""
         goal = context_analysis.get("goal", "Неизвестная цель")
         last_steps = context_analysis.get("last_steps", [])
@@ -103,9 +116,67 @@ class PromptBuilderService:
             f"ЦЕЛЬ: {goal}",
             f"Шагов выполнено: {len(last_steps)}",
             f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
-            f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
+            f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}",
+            f"Ошибки state (последние): {context_analysis.get('state_errors', [])}",
+            f"Пустых результатов: {context_analysis.get('empty_results_count', 0)}",
+            f"Повторов действий: {context_analysis.get('repeated_actions_count', 0)}",
+            f"Последнее наблюдение: {context_analysis.get('last_observation')}",
+            self._build_adaptive_hints(context_analysis),
         ]
-        return "\n".join(parts)
+        return "\n".join(part for part in parts if part)
+
+    def _build_adaptive_hints(self, context_analysis: Dict[str, Any]) -> str:
+        """Собрать адаптивные подсказки для рассуждения на основе состояния сессии."""
+        hints = []
+
+        empty_results_count = context_analysis.get("empty_results_count", 0)
+        if empty_results_count >= 1:
+            hints.append(
+                "- При пустом результате смени стратегию: уточни параметры или выбери другой инструмент."
+            )
+
+        repeated_actions_count = context_analysis.get("repeated_actions_count", 0)
+        if repeated_actions_count >= 1:
+            hints.append(
+                "- Не повторяй недавнее действие с теми же параметрами без явной причины."
+            )
+
+        state_errors = context_analysis.get("state_errors", [])
+        if state_errors:
+            hints.append(
+                f"- Учти последнюю ошибку state: {state_errors[-1]} и предложи обходной шаг."
+            )
+
+        last_observation = context_analysis.get("last_observation")
+        if isinstance(last_observation, dict):
+            observation_status = str(last_observation.get("status", "")).lower()
+            if observation_status == "error":
+                hints.append(
+                    "- Последнее наблюдение содержит ошибку: проверь входные данные и выбери более безопасный шаг."
+                )
+            elif observation_status == "empty":
+                hints.append(
+                    "- Последнее наблюдение пустое: расширь поиск или измени источник данных."
+                )
+
+            observation_issues = last_observation.get("issues", [])
+            if "sql_filter_mismatch" in observation_issues:
+                hints.append(
+                    "- Пустой SQL-результат: проверь селективность фильтров через GROUP BY/COUNT "
+                    "и убедись, что значения фильтров реально присутствуют в БД."
+                )
+            if "sql_year_filter_mismatch" in observation_issues:
+                hints.append(
+                    "- Пустой SQL-результат по году: сначала проверь, за какие годы есть данные (SELECT DISTINCT year ...), "
+                    "после этого скорректируй фильтр."
+                )
+
+        if not hints:
+            return "АДАПТИВНЫЕ ПОДСКАЗКИ: стандартный режим рассуждения."
+
+        hints_block = ["АДАПТИВНЫЕ ПОДСКАЗКИ:"]
+        hints_block.extend(hints)
+        return "\n".join(hints_block)
 
     def _build_dialogue_history(self, session_context) -> str:
         """
@@ -117,23 +188,23 @@ class PromptBuilderService:
         ВОЗВРАЩАЕТ:
         - str: отформатированная история диалога или пустая строка
         """
-        if session_context and hasattr(session_context, 'dialogue_history'):
+        if session_context and hasattr(session_context, "dialogue_history"):
             return session_context.dialogue_history.format_for_prompt()
         return ""
-    
+
     def _format_table_markdown(self, rows: list, max_rows: int = 5) -> str:
         """Формирует Markdown таблицу из списка dict."""
         if not rows or not isinstance(rows, list):
             return ""
-        
+
         if not rows or not isinstance(rows[0], dict):
             return str(rows)
-        
+
         columns = list(rows[0].keys())
-        
+
         header = "| " + " | ".join(columns) + " |"
         separator = "| " + " | ".join(["---"] * len(columns)) + " |"
-        
+
         table_rows = []
         for row in rows:
             values = []
@@ -142,16 +213,12 @@ class PromptBuilderService:
                 val_str = str(val).replace("|", "\\|")
                 values.append(val_str)
             table_rows.append("| " + " | ".join(values) + " |")
-        
+
         lines = [header, separator] + table_rows
-        
+
         return "\n".join(lines)
 
-    def _build_step_history(
-        self,
-        last_steps: list,
-        session_context=None
-    ) -> str:
+    def _build_step_history(self, last_steps: list, session_context=None) -> str:
         """Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение."""
         if not last_steps:
             return "Шаги не выполнены"
@@ -165,18 +232,28 @@ class PromptBuilderService:
             parameters = {}
             obs_ids = []
 
-            if hasattr(step, 'capability_name'):
+            if hasattr(step, "capability_name"):
                 capability = step.capability_name
                 summary = step.summary or ""
-                status = step.status.value if hasattr(step.status, 'value') else str(step.status)
+                status = (
+                    step.status.value
+                    if hasattr(step.status, "value")
+                    else str(step.status)
+                )
                 parameters = step.parameters or {}
-                obs_ids = step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
+                obs_ids = (
+                    step.observation_item_ids
+                    if hasattr(step, "observation_item_ids")
+                    else []
+                )
             elif isinstance(step, dict):
-                capability = step.get('capability_name', step.get('capability', 'unknown'))
-                summary = step.get('summary', '')
-                status = step.get('status', 'unknown')
-                parameters = step.get('parameters', {}) or {}
-                obs_ids = step.get('observation_item_ids', [])
+                capability = step.get(
+                    "capability_name", step.get("capability", "unknown")
+                )
+                summary = step.get("summary", "")
+                status = step.get("status", "unknown")
+                parameters = step.get("parameters", {}) or {}
+                obs_ids = step.get("observation_item_ids", [])
             else:
                 lines.append(f"[ШАГ {i}]\n{str(step)}\n")
                 continue
@@ -184,35 +261,44 @@ class PromptBuilderService:
             thought = summary.strip() if summary else "Не указано"
 
             obs_text = "Нет данных"
-            if obs_ids and session_context and hasattr(session_context, 'data_context'):
+            if obs_ids and session_context and hasattr(session_context, "data_context"):
                 obs_parts = []
                 for obs_id in obs_ids:
-                    item = session_context.data_context.get_item(obs_id, raise_on_missing=False)
+                    item = session_context.data_context.get_item(
+                        obs_id, raise_on_missing=False
+                    )
                     if item:
-                        if hasattr(item, 'quick_content') and item.quick_content:
+                        if hasattr(item, "quick_content") and item.quick_content:
                             obs_parts.append(item.quick_content)
-                        elif hasattr(item, 'content'):
-                            from core.agent.observation_formatter import format_observation
-                            obs_parts.append(format_observation(item.content, capability, parameters))
+                        elif hasattr(item, "content"):
+                            from core.agent.observation_formatter import (
+                                format_observation,
+                            )
+
+                            obs_parts.append(
+                                format_observation(item.content, capability, parameters)
+                            )
                 if obs_parts:
                     obs_text = "\n".join(obs_parts)
-            elif hasattr(step, 'result') and step.result is not None:
+            elif hasattr(step, "result") and step.result is not None:
                 from core.agent.observation_formatter import format_observation
+
                 obs_text = format_observation(step.result, capability, parameters)
-            elif isinstance(step, dict) and step.get('result'):
+            elif isinstance(step, dict) and step.get("result"):
                 from core.agent.observation_formatter import format_observation
-                obs_text = format_observation(step['result'], capability, parameters)
+
+                obs_text = format_observation(step["result"], capability, parameters)
 
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
 
             block = f"[ШАГ {i}]\n"
-            
+
             if "\n" in thought:
                 block += f"💭 Обоснование:\n{thought}\n"
             else:
                 block += f"💭 Обоснование: {thought}\n"
-            
+
             block += f"🛠️ Действие: {capability}\n"
             block += f"📥 Параметры: {parameters}\n"
             block += f"👁️ Наблюдение: {obs_text}\n"
@@ -222,13 +308,11 @@ class PromptBuilderService:
         return "\n".join(lines)
 
     def _extract_observations_from_step(
-        self, 
-        session_context, 
-        observation_item_ids: list
+        self, session_context, observation_item_ids: list
     ) -> str:
         """
         Извлекает реальные данные наблюдений из контекста сессии.
-        
+
         Поддерживает умную обработку по размеру данных:
         - < 50 строк: показываем полностью
         - 50-500 строк: статистика + первые 5 примеров
@@ -237,23 +321,22 @@ class PromptBuilderService:
         """
         if not observation_item_ids:
             return "Нет наблюдений"
-        
-        if not session_context or not hasattr(session_context, 'data_context'):
+
+        if not session_context or not hasattr(session_context, "data_context"):
             return f"ID наблюдений: {observation_item_ids}"
-        
+
         observations = []
         total_rows = 0
-        
+
         for obs_id in observation_item_ids:
             try:
                 item = session_context.data_context.get_item(
-                    obs_id, 
-                    raise_on_missing=False
+                    obs_id, raise_on_missing=False
                 )
-                
-                if item and hasattr(item, 'content'):
+
+                if item and hasattr(item, "content"):
                     # Используем quick_content если есть (отформатированное наблюдение)
-                    if hasattr(item, 'quick_content') and item.quick_content:
+                    if hasattr(item, "quick_content") and item.quick_content:
                         observations.append(item.quick_content)
                         continue
 
@@ -261,58 +344,65 @@ class PromptBuilderService:
 
                     # Проверяем, это observation с ошибкой?
                     is_error_observation = False
-                    if hasattr(item, 'item_type'):
+                    if hasattr(item, "item_type"):
                         from core.session_context.model import ContextItemType
-                        is_error_observation = (item.item_type == ContextItemType.ERROR_LOG)
-                    
+
+                        is_error_observation = (
+                            item.item_type == ContextItemType.ERROR_LOG
+                        )
+
                     if is_error_observation:
                         # Обработка ошибки — показываем детали
                         if isinstance(content, dict):
-                            error_msg = content.get('error', 'Неизвестная ошибка')
-                            capability = content.get('capability', 'unknown')
-                            parameters = content.get('parameters', {})
-                            traceback = content.get('traceback', '')
-                            
+                            error_msg = content.get("error", "Неизвестная ошибка")
+                            capability = content.get("capability", "unknown")
+                            parameters = content.get("parameters", {})
+                            traceback = content.get("traceback", "")
+
                             observations.append(f"❌ ОШИБКА в {capability}")
                             observations.append(f"   Текст: {error_msg}")
-                            
+
                             # Показываем параметры вызова
                             if parameters:
-                                params_str = ", ".join([f"{k}={str(v)}" for k, v in parameters.items()])
+                                params_str = ", ".join(
+                                    [f"{k}={str(v)}" for k, v in parameters.items()]
+                                )
                                 observations.append(f"   Параметры: {params_str}")
-                            
+
                             # Показываем traceback если есть (сокращённо)
                             if traceback:
                                 # Берём последние 5 строк traceback для компактности
-                                tb_lines = traceback.strip().split('\n')[-5:]
-                                tb_str = '\n   '.join(tb_lines)
+                                tb_lines = traceback.strip().split("\n")[-5:]
+                                tb_str = "\n   ".join(tb_lines)
                                 observations.append(f"   Детали:\n   {tb_str}")
-                            
-                            observations.append("💡 Возможно, нужно: проверить параметры, вызвать skill с другими параметрами, или использовать другой skill")
+
+                            observations.append(
+                                "💡 Возможно, нужно: проверить параметры, вызвать skill с другими параметрами, или использовать другой skill"
+                            )
                         else:
                             observations.append(f"❌ ОШИБКА: {str(content)}")
                         continue
 
                     # Извлекаем полезную информацию
                     rows = None
-                    
+
                     # DBQueryResult object
-                    if hasattr(content, 'rows') and hasattr(content, 'success'):
+                    if hasattr(content, "rows") and hasattr(content, "success"):
                         rows = content.rows
                     # Dict format
                     elif isinstance(content, dict):
-                        if 'rows' in content:
-                            rows = content['rows']
-                        elif 'result' in content:
-                            result_str = str(content['result'])
+                        if "rows" in content:
+                            rows = content["rows"]
+                        elif "result" in content:
+                            result_str = str(content["result"])
                             observations.append(f"- {result_str}")
-                        elif 'data' in content:
-                            data_str = str(content['data'])
+                        elif "data" in content:
+                            data_str = str(content["data"])
                             observations.append(f"- {data_str}")
                         else:
                             content_str = str(content)
                             observations.append(f"- {content_str}")
-                    
+
                     # Обработка rows
                     if rows is not None:
                         total_rows += len(rows)
@@ -320,10 +410,17 @@ class PromptBuilderService:
                         # Проверяем предупреждение об усечении данных
                         truncated_warning = False
                         truncated_message = ""
-                        if hasattr(item, 'metadata') and item.metadata:
-                            if hasattr(item.metadata, 'additional_data') and item.metadata.additional_data:
-                                truncated_warning = item.metadata.additional_data.get('truncated_warning', False)
-                                truncated_message = item.metadata.additional_data.get('truncated_message', '')
+                        if hasattr(item, "metadata") and item.metadata:
+                            if (
+                                hasattr(item.metadata, "additional_data")
+                                and item.metadata.additional_data
+                            ):
+                                truncated_warning = item.metadata.additional_data.get(
+                                    "truncated_warning", False
+                                )
+                                truncated_message = item.metadata.additional_data.get(
+                                    "truncated_message", ""
+                                )
 
                         # Все данные показываем полностью
                         observations.extend(self._format_small_data(rows))
@@ -334,29 +431,38 @@ class PromptBuilderService:
                         # Fallback для других типов
                         content_str = str(content)
                         observations.append(f"- {content_str}")
-                        
+
             except Exception as e:
                 observations.append(f"- [Ошибка чтения {obs_id}: {e}]")
-        
+
         # Добавляем итоговую статистику если данных много (ИСКЛЮЧАЯ data_analysis результаты)
         # Проверяем, есть ли наблюдения от data_analysis - они уже полные и не требуют рекомендаций
         has_data_analysis_result = False
         for obs_id in observation_item_ids:
             try:
-                if session_context and hasattr(session_context, 'data_context'):
-                    item = session_context.data_context.get_item(obs_id, raise_on_missing=False)
-                    if item and hasattr(item, 'metadata'):
-                        if item.metadata.get('skill') == 'data_analysis' or 'data_analysis' in str(item.metadata):
+                if session_context and hasattr(session_context, "data_context"):
+                    item = session_context.data_context.get_item(
+                        obs_id, raise_on_missing=False
+                    )
+                    if item and hasattr(item, "metadata"):
+                        if item.metadata.get(
+                            "skill"
+                        ) == "data_analysis" or "data_analysis" in str(item.metadata):
                             has_data_analysis_result = True
                             break
             except:
                 pass
 
         # Только если нет результатов data_analysis и данные превышают лимит - добавляем рекомендацию
-        if total_rows > self.DATA_SIZE_LIMITS['medium'] and not has_data_analysis_result:
+        if (
+            total_rows > self.DATA_SIZE_LIMITS["medium"]
+            and not has_data_analysis_result
+        ):
             observations.append(f"\n⚠️ ОБЩИЙ ОБЪЁМ: {total_rows} строк")
-            observations.append("💡 Эти данные не доступны для final_answer. Рекомендация: Используйте data_analysis.analyze_step_data")
-        
+            observations.append(
+                "💡 Эти данные не доступны для final_answer. Рекомендация: Используйте data_analysis.analyze_step_data"
+            )
+
         if observations:
             return "\n".join(observations)
         return "Нет доступных данных"
@@ -365,10 +471,10 @@ class PromptBuilderService:
         """Форматирование данных для отображения."""
         if not rows:
             return []
-        
+
         if use_markdown and rows and isinstance(rows[0], dict):
             return self._format_table_markdown(rows)
-        
+
         formatted = []
         for row in rows:
             if isinstance(row, dict):
@@ -380,12 +486,12 @@ class PromptBuilderService:
             else:
                 formatted.append(f"   - {str(row)}")
         return formatted
-    
+
     def _format_available_tools_with_params(
         self,
         available_capabilities: List[Capability],
         schema_validator: Optional[Any] = None,
-        application_context=None
+        application_context=None,
     ) -> str:
         """Формирует структурированный контекст инструментов для LLM.
 
@@ -405,7 +511,7 @@ class PromptBuilderService:
 
         lines = ["## Доступные инструменты"]
 
-        if not application_context or not hasattr(application_context, 'components'):
+        if not application_context or not hasattr(application_context, "components"):
             # Fallback: простой формат
             for cap in available_capabilities:
                 lines.append(f"- {cap.name}: {cap.description}")
@@ -415,10 +521,10 @@ class PromptBuilderService:
         component_descriptions: Dict[str, Dict[str, Any]] = {}
 
         for component in application_context.components.all_components():
-            if hasattr(component, 'get_tool_description'):
+            if hasattr(component, "get_tool_description"):
                 try:
                     desc = component.get_tool_description()
-                    if desc and hasattr(component, 'name'):
+                    if desc and hasattr(component, "name"):
                         component_descriptions[component.name] = desc
                 except Exception:
                     pass
@@ -428,15 +534,18 @@ class PromptBuilderService:
         standalone_caps = []
 
         for cap in available_capabilities:
-            skill_name = cap.skill_name if hasattr(cap, 'skill_name') and cap.skill_name else None
+            skill_name = (
+                cap.skill_name
+                if hasattr(cap, "skill_name") and cap.skill_name
+                else None
+            )
 
             if skill_name:
                 if skill_name not in skills_data:
                     skills_data[skill_name] = []
-                skills_data[skill_name].append({
-                    'name': cap.name,
-                    'description': cap.description
-                })
+                skills_data[skill_name].append(
+                    {"name": cap.name, "description": cap.description}
+                )
             else:
                 standalone_caps.append(cap)
 
@@ -445,36 +554,45 @@ class PromptBuilderService:
             skill_desc = component_descriptions.get(skill_name, {})
             lines.append(f"\n### {skill_name.upper()}")
 
-            if skill_desc.get('description'):
+            if skill_desc.get("description"):
                 lines.append(f"{skill_desc['description']}")
 
             lines.append("\nРежимы работы:")
 
             for cap_info in caps:
-                cap_name = cap_info['name']
-                cap_desc = cap_info['description']
+                cap_name = cap_info["name"]
+                cap_desc = cap_info["description"]
 
                 # Пытаемся получить параметры из input_contracts
                 params_info = ""
-                for component in application_context.components.all_of_type(ComponentType.SKILL):
-                    if hasattr(component, 'name') and component.name == skill_name:
-                        if hasattr(component, 'input_contracts') and cap_name in component.input_contracts:
+                for component in application_context.components.all_of_type(
+                    ComponentType.SKILL
+                ):
+                    if hasattr(component, "name") and component.name == skill_name:
+                        if (
+                            hasattr(component, "input_contracts")
+                            and cap_name in component.input_contracts
+                        ):
                             contract_class = component.input_contracts[cap_name]
-                            if hasattr(contract_class, 'model_json_schema'):
+                            if hasattr(contract_class, "model_json_schema"):
                                 schema = contract_class.model_json_schema()
-                                props = schema.get('properties', {})
+                                props = schema.get("properties", {})
                                 if props:
-                                    params_info = self._format_params_from_schema(props, schema.get('required', []))
+                                    params_info = self._format_params_from_schema(
+                                        props, schema.get("required", [])
+                                    )
 
                 # Для execute_script добавляем детализацию скриптов
-                if 'execute_script' in cap_name:
+                if "execute_script" in cap_name:
                     lines.append(f"\n#### {cap_name}")
                     lines.append(f"{cap_desc}")
 
                     # Детализация скриптов
-                    for component in application_context.components.all_of_type(ComponentType.SKILL):
-                        if hasattr(component, 'name') and component.name == skill_name:
-                            if hasattr(component, 'get_scripts_description'):
+                    for component in application_context.components.all_of_type(
+                        ComponentType.SKILL
+                    ):
+                        if hasattr(component, "name") and component.name == skill_name:
+                            if hasattr(component, "get_scripts_description"):
                                 try:
                                     scripts_desc = component.get_scripts_description()
                                     if scripts_desc:
@@ -494,51 +612,59 @@ class PromptBuilderService:
         if standalone_caps:
             lines.append("\n### Другие инструменты")
             for cap in standalone_caps:
-                cap_name = cap.name if hasattr(cap, 'name') else 'unknown'
-                cap_desc = cap.description if hasattr(cap, 'description') else ''
+                cap_name = cap.name if hasattr(cap, "name") else "unknown"
+                cap_desc = cap.description if hasattr(cap, "description") else ""
 
                 lines.append(f"\n#### {cap_name}")
                 lines.append(f"{cap_desc}")
 
                 # Параметры из component
                 tool_desc = component_descriptions.get(cap_name, {})
-                caps_list = tool_desc.get('capabilities', [])
+                caps_list = tool_desc.get("capabilities", [])
                 if caps_list:
                     for cap_item in caps_list:
-                        if cap_item.get('name') == cap_name:
-                            params = cap_item.get('parameters', {})
+                        if cap_item.get("name") == cap_name:
+                            params = cap_item.get("parameters", {})
                             if params:
                                 lines.append("Параметры:")
                                 for pname, pinfo in params.items():
-                                    ptype = pinfo.get('type', 'string')
-                                    preq = pinfo.get('required', False)
-                                    pdesc = pinfo.get('description', '')
+                                    ptype = pinfo.get("type", "string")
+                                    preq = pinfo.get("required", False)
+                                    pdesc = pinfo.get("description", "")
                                     req_str = "обязательный" if preq else "опциональный"
                                     if pdesc:
-                                        lines.append(f"  - `{pname}` ({ptype}, {req_str}): {pdesc}")
+                                        lines.append(
+                                            f"  - `{pname}` ({ptype}, {req_str}): {pdesc}"
+                                        )
                                     else:
-                                        lines.append(f"  - `{pname}` ({ptype}, {req_str})")
+                                        lines.append(
+                                            f"  - `{pname}` ({ptype}, {req_str})"
+                                        )
 
         return "\n".join(lines)
 
-    def _format_params_from_schema(self, properties: Dict[str, Any], required: List[str]) -> str:
+    def _format_params_from_schema(
+        self, properties: Dict[str, Any], required: List[str]
+    ) -> str:
         """Форматирует параметры из JSON Schema в читаемый текст."""
         if not properties:
             return ""
 
         lines = ["Параметры:"]
         for param_name, param_info in properties.items():
-            param_type = param_info.get('type', 'string')
+            param_type = param_info.get("type", "string")
             is_required = param_name in required
             req_str = "обязательный" if is_required else "опциональный"
-            param_desc = param_info.get('description', '')
+            param_desc = param_info.get("description", "")
 
-            if 'enum' in param_info:
-                enum_vals = ', '.join([str(e) for e in param_info['enum']])
+            if "enum" in param_info:
+                enum_vals = ", ".join([str(e) for e in param_info["enum"]])
                 param_desc += f" (варианты: {enum_vals})"
 
             if param_desc:
-                lines.append(f"  - `{param_name}` ({param_type}, {req_str}): {param_desc}")
+                lines.append(
+                    f"  - `{param_name}` ({param_type}, {req_str}): {param_desc}"
+                )
             else:
                 lines.append(f"  - `{param_name}` ({param_type}, {req_str})")
 
@@ -556,17 +682,15 @@ class PromptBuilderService:
     # ========================================================================
 
     def _find_capability(
-        self,
-        available_capabilities: List[Capability],
-        capability_name: str
+        self, available_capabilities: List[Capability], capability_name: str
     ) -> Optional[Capability]:
         """
         Ищет capability по имени.
-        
+
         ПАРАМЕТРЫ:
         - available_capabilities: список доступных capability
         - capability_name: имя для поиска
-        
+
         ВОЗВРАЩАЕТ:
         - Capability или None если не найдено
         """
@@ -574,50 +698,48 @@ class PromptBuilderService:
         for cap in available_capabilities:
             if cap.name == capability_name:
                 return cap
-        
+
         # 2. Совпадение по префиксу
-        if '.' in capability_name:
-            prefix = capability_name.split('.')[0]
+        if "." in capability_name:
+            prefix = capability_name.split(".")[0]
             for cap in available_capabilities:
                 if cap.name == prefix:
                     return cap
-                if hasattr(cap, 'skill_name') and cap.skill_name:
+                if hasattr(cap, "skill_name") and cap.skill_name:
                     if cap.skill_name == prefix:
                         return cap
-        
+
         # 3. Частичное совпадение
         for cap in available_capabilities:
             if capability_name.lower() in cap.name.lower():
                 return cap
-        
+
         return None
 
     def _validate_capability_parameters(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
-        context: Dict[str, Any]
+        context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Валидирует параметры capability.
-        
+
         ПАРАМЕТРЫ:
         - capability: capability для валидации
         - parameters: параметры для валидации
         - context: контекст выполнения
-        
+
         ВОЗВРАЩАЕТ:
         - validated параметры или оригинальные если валидация не удалась
         """
         # Упрощённая валидация — если нет schema_validator, возвращаем как есть
-        if not hasattr(self, 'schema_validator') or self.schema_validator is None:
+        if not hasattr(self, "schema_validator") or self.schema_validator is None:
             return parameters
-        
+
         try:
             validated = self.schema_validator.validate_parameters(
-                capability=capability,
-                raw_params=parameters,
-                context=str(context)
+                capability=capability, raw_params=parameters, context=str(context)
             )
             return validated if validated else parameters
         except Exception:
@@ -625,23 +747,21 @@ class PromptBuilderService:
             return {"input": parameters.get("input", "Продолжить выполнение задачи")}
 
     def _filter_capabilities(
-        self,
-        capabilities: List[Capability],
-        pattern_id: str
+        self, capabilities: List[Capability], pattern_id: str
     ) -> List[Capability]:
         """Фильтрует capability по supported_strategies."""
-        pattern_prefix = pattern_id.split('.')[0]
+        pattern_prefix = pattern_id.split(".")[0]
         if "_pattern" in pattern_prefix:
             pattern_prefix = pattern_prefix.replace("_pattern", "")
         return [
-            cap for cap in capabilities
-            if pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
+            cap
+            for cap in capabilities
+            if pattern_prefix.lower()
+            in [s.lower() for s in (cap.supported_strategies or [])]
         ]
 
     def _generate_tools_selection_rules(
-        self,
-        available_capabilities: List[Capability],
-        application_context=None
+        self, available_capabilities: List[Capability], application_context=None
     ) -> str:
         """Генерирует унифицированные правила выбора инструментов на основе capabilities.
 
@@ -660,7 +780,11 @@ class PromptBuilderService:
         standalone_caps = []
 
         for cap in available_capabilities:
-            skill_name = cap.skill_name if hasattr(cap, 'skill_name') and cap.skill_name else "other"
+            skill_name = (
+                cap.skill_name
+                if hasattr(cap, "skill_name") and cap.skill_name
+                else "other"
+            )
             if skill_name and skill_name != "other":
                 skills_caps[skill_name].append(cap)
             else:
@@ -676,15 +800,21 @@ class PromptBuilderService:
                 lines.append("Выбери подходящий режим:")
 
                 # Сортируем: сначала execute, потом generate, потом другие
-                sorted_caps = sorted(caps, key=lambda c: (
-                    0 if "execute" in c.name else
-                    1 if "generate" in c.name else
-                    2 if "search" in c.name else
-                    3
-                ))
+                sorted_caps = sorted(
+                    caps,
+                    key=lambda c: (
+                        0
+                        if "execute" in c.name
+                        else (
+                            1
+                            if "generate" in c.name
+                            else 2 if "search" in c.name else 3
+                        )
+                    ),
+                )
 
                 for i, cap in enumerate(sorted_caps, 1):
-                    desc = cap.description if hasattr(cap, 'description') else ""
+                    desc = cap.description if hasattr(cap, "description") else ""
                     # Обрезаем длинные описания
                     if len(desc) > 150:
                         desc = desc[:147] + "..."
@@ -699,7 +829,7 @@ class PromptBuilderService:
         if standalone_caps:
             lines.append("\n📌 Другие инструменты:")
             for cap in standalone_caps:
-                desc = cap.description if hasattr(cap, 'description') else ""
+                desc = cap.description if hasattr(cap, "description") else ""
                 if len(desc) > 100:
                     desc = desc[:97] + "..."
                 lines.append(f"- `{cap.name}` — {desc}")
@@ -727,8 +857,8 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         self,
         component_name: str,
         component_config: Optional[ComponentConfig] = None,
-        application_context: 'ApplicationContext' = None,
-        executor: 'ActionExecutor' = None,
+        application_context: "ApplicationContext" = None,
+        executor: "ActionExecutor" = None,
     ):
         """
         Инициализация базового паттерна.
@@ -752,7 +882,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         # === ОБЩИЕ СЕРВИСЫ ===
         self.prompt_builder = PromptBuilderService()
         # capability_resolver удалён — методы перенесены в BaseBehaviorPattern
-    
+
     def get_prompt(self, key: str) -> Prompt:
         """
         Получает промпт из кэша Component.
@@ -776,7 +906,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         ДЕЛЕГИРУЕТ: Component.get_output_contract()
         """
         return super().get_output_contract(key)
-    
+
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
         """
         Рендерит шаблон промпта с подстановкой переменных.
@@ -794,7 +924,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         for key, value in variables.items():
             rendered = rendered.replace(f"{{{key}}}", str(value))
         return rendered
-    
+
     async def initialize(self) -> bool:
         """
         Инициализация паттерна.
@@ -803,15 +933,15 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         """
         # Вызываем инициализацию Component (загружает из component_config.resolved_*)
         success = await Component.initialize(self)
-        
+
         # Регистрируем схемы после загрузки контрактов
         self._register_all_schemas()
-        
+
         return success
-    
+
     def _register_all_schemas(self):
         """Регистрирует все схемы из input_contracts в validator."""
-        if not hasattr(self, 'schema_validator') or not self.schema_validator:
+        if not hasattr(self, "schema_validator") or not self.schema_validator:
             return
 
         self._log_debug(f"input_contracts keys: {list(self.input_contracts.keys())}")
@@ -819,43 +949,47 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         registered = 0
         for cap_name, contract_class in self.input_contracts.items():
             try:
-                if hasattr(contract_class, 'model_json_schema'):
+                if hasattr(contract_class, "model_json_schema"):
                     schema = contract_class.model_json_schema()
-                    properties = schema.get('properties', {})
-                    required = schema.get('required', [])
+                    properties = schema.get("properties", {})
+                    required = schema.get("required", [])
                     schema_dict = {}
                     for prop_name, prop_info in properties.items():
                         schema_dict[prop_name] = {
-                            'type': prop_info.get('type', 'string'),
-                            'required': prop_name in required,
-                            'description': prop_info.get('description', '')
+                            "type": prop_info.get("type", "string"),
+                            "required": prop_name in required,
+                            "description": prop_info.get("description", ""),
                         }
                     if schema_dict:
                         # Регистрируем по full key
-                        self.schema_validator.register_capability_schema(cap_name, schema_dict)
+                        self.schema_validator.register_capability_schema(
+                            cap_name, schema_dict
+                        )
                         # Убираем _input суффикс и регистрируем отдельно
-                        if cap_name.endswith('_input'):
+                        if cap_name.endswith("_input"):
                             base_name = cap_name[:-6]
-                            self.schema_validator.register_capability_schema(base_name, schema_dict)
+                            self.schema_validator.register_capability_schema(
+                                base_name, schema_dict
+                            )
                         registered += 1
             except Exception as e:
                 self._log_error(f"Error registering {cap_name}: {e}", exc_info=True)
         self._log_debug(f"Total schemas registered: {registered}")
-    
+
     async def analyze_context(
         self,
         session_context: SessionContext,
         available_capabilities: list[Capability],
-        context_analysis: Dict[str, Any]
+        context_analysis: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Анализ контекста без принятия решений."""
         raise NotImplementedError("Subclasses must implement analyze_context")
-    
+
     async def generate_decision(
         self,
         session_context: SessionContext,
         available_capabilities: list[Capability],
-        context_analysis: Dict[str, Any]
+        context_analysis: Dict[str, Any],
     ) -> Decision:
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
@@ -866,9 +1000,9 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
 
     def _execute_impl(
         self,
-        capability: 'Capability',
+        capability: "Capability",
         parameters: Dict[str, Any],
-        execution_context: Any
+        execution_context: Any,
     ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики паттерна поведения (СИНХРОННАЯ).
@@ -884,19 +1018,36 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
 
         # Извлекаем session_context из execution_context
         session_context = None
-        if hasattr(execution_context, 'session_context'):
+        if hasattr(execution_context, "session_context"):
             session_context = execution_context.session_context
 
-        available_capabilities = execution_context.available_capabilities if hasattr(execution_context, 'available_capabilities') else []
+        available_capabilities = (
+            execution_context.available_capabilities
+            if hasattr(execution_context, "available_capabilities")
+            else []
+        )
 
         # Анализируем контекст и генерируем решение (синхронное ожидание async методов)
-        context_analysis = safe_async_call(self.analyze_context(session_context, available_capabilities))
-        decision = safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis, execution_context))
+        context_analysis = safe_async_call(
+            self.analyze_context(session_context, available_capabilities)
+        )
+        decision = safe_async_call(
+            self.generate_decision(
+                session_context,
+                available_capabilities,
+                context_analysis,
+                execution_context,
+            )
+        )
 
         # Возвращаем решение в виде словаря
         return {
-            "decision_type": decision.decision_type.value if hasattr(decision.decision_type, 'value') else str(decision.decision_type),
+            "decision_type": (
+                decision.decision_type.value
+                if hasattr(decision.decision_type, "value")
+                else str(decision.decision_type)
+            ),
             "capability_name": decision.capability_name,
             "parameters": decision.parameters,
-            "reasoning": decision.reasoning
+            "reasoning": decision.reasoning,
         }
