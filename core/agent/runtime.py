@@ -9,7 +9,6 @@ Runtime — цикл выполнения агента с Observer и Metrics.
 - AgentMetrics для отслеживания качества
 """
 
-import re
 import uuid
 from typing import Any, Optional
 
@@ -25,6 +24,7 @@ from core.agent.components.policy import RetryPolicy, AgentPolicy
 from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.components.observer import Observer
 from core.agent.behaviors.base import DecisionType
+from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.agent.observation_formatter import (
     format_observation,
     smart_format_observation,
@@ -80,6 +80,8 @@ class AgentRuntime:
             base_delay=self.policy.retry_base_delay,
             max_delay=self.policy.retry_max_delay,
         )
+        # Выделенный анализатор SQL recovery (SRP: runtime только оркестрирует).
+        self.sql_recovery_analyzer = SQLRecoveryAnalyzer()
 
         self._pattern = None
 
@@ -268,12 +270,12 @@ class AgentRuntime:
         for step in range(self.max_steps):
             agent_state = self.session_context.agent_state
             if (
-                agent_state.repeated_actions_count >= 3
-                or agent_state.empty_results_count >= 3
+                agent_state.consecutive_repeated_actions >= 3
+                or agent_state.consecutive_empty_results >= 3
             ):
                 stop_reason = (
-                    f"repeated_actions={agent_state.repeated_actions_count}, "
-                    f"empty_results={agent_state.empty_results_count}"
+                    f"repeated_actions={agent_state.consecutive_repeated_actions}, "
+                    f"empty_results={agent_state.consecutive_empty_results}"
                 )
                 agent_state.errors.append(f"STOP:{stop_reason}")
                 await event_bus.publish(
@@ -369,7 +371,9 @@ class AgentRuntime:
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
                 policy_allowed, policy_reason = self.policy.check_step(
-                    decision.action or "", self.session_context.agent_state
+                    decision.action or "",
+                    decision.parameters or {},
+                    self.session_context.agent_state,
                 )
                 if not policy_allowed:
                     self.session_context.agent_state.errors.append(
@@ -672,6 +676,7 @@ class AgentRuntime:
                 self.session_context.agent_state.add_step(
                     action_name=decision.action or "unknown",
                     status=result.status.value,
+                    parameters=decision.parameters or {},
                     observation=observation_signal,
                 )
                 self.session_context.agent_state.register_observation(
@@ -803,8 +808,18 @@ class AgentRuntime:
             hint = "Уточни параметры или выбери другой инструмент"
             issues = ["empty_result"]
 
-            if self._is_sql_action(action_name):
-                sql_analysis = self._analyze_sql_empty_result(parameters)
+            # Для unit-тестов, где Runtime создаётся через __new__,
+            # инициализируем анализатор лениво.
+            if (
+                not hasattr(self, "sql_recovery_analyzer")
+                or self.sql_recovery_analyzer is None
+            ):
+                self.sql_recovery_analyzer = SQLRecoveryAnalyzer()
+
+            if self.sql_recovery_analyzer.is_sql_action(action_name):
+                sql_analysis = self.sql_recovery_analyzer.analyze_empty_result(
+                    parameters
+                )
                 issues.extend(sql_analysis.get("issues", []))
                 hint = sql_analysis.get("next_step_hint", hint)
 
@@ -823,186 +838,6 @@ class AgentRuntime:
             "insight": "Получен полезный результат",
             "next_step_hint": "Продолжай по текущему плану",
         }
-
-    def _is_sql_action(self, action_name: Optional[str]) -> bool:
-        """Проверка: действие относится к SQL-вызову."""
-        return bool(action_name and "sql" in action_name)
-
-    def _analyze_sql_empty_result(self, parameters: Optional[dict]) -> dict:
-        """
-        Сформировать универсальную подсказку для пустого SQL-результата.
-
-        ЛОГИКА:
-        - Если есть фильтры в WHERE, предлагаем диагностический запрос по значениям фильтров.
-        - Если фильтров нет, предлагаем проверить JOIN/источник/объём данных.
-        """
-        params = parameters or {}
-        query_candidate = params.get("query") or params.get("sql") or ""
-        query_text = str(query_candidate).strip()
-
-        if not query_text:
-            return {
-                "issues": ["sql_filter_mismatch"],
-                "next_step_hint": (
-                    "SQL вернул пусто: проверь таблицы/соединения и выполни "
-                    "диагностический COUNT(*) без фильтров."
-                ),
-            }
-
-        table_name = self._extract_table_name(query_text)
-        where_clause = self._extract_where_clause(query_text)
-        filter_conditions = self._extract_filter_conditions(where_clause)
-        filter_columns = [item["column"] for item in filter_conditions]
-
-        issues = ["sql_filter_mismatch"]
-        if self._contains_year_like_filter(query_text, filter_columns):
-            issues.append("sql_year_filter_mismatch")
-
-        if filter_conditions and table_name:
-            hint = self._build_filter_diagnostic_hint(table_name, filter_conditions)
-        elif filter_columns:
-            grouped_cols = ", ".join(filter_columns[:2])
-            hint = (
-                "SQL вернул пусто: проверь доступные значения по фильтрам "
-                f"({grouped_cols}) через GROUP BY/COUNT и ослабь условия WHERE."
-            )
-        else:
-            hint = (
-                "SQL вернул пусто без явных фильтров: проверь JOIN-условия, "
-                "источник таблиц и выполни COUNT(*) для базовой проверки наличия данных."
-            )
-
-        return {"issues": issues, "next_step_hint": hint}
-
-    def _extract_table_name(self, query_text: str) -> Optional[str]:
-        """Извлечь имя таблицы из FROM (эвристика для диагностических подсказок)."""
-        match = re.search(r"\bfrom\s+([a-zA-Z0-9_\.]+)", query_text, re.IGNORECASE)
-        return match.group(1) if match else None
-
-    def _extract_where_clause(self, query_text: str) -> str:
-        """Извлечь WHERE-клаузу до GROUP/ORDER/LIMIT (эвристика)."""
-        match = re.search(
-            r"\bwhere\b(.*?)(\bgroup\s+by\b|\border\s+by\b|\blimit\b|$)",
-            query_text,
-            re.IGNORECASE | re.DOTALL,
-        )
-        return match.group(1) if match else ""
-
-    def _extract_filter_columns(self, where_clause: str) -> list:
-        """Извлечь имена колонок из WHERE-условий (простая эвристика)."""
-        if not where_clause:
-            return []
-
-        raw_columns = re.findall(
-            r"([a-zA-Z_][a-zA-Z0-9_\.]*)\s*(=|!=|<>|>|<|>=|<=|like|ilike|in|between)",
-            where_clause,
-            re.IGNORECASE,
-        )
-        normalized = []
-        for col, _ in raw_columns:
-            column_name = col.split(".")[-1]
-            if column_name.lower() not in ("and", "or", "not"):
-                normalized.append(column_name)
-
-        unique_columns = []
-        for col in normalized:
-            if col not in unique_columns:
-                unique_columns.append(col)
-        return unique_columns
-
-    def _extract_filter_conditions(self, where_clause: str) -> list:
-        """Извлечь фильтры WHERE с типом значения (string/number/date/unknown)."""
-        if not where_clause:
-            return []
-
-        pattern = re.compile(
-            r"([a-zA-Z_][a-zA-Z0-9_\.]*)\s*(=|!=|<>|>|<|>=|<=|like|ilike)\s*"
-            r"('(?:[^']|''|\\')*'|\d+(?:\.\d+)?|\b\d{4}-\d{2}-\d{2}\b)",
-            re.IGNORECASE,
-        )
-        conditions = []
-        for match in pattern.finditer(where_clause):
-            raw_column, operator, raw_value = match.groups()
-            column = raw_column.split(".")[-1]
-            value = raw_value.strip()
-            value_type = self._infer_sql_value_type(value)
-            conditions.append(
-                {
-                    "column": column,
-                    "operator": operator.lower(),
-                    "value": value,
-                    "value_type": value_type,
-                }
-            )
-        return conditions
-
-    def _infer_sql_value_type(self, raw_value: str) -> str:
-        """Эвристика типа значения фильтра."""
-        value = raw_value.strip("'").strip()
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-            return "date"
-        if re.fullmatch(r"\d+(?:\.\d+)?", value):
-            return "number"
-        if value:
-            return "string"
-        return "unknown"
-
-    def _build_filter_diagnostic_hint(
-        self, table_name: str, filter_conditions: list
-    ) -> str:
-        """Собрать эффективную диагностику по первому фильтру, без «слепой» проверки строк."""
-        first_condition = filter_conditions[0]
-        column = first_condition["column"]
-        value = first_condition["value"]
-        value_type = first_condition["value_type"]
-
-        if value_type == "string":
-            value_literal = value if value.startswith("'") else f"'{value}'"
-            trimmed_literal = value_literal
-            prefix_value = value_literal.strip("'").replace("%", "").strip()
-            prefix_literal = f"'{prefix_value}%'" if prefix_value else value_literal
-            return (
-                "SQL вернул пусто: не проверяй только точное совпадение строки. "
-                f"Сделай 2 шага: (1) SELECT COUNT(*) FROM {table_name} WHERE LOWER(TRIM({column})) = LOWER(TRIM({trimmed_literal})); "
-                f"(2) SELECT DISTINCT {column} FROM {table_name} WHERE LOWER({column}) LIKE LOWER({prefix_literal}) LIMIT 20. "
-                "Так ты найдёшь варианты написания/пробелы/регистр и скорректируешь фильтр."
-            )
-
-        if value_type == "number":
-            return (
-                "SQL вернул пусто: сначала проверь диапазон значений, затем точный фильтр. "
-                f"SELECT MIN({column}), MAX({column}) FROM {table_name}; "
-                f"SELECT {column}, COUNT(*) FROM {table_name} GROUP BY {column} ORDER BY {column} LIMIT 20."
-            )
-
-        if value_type == "date":
-            return (
-                "SQL вернул пусто: проверь диапазон дат и распределение по периодам. "
-                f"SELECT MIN({column}), MAX({column}) FROM {table_name}; "
-                f"SELECT DATE_TRUNC('month', {column}) AS m, COUNT(*) FROM {table_name} "
-                "GROUP BY m ORDER BY m LIMIT 24."
-            )
-
-        grouped_cols = ", ".join([item["column"] for item in filter_conditions[:2]])
-        return (
-            "SQL вернул пусто: возможно, фильтры слишком узкие. "
-            f"Сначала проверь доступные значения: SELECT {grouped_cols}, COUNT(*) "
-            f"FROM {table_name} GROUP BY {grouped_cols} ORDER BY COUNT(*) DESC LIMIT 20; "
-            "затем скорректируй условия WHERE."
-        )
-
-    def _contains_year_like_filter(self, query_text: str, filter_columns: list) -> bool:
-        """Проверить, что в фильтрах есть годоподобный критерий."""
-        lower_query = query_text.lower()
-        has_year_keyword = any(
-            token in lower_query
-            for token in [" year", "год", "date_part('year", "extract(year"]
-        )
-        has_year_column = any(
-            "year" in col.lower() or "год" in col.lower() for col in filter_columns
-        )
-        has_year_value = any(str(year) in lower_query for year in range(2000, 2036))
-        return (has_year_keyword or has_year_column) and has_year_value
 
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""

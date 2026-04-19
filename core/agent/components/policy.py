@@ -7,7 +7,7 @@
 """
 
 import random
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Dict, Any, Tuple
 
 if TYPE_CHECKING:
     # Delay import to avoid circular imports
@@ -29,10 +29,6 @@ class AgentPolicy:
     - retry_base_delay: базовая задержка retry
     - retry_max_delay: максимальная задержка retry
     - retry_jitter: использовать jitter
-    
-    ПРОВЕРКИ:
-    - check_repeat_action: детектирование повторов действий
-    - check_empty_loop: детектирование цикла пустых результатов
     """
 
     def __init__(
@@ -198,6 +194,33 @@ class AgentPolicy:
             return False, "repeat_action"
 
         if state and state.empty_results_count >= 2:
+            return False, "empty_loop"
+
+        return True, ""
+
+    def check_step(
+        self, action_name: str, parameters: Dict[str, Any], state
+    ) -> Tuple[bool, str]:
+        """
+        Проверить допустимость шага на основе state.
+
+        ВАЖНО:
+        - Проверяем повторы по action_signature (action + параметры),
+          а не только по имени действия.
+        - Это уменьшает ложные блокировки для валидных повторных вызовов
+          инструмента с новыми параметрами.
+        """
+        recent_signatures = state.get_recent_action_signatures(limit=3) if state else []
+        action_signature = (
+            state.build_action_signature(action_name, parameters)
+            if state and action_name
+            else action_name
+        )
+
+        if action_signature and action_signature in recent_signatures:
+            return False, "repeat_action"
+
+        if state and state.consecutive_empty_results >= 2:
             return False, "empty_loop"
 
         return True, ""
