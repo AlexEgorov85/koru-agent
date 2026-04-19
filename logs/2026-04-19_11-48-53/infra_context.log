@@ -1,0 +1,242 @@
+2026-04-19 11:48:53,250 | INFO     | SYSTEM_INIT          | infra.context                  | 🚀 Инициализация инфраструктуры...
+2026-04-19 11:48:53,261 | INFO     | SYSTEM_INIT          | infra.context                  | Инициализирована шина событий: UnifiedEventBus
+2026-04-19 11:48:53,262 | INFO     | SYSTEM_INIT          | infra.context                  | SessionLogHandler инициализирован
+2026-04-19 11:48:53,262 | INFO     | SYSTEM_INIT          | infra.context                  | MetricsPublisher инициализирован
+2026-04-19 11:48:53,262 | INFO     | SYSTEM_INIT          | infra.context                  | === ЭТАП 3.5: ResourceLoader — загрузка промптов и контрактов ===
+2026-04-19 11:48:53,770 | INFO     | SYSTEM_INIT          | infra.context                  | Инициализация Vector Search...
+2026-04-19 11:48:53,781 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Loaded index audits: data/vector/audits_index.faiss (0 vectors)
+2026-04-19 11:48:53,782 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Loaded index violations: data/vector/violations_index.faiss (0 vectors)
+2026-04-19 11:48:53,782 | INFO     | SYSTEM_INIT          | infra.context                  | Vector Search статус: 2 загружено, 0 отсутствует, всего векторов: 0
+2026-04-19 11:48:53,782 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ошибка инициализации Embedding провайдера: SentenceTransformers is not installed. Install with: pip install sentence-transformers
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/embedding/sentence_transformers_provider.py", line 83, in initialize
+    from sentence_transformers import SentenceTransformer
+ModuleNotFoundError: No module named 'sentence_transformers'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure_context/infrastructure_context.py", line 427, in _init_vector_search
+    await self._embedding_provider.initialize()
+  File "/workspace/core/infrastructure/providers/embedding/sentence_transformers_provider.py", line 95, in initialize
+    raise ImportError(
+ImportError: SentenceTransformers is not installed. Install with: pip install sentence-transformers
+2026-04-19 11:48:53,784 | INFO     | SYSTEM_INIT          | infra.context                  | [OK] Chunking initialized: 500 chars
+2026-04-19 11:48:53,785 | INFO     | SYSTEM_INIT          | infra.context                  | === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
+2026-04-19 11:48:53,785 | INFO     | SYSTEM_INIT          | infra.context                  | [LLM] - default_llm: enabled=True, type=llama_cpp
+2026-04-19 11:48:53,785 | DEBUG    | SYSTEM_INIT          | infra.context                  | Зарегистрирован ресурс 'default_llm' типа llm
+2026-04-19 11:48:53,786 | DEBUG    | SYSTEM_INIT          | infra.context                  | Зарегистрирован ресурс 'default_db' типа database
+2026-04-19 11:48:53,786 | INFO     | SYSTEM_INIT          | infra.context                  | Вызов lifecycle_manager.initialize_all()...
+2026-04-19 11:48:53,786 | INFO     | SYSTEM_INIT          | infra.context                  | Начало инициализации 2 инфраструктурных ресурсов
+2026-04-19 11:48:53,787 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ресурс 'default_llm' вернул False при инициализации
+2026-04-19 11:48:53,787 | INFO     | SYSTEM_INIT          | infra.context                  | Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-04-19 11:48:53,790 | ERROR    | DB_ERROR             | infra.context                  | Ошибка инициализации PostgreSQL провайдера: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 41, in initialize
+    self.pool = await asyncpg.create_pool(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 439, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 466, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 153, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 538, in _get_new_connection
+    con = await self._connect(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 1140, in create_connection
+    raise OSError('Multiple exceptions: {}'.format(
+OSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2026-04-19 11:48:53,805 | ERROR    | SYSTEM_ERROR         | infra.context                  | Ресурс 'default_db' вернул False при инициализации
+2026-04-19 11:48:53,805 | INFO     | SYSTEM_READY         | infra.context                  | Все инфраструктурные ресурсы инициализированы: 0/2 успешно
+2026-04-19 11:48:53,805 | INFO     | SYSTEM_READY         | infra.context                  | [OK] LifecycleManager initialized
+2026-04-19 11:48:53,824 | INFO     | SYSTEM_INIT          | infra.context                  | Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-04-19 11:48:53,842 | ERROR    | DB_ERROR             | infra.context                  | Ошибка инициализации PostgreSQL провайдера: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 41, in initialize
+    self.pool = await asyncpg.create_pool(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 439, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 466, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 153, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 538, in _get_new_connection
+    con = await self._connect(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 1140, in create_connection
+    raise OSError('Multiple exceptions: {}'.format(
+OSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2026-04-19 11:48:53,844 | INFO     | DB_QUERY             | infra.context                  | [DB_DEBUG] execute_query вызван с query=SELECT 1 as test, params=None
+2026-04-19 11:48:53,844 | INFO     | SYSTEM_INIT          | infra.context                  | Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-04-19 11:48:53,846 | ERROR    | DB_ERROR             | infra.context                  | Ошибка инициализации PostgreSQL провайдера: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 41, in initialize
+    self.pool = await asyncpg.create_pool(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 439, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 466, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 153, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 538, in _get_new_connection
+    con = await self._connect(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 1140, in create_connection
+    raise OSError('Multiple exceptions: {}'.format(
+OSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2026-04-19 11:48:53,847 | WARNING  | WARNING              | infra.context                  | Обнаружено мёртвое подключение, пересоздаю пул...
+2026-04-19 11:48:53,848 | INFO     | SYSTEM_INIT          | infra.context                  | Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-04-19 11:48:53,849 | ERROR    | DB_ERROR             | infra.context                  | Ошибка инициализации PostgreSQL провайдера: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 41, in initialize
+    self.pool = await asyncpg.create_pool(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 439, in _async__init__
+    await self._initialize()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 466, in _initialize
+    await first_ch.connect()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 153, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/pool.py", line 538, in _get_new_connection
+    con = await self._connect(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 1140, in create_connection
+    raise OSError('Multiple exceptions: {}'.format(
+OSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2026-04-19 11:48:53,862 | ERROR    | DB_ERROR             | infra.context                  | [DB_DEBUG] исключение при выполнении запроса: 'NoneType' object has no attribute 'acquire'
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 85, in _acquire_valid_connection
+    conn = await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 181, in execute_query
+    conn = await self._acquire_valid_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 100, in _acquire_valid_connection
+    return await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+2026-04-19 11:48:53,863 | ERROR    | DB_ERROR             | infra.context                  | Ошибка выполнения запроса: 'NoneType' object has no attribute 'acquire'
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 85, in _acquire_valid_connection
+    conn = await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 181, in execute_query
+    conn = await self._acquire_valid_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 100, in _acquire_valid_connection
+    return await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+2026-04-19 11:48:53,864 | ERROR    | DB_ERROR             | infra.context                  | Query was: SELECT 1 as test
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 85, in _acquire_valid_connection
+    conn = await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 181, in execute_query
+    conn = await self._acquire_valid_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/core/infrastructure/providers/database/postgres_provider.py", line 100, in _acquire_valid_connection
+    return await self.pool.acquire()
+                 ^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'acquire'
+2026-04-19 11:48:53,865 | INFO     | DB_QUERY             | infra.context                  | [DB_DEBUG] возвращаем DBQueryResult: success=False, error='NoneType' object has no attribute 'acquire', rows=0
+2026-04-19 11:48:53,885 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | Начало завершения работы InfrastructureContext
+2026-04-19 11:48:53,885 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | Сохранение Vector Search индексов...
+2026-04-19 11:48:53,886 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | 💾 Сохранён индекс audits: data/vector/audits_index.faiss
+2026-04-19 11:48:53,886 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | 💾 Сохранён индекс violations: data/vector/violations_index.faiss
+2026-04-19 11:48:53,886 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | Завершение работы инфраструктурных ресурсов
+2026-04-19 11:48:53,886 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | PostgreSQL провайдер успешно завершил работу
+2026-04-19 11:48:53,886 | DEBUG    | SYSTEM_SHUTDOWN      | infra.context                  | Ресурс 'default_db' завершён
+2026-04-19 11:48:53,886 | DEBUG    | SYSTEM_SHUTDOWN      | infra.context                  | Ресурс 'default_llm' завершён
+2026-04-19 11:48:53,887 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | Все инфраструктурные ресурсы завершены: 2/2 успешно
+2026-04-19 11:48:53,887 | INFO     | SYSTEM_SHUTDOWN      | infra.context                  | InfrastructureContext завершён
