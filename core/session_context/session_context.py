@@ -4,6 +4,7 @@
 - Нет лишних зависимостей и сложной логики
 - Легко понять и использовать
 """
+import time
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -59,6 +60,9 @@ class SessionContext(BaseSessionContext):
         
         # История диалога для сохранения контекста между запросами
         self.dialogue_history = DialogueHistory(max_rounds=10)
+
+        # Универсальный лог пустых результатов запросов
+        self.empty_query_log: List[Dict[str, Any]] = []
     
     def set_goal(self, goal: str) -> None:
         """
@@ -486,3 +490,86 @@ class SessionContext(BaseSessionContext):
             self.dialogue_history.messages.append(
                 type(msg)(role=msg.role, content=msg.content, tools_used=list(msg.tools_used))
             )
+
+    # ========================================================================
+    # EMPTY QUERY LOG - универсальный трекер пустых результатов
+    # ========================================================================
+
+    def record_empty_result(
+        self,
+        tool: str,
+        tables: List[str],
+        filters: Dict[str, Any],
+        columns_used: Optional[List[str]] = None
+    ) -> None:
+        """
+        Запись пустого результата запроса без привязки к конкретным скриптам.
+
+        ПАРАМЕТРЫ:
+        - tool: название инструмента/скилла
+        - tables: список таблиц в запросе
+        - filters: словарь использованных фильтров
+        - columns_used: использованные колонки (опционально)
+        """
+        self.empty_query_log.append({
+            "tool": tool,
+            "tables": tables,
+            "filters": filters,
+            "columns": columns_used or [],
+            "timestamp": time.time()
+        })
+
+    def needs_exploration(self, threshold: int = 2) -> bool:
+        """
+        Вернёт True, если запрос вернул пусто >= threshold раз подряд.
+
+        ПАРАМЕТРЫ:
+        - threshold: количество пустых результатов для активации режима исследования
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если нужно исследовать данные
+        """
+        if not self.empty_query_log:
+            return False
+        return len(self.empty_query_log) >= threshold
+
+    def get_exploration_context(self) -> str:
+        """
+        Генер��ция контекста для LLM на основе последних пустых запросов.
+
+        ВОЗВРАЩАЕТ:
+        - str: текстовый контекст для исследования данных
+        """
+        if not self.empty_query_log:
+            return ""
+        
+        last = self.empty_query_log[-1]
+        tables_str = ", ".join(last["tables"])
+        filters_str = str(last["filters"])
+        
+        context = [
+            "🔍 **ИСТОРИЯ ПУСТЫХ ЗАПРОСОВ:**",
+            f"- Таблицы: `{tables_str}`",
+            f"- Использованные фильтры: `{filters_str}`",
+            "- Результат: 0 строк"
+        ]
+        
+        if len(self.empty_query_log) > 1:
+            context.append(f"- Всего пустых попыток: {len(self.empty_query_log)}")
+        
+        return "\n".join(context)
+
+    def get_last_empty_query(self) -> Optional[Dict[str, Any]]:
+        """
+        Получение последнего пустого запроса.
+
+        ВОЗВРАЩАЕТ:
+        - Dict или None если лог пуст
+        """
+        if not self.empty_query_log:
+            return None
+        return self.empty_query_log[-1]
+
+    def clear_empty_query_log(self) -> None:
+        """Очистка лога пустых запросов (после успешного запроса)."""
+        self.empty_query_log.clear()
