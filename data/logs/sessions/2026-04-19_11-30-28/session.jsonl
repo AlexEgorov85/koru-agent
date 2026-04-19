@@ -1,0 +1,30 @@
+{"timestamp": "2026-04-19T11:30:29.324868", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
+{"timestamp": "2026-04-19T11:30:29.325635", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
+{"timestamp": "2026-04-19T11:30:29.325252", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:29.325377", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:29.345433", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 0}
+{"timestamp": "2026-04-19T11:30:29.345584", "event_type": "user.result", "session_id": "8265d8a4-c7f3-440b-aa8a-82320212a50b", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
+{"timestamp": "2026-04-19T11:30:29.345788", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:29.345859", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:29.409385", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator initialized"}
+{"timestamp": "2026-04-19T11:30:30.212213", "event_type": "debug", "session_id": "1b659635-8a74-4382-a7cb-aa2456793666", "agent_id": "test_success_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:30.212361", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:30.212430", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:30.566508", "event_type": "debug", "session_id": "386878ae-db2d-46c9-8a2f-37a2beb7de83", "agent_id": "test_fallback_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:30.566637", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:30.566713", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:30.722200", "event_type": "debug", "session_id": "c132f9c9-57d7-49f7-8aa4-96df493b390c", "agent_id": "test_policy_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:30.722408", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:30.722493", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:30.885844", "event_type": "debug", "session_id": "e6ef6c76-4608-47c5-a094-91a22938460f", "agent_id": "test_multistep_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:30.885976", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:30.886051", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:31.063078", "event_type": "debug", "session_id": "a6a3378d-9bda-490c-a9d8-bd012bf070e4", "agent_id": "test_error_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:31.063285", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:31.063377", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:31.110052", "event_type": "debug", "session_id": "607324a1-5950-438c-918d-c1848d00ddf2", "agent_id": "test_db_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-19T11:30:31.110214", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-19T11:30:31.110282", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:31.266965", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator shutdown"}
+{"timestamp": "2026-04-19T11:30:31.267067", "event_type": "resources_cleared", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-19T11:30:31.269001", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 0, "success": 0}
