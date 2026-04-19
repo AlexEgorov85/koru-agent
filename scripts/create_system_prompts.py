@@ -175,10 +175,10 @@ def create_system_prompts():
         # Формируем capability из пути
         # Примеры:
         # skill/planning/planning.create_plan.user → skill.planning.create_plan
-        # behavior/behavior/behavior.react.think.user → behavior.react.think
+        # behavior/behavior.react.think.user → behavior.react.think
         
-        if len(parts) == 3 and parts[0] == 'behavior' and parts[1] == 'behavior':
-            # behavior/behavior/behavior.X.user → behavior.X
+        if len(parts) == 2 and parts[0] == 'behavior':
+            # behavior/behavior.X.user → behavior.X
             capability = f"behavior.{filename.replace('behavior.', '')}"
         elif len(parts) > 1:
             # component_type/component_name/capability.user
