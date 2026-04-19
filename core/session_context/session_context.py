@@ -235,13 +235,8 @@ class SessionContext(BaseSessionContext):
                     "step_number": step.step_number,
                     "capability": step.capability_name,
                     "skill": step.skill_name,
-                    "parameters": (
-                        self.get_context_item(step.action_item_id).content.get(
-                            "parameters"
-                        )
-                        if self.get_context_item(step.action_item_id)
-                        else {}
-                    ),
+                    # Используем step.parameters напрямую, т.к. action_item_id может быть None для заблокированных действий
+                    "parameters": step.parameters or {},
                     "summary": step.summary,
                 }
 
