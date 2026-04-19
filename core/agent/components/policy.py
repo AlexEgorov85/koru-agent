@@ -7,7 +7,7 @@
 """
 
 import random
-from typing import TYPE_CHECKING, Dict, Any, Tuple
+from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional, List
 
 if TYPE_CHECKING:
     # Delay import to avoid circular imports
