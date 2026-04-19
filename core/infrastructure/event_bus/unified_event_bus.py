@@ -53,10 +53,12 @@ await event_bus.publish(
 )
 ```
 """
+
 import asyncio
 import inspect
 import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -70,7 +72,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 DEFAULT_QUEUE_MAX_SIZE = 1000
 DEFAULT_WORKER_IDLE_TIMEOUT = 60.0
-DEFAULT_SUBSCRIBER_TIMEOUT = 60.0  # Таймаут подписчиков (LLM timeout настраивается отдельно)
+DEFAULT_SUBSCRIBER_TIMEOUT = (
+    60.0  # Таймаут подписчиков (LLM timeout настраивается отдельно)
+)
 SYSTEM_SESSION_ID = "system"  # Единая системная сессия для всех событий без session_id
 
 
@@ -78,8 +82,10 @@ SYSTEM_SESSION_ID = "system"  # Единая системная сессия д�
 # ТИПЫ СОБЫТИЙ И ДОМЕНЫ
 # =============================================================================
 
+
 class EventType(Enum):
     """Типы событий в системе."""
+
     # === Системные события ===
     SYSTEM_INITIALIZED = "system.initialized"
     SYSTEM_SHUTDOWN = "system.shutdown"
@@ -200,6 +206,7 @@ class EventType(Enum):
 
 class EventDomain(Enum):
     """Домены событий для изоляции компонентов."""
+
     AGENT = "agent"
     BENCHMARK = "benchmark"
     INFRASTRUCTURE = "infrastructure"
@@ -222,12 +229,10 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.CONTEXT_ITEM_ADDED: EventDomain.AGENT,
     EventType.PLAN_CREATED: EventDomain.AGENT,
     EventType.PLAN_UPDATED: EventDomain.AGENT,
-
     # Benchmark domain
     EventType.BENCHMARK_STARTED: EventDomain.BENCHMARK,
     EventType.BENCHMARK_COMPLETED: EventDomain.BENCHMARK,
     EventType.BENCHMARK_FAILED: EventDomain.BENCHMARK,
-
     # Infrastructure domain
     EventType.SYSTEM_INITIALIZED: EventDomain.INFRASTRUCTURE,
     EventType.SYSTEM_SHUTDOWN: EventDomain.INFRASTRUCTURE,
@@ -245,7 +250,6 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.SERVICE_ERROR: EventDomain.INFRASTRUCTURE,
     EventType.COMPONENT_INITIALIZED: EventDomain.INFRASTRUCTURE,
     EventType.COMPONENT_SHUTDOWN: EventDomain.INFRASTRUCTURE,
-
     # Optimization domain
     EventType.OPTIMIZATION_CYCLE_STARTED: EventDomain.OPTIMIZATION,
     EventType.OPTIMIZATION_CYCLE_COMPLETED: EventDomain.OPTIMIZATION,
@@ -263,7 +267,6 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.SELF_IMPROVEMENT_REPORT: EventDomain.OPTIMIZATION,
     EventType.SELF_IMPROVEMENT_COMPLETED: EventDomain.OPTIMIZATION,
     EventType.SELF_IMPROVEMENT_FAILED: EventDomain.OPTIMIZATION,
-
     # Common domain
     EventType.RETRY_ATTEMPT: EventDomain.COMMON,
     EventType.ERROR_OCCURRED: EventDomain.COMMON,
@@ -288,6 +291,7 @@ def get_event_domain(event_type: Union[str, EventType]) -> EventDomain:
 # СОБЫТИЕ
 # =============================================================================
 
+
 @dataclass
 class Event:
     """
@@ -305,6 +309,7 @@ class Event:
     - domain: домен события (для routing)
     - _processed: сигнал завершения обработки (для синхронного publish)
     """
+
     event_type: str
     data: Dict[str, Any]
     timestamp: datetime = field(default_factory=datetime.now)
@@ -330,9 +335,11 @@ class Event:
 # МЕТАДАННЫЕ СЕССИИ
 # =============================================================================
 
+
 @dataclass
 class SessionMeta:
     """Метаданные сессии."""
+
     session_id: str
     agent_id: str
     created_at: datetime
@@ -346,9 +353,11 @@ class SessionMeta:
 # DOMAIN FILTER
 # =============================================================================
 
+
 @dataclass
 class SubscriberInfo:
     """Информация о подписчике."""
+
     handler: Callable
     domain: Optional[EventDomain] = None
     domains: Optional[List[EventDomain]] = None
@@ -362,13 +371,17 @@ class SubscriberInfo:
 
         # Фильтр по домену
         if self.domain is not None:
-            event_domain = event.domain if event.domain else get_event_domain(event.event_type)
+            event_domain = (
+                event.domain if event.domain else get_event_domain(event.event_type)
+            )
             if event_domain != self.domain:
                 return False
 
         # Фильтр по списку доменов (для subscribe_all)
         if self.domains is not None:
-            event_domain = event.domain if event.domain else get_event_domain(event.event_type)
+            event_domain = (
+                event.domain if event.domain else get_event_domain(event.event_type)
+            )
             if event_domain not in self.domains:
                 return False
 
@@ -378,6 +391,7 @@ class SubscriberInfo:
 # =============================================================================
 # SESSION WORKER
 # =============================================================================
+
 
 class SessionWorker:
     """
@@ -400,7 +414,7 @@ class SessionWorker:
         idle_timeout: float = DEFAULT_WORKER_IDLE_TIMEOUT,
         subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT,
         event_bus: "UnifiedEventBus" = None,
-        session_bound: bool = False  # Worker живёт пока сессия активна
+        session_bound: bool = False,  # Worker живёт пока сессия активна
     ):
         self.session_id = session_id
         self.agent_id = agent_id
@@ -425,19 +439,21 @@ class SessionWorker:
         """Запуск worker'а."""
         if self._task is not None:
             self._logger.warning("Worker уже запущен")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         self._running = True
         self._task = asyncio.create_task(self._run())
-        
+
         # ← НОВОЕ: Показываем session_bound статус
         if self._session_bound:
-            self._logger.debug(f"Worker запущен (session_bound=True, idle_timeout={self._idle_timeout}s)")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._logger.debug(
+                f"Worker запущен (session_bound=True, idle_timeout={self._idle_timeout}s)"
+            )
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             self._logger.debug(f"Worker запущен (idle_timeout={self._idle_timeout}s)")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if self._event_bus:
             await self._event_bus._publish_internal(
@@ -445,8 +461,8 @@ class SessionWorker:
                 {
                     "session_id": self.session_id,
                     "agent_id": self.agent_id,
-                    "queue_size": self._queue.qsize()
-                }
+                    "queue_size": self._queue.qsize(),
+                },
             )
 
     async def _run(self):
@@ -457,25 +473,32 @@ class SessionWorker:
             while self._running:
                 try:
                     event = await asyncio.wait_for(
-                        self._queue.get(),
-                        timeout=self._idle_timeout
+                        self._queue.get(), timeout=self._idle_timeout
                     )
 
                     # ← НОВОЕ: Проверка на завершение сессии для session_bound worker'а
-                    if (self._session_bound and 
-                        event.event_type == EventType.SESSION_COMPLETED.value and
-                        event.data.get('session_id') == self.session_id):
-                        self._logger.info(f"Сессия {self.session_id} завершена, остановка worker'а")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if (
+                        self._session_bound
+                        and event.event_type == EventType.SESSION_COMPLETED.value
+                        and event.data.get("session_id") == self.session_id
+                    ):
+                        self._logger.info(
+                            f"Сессия {self.session_id} завершена, остановка worker'а"
+                        )
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         self._queue.task_done()
                         break
-                    
+
                     # ← НОВОЕ: Проверка на закрытие сессии
-                    if (self._session_bound and 
-                        event.event_type == EventType.SESSION_CLOSED.value and
-                        event.data.get('session_id') == self.session_id):
-                        self._logger.info(f"Сессия {self.session_id} закрыта, остановка worker'а")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if (
+                        self._session_bound
+                        and event.event_type == EventType.SESSION_CLOSED.value
+                        and event.data.get("session_id") == self.session_id
+                    ):
+                        self._logger.info(
+                            f"Сессия {self.session_id} закрыта, остановка worker'а"
+                        )
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         self._queue.task_done()
                         break
 
@@ -492,37 +515,39 @@ class SessionWorker:
                         # ← НОВОЕ: session_bound worker не завершается по idle timeout
                         if self._session_bound:
                             self._logger.debug(
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                                 f"Idle timeout ({idle_time:.1f}s), но worker session_bound - продолжаем ждать"
                             )
                             continue  # ← Продолжаем ждать вместо break
-                        
-                        self._logger.debug(f"Idle timeout ({idle_time:.1f}s), завершение worker'а")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+                        self._logger.debug(
+                            f"Idle timeout ({idle_time:.1f}s), завершение worker'а"
+                        )
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         if self._event_bus:
                             await self._event_bus._publish_internal(
                                 EventType.WORKER_IDLE,
                                 {
                                     "session_id": self.session_id,
                                     "idle_seconds": idle_time,
-                                    "processed_count": self._processed_count
-                                }
+                                    "processed_count": self._processed_count,
+                                },
                             )
                         break
 
                 except asyncio.CancelledError:
                     self._logger.debug("Worker отменён")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     break
 
                 except Exception as e:
                     self._logger.error(f"Ошибка в цикле worker'а: {e}", exc_info=True)
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     self._error_count += 1
 
         except Exception as e:
             self._logger.error(f"Критическая ошибка worker'а: {e}", exc_info=True)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self._event_bus:
                 await self._event_bus._publish_internal(
                     EventType.WORKER_CRASHED,
@@ -530,13 +555,15 @@ class SessionWorker:
                         "session_id": self.session_id,
                         "error": str(e),
                         "processed_count": self._processed_count,
-                        "error_count": self._error_count
-                    }
+                        "error_count": self._error_count,
+                    },
                 )
         finally:
             self._running = False
-            self._logger.debug(f"Worker завершён (обработано: {self._processed_count}, ошибок: {self._error_count})")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self._logger.debug(
+                f"Worker завершён (обработано: {self._processed_count}, ошибок: {self._error_count})"
+            )
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _process_event(self, event: Event):
         """Обработка одного события."""
@@ -545,7 +572,6 @@ class SessionWorker:
         self._processed_count += 1
 
         # Отладка
-
 
         # Получаем подписчиков для этого типа события
         event_type_handlers = self._subscribers.get(event.event_type, [])
@@ -570,8 +596,10 @@ class SessionWorker:
             try:
                 await self._call_subscriber(handler, event)
             except Exception as e:
-                self._logger.error(f"Ошибка в подписчике {handler.__name__}: {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self._logger.error(
+                    f"Ошибка в подписчике {handler.__name__}: {e}", exc_info=True
+                )
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self._error_count += 1
 
                 if self._event_bus:
@@ -581,8 +609,8 @@ class SessionWorker:
                             "session_id": self.session_id,
                             "subscriber": handler.__name__,
                             "event_type": event.event_type,
-                            "error": str(e)
-                        }
+                            "error": str(e),
+                        },
                     )
 
     async def _call_subscriber(self, handler: Callable, event: Event):
@@ -594,15 +622,17 @@ class SessionWorker:
                 loop = asyncio.get_running_loop()
                 await asyncio.wait_for(
                     loop.run_in_executor(None, handler, event),
-                    timeout=self._subscriber_timeout
+                    timeout=self._subscriber_timeout,
                 )
         except asyncio.TimeoutError:
-            raise TimeoutError(f"Subscriber {handler.__name__} превысил таймаут ({self._subscriber_timeout}s)")
+            raise TimeoutError(
+                f"Subscriber {handler.__name__} превысил таймаут ({self._subscriber_timeout}s)"
+            )
 
     async def stop(self):
         """Остановка worker'а."""
         self._logger.debug("Остановка worker'а...")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self._running = False
 
         if self._task:
@@ -613,7 +643,7 @@ class SessionWorker:
                 pass
 
         self._logger.debug("Worker остановлен")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     @property
     def is_running(self) -> bool:
@@ -635,6 +665,7 @@ class SessionWorker:
 # =============================================================================
 # UNIFIED EVENT BUS
 # =============================================================================
+
 
 class UnifiedEventBus:
     """
@@ -697,7 +728,7 @@ class UnifiedEventBus:
         self,
         queue_max_size: int = DEFAULT_QUEUE_MAX_SIZE,
         worker_idle_timeout: float = DEFAULT_WORKER_IDLE_TIMEOUT,
-        subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT
+        subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT,
     ):
         # Подписчики с метаданными
         self._subscribers: Dict[str, List[SubscriberInfo]] = {}
@@ -725,7 +756,9 @@ class UnifiedEventBus:
 
         # === МИГРАЦИЯ: счётчик дублирования подписчиков ===
         self._duplicate_subscription_count = 0
-        self._duplicate_event_warning_threshold = 10  # Предупреждение после N дубликатов
+        self._duplicate_event_warning_threshold = (
+            10  # Предупреждение после N дубликатов
+        )
 
     # =========================================================================
     # ПОДПИСКА / ОТПИСКА
@@ -736,7 +769,7 @@ class UnifiedEventBus:
         event_type: Union[str, EventType],
         handler: Callable,
         domain: Optional[EventDomain] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ):
         """
         Подписка на событие с фильтрацией по домену и сессии.
@@ -767,32 +800,36 @@ class UnifiedEventBus:
         )
         ```
         """
-        event_type_str = event_type.value if isinstance(event_type, EventType) else event_type
+        event_type_str = (
+            event_type.value if isinstance(event_type, EventType) else event_type
+        )
 
         if event_type_str not in self._subscribers:
             self._subscribers[event_type_str] = []
 
-        sub_info = SubscriberInfo(
-            handler=handler,
-            domain=domain,
-            session_id=session_id
-        )
+        sub_info = SubscriberInfo(handler=handler, domain=domain, session_id=session_id)
 
         # === МИГРАЦИЯ: детекция дублирования подписчиков ===
         for existing_sub in self._subscribers[event_type_str]:
             if existing_sub.handler == handler:
                 # Обнаружено дублирование подписки!
                 self._duplicate_subscription_count += 1
-                if self._duplicate_subscription_count <= self._duplicate_event_warning_threshold:
+                if (
+                    self._duplicate_subscription_count
+                    <= self._duplicate_event_warning_threshold
+                ):
                     self._internal_logger.warning(
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"⚠️ MIGRATION: Обнаружено дублирование подписчика на {event_type_str}: "
                         f"{handler.__name__} (domain={domain}, session_id={session_id}). "
                         f"Всего дубликатов: {self._duplicate_subscription_count}"
                     )
-                elif self._duplicate_subscription_count == self._duplicate_event_warning_threshold + 1:
+                elif (
+                    self._duplicate_subscription_count
+                    == self._duplicate_event_warning_threshold + 1
+                ):
                     self._internal_logger.warning(
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"⚠️ MIGRATION: Слишком много дубликатов подписчиков ({self._duplicate_subscription_count}). "
                         f"Дальнейшие предупреждения отключены."
                     )
@@ -801,15 +838,13 @@ class UnifiedEventBus:
         if sub_info not in self._subscribers[event_type_str]:
             self._subscribers[event_type_str].append(sub_info)
             self._internal_logger.debug(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Подписан обработчик на {event_type_str}: {handler.__name__}, "
                 f"domain={domain}, session_id={session_id}"
             )
 
     def subscribe_all(
-        self,
-        handler: Callable,
-        domains: Optional[List[EventDomain]] = None
+        self, handler: Callable, domains: Optional[List[EventDomain]] = None
     ):
         """
         Подписка на все события с фильтрацией по доменам.
@@ -830,24 +865,17 @@ class UnifiedEventBus:
         )
         ```
         """
-        sub_info = SubscriberInfo(
-            handler=handler,
-            domains=domains
-        )
+        sub_info = SubscriberInfo(handler=handler, domains=domains)
 
         if sub_info not in self._all_subscribers:
             self._all_subscribers.append(sub_info)
             self._internal_logger.debug(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Подписан обработчик на все события: {handler.__name__}, "
                 f"domains={domains}"
             )
 
-    def unsubscribe(
-        self,
-        event_type: Union[str, EventType],
-        handler: Callable
-    ):
+    def unsubscribe(self, event_type: Union[str, EventType], handler: Callable):
         """
         Отписка от события.
 
@@ -855,25 +883,26 @@ class UnifiedEventBus:
         - event_type: тип события (EventType или строка)
         - handler: функция-обработчик
         """
-        event_type_str = event_type.value if isinstance(event_type, EventType) else event_type
+        event_type_str = (
+            event_type.value if isinstance(event_type, EventType) else event_type
+        )
 
         if event_type_str in self._subscribers:
             self._subscribers[event_type_str] = [
-                sub for sub in self._subscribers[event_type_str]
+                sub
+                for sub in self._subscribers[event_type_str]
                 if sub.handler != handler
             ]
 
     def unsubscribe_all(self, handler: Callable):
         """Отписка от всех событий."""
         self._all_subscribers = [
-            sub for sub in self._all_subscribers
-            if sub.handler != handler
+            sub for sub in self._all_subscribers if sub.handler != handler
         ]
 
         for event_type in list(self._subscribers.keys()):
             self._subscribers[event_type] = [
-                sub for sub in self._subscribers[event_type]
-                if sub.handler != handler
+                sub for sub in self._subscribers[event_type] if sub.handler != handler
             ]
 
     # =========================================================================
@@ -890,7 +919,7 @@ class UnifiedEventBus:
         correlation_id: str = "",
         domain: Optional[EventDomain] = None,
         # Для обратной совместимости
-        event: Union[Event, str, EventType, None] = None
+        event: Union[Event, str, EventType, None] = None,
     ):
         """
         Публикация события с domain routing.
@@ -919,15 +948,13 @@ class UnifiedEventBus:
 
         if event_type is None:
             self._internal_logger.warning("publish() вызван без event_type")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         if not self._running:
             self._internal_logger.warning("EventBus остановлен, событие отклонено")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
-
-
 
         # Создаём Event объект
         event_obj = self._create_event(
@@ -940,10 +967,12 @@ class UnifiedEventBus:
             event_obj.session_id = SYSTEM_SESSION_ID
             # Убрал логирование чтобы избежать цикла с LoggingToEventBusHandler
             # self._internal_logger.debug(f"Использована системная сессия для события: {event_obj.event_type}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Получаем или создаём очередь для сессии
-        queue = await self._get_or_create_queue(event_obj.session_id, event_obj.agent_id)
+        queue = await self._get_or_create_queue(
+            event_obj.session_id, event_obj.agent_id
+        )
 
         # BackPressure — проверка размера очереди
         if queue.qsize() >= self._queue_max_size:
@@ -968,7 +997,7 @@ class UnifiedEventBus:
         correlation_id: str = "",
         domain: Optional[EventDomain] = None,
         # Для обратной совместимости
-        event: Union[Event, str, EventType, None] = None
+        event: Union[Event, str, EventType, None] = None,
     ) -> bool:
         """
         Синхронная публикация события (без await).
@@ -997,12 +1026,12 @@ class UnifiedEventBus:
 
         if event_type is None:
             self._internal_logger.warning("publish_sync() вызван без event_type")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         if not self._running:
             self._internal_logger.warning("EventBus остановлен, событие отклонено")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         # Создаём Event объект
@@ -1020,7 +1049,7 @@ class UnifiedEventBus:
         # Если очереди нет — worker ещё не создан, используем fallback
         if queue is None:
             self._internal_logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Синхронная публикация до создания worker для сессии {event_obj.session_id}, "
                 f"событие отклонено (используйте стандартный логгер в конструкторах)"
             )
@@ -1029,7 +1058,7 @@ class UnifiedEventBus:
         # BackPressure — проверка размера очереди
         if queue.qsize() >= self._queue_max_size:
             self._internal_logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size} (событие отклонено)"
             )
             return False
@@ -1040,7 +1069,7 @@ class UnifiedEventBus:
             return True
         except asyncio.QueueFull:
             self._internal_logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Queue full для сессии {event_obj.session_id}, событие отклонено"
             )
             return False
@@ -1053,15 +1082,21 @@ class UnifiedEventBus:
         session_id: str,
         agent_id: str,
         correlation_id: str,
-        domain: Optional[EventDomain]
+        domain: Optional[EventDomain],
     ) -> Event:
         """Создание Event объекта."""
         event_type_input = event_type
-        event_type_str_input = event_type.value if isinstance(event_type, EventType) else str(event_type)
+        event_type_str_input = (
+            event_type.value if isinstance(event_type, EventType) else str(event_type)
+        )
 
         if isinstance(event_type, Event):
             event = event_type
-            event_type_result = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
+            event_type_result = (
+                event.event_type.value
+                if hasattr(event.event_type, "value")
+                else str(event.event_type)
+            )
             if session_id:
                 event.session_id = session_id
             if agent_id:
@@ -1072,7 +1107,9 @@ class UnifiedEventBus:
                 event.domain = domain
             return event
 
-        event_type_str = event_type.value if isinstance(event_type, EventType) else event_type
+        event_type_str = (
+            event_type.value if isinstance(event_type, EventType) else event_type
+        )
 
         # Определение домена
         if domain is None:
@@ -1085,13 +1122,11 @@ class UnifiedEventBus:
             session_id=session_id,
             agent_id=agent_id,
             correlation_id=correlation_id,
-            domain=domain
+            domain=domain,
         )
 
     async def _get_or_create_queue(
-        self,
-        session_id: str,
-        agent_id: str
+        self, session_id: str, agent_id: str
     ) -> asyncio.Queue:
         """Получение или создание очереди для сессии."""
         async with self._lock:
@@ -1103,7 +1138,7 @@ class UnifiedEventBus:
                     session_id=session_id,
                     agent_id=agent_id,
                     created_at=datetime.now(),
-                    last_event_at=datetime.now()
+                    last_event_at=datetime.now(),
                 )
 
                 worker = SessionWorker(
@@ -1115,7 +1150,7 @@ class UnifiedEventBus:
                     idle_timeout=self._worker_idle_timeout,
                     subscriber_timeout=self._subscriber_timeout,
                     event_bus=self,
-                    session_bound=True  # ← Worker живёт пока сессия активна
+                    session_bound=True,  # ← Worker живёт пока сессия активна
                 )
                 self._session_workers[session_id] = worker
 
@@ -1124,21 +1159,18 @@ class UnifiedEventBus:
                 # Логирование с указанием типа сессии
                 if agent_id:
                     self._internal_logger.info(
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Создана сессия {session_id} (agent={agent_id})"
                     )
                 else:
                     self._internal_logger.info(
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Создана системная сессия {session_id}"
                     )
 
                 await self._publish_internal(
                     EventType.SESSION_CREATED,
-                    {
-                        "session_id": session_id,
-                        "agent_id": agent_id
-                    }
+                    {"session_id": session_id, "agent_id": agent_id},
                 )
 
             if session_id in self._active_sessions:
@@ -1148,10 +1180,7 @@ class UnifiedEventBus:
             return self._session_queues[session_id]
 
     async def _publish_internal(
-        self,
-        event_type: EventType,
-        data: Dict[str, Any],
-        session_id: str = "system"
+        self, event_type: EventType, data: Dict[str, Any], session_id: str = "system"
     ):
         """
         Внутренняя публикация телеметрических событий.
@@ -1162,7 +1191,7 @@ class UnifiedEventBus:
             event_type=event_type.value,
             data=data,
             session_id=session_id,
-            source="event_bus"
+            source="event_bus",
         )
 
         handlers = [sub.handler for sub in self._all_subscribers[:]]
@@ -1173,7 +1202,7 @@ class UnifiedEventBus:
                     asyncio.create_task(handler(event))
             except Exception as e:
                 self._internal_logger.error(f"Ошибка в internal handler: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     # =========================================================================
     # УПРАВЛЕНИЕ СЕССИЯМИ
@@ -1189,7 +1218,7 @@ class UnifiedEventBus:
         """
         if session_id not in self._session_workers:
             self._internal_logger.debug(f"Сессия {session_id} не найдена")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         worker = self._session_workers[session_id]
@@ -1207,26 +1236,25 @@ class UnifiedEventBus:
             self._active_sessions[session_id].is_active = False
 
         self._internal_logger.debug(f"Сессия {session_id} закрыта")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         await self._publish_internal(
             EventType.WORKER_CLOSED,
             {
                 "session_id": session_id,
                 "processed_count": worker.processed_count,
-                "error_count": worker.error_count
-            }
+                "error_count": worker.error_count,
+            },
         )
 
     async def close_all_sessions(self, wait_empty: bool = True):
         """Закрытие всех сессий."""
         session_ids = list(self._session_workers.keys())
         self._internal_logger.info(f"Закрытие {len(session_ids)} сессий")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         tasks = [
-            self.close_session(session_id, wait_empty)
-            for session_id in session_ids
+            self.close_session(session_id, wait_empty) for session_id in session_ids
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1247,16 +1275,17 @@ class UnifiedEventBus:
         - timeout: максимальное время ожидания
         """
         self._internal_logger.info("Начало shutdown EventBus")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self._running = False
 
         try:
             self._internal_logger.debug("Ожидание опустошения очередей...")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             async def wait_queues():
                 tasks = [
-                    queue.join() for queue in self._session_queues.values()
+                    queue.join()
+                    for queue in self._session_queues.values()
                     if not queue.empty()
                 ]
                 if tasks:
@@ -1267,11 +1296,11 @@ class UnifiedEventBus:
             await self.close_all_sessions(wait_empty=False)
 
             self._internal_logger.info("EventBus shutdown завершён")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         except asyncio.TimeoutError:
             self._internal_logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Shutdown timeout ({timeout}s), принудительное завершение"
             )
             for worker in list(self._session_workers.values()):
@@ -1279,7 +1308,7 @@ class UnifiedEventBus:
 
         except Exception as e:
             self._internal_logger.error(f"Ошибка при shutdown: {e}", exc_info=True)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             raise
 
         finally:
@@ -1312,23 +1341,27 @@ class UnifiedEventBus:
                     "is_active": meta.is_active,
                     "queue_size": (
                         self._session_queues.get(session_id, None).qsize()
-                        if session_id in self._session_queues else 0
+                        if session_id in self._session_queues
+                        else 0
                     ),
                     "worker_running": (
                         self._session_workers.get(session_id, None).is_running
-                        if session_id in self._session_workers else False
+                        if session_id in self._session_workers
+                        else False
                     ),
                     "processed_count": (
                         self._session_workers.get(session_id, None).processed_count
-                        if session_id in self._session_workers else 0
+                        if session_id in self._session_workers
+                        else 0
                     ),
                     "error_count": (
                         self._session_workers.get(session_id, None).error_count
-                        if session_id in self._session_workers else 0
+                        if session_id in self._session_workers
+                        else 0
                     ),
                 }
                 for session_id, meta in self._active_sessions.items()
-            }
+            },
         }
 
     def get_session_meta(self, session_id: str) -> Optional[SessionMeta]:
@@ -1338,14 +1371,16 @@ class UnifiedEventBus:
     def get_active_sessions(self) -> List[str]:
         """Получение списка активных session_id."""
         return [
-            session_id for session_id, meta in self._active_sessions.items()
+            session_id
+            for session_id, meta in self._active_sessions.items()
             if meta.is_active
         ]
 
     def get_sessions_by_agent(self, agent_id: str) -> List[str]:
         """Получение session_id для конкретного агента."""
         return [
-            session_id for session_id, meta in self._active_sessions.items()
+            session_id
+            for session_id, meta in self._active_sessions.items()
             if meta.agent_id == agent_id
         ]
 
@@ -1366,14 +1401,14 @@ class UnifiedEventBus:
             "duplicate_subscription_count": self._duplicate_subscription_count,
             "duplicate_warning_threshold": self._duplicate_event_warning_threshold,
             "migration_active": True,
-            "message": "Статистика миграции: отслеживание дублирования подписчиков"
+            "message": "Статистика миграции: отслеживание дублирования подписчиков",
         }
 
     def reset_migration_stats(self):
         """Сброс статистики миграции."""
         self._duplicate_subscription_count = 0
         self._internal_logger.info("Статистика миграции сброшена")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 # =============================================================================
@@ -1399,7 +1434,7 @@ def get_event_bus() -> UnifiedEventBus:
 def create_event_bus(
     queue_max_size: int = DEFAULT_QUEUE_MAX_SIZE,
     worker_idle_timeout: float = DEFAULT_WORKER_IDLE_TIMEOUT,
-    subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT
+    subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT,
 ) -> UnifiedEventBus:
     """
     Создание нового UnifiedEventBus (для тестов или изолированных контекстов).
@@ -1415,7 +1450,7 @@ def create_event_bus(
     return UnifiedEventBus(
         queue_max_size=queue_max_size,
         worker_idle_timeout=worker_idle_timeout,
-        subscriber_timeout=subscriber_timeout
+        subscriber_timeout=subscriber_timeout,
     )
 
 

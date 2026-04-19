@@ -4,6 +4,7 @@
 - Нет лишних зависимостей и сложной логики
 - Легко понять и использовать
 """
+
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -12,36 +13,42 @@ from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.data_context import DataContext
 from core.session_context.dialogue_context import DialogueHistory
 from core.session_context.model import (
-    ContextItem, ContextItemType,
-    ContextItemMetadata, AgentStep
+    ContextItem,
+    ContextItemType,
+    ContextItemMetadata,
+    AgentStep,
 )
 from core.session_context.step_context import StepContext
 from core.models.enums.common_enums import ExecutionStatus
+from core.agent.state import AgentState
+
 
 class SessionContext(BaseSessionContext):
     """
     Контекст сессии агента.
-    
+
     ПРИНЦИПЫ:
     1. Простота и минимальная зависимость от инфраструктуры
     2. Соответствие контракту SessionContextPort
     3. Легкость создания и использования
-    
+
     СТРУКТУРА:
     - data_context: хранит все сырые данные
     - step_context: хранит шаги агента для LLM
     - goal: цель сессии
     - current_plan_item_id: ID текущего плана в контексте
     """
-    
-    def __init__(self, session_id: Optional[str] = None, agent_id: Optional[str] = None):
+
+    def __init__(
+        self, session_id: Optional[str] = None, agent_id: Optional[str] = None
+    ):
         """
         Создание контекста сессии.
-        
+
         ПАРАМЕТРЫ:
         - session_id: Уникальный идентификатор сессии (опционально)
         - agent_id: Идентификатор агента (опционально)
-        
+
         ПРИМЕЧАНИЕ:
         Если session_id не указан, генерируется автоматически
         """
@@ -56,14 +63,17 @@ class SessionContext(BaseSessionContext):
 
         self.data_context = DataContext()
         self.step_context = StepContext()
-        
+
         # История диалога для сохранения контекста между запросами
         self.dialogue_history = DialogueHistory(max_rounds=10)
-    
+
+        # Централизованное состояние цикла агента
+        self.agent_state = AgentState()
+
     def set_goal(self, goal: str) -> None:
         """
         Установка цели сессии.
-        
+
         ПАРАМЕТРЫ:
         - goal: текст цели
         """
@@ -80,16 +90,16 @@ class SessionContext(BaseSessionContext):
         self,
         item_type: ContextItemType,
         content: Any,
-        metadata: Optional[ContextItemMetadata] = None
+        metadata: Optional[ContextItemMetadata] = None,
     ) -> str:
         """
         Добавление элемента в контекст.
-        
+
         ПАРАМЕТРЫ:
         - item_type: тип элемента
         - content: содержимое
         - meta метаданные (опционально)
-        
+
         ВОЗВРАЩАЕТ:
         - item_id: уникальный идентификатор элемента
         """
@@ -101,10 +111,10 @@ class SessionContext(BaseSessionContext):
             content=content,
             metadata=metadata or ContextItemMetadata(),
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
         return self.data_context.add_item(item)
-    
+
     def get_context_item(self, item_id: str) -> Optional[ContextItem]:
         """
         Получение элемента контекста по ID.
@@ -117,7 +127,7 @@ class SessionContext(BaseSessionContext):
         - None если элемент не найден
         """
         return self.data_context.get_item(item_id, raise_on_missing=False)
-    
+
     def register_step(
         self,
         step_number: int,
@@ -127,7 +137,7 @@ class SessionContext(BaseSessionContext):
         observation_item_ids: List[str],
         summary: Optional[str] = None,
         status: Optional[ExecutionStatus] = None,
-        parameters: Optional[Dict[str, Any]] = None
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Регистрация шага агента.
@@ -154,20 +164,20 @@ class SessionContext(BaseSessionContext):
             observation_item_ids=observation_item_ids,
             summary=summary,
             status=status,
-            parameters=parameters
+            parameters=parameters,
         )
         self.step_context.add_step(step)
         self.last_activity = datetime.now()
-    
+
     def set_current_plan(self, plan_item_id: str) -> None:
         """
         Установка текущего плана.
-        
+
         ПАРАМЕТРЫ:
         - plan_item_id: ID элемента с планом
         """
         self.current_plan_item_id = plan_item_id
-    
+
     def get_current_plan(self) -> Optional[ContextItem]:
         """
         Получение текущего плана.
@@ -177,23 +187,26 @@ class SessionContext(BaseSessionContext):
         """
         if not self.current_plan_item_id:
             return None
-        return self.data_context.get_item(self.current_plan_item_id, raise_on_missing=False)
-    
+        return self.data_context.get_item(
+            self.current_plan_item_id, raise_on_missing=False
+        )
+
     def is_expired(self, ttl_minutes: int = 60) -> bool:
         """
         Проверка истечения срока жизни сессии.
-        
+
         ПАРАМЕТРЫ:
         - ttl_minutes: время жизни в минутах
-        
+
         ВОЗВРАЩАЕТ:
         - True если сессия истекла
         - False если сессия еще активна
         """
         from datetime import timedelta
+
         elapsed = datetime.now() - self.last_activity
         return elapsed > timedelta(minutes=ttl_minutes)
-    
+
     def get_summary(self) -> Dict[str, Any]:
         """
         Получение сводной информации о сессии.
@@ -208,7 +221,7 @@ class SessionContext(BaseSessionContext):
             "last_activity": self.last_activity.isoformat(),
             "step_count": self.step_context.count(),
             "item_count": self.data_context.count(),
-            "has_plan": self.current_plan_item_id is not None
+            "has_plan": self.current_plan_item_id is not None,
         }
 
         # Добавляем информацию о последних шагах
@@ -219,8 +232,14 @@ class SessionContext(BaseSessionContext):
                     "step_number": step.step_number,
                     "capability": step.capability_name,
                     "skill": step.skill_name,
-                    "parameters": self.get_context_item(step.action_item_id).content.get("parameters") if self.get_context_item(step.action_item_id) else {},
-                    "summary": step.summary
+                    "parameters": (
+                        self.get_context_item(step.action_item_id).content.get(
+                            "parameters"
+                        )
+                        if self.get_context_item(step.action_item_id)
+                        else {}
+                    ),
+                    "summary": step.summary,
                 }
 
                 # Добавляем observation если есть
@@ -234,15 +253,15 @@ class SessionContext(BaseSessionContext):
                             if isinstance(obs_content, dict):
                                 # Пробуем разные ключи для извлечения данных
                                 obs_data = (
-                                    obs_content.get('result') or  # ExecutionResult.data
-                                    obs_content.get('data') or
-                                    obs_content.get('rows') or
-                                    obs_content
+                                    obs_content.get("result")  # ExecutionResult.data
+                                    or obs_content.get("data")
+                                    or obs_content.get("rows")
+                                    or obs_content
                                 )
                                 # Сериализуем Pydantic модель если нужно
-                                if hasattr(obs_data, 'model_dump'):
+                                if hasattr(obs_data, "model_dump"):
                                     obs_data = obs_data.model_dump()
-                                elif hasattr(obs_data, 'dict'):
+                                elif hasattr(obs_data, "dict"):
                                     obs_data = obs_data.dict()
                                 observations.append(str(obs_data))
                             else:
@@ -306,7 +325,7 @@ class SessionContext(BaseSessionContext):
         """
         if len(self.step_context.steps) < n_steps:
             return False
-        
+
         recent_steps = list(self.step_context.steps[-n_steps:])
         # Проверяем были ли успешные действия
         return all(step.status == ExecutionStatus.FAILED for step in recent_steps)
@@ -320,122 +339,89 @@ class SessionContext(BaseSessionContext):
 
         ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
         """
-        return sum(1 for step in self.step_context.steps if step.status == ExecutionStatus.FAILED)
+        return sum(
+            1
+            for step in self.step_context.steps
+            if step.status == ExecutionStatus.FAILED
+        )
 
     def record_action(self, action_data, step_number=None, metadata=None):
         """Запись действия агента в контекст"""
         meta = metadata or ContextItemMetadata(
-            source="agent_runtime",
-            step_number=step_number,
-            confidence=0.9
+            source="agent_runtime", step_number=step_number, confidence=0.9
         )
         return self._add_context_item(
-            item_type=ContextItemType.ACTION,
-            content=action_data,
-            metadata=meta
+            item_type=ContextItemType.ACTION, content=action_data, metadata=meta
         )
-    
-    def record_observation(self, observation_data, source=None, step_number=None, metadata=None):
+
+    def record_observation(
+        self, observation_data, source=None, step_number=None, metadata=None
+    ):
         """Запись результата выполнения в контекст"""
         meta = metadata or ContextItemMetadata(
-            source=source or "skill",
-            step_number=step_number,
-            confidence=0.8
+            source=source or "skill", step_number=step_number, confidence=0.8
         )
         return self._add_context_item(
             item_type=ContextItemType.OBSERVATION,
             content=observation_data,
-            metadata=meta
+            metadata=meta,
         )
-    
+
     def record_plan(self, plan_data, plan_type="initial", metadata=None):
         """Запись плана и его обновлений в контекст"""
-        meta = metadata or ContextItemMetadata(
-            source="planning_skill",
-            confidence=0.95
-        )
+        meta = metadata or ContextItemMetadata(source="planning_skill", confidence=0.95)
         plan_type_map = {
             "initial": ContextItemType.EXECUTION_PLAN,
-            "update": ContextItemType.PLAN_UPDATE
+            "update": ContextItemType.PLAN_UPDATE,
         }
         item_type = plan_type_map.get(plan_type, ContextItemType.EXECUTION_PLAN)
 
         self.current_plan_item_id = self._add_context_item(
-            item_type=item_type,
-            content=plan_data,
-            metadata=meta
+            item_type=item_type, content=plan_data, metadata=meta
         )
         return self.current_plan_item_id
-    
+
     def record_decision(self, decision_data, reasoning=None, metadata=None):
         """Запись решения стратегии в контекст"""
-        meta = metadata or ContextItemMetadata(
-            source="behavior",
-            confidence=0.85
-        )
-        content = {
-            "decision": decision_data,
-            "reasoning": reasoning
-        }
+        meta = metadata or ContextItemMetadata(source="behavior", confidence=0.85)
+        content = {"decision": decision_data, "reasoning": reasoning}
         return self._add_context_item(
-            item_type=ContextItemType.THOUGHT,
-            content=content,
-            metadata=meta
+            item_type=ContextItemType.THOUGHT, content=content, metadata=meta
         )
-    
-    def record_error(self, error_data, error_type=None, step_number=None, metadata=None):
+
+    def record_error(
+        self, error_data, error_type=None, step_number=None, metadata=None
+    ):
         """Запись ошибки выполнения в контекст"""
         meta = metadata or ContextItemMetadata(
             source=error_data.get("source", "unknown"),
             step_number=step_number,
-            confidence=0.1
+            confidence=0.1,
         )
-        content = {
-            "error": error_data,
-            "error_type": error_type
-        }
+        content = {"error": error_data, "error_type": error_type}
         return self._add_context_item(
-            item_type=ContextItemType.ERROR_LOG,
-            content=content,
-            metadata=meta
+            item_type=ContextItemType.ERROR_LOG, content=content, metadata=meta
         )
-    
+
     def record_metric(self, name, value, unit=None, metadata=None):
         """Запись метрики выполнения в контекст"""
-        meta = metadata or ContextItemMetadata(
-            source="system_metric",
-            confidence=1.0
-        )
-        content = {
-            "name": name,
-            "value": value,
-            "unit": unit
-        }
+        meta = metadata or ContextItemMetadata(source="system_metric", confidence=1.0)
+        content = {"name": name, "value": value, "unit": unit}
         return self._add_context_item(
-            item_type=ContextItemType.TOOL_RESULT,
-            content=content,
-            metadata=meta
+            item_type=ContextItemType.TOOL_RESULT, content=content, metadata=meta
         )
-    
+
     def record_system_event(self, event_type, description=None, metadata=None):
         """Запись системного события в контекст"""
-        meta = metadata or ContextItemMetadata(
-            source="agent_runtime",
-            confidence=0.9
-        )
-        content = {
-            "event_type": event_type,
-            "description": description
-        }
+        meta = metadata or ContextItemMetadata(source="agent_runtime", confidence=0.9)
+        content = {"event_type": event_type, "description": description}
         return self._add_context_item(
-            item_type=ContextItemType.THOUGHT,
-            content=content,
-            metadata=meta
+            item_type=ContextItemType.THOUGHT, content=content, metadata=meta
         )
-    
+
     def get_current_plan_step(self):
         """Получение текущего шага плана."""
-        if not hasattr(self, 'current_plan_step_id') or not self.current_plan_step_id:
+        if not hasattr(self, "current_plan_step_id") or not self.current_plan_step_id:
             return None
 
         # Получаем текущий план
@@ -453,7 +439,12 @@ class SessionContext(BaseSessionContext):
 
         return None
 
-    def commit_turn(self, user_query: str, assistant_response: str, tools_used: Optional[List[str]] = None) -> None:
+    def commit_turn(
+        self,
+        user_query: str,
+        assistant_response: str,
+        tools_used: Optional[List[str]] = None,
+    ) -> None:
         """
         Сохранение обмена репликами в историю диалога.
 
@@ -468,7 +459,7 @@ class SessionContext(BaseSessionContext):
         self.dialogue_history.add_user_message(user_query)
         self.dialogue_history.add_assistant_message(assistant_response, tools_used)
 
-    def copy_dialogue_from(self, other_dialogue_history: 'DialogueHistory') -> None:
+    def copy_dialogue_from(self, other_dialogue_history: "DialogueHistory") -> None:
         """
         Копирование истории диалога из другого источника.
 
@@ -480,9 +471,11 @@ class SessionContext(BaseSessionContext):
         """
         if other_dialogue_history is None:
             return
-        
+
         # Копируем все сообщения
         for msg in other_dialogue_history.messages:
             self.dialogue_history.messages.append(
-                type(msg)(role=msg.role, content=msg.content, tools_used=list(msg.tools_used))
+                type(msg)(
+                    role=msg.role, content=msg.content, tools_used=list(msg.tools_used)
+                )
             )
