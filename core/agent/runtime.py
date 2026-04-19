@@ -20,11 +20,9 @@ from core.models.enums.component_status import ComponentStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
-from core.agent.components.policy import RetryPolicy, AgentPolicy
-from core.agent.components.agent_metrics import AgentMetrics
-from core.agent.components.observer import Observer
+from core.agent.components.observation_signal import ObservationSignalService
+from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
-from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.agent.observation_formatter import (
     format_observation,
     smart_format_observation,
@@ -80,8 +78,8 @@ class AgentRuntime:
             base_delay=self.policy.retry_base_delay,
             max_delay=self.policy.retry_max_delay,
         )
-        # Выделенный анализатор SQL recovery (SRP: runtime только оркестрирует).
-        self.sql_recovery_analyzer = SQLRecoveryAnalyzer()
+        # Выделенный сервис observation-сигналов (SRP: runtime только оркестрирует).
+        self.observation_signal_service = ObservationSignalService()
 
         self._pattern = None
 
@@ -668,7 +666,13 @@ class AgentRuntime:
                     parameters=decision.parameters or {},
                 )
 
-                observation_signal = self._build_observation_signal(
+                if (
+                    not hasattr(self, "observation_signal_service")
+                    or self.observation_signal_service is None
+                ):
+                    self.observation_signal_service = ObservationSignalService()
+
+                observation_signal = self.observation_signal_service.build_signal(
                     result=result,
                     action_name=decision.action,
                     parameters=decision.parameters or {},

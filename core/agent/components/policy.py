@@ -225,6 +225,33 @@ class AgentPolicy:
 
         return True, ""
 
+    def check_step(
+        self, action_name: str, parameters: Dict[str, Any], state
+    ) -> Tuple[bool, str]:
+        """
+        Проверить допустимость шага на основе state.
+
+        ВАЖНО:
+        - Проверяем повторы по action_signature (action + параметры),
+          а не только по имени действия.
+        - Это уменьшает ложные блокировки для валидных повторных вызовов
+          инструмента с новыми параметрами.
+        """
+        recent_signatures = state.get_recent_action_signatures(limit=3) if state else []
+        action_signature = (
+            state.build_action_signature(action_name, parameters)
+            if state and action_name
+            else action_name
+        )
+
+        if action_signature and action_signature in recent_signatures:
+            return False, "repeat_action"
+
+        if state and state.consecutive_empty_results >= 2:
+            return False, "empty_loop"
+
+        return True, ""
+
 
 # Alias для обратной совместимости
 RetryPolicy = AgentPolicy

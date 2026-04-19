@@ -31,6 +31,62 @@ from core.utils.async_utils import safe_async_call
 # ============================================================================
 
 
+class PromptContextBuilder:
+    """Собирает контекст промпта из состояния сессии и последних шагов."""
+
+    def __init__(self, prompt_builder: "PromptBuilderService"):
+        self._prompt_builder = prompt_builder
+
+    def build_input_context(
+        self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]
+    ) -> str:
+        """Сформировать секцию input для рассуждающего промпта."""
+        return self._prompt_builder._build_input_context(
+            context_analysis, available_capabilities
+        )
+
+    def build_dialogue_history(self, session_context: Optional[SessionContext]) -> str:
+        """Сформировать секцию истории диалога."""
+        return self._prompt_builder._build_dialogue_history(session_context)
+
+
+class ObservationFormatter:
+    """Форматирует наблюдения и историю шагов для промпта."""
+
+    def __init__(self, prompt_builder: "PromptBuilderService"):
+        self._prompt_builder = prompt_builder
+
+    def build_step_history(self, last_steps: list, session_context=None) -> str:
+        """Сформировать человекочитаемую историю шагов."""
+        return self._prompt_builder._build_step_history(last_steps, session_context)
+
+
+class CapabilityResolver:
+    """Разрешает и форматирует capability-контекст для LLM."""
+
+    def __init__(self, prompt_builder: "PromptBuilderService"):
+        self._prompt_builder = prompt_builder
+
+    def filter_capabilities(
+        self, capabilities: List[Capability], pattern_id: str
+    ) -> List[Capability]:
+        """Отфильтровать capability по поддерживаемым стратегиям паттерна."""
+        return self._prompt_builder._filter_capabilities(capabilities, pattern_id)
+
+    def format_available_tools_with_params(
+        self,
+        available_capabilities: List[Capability],
+        schema_validator: Optional[Any] = None,
+        application_context=None,
+    ) -> str:
+        """Сформировать markdown-контекст инструментов с параметрами."""
+        return self._prompt_builder._format_available_tools_with_params(
+            available_capabilities,
+            schema_validator,
+            application_context,
+        )
+
+
 class PromptBuilderService:
     """Сервис для построения структурированных промптов."""
 
@@ -47,6 +103,11 @@ class PromptBuilderService:
         "max_chars_display": 1000,
     }
 
+    def __init__(self):
+        self.prompt_context_builder = PromptContextBuilder(self)
+        self.observation_formatter = ObservationFormatter(self)
+        self.capability_resolver = CapabilityResolver(self)
+
     def build_reasoning_prompt(
         self,
         context_analysis: Dict[str, Any],
@@ -60,27 +121,24 @@ class PromptBuilderService:
         """Строит полный промпт для рассуждения."""
         # Фильтруем capability по supported_strategies
         # Если вызывается на PromptBuilderService, используем available_capabilities напрямую
-        if hasattr(self, "_filter_capabilities"):
-            filtered_caps = self._filter_capabilities(
-                available_capabilities, pattern_id
-            )
-        else:
-            filtered_caps = available_capabilities
+        filtered_caps = self.capability_resolver.filter_capabilities(
+            available_capabilities, pattern_id
+        )
 
         # Форматируем инструменты с параметрами — передаём application_context для доступа к контрактам
-        if hasattr(self, "_format_available_tools_with_params"):
-            tools_str = self._format_available_tools_with_params(
-                filtered_caps, schema_validator, application_context
-            )
-        else:
-            # Fallback для PromptBuilderService
-            tools_str = self._format_tools_fallback(filtered_caps, schema_validator)
+        tools_str = self.capability_resolver.format_available_tools_with_params(
+            filtered_caps, schema_validator, application_context
+        )
 
         variables = {
-            "input": self._build_input_context(context_analysis, filtered_caps),
+            "input": self.prompt_context_builder.build_input_context(
+                context_analysis, filtered_caps
+            ),
             "goal": context_analysis.get("goal", "Неизвестная цель"),
-            "dialogue_history": self._build_dialogue_history(session_context),
-            "step_history": self._build_step_history(
+            "dialogue_history": self.prompt_context_builder.build_dialogue_history(
+                session_context
+            ),
+            "step_history": self.observation_formatter.build_step_history(
                 context_analysis.get("last_steps", []), session_context=session_context
             ),
             "available_tools": tools_str,
@@ -949,6 +1007,10 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         ДЕЛЕГИРУЕТ: Component.get_output_contract()
         """
         return super().get_output_contract(key)
+
+    def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
+        """
+        Рендерит шаблон промпта с подстановкой переменных.
 
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
         """Рендерит шаблон с подстановкой переменных."""

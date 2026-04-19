@@ -1,15 +1,15 @@
-"""Тесты observation-сигналов runtime для пустых SQL-ответов."""
+"""Тесты observation-сигналов для пустых SQL-ответов."""
 
-from core.agent.runtime import AgentRuntime
+from core.agent.components.observation_signal import ObservationSignalService
 from core.models.data.execution import ExecutionResult
 
 
 def test_build_observation_signal_sql_year_empty_adds_year_hint() -> None:
     """Пустой SQL-ответ с фильтром по году должен давать подсказку проверить доступные годы."""
-    runtime = AgentRuntime.__new__(AgentRuntime)
+    service = ObservationSignalService()
 
     result = ExecutionResult.success(data=[])
-    signal = runtime._build_observation_signal(
+    signal = service.build_signal(
         result=result,
         action_name="sql_tool.execute_query",
         parameters={"query": "SELECT * FROM sales WHERE year = 2025"},
@@ -24,10 +24,10 @@ def test_build_observation_signal_sql_year_empty_adds_year_hint() -> None:
 
 def test_build_observation_signal_sql_string_filter_adds_universal_hint() -> None:
     """Пустой SQL-ответ с НЕ-датовым фильтром тоже должен получать диагностику фильтров."""
-    runtime = AgentRuntime.__new__(AgentRuntime)
+    service = ObservationSignalService()
 
     result = ExecutionResult.success(data=[])
-    signal = runtime._build_observation_signal(
+    signal = service.build_signal(
         result=result,
         action_name="sql_tool.execute_query",
         parameters={"query": "SELECT * FROM clients WHERE city = 'Paris'"},
@@ -43,10 +43,10 @@ def test_build_observation_signal_sql_string_filter_adds_universal_hint() -> Non
 
 def test_build_observation_signal_non_sql_empty_has_default_hint() -> None:
     """Для не-SQL действий остаётся базовая подсказка при пустом результате."""
-    runtime = AgentRuntime.__new__(AgentRuntime)
+    service = ObservationSignalService()
 
     result = ExecutionResult.success(data=[])
-    signal = runtime._build_observation_signal(
+    signal = service.build_signal(
         result=result,
         action_name="planning.create_plan",
         parameters={},
