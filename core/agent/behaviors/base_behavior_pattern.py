@@ -908,18 +908,7 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         return super().get_output_contract(key)
 
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
-        """
-        Рендерит шаблон промпта с подстановкой переменных.
-
-        ПАРАМЕТРЫ:
-        - prompt_template: Шаблон промпта
-        - variables: Переменные для подстановки
-
-        ВОЗВРАЩАЕТ:
-        - str: Отрендеренный промпт
-        """
-        if not prompt_template:
-            return ""  # Пустой шаблон
+        """Рендерит шаблон с подстановкой переменных."""
         rendered = prompt_template
         for key, value in variables.items():
             rendered = rendered.replace(f"{{{key}}}", str(value))

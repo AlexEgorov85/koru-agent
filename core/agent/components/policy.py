@@ -2,7 +2,7 @@
 Политика агента.
 
 СОДЕРЖИТ:
-- AgentPolicy: единая политика агента (ограничения + retry)
+- AgentPolicy: единая политика агента (ограничения + retry + проверки)
 - RetryPolicy: alias для обратной совместимости
 """
 
@@ -29,6 +29,10 @@ class AgentPolicy:
     - retry_base_delay: базовая задержка retry
     - retry_max_delay: максимальная задержка retry
     - retry_jitter: использовать jitter
+    
+    ПРОВЕРКИ:
+    - check_repeat_action: детектирование повторов действий
+    - check_empty_loop: детектирование цикла пустых результатов
     """
 
     def __init__(
@@ -38,6 +42,9 @@ class AgentPolicy:
         max_errors: int = 10,
         max_consecutive_errors: int = 3,
         max_no_progress_steps: int = 5,
+        # Проверки
+        max_repeated_actions: int = 3,
+        max_empty_results: int = 3,
         # Retry
         retry_max_attempts: int = 3,
         retry_base_delay: float = 0.5,
@@ -72,6 +79,116 @@ class AgentPolicy:
         if self.retry_jitter:
             delay *= random.uniform(0.5, 1.5)
         return delay
+    
+    def check(
+        self,
+        action_name: str,
+        metrics: Any,
+        state_data: Optional[Dict[str, Any]] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Проверка действия политикой.
+        
+        ПАРАМЕТРЫ:
+        - action_name: имя планируемого действия
+        - metrics: объект AgentMetrics с метриками
+        - state_data: дополнительные данные состояния (опционально)
+        
+        ВОЗВРАЩАЕТ:
+        - (allowed, reason): True если действие разрешено, иначе False + причина
+        """
+        # Проверка на повтор действия
+        if self._check_repeat_action(action_name, metrics):
+            return False, f"repeat_action:{action_name}"
+        
+        # Проверка на empty loop
+        if self._check_empty_loop(metrics):
+            return False, "empty_loop"
+        
+        # Проверка на превышение ошибок
+        if self._check_max_errors(metrics):
+            return False, "max_errors_reached"
+        
+        return True, None
+    
+    def _check_repeat_action(self, action_name: str, metrics: Any) -> bool:
+        """
+        Проверка: не является ли действие повтором.
+        
+        ПАРАМЕТРЫ:
+        - action_name: имя действия
+        - metrics: объект AgentMetrics
+        
+        ВОЗВРАЩАЕТ:
+        - True если действие повторяется слишком часто
+        """
+        if not hasattr(metrics, 'check_repeated_action'):
+            return False
+        
+        is_repeat = metrics.check_repeated_action(action_name)
+        
+        if is_repeat and hasattr(metrics, 'repeated_actions_count'):
+            return metrics.repeated_actions_count >= self.max_repeated_actions
+        
+        return False
+    
+    def _check_empty_loop(self, metrics: Any) -> bool:
+        """
+        Проверка: не зациклился ли агент на пустых результатах.
+        
+        ПАРАМЕТРЫ:
+        - metrics: объект AgentMetrics
+        
+        ВОЗВРАЩАЕТ:
+        - True если обнаружен empty loop
+        """
+        if not hasattr(metrics, 'empty_results_count'):
+            return False
+        
+        return metrics.empty_results_count >= self.max_empty_results
+    
+    def _check_max_errors(self, metrics: Any) -> bool:
+        """
+        Проверка: не превышен ли лимит ошибок.
+        
+        ПАРАМЕТРЫ:
+        - metrics: объект AgentMetrics
+        
+        ВОЗВРАЩАЕТ:
+        - True если лимит ошибок превышен
+        """
+        if not hasattr(metrics, 'errors'):
+            return False
+        
+        return len(metrics.errors) >= self.max_errors
+    
+    def get_violations(
+        self,
+        action_name: str,
+        metrics: Any
+    ) -> List[str]:
+        """
+        Получить список всех нарушений политики.
+        
+        ПАРАМЕТРЫ:
+        - action_name: имя действия
+        - metrics: объект AgentMetrics
+        
+        ВОЗВРАЩАЕТ:
+        - список строк с описаниями нарушений
+        """
+        violations = []
+        
+        if self._check_repeat_action(action_name, metrics):
+            violations.append(f"repeat_action:{action_name}")
+        
+        if self._check_empty_loop(metrics):
+            violations.append("empty_loop")
+        
+        if self._check_max_errors(metrics):
+            violations.append("max_errors_reached")
+        
+        return violations
 
     def check_step(self, action_name: str, state) -> Tuple[bool, str]:
         """Проверить допустимость шага на основе state."""

@@ -1,85 +1,54 @@
-```
-# Dependencies
+```gitignore
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
+*.ipynb
+
+# Dependencies
+.venv/
+venv/
+env/
+ENV/
 
 # Build artifacts
-dist/
 build/
+dist/
 *.egg-info/
-
-# Virtual environments
-venv/
-.venv/
-env/
-.env/
 
 # Logs
 *.log
+data/logs/
 logs/
-.benchmarks/
+
+# Data & Models
+data/
+models/
+core/data/
 data/metrics/
+data/vector/
+vector_cache/
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Environment variables
+.env
+.env.local
+.env.*
 
-# IDE files
+# IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# Distribution / packaging
-*.tar.gz
-*.whl
-*.egg
-
-# Environment specific
-.env*
-!.env.example
-
-# Compiled Python
-__pycache__/
-*.py[cod]
-*$py.class
+.qwen/
 
 # Jupyter
 .ipynb_checkpoints/
-Untitled.ipynb
-*.ipynb
+*.ipynb_checkpoints/
 
-# Qwen Code
-.qwen/
-
-# Temporary test files
-test_appconfig.txt
-test_output.txt
-
-# Generated vector indexes (too large, regenerate on demand)
-data/vector/*.faiss
-data/vector/*_metadata.json
-
-# Embedding models (binary weights — download on demand)
-models/embedding/*/model.safetensors
-models/embedding/*/tokenizer.json
-models/embedding/*/*.json
-models/embedding/*/*/*.json
-
-# UI launch script (local convenience, not part of codebase)
+# Test & temp files
+test_*.py
+check_db.py
+my_report.txt
 run_ui.bat
-
-# IDE settings (local)
-.vscode/
+scripts/convert_logs.py
+test_appconfig.txt
+```

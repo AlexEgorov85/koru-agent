@@ -22,12 +22,13 @@ class IEmbeddingProvider(ABC):
         pass
     
     @abstractmethod
-    async def generate(self, texts: List[str]) -> List[List[float]]:
+    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
         """
         Генерация эмбеддингов для текстов.
         
         Args:
             texts: Список текстов
+            apply_instruction: Добавить инструкцию перед текстами (для Giga-Embeddings)
         
         Returns:
             Список векторов
@@ -35,12 +36,13 @@ class IEmbeddingProvider(ABC):
         pass
     
     @abstractmethod
-    async def generate_single(self, text: str) -> List[float]:
+    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
         """
         Генерация эмбеддинга для одного текста.
         
         Args:
             text: Текст
+            apply_instruction: Добавить инструкцию перед текстом
         
         Returns:
             Вектор

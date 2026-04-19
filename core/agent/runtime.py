@@ -1,11 +1,12 @@
 """
-Runtime — простой цикл выполнения агента.
+Runtime — цикл выполнения агента с Observer и Metrics.
 
-АРХИТЕКТУРА (Этап 10):
-- ТОЛЬКО цикл: Pattern.decide() → Executor.execute()
-- БЕЗ decision logic (Pattern решает)
-- БЕЗ loop detection (Pattern детектирует)
-- БЕЗ no-progress checks (Pattern детектирует)
+АРХИТЕКТУРА (Этап 10 + v2.0):
+- Pattern.decide() → Policy.check() → Executor.execute() → Observer.analyze() → Metrics.update()
+- Reflection validation в Pattern
+- Policy проверки на повторы и empty_loop
+- Observer LLM-анализ результатов
+- AgentMetrics для отслеживания качества
 """
 
 import re
@@ -20,7 +21,9 @@ from core.models.enums.component_status import ComponentStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
-from core.agent.components.policy import RetryPolicy
+from core.agent.components.policy import RetryPolicy, AgentPolicy
+from core.agent.components.agent_metrics import AgentMetrics
+from core.agent.components.observer import Observer
 from core.agent.behaviors.base import DecisionType
 from core.agent.observation_formatter import (
     format_observation,
@@ -37,6 +40,7 @@ class AgentRuntime:
     1. Pattern.decide()
     2. Executor.execute()
     3. Запись в context
+    4. Observer.analyze() → Metrics.update()
     """
 
     def __init__(
@@ -61,7 +65,13 @@ class AgentRuntime:
         # Компоненты
         self.executor = ActionExecutor(application_context)
         self.failure_memory = FailureMemory()
-        self.policy = RetryPolicy()
+        self.policy = AgentPolicy()  # ← Обновлённая политика с проверками
+        self.metrics = AgentMetrics()  # ← Метрики агента
+        self.observer = Observer(application_context)  # ← Observer для анализа результатов
+        
+        # Fallback strategy (импортируем здесь чтобы избежать circular import)
+        from core.agent.behaviors.services import FallbackStrategyService
+        self.fallback_strategy = FallbackStrategyService()
 
         self.safe_executor = SafeExecutor(
             executor=self.executor,
@@ -284,6 +294,22 @@ class AgentRuntime:
                 f"📍 ШАГ {step + 1}/{self.max_steps}",
                 extra={"event_type": LogEventType.STEP_STARTED},
             )
+            
+            # Проверка условий остановки по метрикам
+            should_stop, stop_reason = self.metrics.should_stop()
+            if should_stop:
+                self.log.warning(
+                    f"🛑 Остановка: {stop_reason}",
+                    extra={"event_type": LogEventType.AGENT_STOP}
+                )
+                await event_bus.publish(
+                    EventType.DEBUG,
+                    {"event": "AGENT_STOP_METRICS", "reason": stop_reason, "metrics": self.metrics.to_dict()},
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id
+                )
+                return ExecutionResult.failure(f"Stopped: {stop_reason}")
+            
             self.log.info(
                 "🤔 Анализирую запрос и выбираю следующее действие...",
                 extra={"event_type": LogEventType.AGENT_THINKING},
@@ -574,6 +600,56 @@ class AgentRuntime:
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
+                
+                # ============================================
+                # OBSERVER + METRICS (новый этап v2.0)
+                # ============================================
+                
+                # Observer анализирует результат
+                self.log.info(
+                    f"👁️ Observer.analyze({decision.action})...",
+                    extra={"event_type": LogEventType.INFO}
+                )
+                
+                observation = await self.observer.analyze(
+                    action_name=decision.action,
+                    parameters=decision.parameters or {},
+                    result=result.data if hasattr(result, 'data') else result,
+                    error=result.error if result.status == ExecutionStatus.FAILED else None,
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                    step_number=executed_steps
+                )
+                
+                # Публикуем событие OBSERVATION
+                await event_bus.publish(
+                    EventType.DEBUG,
+                    {"event": "OBSERVATION", "status": observation.get("status"), "quality": observation.get("data_quality")},
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id
+                )
+                
+                # Обновляем метрики на основе наблюдения
+                status = observation.get("status", "unknown")
+                self.metrics.add_step(
+                    action_name=decision.action,
+                    status=status,
+                    error=observation.get("errors", [None])[0] if observation.get("errors") else None
+                )
+                self.metrics.update_observation(observation)
+                
+                # Логируем результат наблюдения
+                self.log.info(
+                    f"📊 Observation: status={status}, quality={observation.get('data_quality', {})}",
+                    extra={"event_type": LogEventType.INFO}
+                )
+                
+                # Проверяем рекомендации Observer для следующего шага
+                if observation.get("requires_additional_action") and status in ["empty", "error"]:
+                    self.log.warning(
+                        f"⚠️ Observer рекомендует сменить стратегию: {observation.get('next_step_suggestion', '')}",
+                        extra={"event_type": LogEventType.INFO}
+                    )
 
                 # Данные хранятся ТОЛЬКО в data_context (observation_item_ids)
                 # AgentStep содержит только ССЫЛКИ на данные, не копии!

@@ -46,12 +46,16 @@ class EmbeddingConfig(BaseModel):
         device: Устройство (cpu/cuda)
         batch_size: Размер батча
         max_length: Максимальная длина токенов
+        instruction: Инструкция для query (Instruct: {task}\nQuery: {query})
+        use_instruction: Использовать инструкцию для запросов
     """
     model_name: str = "all-MiniLM-L6-v2"
     dimension: int = 384
     device: Literal["cpu", "cuda"] = "cpu"
     batch_size: int = 32
     max_length: int = 512
+    instruction: Optional[str] = "Дан вопрос, необходимо найти абзац текста с ответом"
+    use_instruction: bool = True
 
 
 class ChunkingConfig(BaseModel):
