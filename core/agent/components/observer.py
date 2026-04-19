@@ -105,6 +105,49 @@ class Observer:
                 elif hasattr(output_contract, 'model_schema'):
                     schema = output_contract.model_schema
             
+            # Fallback схема если контракт не найден
+            if schema is None:
+                schema = {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["success", "partial", "error", "empty"],
+                            "description": "Статус выполнения действия"
+                        },
+                        "observation": {
+                            "type": "string",
+                            "description": "Краткое описание наблюдаемого результата"
+                        },
+                        "key_findings": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Список важных фактов"
+                        },
+                        "data_quality": {
+                            "type": "object",
+                            "properties": {
+                                "completeness": {"type": "number", "minimum": 0, "maximum": 1},
+                                "reliability": {"type": "number", "minimum": 0, "maximum": 1}
+                            }
+                        },
+                        "errors": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "next_step_suggestion": {
+                            "type": "string",
+                            "description": "Рекомендация для следующего шага"
+                        },
+                        "requires_additional_action": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": ["status", "observation", "requires_additional_action"],
+                    "additionalProperties": True
+                }
+                self._log_info("⚠️ [Observer.analyze] Контракт behavior.react.observe не найден, используем fallback схему", event_type=LogEventType.WARNING)
+            
             # Форматируем результат
             result_str = self._format_result(result)
             error_str = error or ""
