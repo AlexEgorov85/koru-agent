@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [5.41.0] - 2026-04-20
+
+### Added
+- **Режим исследования данных (Exploration Mode)**
+  - Активируется после первого пустого результата (threshold=1)
+  - Добавляет правила зондирования в промпт LLM
+  - Генерирует SQL-запросы для анализа диапазона данных
+
+### Changed
+- **SessionContext**: добавлены методы для отслеживания пустых результатов
+  - `record_empty_result()` - запись пустого результата
+  - `needs_exploration()` - проверка порога
+  - `get_last_empty_query()` - получение последнего пустого запроса
+  - `clear_empty_query_log()` - очистка лога
+
+- **gitignore**: расширен список игнорируемых файлов
+  - data/logs/, logs/, data/vector/, models/, *.ipynb
+
+### Fixed
+- **Architecture check**: исправлен путь к директории навыков
+- **Контракты**: перенесены из behavior/behavior в behavior
+
 ## [5.40.2] - 2026-04-17
 
 ### Changed
