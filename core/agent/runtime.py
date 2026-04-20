@@ -379,6 +379,25 @@ class AgentRuntime:
                     self.session_context.agent_state.errors.append(
                         f"POLICY:{policy_reason}"
                     )
+                    # Добавляем заблокированное действие в step_context чтобы оно попало в историю
+                    from core.models.enums.common_enums import ExecutionStatus
+                    self.session_context.register_step(
+                        step_number=step + 1,
+                        capability_name=decision.action or "unknown",
+                        skill_name="",
+                        action_item_id=None,
+                        observation_item_ids=[],
+                        summary=f"Action blocked by policy: {policy_reason}",
+                        status=ExecutionStatus.FAILED,
+                        parameters=decision.parameters or {},
+                    )
+                    # Также добавляем в agent_state.history чтобы оно учитывалось при проверке повторов
+                    self.session_context.agent_state.add_step(
+                        action_name=decision.action or "unknown",
+                        status="blocked",
+                        parameters=decision.parameters or {},
+                        observation={"status": "blocked", "reason": policy_reason},
+                    )
                     self.session_context.record_action(
                         action_data={
                             "action": decision.action,
