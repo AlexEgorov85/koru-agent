@@ -12,6 +12,7 @@ Runtime — цикл выполнения агента с Observer и Metrics.
 import uuid
 from typing import Any, Dict, Optional
 
+from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.application_context.application_context import ApplicationContext
 from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import EventType

@@ -1,46 +1,64 @@
 capability: behavior.react.think
 component_type: behavior
-description: "Выходной контракт для рассуждения ReAct с обязательным пошаговым самоанализом"
+description: "Выходной контракт для рассуждения ReAct с поддержкой составных вопросов и каскадным самоанализом"
 direction: output
 schema_data:
   type: object
   properties:
-    stop_condition:
-      type: boolean
-      description: "Флаг завершения цикла (true, если цель достигнута)"
-    stop_reason:
+    analysis_question_decomposition:
       type: string
-      description: "Причина остановки (пустая строка если не остановлен)"
+      description: "Составной ли вопрос? Выдели подвопросы. Определи зависимости (параллельно или последовательно)."
+
+    analysis_subquestions_tracking:
+      type: string
+      description: "Статус каждого подвопроса: [решён / в работе / требует данных / ошибка]. Что уже собрано по каждому?"
+
     analysis_progress:
       type: string
-      description: "Прогресс: Насколько я близок к цели? Что уже собрано?"
-    analysis_state:
-      type: string
-      description: "Текущее состояние: Какие данные уже есть в step_history?"
+      description: "Общий прогресс: сколько подвопросов закрыто? Насколько близок к финальному ответу?"
+
     analysis_deficit:
       type: string
-      description: "Дефицит: Чего критически не хватает для финального ответа?"
-    analysis_history:
+      description: "Каких данных не хватает для текущего подвопроса? Что блокирует следующий шаг?"
+
+    analysis_data_quality:
       type: string
-      description: "История и повторы: Какие инструменты уже вызывались? Были ли повторы?"
-    analysis_errors:
+      description: "Достоверны ли полученные данные? Есть ли противоречия, пустые результаты или артефакты?"
+
+    analysis_empty_error_strategy:
       type: string
-      description: "Ошибки: Были ли ошибки или пустые результаты ранее? Как избежать?"
+      description: "Если результат пустой/ошибочный: изменить фильтры, сменить инструмент, пропустить подвопрос или использовать fallback?"
+
     analysis_tool_choice:
       type: string
-      description: "Выбор инструмента: Какой из available_tools оптимально закрывает дефицит?"
-    analysis_params:
+      description: "Какой инструмент закроет текущий дефицит? Почему именно он?"
+
+    analysis_parameter_sources:
       type: string
-      description: "Валидация параметров: Все ли обязательные поля известны и корректны?"
-    analysis_fallback:
+      description: "Откуда берутся параметры: исходный вопрос, история шагов, результат предыдущего инструмента?"
+
+    analysis_parameter_validation:
       type: string
-      description: "План Б: Что я сделаю, если инструмент снова вернёт ошибку или 0 результатов?"
+      description: "Все ли обязательные поля заполнены? Типы и диапазоны корректны? Нет ли конфликтов?"
+
+    analysis_alternative_paths:
+      type: string
+      description: "План Б: если инструмент вернёт ошибку/пустоту, что делать дальше?"
+
     analysis_stop:
       type: string
-      description: "Критерий остановки: Выполнены ли условия для stop_condition=true?"
+      description: "Все подвопросы решены? Данные полные? Можно ли переходить к final_answer?"
+
     analysis_final:
       type: string
-      description: "Фиксация решения: Какое конкретное next_action и parameters я выбираю сейчас?"
+      description: "Итоговое обоснование: какой next_action и parameters выбираю для следующего шага?"
+
+    stop_condition:
+      type: boolean
+      description: "Флаг завершения цикла (true, если все подвопросы решены и цель достигнута)"
+    stop_reason:
+      type: string
+      description: "Причина остановки"
     decision:
       type: object
       properties:
@@ -51,16 +69,26 @@ schema_data:
           type: object
           description: "Словарь параметров для next_action"
       required: ["next_action", "parameters"]
-  required: [
-    "stop_condition", 
-    "analysis_progress", "analysis_state", "analysis_deficit", "analysis_history", 
-    "analysis_errors", "analysis_tool_choice", "analysis_params", "analysis_fallback", 
-    "analysis_stop", "analysis_final", 
-    "decision"
-  ]
+
+  required:
+    - analysis_question_decomposition
+    - analysis_subquestions_tracking
+    - analysis_progress
+    - analysis_deficit
+    - analysis_data_quality
+    - analysis_empty_error_strategy
+    - analysis_tool_choice
+    - analysis_parameter_sources
+    - analysis_parameter_validation
+    - analysis_alternative_paths
+    - analysis_stop
+    - analysis_final
+    - stop_condition
+    - decision
+
 metadata:
   author: system
-  created: '2026-04-16'
-  description: "Контракт с 10 обязательными полями анализа перед принятием решения"
+  created: '2026-04-20'
+  description: "Контракт с поддержкой составных вопросов, трекингом подвопросов и каскадной логикой анализа"
 status: active
-version: v1.0.0
+version: v2.0.0
