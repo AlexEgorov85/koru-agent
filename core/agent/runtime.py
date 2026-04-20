@@ -380,7 +380,6 @@ class AgentRuntime:
                         f"POLICY:{policy_reason}"
                     )
                     # Добавляем заблокированное действие в step_context чтобы оно попало в историю
-                    from core.models.enums.common_enums import ExecutionStatus
                     self.session_context.register_step(
                         step_number=step + 1,
                         capability_name=decision.action or "unknown",
