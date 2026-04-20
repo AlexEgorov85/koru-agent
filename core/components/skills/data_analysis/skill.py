@@ -348,7 +348,7 @@ class DataAnalysisSkill(Skill):
 
         valid = []
         for s in summaries:
-            content = s.get("content", "")
+            content = self._safe_get_content(s.get("content"))
             if not content or len(content.strip()) < 20:
                 continue
 
@@ -366,6 +366,16 @@ class DataAnalysisSkill(Skill):
             log.info(f"[data_analysis] Filtered {len(summaries) - len(valid)} empty/noisy summaries")
 
         return valid
+
+    def _safe_get_content(self, content: Any) -> str:
+        """Безопасное извлечение строки из content (может быть dict, str, etc)."""
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, dict):
+            return str(content)
+        return str(content)
 
     async def _save_result_to_context(
         self,
@@ -494,7 +504,7 @@ class DataAnalysisSkill(Skill):
         question: str,
         execution_context: Any
     ) -> Dict[str, Any]:
-        content = chunk.get("content", "")
+        content = self._safe_get_content(chunk.get("content"))
         chunk_id = chunk.get("chunk_id", 0)
 
         if len(content) < 20:
@@ -515,7 +525,7 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": result.result or "", "chunk_id": chunk_id}
+                return {"content": self._safe_get_content(result.result), "chunk_id": chunk_id}
             else:
                 return {"content": "", "chunk_id": chunk_id, "error": "LLM failed"}
 
@@ -665,7 +675,7 @@ class DataAnalysisSkill(Skill):
         if len(batch) == 2:
             return await self._merge_pair(batch[0], batch[1], question, execution_context)
 
-        contents = [item.get("content", "") for item in batch]
+        contents = [self._safe_get_content(item.get("content")) for item in batch]
         combined = "\n\n---\n\n".join(contents)
 
         executor = self._get_active_executor(execution_context)
@@ -683,7 +693,7 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": result.result or combined}
+                return {"content": self._safe_get_content(result.result) or combined}
         except Exception as e:
             self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=LogEventType.WARNING)
 
@@ -696,8 +706,8 @@ class DataAnalysisSkill(Skill):
         question: str,
         execution_context: Any
     ) -> Dict[str, Any]:
-        content1 = item1.get("content", "")
-        content2 = item2.get("content", "")
+        content1 = self._safe_get_content(item1.get("content"))
+        content2 = self._safe_get_content(item2.get("content"))
 
         prompt = self._build_merge_prompt(content1, content2, question)
         executor = self._get_active_executor(execution_context)
@@ -714,7 +724,7 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": result.result or f"{content1}\n\n{content2}"}
+                return {"content": self._safe_get_content(result.result) or f"{content1}\n\n{content2}"}
         except Exception as e:
             self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
 
