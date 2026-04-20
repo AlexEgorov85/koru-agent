@@ -80,21 +80,24 @@ class AgentPolicy:
         self,
         action_name: str,
         metrics: Any,
-        state_data: Optional[Dict[str, Any]] = None
+        state_data: Optional[Dict[str, Any]] = None,
+        parameters: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Проверка действия политикой.
-        
+
         ПАРАМЕТРЫ:
         - action_name: имя планируемого действия
         - metrics: объект AgentMetrics с метриками
         - state_data: дополнительные данные состояния (опционально)
-        
+        - parameters: параметры действия (учитываются при проверке повторов)
+
         ВОЗВРАЩАЕТ:
         - (allowed, reason): True если действие разрешено, иначе False + причина
         """
-        # Проверка на повтор действия
-        if self._check_repeat_action(action_name, metrics):
+        parameters = parameters or {}
+
+        if self._check_repeat_action(action_name, metrics, parameters):
             return False, f"repeat_action:{action_name}"
         
         # Проверка на empty loop
@@ -107,25 +110,31 @@ class AgentPolicy:
         
         return True, None
     
-    def _check_repeat_action(self, action_name: str, metrics: Any) -> bool:
+    def _check_repeat_action(
+        self,
+        action_name: str,
+        metrics: Any,
+        parameters: Optional[Dict[str, Any]] = None
+    ) -> bool:
         """
-        Проверка: не является ли действие повтором.
-        
+        Проверка: не является ли действие повтором (с учётом параметров).
+
         ПАРАМЕТРЫ:
         - action_name: имя действия
         - metrics: объект AgentMetrics
-        
+        - parameters: параметры действия
+
         ВОЗВРАЩАЕТ:
         - True если действие повторяется слишком часто
         """
         if not hasattr(metrics, 'check_repeated_action'):
             return False
-        
-        is_repeat = metrics.check_repeated_action(action_name)
-        
+
+        is_repeat = metrics.check_repeated_action(action_name, parameters)
+
         if is_repeat and hasattr(metrics, 'repeated_actions_count'):
             return metrics.repeated_actions_count >= self.max_repeated_actions
-        
+
         return False
     
     def _check_empty_loop(self, metrics: Any) -> bool:
