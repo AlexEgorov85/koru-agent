@@ -50,6 +50,20 @@ data/logs/
 logs/
 data/vector/*.faiss
 data/vector/*_metadata.json
+data/metrics/
+
+# Models
+models/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Test & Temp
+test_*.txt
+test_*.ipynb
+run_ui.bat
+.qwen/
 
 # System
 .DS_Store
