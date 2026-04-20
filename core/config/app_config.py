@@ -489,7 +489,7 @@ class AppConfig(BaseSettings):
 
         # Собираем контракты по компонентам
         for contract in contracts:
-            if contract.status.value != 'active' or contract.capability == 'behavior':
+            if contract.status.value != 'active' or contract.capability == 'behavior.fallback':
                 continue
             parts = contract.capability.split('.')
             prefix = parts[0] if parts else contract.capability
