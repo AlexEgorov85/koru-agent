@@ -380,6 +380,20 @@ class DataAnalysisSkill(Skill):
             return str(content)
         return str(content)
 
+    def _extract_content_from_result(self, result: Any, fallback: str = "") -> str:
+        """Извлечение контента из ExecutionResult.data (правильный способ!)."""
+        if not result or result.status != ExecutionStatus.COMPLETED:
+            return fallback
+
+        data = result.data
+        if data is None:
+            return fallback
+
+        if isinstance(data, dict):
+            return data.get("content", "") or data.get("text", "") or fallback
+
+        return str(data)
+
     def _is_valid_result(self, result: Any) -> bool:
         """Проверка что результат - валидный dict, а не coroutine или ошибка."""
         import inspect
@@ -543,9 +557,15 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": self._safe_get_content(result.result), "chunk_id": chunk_id}
+                content = ""
+                if result.data:
+                    if isinstance(result.data, dict):
+                        content = result.data.get("content", "") or result.data.get("text", "")
+                    else:
+                        content = str(result.data)
+                return {"content": self._safe_get_content(content), "chunk_id": chunk_id}
             else:
-                return {"content": "", "chunk_id": chunk_id, "error": "LLM failed"}
+                return {"content": "", "chunk_id": chunk_id, "error": result.error or "LLM failed"}
 
         except Exception as e:
             return {"content": "", "chunk_id": chunk_id, "error": str(e)}
@@ -711,7 +731,13 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": self._safe_get_content(result.result) or combined}
+                content = ""
+                if result.data:
+                    if isinstance(result.data, dict):
+                        content = result.data.get("content", "") or result.data.get("text", "")
+                    else:
+                        content = str(result.data)
+                return {"content": self._safe_get_content(content) or combined}
         except Exception as e:
             self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=LogEventType.WARNING)
 
@@ -742,7 +768,13 @@ class DataAnalysisSkill(Skill):
             )
 
             if result.status == ExecutionStatus.COMPLETED:
-                return {"content": self._safe_get_content(result.result) or f"{content1}\n\n{content2}"}
+                content = ""
+                if result.data:
+                    if isinstance(result.data, dict):
+                        content = result.data.get("content", "") or result.data.get("text", "")
+                    else:
+                        content = str(result.data)
+                return {"content": self._safe_get_content(content) or f"{content1}\n\n{content2}"}
         except Exception as e:
             self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
 
