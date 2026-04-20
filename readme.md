@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.41.1-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.41.8-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,26 +25,21 @@
 
 ---
 
-## 📊 Последние изменения (v5.41.1)
+## 📊 Последние изменения (v5.41.8)
 
-**Версия 5.41.1** (20 апреля 2026) — **Exploration Mode + MockLLM + gitignore**
+**Версия 5.41.8** (20 апреля 2026) — **Генерация финального ответа при превышении шагов + удаление traceback**
 
-### Exploration Mode (режим исследования данных)
-- ✅ Активируется после первого пустого результата (threshold=1)
-- ✅ Генерирует SQL-запросы для анализа диапазона данных
-- ✅ Правила зондирования добавляются в промпт LLM
+### Генерация финального ответа
+- ✅ При достижении лимита шагов — попытка сгенерировать итоговый ответ через final_answer.generate
+- ✅ Fallback с информативным сообщением о собранных данных
+- ✅ Улучшенная обработка ошибок в runtime
 
-### Testing
-- ✅ MockLLM с предопределёнными ответами для детерминированного тестирования
-- ✅ Скорость: < 1ms на запрос (1000x быстрее реальной LLM)
-- ✅ $0 экономия на тестировании
+### Очистка кода
+- ✅ Удалён import traceback из main.py
+- ✅ Исправлен синтаксис в обработке ошибок
+- ✅ Улучшено логирование ошибок
 
-### Infrastructure
-- ✅ Расширенный .gitignore: data/logs, data/vector, models, *.ipynb
-- ✅ Контракты перенесены из behavior/behavior в behavior
-- ✅ Исправлен путь к директории навыков в architecture check
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5410---2026-04-20)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5418---2026-04-20)
 
 ---
 
