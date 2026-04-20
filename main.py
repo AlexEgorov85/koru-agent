@@ -189,15 +189,15 @@ async def run_agent(
                         "result_type": type(result).__name__,
                     }
 
-error_context = ErrorContext(
-                         component="AgentRuntime",
-                         operation="run",
-                         session_id=session_id,
-                         metadata={
-                             "goal": goal,
-                             "error_details": error_details,
-                         }
-                     )
+                    error_context = ErrorContext(
+                        component="AgentRuntime",
+                        operation="run",
+                        session_id=session_id,
+                        metadata={
+                            "goal": goal,
+                            "error_details": error_details,
+                        }
+                    )
                     await error_handler.handle(
                         RuntimeError(f"{error_msg} (из metadata)"),
                         context=error_context,

@@ -820,14 +820,58 @@ class AgentRuntime:
                     agent_id=self.agent_id,
                 )
 
-        # Max steps exceeded — сохраняем диалог
+        # ─────────────────────────────────────────────────────────────
+        # ЦИКЛ ЗАВЕРШЁН: Попытка сформировать ответ по имеющимся данным
+        # ─────────────────────────────────────────────────────────────
+        if executed_steps > 0:
+            self.log.warning(
+                f"Лимит шагов ({self.max_steps}) исчерпан. "
+                f"Пытаюсь сгенерировать итоговый ответ на основе {executed_steps} шагов..."
+            )
+            try:
+                final_result = await self.safe_executor.execute(
+                    capability_name="final_answer.generate",
+                    parameters={
+                        "format_type": "structured",
+                        "include_steps": True,
+                        "include_evidence": True,
+                        "max_sources": 20
+                    },
+                    context=ExecutionContext(
+                        session_context=self.session_context,
+                        session_id=self.session_context.session_id,
+                        agent_id=self.agent_id
+                    )
+                )
+
+                if final_result.status == ExecutionStatus.COMPLETED:
+                    self.session_context.commit_turn(
+                        user_query=self.goal,
+                        assistant_response=str(final_result.data.get("final_answer", "")),
+                        tools_used=["final_answer.generate"]
+                    )
+                    self._sync_dialogue_history_back()
+                    return final_result
+
+            except Exception as e:
+                self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
+
+        # ─────────────────────────────────────────────────────────────
+        # FALLBACK: Если шагов не было или финальная генерация упала
+        # ─────────────────────────────────────────────────────────────
+        fallback_msg = f"Не удалось достичь цели за {self.max_steps} шагов."
+        if executed_steps == 0:
+            fallback_msg += " Действия не выполнялись."
+        else:
+            fallback_msg += f" Собрано данных за {executed_steps} шагов, но синтез ответа не удался."
+
         self.session_context.commit_turn(
             user_query=self.goal,
-            assistant_response=f"Превышено максимальное количество шагов ({self.max_steps})",
-            tools_used=[],
+            assistant_response=fallback_msg,
+            tools_used=[]
         )
         self._sync_dialogue_history_back()
-        return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")
+        return ExecutionResult.failure(fallback_msg)
 
     def _build_observation_signal(
         self,
