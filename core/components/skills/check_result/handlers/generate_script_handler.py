@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
@@ -105,6 +105,11 @@ class GenerateScriptHandler(SkillHandler):
                 # Выполнение SQL
                 rows, execution_time = await self._execute_sql(sql_query, max_results)
 
+                # Автоматическая диагностика при пустом результате
+                diagnostic_hints = None
+                if not rows and sql_query:
+                    diagnostic_hints = await self._diagnose_empty_result(sql_query)
+
                 total_time = time.time() - start_time
                 result_data = {
                     "rows": rows,
@@ -112,8 +117,11 @@ class GenerateScriptHandler(SkillHandler):
                     "execution_time": total_time,
                     "execution_type": "dynamic",
                     "sql_query": sql_query,
-                    "warning": "Результатов не найдено" if not rows else None
+                    "warning": "Результатов не найдено. Выполнена автодиагностика." if not rows else None
                 }
+
+                if diagnostic_hints:
+                    result_data["diagnostic_hints"] = diagnostic_hints
 
                 if not rows:
                     self._log_warning(
@@ -301,3 +309,117 @@ class GenerateScriptHandler(SkillHandler):
             f"Ошибка выполнения SQL: {error_msg}",
             request=sql_query
         )
+
+    async def _diagnose_empty_result(self, sql_query: str) -> Dict[str, Any]:
+        """
+        Автоматическая диагностика при пустом результате SQL.
+
+        ARGS:
+        - sql_query: исходный SQL запрос
+
+        RETURNS:
+        - Dict с результатами диагностики:
+          - table_name: имя таблицы
+          - total_count: общее количество записей
+          - column_ranges: мин/макс по колонкам из WHERE
+          - distinct_values: уникальные значения по фильтрам
+        """
+        import re
+        diagnostic_results = {}
+
+        # 1. Извлекаем имя таблицы
+        table_name = self._extract_table_from_sql(sql_query)
+        if not table_name:
+            await self.log_warning("Не удалось извлечь имя таблицы для диагностики")
+            return diagnostic_results
+
+        diagnostic_results["table_name"] = table_name
+        await self.log_info(f"Автодиагностика для таблицы: {table_name}")
+
+        # 2. Общий COUNT
+        try:
+            count_sql = f'SELECT COUNT(*) as total FROM {table_name}'
+            count_result = await self.executor.execute_action(
+                action_name="sql_tool.execute",
+                parameters={"sql": count_sql, "max_rows": 1},
+                context=ExecutionContext()
+            )
+            if count_result.status == ExecutionStatus.COMPLETED and count_result.data:
+                data_dict = count_result.data.model_dump() if hasattr(count_result.data, 'model_dump') else count_result.data
+                rows = data_dict.get('rows', []) if isinstance(data_dict, dict) else []
+                if rows and len(rows) > 0:
+                    total = rows[0].get('total', 0) if isinstance(rows[0], dict) else rows[0]
+                    diagnostic_results["total_count"] = total
+                    await self.log_info(f"Общее количество записей: {total}")
+        except Exception as e:
+            await self.log_warning(f"Ошибка при выполнении COUNT: {e}")
+
+        # 3. Извлекаем колонки из WHERE и проверяем диапазоны
+        where_clause = self._extract_where_clause(sql_query)
+        if where_clause:
+            filter_columns = self._extract_filter_columns(where_clause)
+            if filter_columns:
+                diagnostic_results["filter_columns"] = filter_columns
+                # Проверяем диапазоны для первых 2 колонок
+                for col in filter_columns[:2]:
+                    try:
+                        range_sql = f'SELECT MIN("{col}") as min_val, MAX("{col}") as max_val FROM {table_name}'
+                        range_result = await self.executor.execute_action(
+                            action_name="sql_tool.execute",
+                            parameters={"sql": range_sql, "max_rows": 1},
+                            context=ExecutionContext()
+                        )
+                        if range_result.status == ExecutionStatus.COMPLETED and range_result.data:
+                            data_dict = range_result.data.model_dump() if hasattr(range_result.data, 'model_dump') else range_result.data
+                            rows = data_dict.get('rows', []) if isinstance(data_dict, dict) else []
+                            if rows and len(rows) > 0:
+                                diagnostic_results[f"range_{col}"] = rows[0]
+                    except Exception as e:
+                        await self.log_warning(f"Ошибка при проверке диапазона {col}: {e}")
+
+                # 4. Проверяем уникальные значения для строковых колонок
+                for col in filter_columns[:2]:
+                    try:
+                        distinct_sql = f'SELECT DISTINCT "{col}", COUNT(*) as cnt FROM {table_name} WHERE "{col}" IS NOT NULL GROUP BY "{col}" ORDER BY cnt DESC LIMIT 10'
+                        distinct_result = await self.executor.execute_action(
+                            action_name="sql_tool.execute",
+                            parameters={"sql": distinct_sql, "max_rows": 10},
+                            context=ExecutionContext()
+                        )
+                        if distinct_result.status == ExecutionStatus.COMPLETED and distinct_result.data:
+                            data_dict = distinct_result.data.model_dump() if hasattr(distinct_result.data, 'model_dump') else distinct_result.data
+                            rows = data_dict.get('rows', []) if isinstance(data_dict, dict) else []
+                            if rows:
+                                diagnostic_results[f"distinct_{col}"] = rows
+                    except Exception as e:
+                        await self.log_warning(f"Ошибка при проверке уникальных значений {col}: {e}")
+
+        return diagnostic_results
+
+    def _extract_table_from_sql(self, sql_query: str) -> Optional[str]:
+        """Извлечь имя таблицы из SQL запроса."""
+        match = re.search(r"\bfrom\s+([a-zA-Z0-9_\.]+)", sql_query, re.IGNORECASE)
+        return match.group(1) if match else None
+
+    def _extract_where_clause(self, sql_query: str) -> str:
+        """Извлечь WHERE-клаузу."""
+        match = re.search(
+            r"\bwhere\b(.*?)(\bgroup\s+by\b|\border\s+by\b|\blimit\b|$)",
+            sql_query,
+            re.IGNORECASE | re.DOTALL,
+        )
+        return match.group(1) if match else ""
+
+    def _extract_filter_columns(self, where_clause: str) -> List[str]:
+        """Извлечь имена колонок из WHERE условий."""
+        if not where_clause:
+            return []
+        pattern = re.compile(
+            r"([a-zA-Z_][a-zA-Z0-9_\.]*)\s*(=|!=|<>|>|<|>=|<=|like|ilike)\s*",
+            re.IGNORECASE,
+        )
+        columns = []
+        for match in pattern.finditer(where_clause):
+            col = match.group(1).split(".")[-1]
+            columns.append(col)
+        return columns

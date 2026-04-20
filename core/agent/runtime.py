@@ -10,7 +10,7 @@ Runtime — цикл выполнения агента с Observer и Metrics.
 """
 
 import uuid
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from core.application_context.application_context import ApplicationContext
 from core.infrastructure.logging.event_types import LogEventType
@@ -567,6 +567,12 @@ class AgentRuntime:
                         f"📝 Сохранена ошибка: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
                         extra={"event_type": LogEventType.STEP_COMPLETED},
                     )
+                elif result.data in (None, {}, [], ""):
+                    self.log.info(
+                        f"⚠️ {decision.action} → ПУСТОЙ РЕЗУЛЬТАТ",
+                        extra={"event_type": LogEventType.TOOL_RESULT},
+                    )
+                    self._record_empty_result(decision.action, decision.parameters)
                 elif result.data is not None:
                     from core.session_context.model import (
                         ContextItem,
@@ -912,6 +918,54 @@ class AgentRuntime:
             component_config=component_config,
             application_context=self.application_context,
             executor=self.executor,
+        )
+
+    def _record_empty_result(self, action_name: str, parameters: Dict[str, Any]) -> None:
+        """
+        Записать пустой результат в лог для активации режима исследования данных.
+
+        Вызывается при пустом SQL-результате для активации _build_exploration_rules.
+        """
+        import re
+        tables = []
+        filters = {}
+
+        sql = parameters.get("sql") or parameters.get("query") or ""
+        if sql:
+            match = re.search(r"\bfrom\s+([a-zA-Z0-9_\.]+)", sql, re.IGNORECASE)
+            if match:
+                tables.append(match.group(1))
+
+            where_match = re.search(
+                r"\bwhere\b(.*?)(\bgroup\s+by\b|\border\s+by\b|\blimit\b|$)",
+                sql,
+                re.IGNORECASE | re.DOTALL,
+            )
+            if where_match:
+                where_clause = where_match.group(1)
+                cond_pattern = re.compile(
+                    r"([a-zA-Z_][a-zA-Z0-9_\.]*)\s*(=|!=|<>|>|<|>=|<=|like|ilike)\s*"
+                    r"('(?:[^']|''|\\')*'|\d+(?:\.\d+)?|\b\d{4}-\d{2}-\d{2}\b)",
+                    re.IGNORECASE,
+                )
+                for cond_match in cond_pattern.finditer(where_clause):
+                    col = cond_match.group(1).split(".")[-1]
+                    op = cond_match.group(2)
+                    val = cond_match.group(3)
+                    filters[col] = f"{op} {val}"
+        elif parameters:
+            for key, value in parameters.items():
+                if key not in ("max_results", "max_rows", "query", "hints"):
+                    filters[key] = value
+
+        self.session_context.record_empty_result(
+            tool=action_name,
+            tables=tables,
+            filters=filters if filters else None,
+        )
+        self.log.info(
+            f"📊 Записан пустой результат: {action_name}, tables={tables}, filters={list(filters.keys())}",
+            extra={"event_type": LogEventType.INFO},
         )
 
     async def stop(self):

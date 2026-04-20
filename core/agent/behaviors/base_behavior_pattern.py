@@ -144,6 +144,7 @@ class PromptBuilderService:
             "available_tools": tools_str,
             "no_progress_steps": context_analysis.get("no_progress_steps", 0),
             "consecutive_errors": context_analysis.get("consecutive_errors", 0),
+            "exploration_rules": self._build_exploration_rules(session_context),
         }
         return self._render_prompt(templates.get("user", ""), variables)
 
