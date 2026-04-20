@@ -306,7 +306,7 @@ class PromptBuilderService:
                 )
             elif isinstance(step, dict):
                 capability = step.get(
-                    "capability_name", step.get("capability", "unknown")
+                    "capability_name", step.get("capability", step.get("action", "unknown"))
                 )
                 summary = step.get("summary", "")
                 status = step.get("status", "unknown")
@@ -350,8 +350,9 @@ class PromptBuilderService:
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
             elif status == "blocked":
-                block_reason = step.get("reason", "неизвестная причина") if isinstance(step, dict) else ""
-                obs_text = f"⛔ ЗАБЛОКИРОВАНО: {block_reason}"
+                obs = step.get("observation", {}) if isinstance(step, dict) else {}
+                block_reason = obs.get("reason", "неизвестная причина")
+                obs_text = f"⛔ ЗАБЛОКИРОВАНО ПОЛИТИКОЙ: {block_reason}. Выбери другое действие или измени параметры."
 
             block = f"[ШАГ {i}]\n"
 

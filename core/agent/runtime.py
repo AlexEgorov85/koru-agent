@@ -376,9 +376,8 @@ class AgentRuntime:
                     self.session_context.agent_state,
                 )
                 if not policy_allowed:
-                    self.session_context.agent_state.errors.append(
-                        f"POLICY:{policy_reason}"
-                    )
+                    policy_msg = f"POLICY_BLOCKED: {policy_reason}. Действие отклонено. Смени инструмент или параметры."
+                    self.session_context.agent_state.errors.append(policy_msg)
                     # Добавляем заблокированное действие в step_context чтобы оно попало в историю
                     self.session_context.register_step(
                         step_number=step + 1,
@@ -420,6 +419,7 @@ class AgentRuntime:
                         f"⛔ Policy заблокировал действие {decision.action}: {policy_reason}",
                         extra={"event_type": LogEventType.WARNING},
                     )
+                    executed_steps += 1
                     continue
 
                 self.log.info(

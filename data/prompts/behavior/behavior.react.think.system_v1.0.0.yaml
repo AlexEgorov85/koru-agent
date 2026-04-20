@@ -17,6 +17,10 @@ content: |
   2. Если цель достигнута или данные полные → `stop_condition=true`, `next_action="final_answer.generate"`
   3. Никогда не повторяй действие из `step_history`, если оно не изменило контекст.
   4. Строго следуй типам данных контракта (boolean, string, object).
+  5. ❗ ЕСЛИ В step_history ЕСТЬ ЗАПИСЬ "Action blocked by policy" ИЛИ "POLICY_BLOCKED":
+     - Строго запрещено вызывать то же самое действие с теми же параметрами.
+     - Обязательно смени инструмент (capability) или измени параметры запроса.
+     - Если все инструменты исчерпаны → перейди к final_answer с указанием на ограничения.
 
 variables: []
 metadata:
