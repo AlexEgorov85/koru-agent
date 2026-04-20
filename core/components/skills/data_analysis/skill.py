@@ -368,14 +368,30 @@ class DataAnalysisSkill(Skill):
         return valid
 
     def _safe_get_content(self, content: Any) -> str:
-        """Безопасное извлечение строки из content (может быть dict, str, etc)."""
+        """Безопасное извлечение строки из content (может быть dict, str, coroutine, etc)."""
+        import inspect
         if content is None:
+            return ""
+        if inspect.iscoroutine(content):
             return ""
         if isinstance(content, str):
             return content
         if isinstance(content, dict):
             return str(content)
         return str(content)
+
+    def _is_valid_result(self, result: Any) -> bool:
+        """Проверка что результат - валидный dict, а не coroutine или ошибка."""
+        import inspect
+        if result is None:
+            return False
+        if inspect.iscoroutine(result):
+            return False
+        if isinstance(result, Exception):
+            return False
+        if isinstance(result, dict):
+            return True
+        return False
 
     async def _save_result_to_context(
         self,
@@ -471,6 +487,8 @@ class DataAnalysisSkill(Skill):
                     event_type=LogEventType.WARNING
                 )
                 summaries.append({"content": "", "chunk_id": i, "error": str(result)})
+            elif not self._is_valid_result(result):
+                summaries.append({"content": "", "chunk_id": i, "error": f"Invalid result type: {type(result)}"})
             else:
                 summaries.append(result)
 
@@ -544,7 +562,7 @@ class DataAnalysisSkill(Skill):
             return "Нет данных для анализа"
 
         if len(summaries) == 1:
-            return summaries[0].get("content", "")
+            return self._safe_get_content(summaries[0].get("content"))
 
         current_level = summaries
         iteration = 0
