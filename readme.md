@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.41.2-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.41.1-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,9 +25,9 @@
 
 ---
 
-## 📊 Последние изменения (v5.41.2)
+## 📊 Последние изменения (v5.41.1)
 
-**Версия 5.41.2** (20 апреля 2026) — **Exploration Mode + MockLLM + gitignore**
+**Версия 5.41.1** (20 апреля 2026) — **Exploration Mode + MockLLM + gitignore**
 
 ### Exploration Mode (режим исследования данных)
 - ✅ Активируется после первого пустого результата (threshold=1)
