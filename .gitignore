@@ -2,24 +2,11 @@
 # Compiled and build artifacts
 *.pyc
 __pycache__/
-*.o
-*.obj
-*.so
-*.a
-*.dll
-*.exe
-*.out
-build/
-dist/
-target/
 
 # Dependencies
-node_modules/
-venv/
 .venv/
-.env
-.env.local
-*.env.*
+venv/
+node_modules/
 
 # Logs and temp files
 *.log
