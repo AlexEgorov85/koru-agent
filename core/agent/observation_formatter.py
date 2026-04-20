@@ -86,30 +86,41 @@ def smart_format_observation(
     
     lines = []
     
-    # Показываем только данные без метаинформации
+    rows_data = []
+    
     if isinstance(result_data, list) and result_data:
-        for i, item in enumerate(result_data[:sample_count]):
-            if hasattr(item, '__dict__'):
-                item = item.__dict__
-            if isinstance(item, dict):
-                row_str = ", ".join(f"{k}={v}" for k, v in item.items())
-                lines.append(f"[{i}] {row_str}")
-            else:
-                lines.append(f"[{i}] {str(item)}")
+        rows_data = result_data[:sample_count]
     elif hasattr(result_data, 'rows') and result_data.rows:
-        sample_rows = list(result_data.rows)[:sample_count]
-        for i, row in enumerate(sample_rows):
-            if hasattr(row, '__dict__'):
-                row = row.__dict__
-            if isinstance(row, dict):
-                row_str = ", ".join(f"{k}={v}" for k, v in row.items())
-                lines.append(f"[{i}] {row_str}")
-            else:
-                lines.append(f"[{i}] {str(row)}")
+        rows_data = list(result_data.rows)[:sample_count]
+    elif isinstance(result_data, dict) and "rows" in result_data:
+        row_count_dict = len(result_data.get("rows", []))
+        if row_count_dict > 0:
+            lines.append(f"📊 Получено {row_count_dict} строк")
+            columns = result_data.get("columns", [])
+            if columns:
+                lines.append(f"📐 Колонки: {', '.join(str(c) for c in columns[:10])}")
+            sample = result_data["rows"][:3]
+            for i, row in enumerate(sample):
+                if isinstance(row, dict):
+                    preview = {k: row[k] for k in list(row.keys())[:5]}
+                    lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False)}")
+            if row_count_dict > 3:
+                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
     elif isinstance(result_data, str) and result_data:
         lines.append(result_data[:100])
     else:
-        lines.append("Нет данных")
+        lines.append(f"Нет данных (тип: {type(result_data).__name__})")
+
+    if rows_data:
+        for i, row in enumerate(rows_data):
+            if isinstance(row, dict):
+                row_str = ", ".join(f"{k}={v}" for k, v in row.items())
+                lines.append(f"[{i}] {row_str}")
+            elif hasattr(row, '__dict__'):
+                row_str = ", ".join(f"{k}={v}" for k, v in row.__dict__.items())
+                lines.append(f"[{i}] {row_str}")
+            else:
+                lines.append(f"[{i}] {str(row)}")
     
     return "\n".join(lines)
 
