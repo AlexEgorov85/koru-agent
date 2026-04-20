@@ -23,7 +23,7 @@ from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.observation_signal import ObservationSignalService
 from core.agent.components.policy import RetryPolicy, AgentPolicy
 from core.agent.components.agent_metrics import AgentMetrics
-from core.agent.behaviors.base import DecisionType
+from core.agent.behaviors.base import Decision, DecisionType
 from core.agent.observation_formatter import (
     format_observation,
     smart_format_observation,
@@ -573,6 +573,7 @@ class AgentRuntime:
                         extra={"event_type": LogEventType.TOOL_RESULT},
                     )
                     self._record_empty_result(decision.action, decision.parameters)
+                    await self._run_sql_diagnostic(decision, result)
                 elif result.data is not None:
                     from core.session_context.model import (
                         ContextItem,
@@ -967,6 +968,56 @@ class AgentRuntime:
             f"📊 Записан пустой результат: {action_name}, tables={tables}, filters={list(filters.keys())}",
             extra={"event_type": LogEventType.INFO},
         )
+
+    async def _run_sql_diagnostic(
+        self, decision: "Decision", result: "ExecutionResult"
+    ) -> None:
+        """
+        Запускает SQLDiagnosticService после пустого результата.
+
+        Выполняет диагностические запросы и инжектирует подсказки в agent_state.
+        """
+        import json
+
+        sql_query = decision.parameters.get("sql") or decision.parameters.get("query") or ""
+        if not sql_query or "sql" not in decision.action.lower():
+            return
+
+        try:
+            if not hasattr(self, "_sql_diagnostic"):
+                from core.agent.components.sql_diagnostic import SQLDiagnosticService
+
+                self._sql_diagnostic = SQLDiagnosticService(self.executor)
+
+            diag_result = await self._sql_diagnostic.analyze_empty_result(
+                sql_query=sql_query,
+                original_params=decision.parameters or {},
+            )
+
+            hints_text = "; ".join(diag_result.get("hints", []))
+            self.session_context.agent_state.errors.append(
+                f"SQL_DIAGNOSTIC: {hints_text}"
+            )
+
+            if diag_result.get("corrected_params"):
+                self.session_context.agent_state.last_corrected_params = diag_result[
+                    "corrected_params"
+                ]
+                corrected_list = ", ".join(
+                    f"{k}={v}" for k, v in diag_result["corrected_params"].items()
+                )
+                self.log.info(
+                    f"🔍 Диагностика нашла исправления: {corrected_list}",
+                    extra={"event_type": LogEventType.INFO},
+                )
+
+            self.log.info(
+                f"🔍 SQL диагностика: {hints_text}",
+                extra={"event_type": LogEventType.INFO},
+            )
+
+        except Exception as e:
+            self.log.warning(f"Ошибка SQL диагностики: {e}")
 
     async def stop(self):
         """Остановка (для совместимости)."""
