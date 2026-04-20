@@ -2,20 +2,30 @@ capability: data_analysis.analyze_step_data.user
 version: v1.0.0
 status: active
 component_type: skill
-description: Пользовательский промпт для MAP-анализа чанка
+description: Пользовательский промпт для MAP-анализа чанка с поддержкой схемы
 content: |
   === ВОПРОС ===
   {question}
-  
+
   === ДАННЫЕ ДЛЯ АНАЛИЗА ===
   {content}
+
+  Инструкции:
+  - Отвечай ТОЛЬКО на основе предоставленных данных
+  - Если в данных присутствует схема (СТРУКТУРА ДАННЫХ), учитывай её для интерпретации полей
+  - Если информации недостаточно для ответа, укажи это явно
+  - Избегай общих фраз без привязки к конкретным данным
+  - Пиши на русском языке
 variables:
   - name: question
     description: Вопрос пользователя
     required: true
   - name: content
-    description: Данные чанка для анализа
+    description: Данные чанка для анализа (может включать схему)
     required: true
+  - name: chunk_number
+    description: Номер чанка (опционально)
+    required: false
 metadata:
   author: system
-  created: '2026-04-15'
+  created: '2026-04-20'

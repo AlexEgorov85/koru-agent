@@ -2,16 +2,25 @@ capability: data_analysis.merge_step_data.user
 version: v1.0.0
 status: active
 component_type: skill
-description: Пользовательский промпт для MERGE
+description: Пользовательский промпт для MERGE с иерархическим объединением
 content: |
   === ВОПРОС ===
   {question}
-  
+
   === ФРАГМЕНТ 1 ===
   {content1}
-  
+
   === ФРАГМЕНТ 2 ===
   {content2}
+
+  Инструкции по объединению:
+  - Объедини информацию из обоих фрагментов в связный ответ
+  - Убери дублирующиеся факты
+  - Сохрани все уникальные ключевые данные
+  - Если информация противоречива, укажи это
+  - Пиши на русском языке
+
+  Объединённый анализ:
 variables:
   - name: question
     description: Вопрос пользователя
@@ -24,4 +33,4 @@ variables:
     required: true
 metadata:
   author: system
-  created: '2026-04-15'
+  created: '2026-04-20'
