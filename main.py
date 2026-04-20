@@ -5,7 +5,6 @@ import asyncio
 import logging
 import os
 import sys
-import traceback
 import warnings
 from typing import Optional
 
@@ -78,7 +77,7 @@ async def run_agent(
     """
     config = get_config(profile='prod', data_dir='data')
 
-    print("🚀 Agent v5.41.6 | Создание инфраструктурного контекста...", flush=True)
+    print("🚀 Agent v5.41.7 | Создание инфраструктурного контекста...", flush=True)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
 
@@ -131,7 +130,7 @@ async def run_agent(
         except Exception as run_error:
             logger.error(f"Ошибка выполнения: {run_error}")
             logger.error(f"Тип: {type(run_error).__name__}")
-            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            logger.error(f"Ошибка выполнения агента")
             raise
 
         if isinstance(result, str):
@@ -163,8 +162,6 @@ async def run_agent(
             elif hasattr(result, 'state'):
                 error_details["state"] = getattr(result, 'state', None)
 
-            error_details["traceback"] = traceback.format_exc()
-
             error_context = ErrorContext(
                 component="AgentRuntime",
                 operation="run",
@@ -192,18 +189,15 @@ async def run_agent(
                         "result_type": type(result).__name__,
                     }
 
-                    import traceback
-                    error_details["traceback"] = traceback.format_exc()
-
-                    error_context = ErrorContext(
-                        component="AgentRuntime",
-                        operation="run",
-                        session_id=session_id,
-                        metadata={
-                            "goal": goal,
-                            "error_details": error_details,
-                        }
-                    )
+error_context = ErrorContext(
+                         component="AgentRuntime",
+                         operation="run",
+                         session_id=session_id,
+                         metadata={
+                             "goal": goal,
+                             "error_details": error_details,
+                         }
+                     )
                     await error_handler.handle(
                         RuntimeError(f"{error_msg} (из metadata)"),
                         context=error_context,
