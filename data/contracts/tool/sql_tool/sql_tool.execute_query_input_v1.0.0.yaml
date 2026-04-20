@@ -3,20 +3,20 @@ version: v1.0.0
 status: active
 component_type: tool
 direction: input
-description: Input contract for SQL tool execute operation
+description: Входной контракт для выполнения SQL-запросов
 schema_data:
   type: object
   properties:
     sql:
       type: string
-      description: SQL query to execute
+      description: SQL-запрос для выполнения
     parameters:
       type: object
-      description: Query parameters
+      description: Параметры запроса
       additionalProperties: true
     max_rows:
       type: integer
-      description: Maximum number of rows to return
+      description: Максимальное количество возвращаемых строк
       default: 1000
   required:
     - sql

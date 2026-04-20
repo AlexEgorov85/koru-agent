@@ -3,26 +3,35 @@ version: v1.0.0
 status: active
 component_type: tool
 direction: output
-description: Output contract for SQL tool execute operation
+description: Выходной контракт для выполнения SQL-запросов
+name: Результат выполнения SQL-запроса
 schema_data:
   type: object
   properties:
     rows:
       type: array
-      description: Query result rows
+      description: Строки результата запроса
       items:
         type: object
     columns:
       type: array
-      description: Column names
+      description: Имена колонок
       items:
         type: string
     rowcount:
       type: integer
-      description: Number of rows affected/returned
+      description: Количество возвращённых строк
     execution_time:
       type: number
-      description: Execution time in seconds
+      description: Время выполнения запроса в секундах
+    error:
+      type: string
+      description: Сообщение об ошибке при выполнении запроса
+      nullable: true
+    sql_query:
+      type: string
+      description: Выполненный SQL-запрос
+      nullable: true
   required:
     - rows
     - columns

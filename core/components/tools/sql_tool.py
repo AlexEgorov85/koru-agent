@@ -110,12 +110,15 @@ class SQLTool(Tool):
         elif isinstance(parameters, dict):
             params_dict = parameters
         else:
-            self._log_error(f"Неподдерживаемый тип параметров: {type(parameters)}", event_type=LogEventType.ERROR)
+            error_msg = f"Неподдерживаемый тип параметров: {type(parameters)}"
+            self._log_error(error_msg, event_type=LogEventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
                 "rowcount": 0,
-                "execution_time": 0
+                "execution_time": 0,
+                "error": error_msg,
+                "sql_query": parameters.get('sql', '') if isinstance(parameters, dict) else ''
             }
 
         # Преобразуем параметры во входные данные
@@ -126,22 +129,28 @@ class SQLTool(Tool):
         # Получаем DB провайдер из инфраструктуры (stateless подход)
         db_provider = self._get_db_provider()
         if not db_provider:
-            self._log_error("DB провайдер не найден в infrastructure_context", event_type=LogEventType.ERROR)
+            error_msg = "DB провайдер не найден в infrastructure_context"
+            self._log_error(error_msg, event_type=LogEventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
                 "rowcount": 0,
-                "execution_time": time.time() - start_time
+                "execution_time": time.time() - start_time,
+                "error": error_msg,
+                "sql_query": input_data.sql
             }
 
         # Проверка sandbox-режима
         if not self.component_config.side_effects_enabled and self._is_write_query(input_data.sql):
-            self._log_warning(f"Sandbox режим: отклонён write-запрос", event_type=LogEventType.WARNING)
+            error_msg = "Sandbox режим: write-запрос отклонён"
+            self._log_warning(error_msg, event_type=LogEventType.WARNING)
             return {
                 "rows": [],
                 "columns": [],
                 "rowcount": 0,
-                "execution_time": time.time() - start_time
+                "execution_time": time.time() - start_time,
+                "error": error_msg,
+                "sql_query": input_data.sql
             }
 
         # Выполнение через провайдера — НАПРЯМУЮ через await (мы в async контексте)
@@ -151,12 +160,15 @@ class SQLTool(Tool):
                 params=input_data.parameters
             )
         except Exception as e:
-            self._log_error(f"Ошибка выполнения SQL: {e}", event_type=LogEventType.ERROR)
+            error_msg = str(e)
+            self._log_error(f"Ошибка выполнения SQL: {error_msg}", event_type=LogEventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
                 "rowcount": 0,
-                "execution_time": time.time() - start_time
+                "execution_time": time.time() - start_time,
+                "error": error_msg,
+                "sql_query": input_data.sql
             }
 
         execution_time = time.time() - start_time
@@ -165,7 +177,8 @@ class SQLTool(Tool):
             "rows": result.rows,
             "columns": result.columns,
             "rowcount": result.rowcount,
-            "execution_time": execution_time
+            "execution_time": execution_time,
+            "sql_query": input_data.sql
         }
 
         # === ЭТАП 2: Валидация выходных данных через схему ===
@@ -175,12 +188,15 @@ class SQLTool(Tool):
                 from dataclasses import asdict
                 output_schema.model_validate(output)
             except Exception as e:
-                self._log_error(f"Валидация выходных данных не пройдена: {e}", event_type=LogEventType.ERROR)
+                error_msg = f"Валидация выходных данных не пройдена: {e}"
+                self._log_error(error_msg, event_type=LogEventType.ERROR)
                 return {
                     "rows": [],
                     "columns": [],
                     "rowcount": 0,
-                    "execution_time": 0
+                    "execution_time": execution_time,
+                    "error": error_msg,
+                    "sql_query": input_data.sql
                 }
 
         return output
