@@ -1,9 +1,0 @@
-{"timestamp": "2026-04-19T11:46:13.726546", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
-{"timestamp": "2026-04-19T11:46:13.727117", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
-{"timestamp": "2026-04-19T11:46:13.726813", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
-{"timestamp": "2026-04-19T11:46:13.726894", "event_type": "session.created", "session_id": "system", "agent_id": null}
-{"timestamp": "2026-04-19T11:46:13.745485", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 0}
-{"timestamp": "2026-04-19T11:46:13.745609", "event_type": "user.result", "session_id": "917297f8-8447-4838-a0ed-7889b69b2e81", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
-{"timestamp": "2026-04-19T11:46:13.745812", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
-{"timestamp": "2026-04-19T11:46:13.745899", "event_type": "session.created", "session_id": "system", "agent_id": null}
-{"timestamp": "2026-04-19T11:46:13.789961", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 2, "success": 2}
