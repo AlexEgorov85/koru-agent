@@ -494,24 +494,41 @@ class LoggingConfig:
 ### SQLValidator
 
 ```python
-class SQLValidator:
-    def validate(self, query: str, schema: TableSchema) -> ValidationResult:
-        # 1. Проверка на SELECT-only
-        if not query.strip().upper().startswith("SELECT"):
-            return ValidationResult(False, "Only SELECT allowed")
+# Реальная реализация: использует sqlparse + регулярные выражения
 
-        # 2. AST-анализ
-        ast = parse(query)
-        forbidden_ops = {"DROP", "UPDATE", "DELETE", "TRUNCATE", "INSERT"}
-        if any(op in forbidden_ops for op in ast.operations):
-            return ValidationResult(False, "Forbidden operation")
+class SQLValidatorService(Service):
+    def __init__(self, allowed_operations: List[str] = None):
+        self.allowed_operations = set(allowed_operations or ["SELECT"])
+        # Регулярные выражения для обнаружения угроз
+        self._dangerous_patterns = [
+            r"(?i)(drop|delete|insert|update|truncate|alter|create)",
+            r"(?i)(union\s+select|waitfor\s+delay|benchmark\()",
+        ]
 
-        # 3. Проверка соответствия схеме
-        for table in ast.tables:
-            if table not in schema.tables:
-                return ValidationResult(False, f"Unknown table: {table}")
+    async def validate_query(self, sql_query: str, parameters: Dict = None):
+        validation_errors = []
 
-        return ValidationResult(True)
+        # 1. Парсинг через sqlparse
+        parsed = sqlparse.parse(sql_query)
+
+        # 2. Проверка разрешённых операций (белый список)
+        forbidden = ["DELETE", "DROP", "ALTER", "TRUNCATE", "INSERT", "UPDATE"]
+        for op in forbidden:
+            if re.search(rf'\b{op}\b', sql_query.upper()):
+                validation_errors.append(f"Запрещённая операция: {op}")
+
+        # 3. Запрет конкатенации (защита от инъекций)
+        if re.search(r'\|\||\+|CONCAT\(', sql_query, re.I):
+            validation_errors.append("Запрещена конкатенация в SQL")
+
+        # 4. Валидация имён таблиц/колонок
+        # 5. Проверка параметров
+
+        return ValidatedSQL(
+            is_valid=len(validation_errors) == 0,
+            validation_errors=validation_errors,
+            safety_score=self._calculate_safety_score(sql_query)
+        )
 ```
 
 ### ParamValidator: трёхступенчатая валидация
