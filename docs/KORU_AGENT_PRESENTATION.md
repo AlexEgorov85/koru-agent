@@ -404,9 +404,18 @@ class OpenRouterProvider(LLMProvider):
 
 ---
 
-## 6. Шина событий и Наблюдаемость
+## 6. Логирование и Шина событий
 
-### UnifiedEventBus
+### Логирование: стандартный `logging`
+
+Основные логи пишутся через стандартный модуль `logging` с привязкой к сессии:
+
+```
+2026-04-20 14:56:46,115 | INFO     | AGENT_START          | agent.agent_001                | Агент agent_001 запущен, цель: Сколько проверок было проведено в 2024?...
+2026-04-20 14:56:46,118 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 1/10
+```
+
+### UnifiedEventBus: метрики и телеметрия
 
 ```mermaid
 graph LR
@@ -433,20 +442,6 @@ graph LR
 | **Domain Routing** | Фильтрация по доменам: `agent`, `infrastructure`, `optimization` |
 | **Exactly-Once** | Гарантированное отсутствие дублирования |
 | **Backpressure** | Ограничение размера очереди (по умолчанию 1000 событий) |
-
-### Логирование: Session-based (реальный пример)
-
-```
-2026-04-20 14:56:46,115 | INFO     | AGENT_START          | agent.agent_001                | Агент agent_001 запущен, цель: Сколько проверок было проведено в 2024?...
-2026-04-20 14:56:46,118 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 1/10
-2026-04-20 14:56:46,119 | INFO     | AGENT_DECISION       | agent.agent_001                | 🧠 Pattern.decide()...
-2026-04-20 15:00:51,364 | INFO     | AGENT_DECISION       | agent.agent_001                | ✅ Pattern вернул: type=act, action=check_result.generate_script
-2026-04-20 15:00:51,365 | INFO     | TOOL_CALL            | agent.agent_001                | ⚙️ Запускаю check_result.generate_script с параметрами: {'query': 'Сколько проверок...'}
-2026-04-20 15:19:02,262 | INFO     | TOOL_RESULT          | agent.agent_001                | ✅ Действие check_result.generate_script выполнено
-2026-04-20 15:19:02,267 | DEBUG    | STEP_COMPLETED       | agent.agent_001                | 📝 Сохранено observation: item_id=auto_1, items: 2→3
-2026-04-20 15:19:02,269 | INFO     | INFO                 | agent.agent_001                | 👁️ Observer.analyze(check_result.generate_script)...
-2026-04-20 15:19:02,408 | INFO     | INFO                 | agent.agent_001                | 📊 Observation: status=partial, quality={'completeness': 0.5, 'reliability': 0.5}
-```
 
 ### Структура файлов логов (реальная)
 
@@ -531,7 +526,7 @@ class ParamValidator:
 |----------|------------------------------|------------------------|
 | **Архитектура** | Линейные цепочки / графы. Глобальное состояние. | 3-уровневые контексты. Строгая изоляция. DI. |
 | **Валидация** | JSON-парсинг часто падает. Retry на уровне промпта. | Contract-First. Pydantic-валидация. 3-ступенчатый парсер. |
-| **Наблюдаемость** | Логирование разрозненное. Сложно отследить сессию. | Session-based JSONL. Event Bus с изоляцией. Прометей. |
+| **Наблюдаемость** | Логирование разрозненное. Сложно отследить сессию. | Session-based логирование (logging), Event Bus для метрик. |
 | **Оптимизация** | Вручную или через внешние пайплайны. | Планируется: Self-Improvement цикл |
 | **Безопасность** | Доверяем LLM. SQL-инъекции возможны. | SQLValidator, ParamValidator, статический аудит кода. |
 | **Context isolation** | Глобальные состояния агентов в памяти процесса | Infrastructure / Application / Session полностью изолированы |
@@ -656,7 +651,7 @@ class ParamValidator:
 >
 > - **Валидации** — Contract-First, Pydantic, статический аудит
 > - **Изоляции** — Три уровня контекстов, никаких глобальных состояний
-> - **Наблюдаемости** — Session-based логирование, Event Bus, Prometheus
+> - **Наблюдаемости** — Session-based логирование (logging), Event Bus для метрик
 > - **Безопасности** — SQLValidator, ParamValidator, RBAC (в планах)
 > - **Самооптимизации** — Self-Improvement цикл (в планах)
 
