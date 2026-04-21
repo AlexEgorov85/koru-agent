@@ -79,9 +79,9 @@ graph TB
 | Компонент | Ответственность | Жизненный цикл |
 |-----------|------------------|----------------|
 | `DBProvider` | Пул соединений к БД | Инициализируется при старте, проверка health-check каждые 30с |
-| `LLMProvider` | Абстракция над LlamaCpp/vLLM/OpenRouter | Пересоздание при ошибках, circuit breaker |
+| `LLMProvider` | Абстракция над LlamaCpp/vLLM/OpenRouter | Пересоздание при ошибках, защита от сбоев |
 | `FAISSIndex` | Векторный индекс для семантического поиска | Предзагрузка при старте, lazy loading чанков |
-| `UnifiedEventBus` | Шина событий с изоляцией сессий | Singleton на процесс |
+| `UnifiedEventBus` | Шина событий с изоляцией сессий | Одиночка на процесс |
 
 **LifecycleManager:**
 
@@ -415,33 +415,42 @@ class OpenRouterProvider(LLMProvider):
 2026-04-20 14:56:46,118 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 1/10
 ```
 
-### UnifiedEventBus: метрики и телеметрия
+### Шина событий: метрики и телеметрия
 
 ```mermaid
-graph LR
-    subgraph "Сессия A"
-        A[Agent A] -->|publish| EB[Event Bus]
+graph TB
+    subgraph "Источники событий"
+        LLM[LLM-провайдеры]
+        DB[База данных]
+        AG[Агент]
     end
 
-    subgraph "Сессия B"
-        B[Agent B] -->|publish| EB
+    subgraph "Шина событий"
+        EB[Unified Event Bus]
     end
 
-    EB -->|route| QA[Queue A]
-    EB -->|route| QB[Queue B]
+    subgraph "Обработчики"
+        MET[Метрики Prometheus]
+        TEL[Телеметрия]
+        AUD[Аудит]
+    end
 
-    QA -->|subscribe| HandlerA[Session Handler]
-    QB -->|subscribe| HandlerB[Session Handler]
+    LLM -->|событие| EB
+    DB -->|событие| EB
+    AG -->|событие| EB
+    EB -->|маршрутизация| MET
+    EB -->|маршрутизация| TEL
+    EB -->|маршрутизация| AUD
 ```
 
 **Ключевые свойства:**
 
 | Свойство | Описание |
 |----------|----------|
-| **Session Isolation** | События сессии A физически не попадают в очередь сессии B |
-| **Domain Routing** | Фильтрация по доменам: `agent`, `infrastructure`, `optimization` |
+| **Изоляция сессий** | События сессии A физически не попадают в обработку сессии B |
+| **Маршрутизация по доменам** | Фильтрация: `agent`, `infrastructure`, `optimization` |
 | **Exactly-Once** | Гарантированное отсутствие дублирования |
-| **Backpressure** | Ограничение размера очереди (по умолчанию 1000 событий) |
+| **Управление потоком** | Ограничение размера очереди (по умолчанию 1000 событий) |
 
 ### Структура файлов логов (реальная)
 
@@ -567,7 +576,7 @@ class ParamValidator:
 | Contract-First | ✅ Готово | YAML-контракты, Pydantic-компиляция |
 | ActionExecutor | ✅ Готово | DI, статический анализ |
 | LLMOrchestrator | ✅ Готово | Провайдеры, 3-ступенчатый парсинг |
-| Event Bus | ✅ Готово | Изоляция сессий, domain routing |
+| Event Bus | ✅ Готово | Изоляция сессий, маршрутизация по доменам |
 | SQLValidator | ✅ Готово | SELECT-only, AST-анализ |
 | UI (Streamlit) | ✅ Готово | Интерактивный интерфейс |
 | Observability | ✅ Готово | Session-based JSONL, Prometheus |
@@ -615,7 +624,7 @@ class ParamValidator:
 
 #### 4. Распределённые агенты
 
-**Что это:** Поддержка gRPC/Message Queue для multi-agent систем.
+**Что это:** Поддержка gRPC/очереди сообщений для систем с несколькими агентами.
 
 **Зачем нужно:**
 - Горизонтальное масштабирование
