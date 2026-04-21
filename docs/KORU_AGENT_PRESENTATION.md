@@ -221,7 +221,6 @@ $ python scripts/validation/check_skill_architecture.py
 | **CheckResultSkill** | Проверка и валидация результатов: генерация SQL-скриптов, выполнение запросов, векторный поиск |
 | **DataAnalysisSkill** | Анализ данных с помощью LLM и MapReduce-подхода |
 | **FinalAnswerSkill** | Генерация финального ответа пользователю на основе собранных данных |
-| **MetaComponentCreator** | Создание новых компонентов (навыков, инструментов) через LLM |
 
 ### Инструменты (Tools)
 
