@@ -40,7 +40,7 @@ class StructuredOutputConfig(PydanticBaseModel):
     - schema_def как dict (JSON Schema)
     - schema_def как Pydantic модель (автоматически конвертируется в JSON Schema)
     """
-    output_model: str = ""  # Имя модели (для сериализации в события)
+    output_model: Optional[str] = None  # Имя модели (для сериализации в события)
     schema_def: Dict[str, Any]  # JSON Schema или Pydantic модель (конвертируется автоматически)
     max_retries: int = Field(default=3, ge=1, le=5)
     strict_mode: bool = Field(default=True, description="Строгая валидация (все поля обязательны)")

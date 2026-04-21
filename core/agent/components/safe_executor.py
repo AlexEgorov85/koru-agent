@@ -177,8 +177,8 @@ class SafeExecutor:
                     exc_info=True
                 )
 
-                # Retry ТОЛЬКО для TRANSIENT ошибок
-                if error_type == ErrorType.TRANSIENT:
+                # Retry ТОЛЬКО для TRANSIENT ошибок, КРОМЕ final_answer
+                if error_type == ErrorType.TRANSIENT and capability_name != "final_answer.generate":
                     if attempt < self.max_retries - 1:
                         delay = self._calculate_delay(attempt)
                         await asyncio.sleep(delay)
