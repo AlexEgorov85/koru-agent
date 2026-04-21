@@ -535,32 +535,28 @@ class ParamValidator:
 | **Context isolation** | Глобальные состояния агентов в памяти процесса | Infrastructure / Application / Session полностью изолированы |
 | **Цель** | Быстрый прототип, research. | Production-ready, аудит, долгосрочная поддержка. |
 
-### Пример: падение валидации
+### Пример: 3-ступенчатый JSON-парсинг
 
-**LangChain:**
+Реальный ответ от LLM (из логов):
 ```
-User: Получить данные пользователей
-Model: ```json
-{"users": [
-  {"name": "Иван", "email": "ivan@test.com"
-  {"name": "Пётр", "email": "petr@test.com"}
-]}
+[raw_response]:
+{
+  "analysis_question_decomposition": "Вопрос не содержит подвопросов.",
+  "analysis_subquestions_tracking": "[]",
+  "analysis_progress": "0/0 подвопросов решены",
+  "analysis_deficit": "Нет данных для анализа",
+  "stop_condition": false,
+  "decision": {
+    "next_action": "check_result.generate_script",
+    "parameters": {"query": "Сколько проверок было проведено в 2024?"}
+  }
+}
 ```
-→ LangChain пытается распарсить → падение (пропущена запятая) → retry на уровне промпта → непредсказуемо
 
-**Koru-Agent:**
-```
-User: Получить данные пользователей
-Model: ```json
-{"users": [
-  {"name": "Иван", "email": "ivan@test.com"},
-  {"name": "Пётр", "email": "petr@test.com"}
-]}
-```
-→ Этап 1: Извлечение JSON из markdown
-→ Этап 2: Автоматическое исправление (добавлена запятая)
-→ Этап 3: Валидация против Pydantic-схемы
-→ Результат: детерминированный output
+Этапы обработки:
+1. **Из markdown** — извлечение JSON из ````json ... ````
+2. **Исправление** — автоматическое исправление синтаксиса (пропущенные запятые, скобки)
+3. **Валидация** — проверка against Pydantic-схемы контракта
 
 ---
 
