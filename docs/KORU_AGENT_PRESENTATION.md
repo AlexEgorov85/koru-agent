@@ -204,49 +204,71 @@ $ python scripts/validation/check_skill_architecture.py
 
 ## 4. Contract-First и Управление ресурсами
 
-### YAML-контракты
+### YAML-контракты (реальные примеры из проекта)
 
-Строгие схемы ввода/вывода для каждой capability:
-
+**Input: sql_tool.execute_query**
 ```yaml
-# data/contracts/capability/sql_execute/v1.0.0.yaml
-capability: sql_execute
-version: "1.0.0"
+# data/contracts/tool/sql_tool/sql_tool.execute_query_input_v1.0.0.yaml
+capability: sql_tool.execute_query
+version: v1.0.0
 status: active
-
-input:
+component_type: tool
+direction: input
+description: Входной контракт для выполнения SQL-запросов
+schema_data:
   type: object
-  required:
-    - query
   properties:
-    query:
+    sql:
       type: string
-      description: "SQL запрос"
-      pattern: "^SELECT\\s+"
+      description: SQL-запрос для выполнения
     parameters:
       type: object
-      description: "Параметры запроса"
-      additionalProperties:
-        type: string
-
-output:
-  type: object
+      description: Параметры запроса
+      additionalProperties: true
+    max_rows:
+      type: integer
+      description: Максимальное количество возвращаемых строк
+      default: 1000
   required:
-    - rows
-    - columns
+    - sql
+```
+
+**Output: sql_tool.execute_query**
+```yaml
+# data/contracts/tool/sql_tool/sql_tool.execute_query_output_v1.0.0.yaml
+capability: sql_tool.execute_query
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Выходной контракт для выполнения SQL-запросов
+schema_data:
+  type: object
   properties:
     rows:
       type: array
+      description: Строки результата запроса
       items:
         type: object
     columns:
       type: array
+      description: Имена колонок
       items:
         type: string
-    row_count:
+    rowcount:
       type: integer
-    execution_time_ms:
-      type: integer
+      description: Количество возвращённых строк
+    execution_time:
+      type: number
+      description: Время выполнения запроса в секундах
+    error:
+      type: string
+      description: Сообщение об ошибке
+      nullable: true
+  required:
+    - rows
+    - columns
+    - rowcount
 ```
 
 ### ResourceLoader: автоматическое сканирование
@@ -644,64 +666,39 @@ Model: ```json
 
 ---
 
-## Приложение A: Пример YAML-контракта
+## Приложение A: Примеры YAML-контрактов (из проекта)
 
+**Input: behavior.react.think** (рассуждение в цикле ReAct)
 ```yaml
-# data/contracts/capability/planning_create_plan/v1.0.0.yaml
-capability: planning_create_plan
-version: "1.0.0"
-status: active
-
-input:
+# data/contracts/behavior/behavior.react.think_input_v1.0.0.yaml
+capability: behavior.react.think
+component_type: behavior
+description: Input contract for behavior.react.think - рассуждение в цикле ReAct
+direction: input
+schema_data:
   type: object
-  required:
-    - goal
   properties:
+    input:
+      type: string
+      description: Текущий контекст задачи и состояние
     goal:
       type: string
-      minLength: 10
-      maxLength: 500
-      description: "Цель планирования"
-    context:
-      type: object
-      description: "Дополнительный контекст"
-      properties:
-        available_tables:
-          type: array
-          items:
-            type: string
-        business_rules:
-          type: array
-          items:
-            type: string
-
-output:
-  type: object
+      description: Исходная цель задачи
+    step_history:
+      type: string
+      description: История выполненных шагов с результатами
+    observation:
+      type: string
+      description: Результат последнего наблюдения
+    available_tools:
+      type: string
+      description: Список доступных инструментов с описаниями
   required:
-    - steps
-  properties:
-    steps:
-      type: array
-      minItems: 1
-      maxItems: 10
-      items:
-        type: object
-        required:
-          - action
-          - reason
-        properties:
-          action:
-            type: string
-            description: "Описание действия"
-          reason:
-            type: string
-            description: "Обоснование действия"
-          expected_result:
-            type: string
-          required_components:
-            type: array
-            items:
-              type: string
+    - input
+    - goal
+  additionalProperties: true
+status: active
+version: v1.0.0
 ```
 
 ## Приложение B: Пример лога сессии (реальный)
