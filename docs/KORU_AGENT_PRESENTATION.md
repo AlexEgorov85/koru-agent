@@ -410,25 +410,29 @@ graph LR
 | **Exactly-Once** | Гарантированное отсутствие дублирования |
 | **Backpressure** | Ограничение размера очереди (по умолчанию 1000 событий) |
 
-### Логирование: Session-based JSONL
-
-```json
-{"timestamp": "2026-04-21T10:30:15.123Z", "level": "INFO", "event_type": "STEP_STARTED", "session_id": "sess_abc123", "data": {"step": 1, "goal": "Найти нарушения"}}
-{"timestamp": "2026-04-21T10:30:15.456Z", "level": "INFO", "event_type": "LLM_CALL", "session_id": "sess_abc123", "data": {"prompt_tokens": 512, "provider": "llama-cpp"}}
-{"timestamp": "2026-04-21T10:30:16.789Z", "level": "INFO", "event_type": "LLM_RESPONSE", "session_id": "sess_abc123", "data": {"response_tokens": 128, "model": "mixtral-8x7b"}}
-{"timestamp": "2026-04-21T10:30:17.012Z", "level": "ERROR", "event_type": "TOOL_ERROR", "session_id": "sess_abc123", "data": {"tool": "sql_tool", "error": "Syntax error at position 45"}}
-```
-
-### Структура файлов логов
+### Логирование: Session-based (реальный пример)
 
 ```
-logs/
-└── 2026-04-21_10-30-00/
-    ├── infra_context.log       # Инфраструктура (провайдеры, БД)
-    ├── app_context.log      # Приложение (компоненты)
-    └── agents/
-        ├── sess_abc123.log  # Сессия #1
-        ├── sess_def456.log  # Сессия #2
+2026-04-20 14:56:46,115 | INFO     | AGENT_START          | agent.agent_001                | Агент agent_001 запущен, цель: Сколько проверок было проведено в 2024?...
+2026-04-20 14:56:46,118 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 1/10
+2026-04-20 14:56:46,119 | INFO     | AGENT_DECISION       | agent.agent_001                | 🧠 Pattern.decide()...
+2026-04-20 15:00:51,364 | INFO     | AGENT_DECISION       | agent.agent_001                | ✅ Pattern вернул: type=act, action=check_result.generate_script
+2026-04-20 15:00:51,365 | INFO     | TOOL_CALL            | agent.agent_001                | ⚙️ Запускаю check_result.generate_script с параметрами: {'query': 'Сколько проверок...'}
+2026-04-20 15:19:02,262 | INFO     | TOOL_RESULT          | agent.agent_001                | ✅ Действие check_result.generate_script выполнено
+2026-04-20 15:19:02,267 | DEBUG    | STEP_COMPLETED       | agent.agent_001                | 📝 Сохранено observation: item_id=auto_1, items: 2→3
+2026-04-20 15:19:02,269 | INFO     | INFO                 | agent.agent_001                | 👁️ Observer.analyze(check_result.generate_script)...
+2026-04-20 15:19:02,408 | INFO     | INFO                 | agent.agent_001                | 📊 Observation: status=partial, quality={'completeness': 0.5, 'reliability': 0.5}
+```
+
+### Структура файлов логов (реальная)
+
+```
+logs/2026-04-20_14-56-25/
+├── infra_context.log    # Инфраструктура (провайдеры, БД, LLM)
+├── app_context.log   # Приложение (компоненты)
+├── llm_calls.log   # Все LLM-вызовы с промптами
+└── agents/
+    └── 2026-04-20_14-56-46.log  # Сессия агента
 ```
 
 ### Фильтрация в терминале
@@ -700,68 +704,32 @@ output:
               type: string
 ```
 
-## Приложение B: Пример JSON-лога сессии
+## Приложение B: Пример лога сессии (реальный)
 
-```json
-{
-  "session_id": "sess_koru_20260421_001",
-  "timestamp": "2026-04-21T14:30:00.123Z",
-  "agent_id": "agent_planning_001",
-  "goal": "Создать план проверок на 2026 год",
-  "max_steps": 10,
-  "profile": "prod",
-  "steps": [
-    {
-      "step_number": 1,
-      "status": "completed",
-      "action": "sql_query",
-      "thought": "Нужно получить список существующих проверок",
-      "tool_input": {
-        "query": "SELECT id, name, planned_date FROM audits WHERE year = 2026"
-      },
-      "tool_output": {
-        "row_count": 3,
-        "execution_time_ms": 45
-      },
-      "duration_ms": 1230
-    },
-    {
-      "step_number": 2,
-      "status": "completed",
-      "action": "sql_query",
-      "thought": "Проверю типы нарушений",
-      "tool_input": {
-        "query": "SELECT DISTINCT violation_type FROM violations"
-      },
-      "tool_output": {
-        "row_count": 8,
-        "execution_time_ms": 32
-      },
-      "duration_ms": 890
-    },
-    {
-      "step_number": 3,
-      "status": "error",
-      "action": "sql_execute",
-      "error": "Syntax error at position 12",
-      "llm_feedback": "Запрос содержит ошибку синтаксиса"
-    }
-  ],
-  "final_result": {
-    "status": "plan_created",
-    "plan": {
-      "steps": [
-        {"action": "Запустить проверки Q1", "timeline": "2026-01-15"},
-        {"action": "Запустить проверки Q2", "timeline": "2026-04-15"}
-      ]
-    }
-  },
-  "metrics": {
-    "total_steps": 3,
-    "successful_steps": 2,
-    "failed_steps": 1,
-    "total_tokens": 4521,
-    "total_duration_ms": 8500
-  }
-}
 ```
+2026-04-20 14:56:46,115 | INFO     | AGENT_START          | agent.agent_001                | Агент agent_001 запущен, цель: Сколько проверок было проведено в 2024?...
+2026-04-20 14:56:46,118 | INFO     | SYSTEM_INIT          | agent.agent_001                | 📦 Доступно capability: 4
+2026-04-20 14:56:46,118 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 1/10
+2026-04-20 15:00:51,364 | INFO     | AGENT_DECISION       | agent.agent_001                | ✅ Pattern вернул: type=act, action=check_result.generate_script
+Дефицит: Нет данных для анализа
+Выбор инструмента: check_result.generate_script
+Остановка: нет
+Итог: Выполнить SQL-запрос для подсчёта проверок в 2024
+2026-04-20 15:00:51,365 | INFO     | TOOL_CALL            | agent.agent_001                | ⚙️ Запускаю check_result.generate_script с параметрами: {'query': 'Сколько проверок было проведено в 2024?', 'max_results': 1}
+2026-04-20 15:19:02,262 | INFO     | TOOL_RESULT          | agent.agent_001                | ✅ Действие check_result.generate_script выполнено
+2026-04-20 15:19:02,267 | DEBUG    | STEP_COMPLETED       | agent.agent_001                | 📝 Сохранено observation: item_id=auto_1, items: 2→3
+2026-04-20 15:19:02,269 | INFO     | INFO                 | agent.agent_001                | 👁️ Observer.analyze(check_result.generate_script)...
+2026-04-20 15:19:02,408 | INFO     | INFO                 | agent.agent_001                | 📊 Observation: status=partial, quality={'completeness': 0.5, 'reliability': 0.5}
+2026-04-20 15:19:02,412 | INFO     | STEP_STARTED         | agent.agent_001                | 📍 ШАГ 2/10
+2026-04-20 15:29:27,771 | INFO     | AGENT_DECISION       | agent.agent_001                | ✅ Pattern вернул: type=act, action=final_answer.generate
+2026-04-20 15:36:03,538 | INFO     | TOOL_RESULT          | agent.agent_001                | ✅ final_answer.generate → completed
+```
+
+**Ключевые метрики сессии:**
+
+| Метрика | Значение |
+|---------|----------|
+| Длительность | ~40 мин |
+| Шагов | 2/10 |
+| LLM-вызовов | 1 |
+| Результат | partial (качество 0.5) |
