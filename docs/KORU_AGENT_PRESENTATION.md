@@ -221,7 +221,7 @@ input:
   properties:
     query:
       type: string
-      description: "SQL запрос,必须是 SELECT"
+      description: "SQL запрос"
       pattern: "^SELECT\\s+"
     parameters:
       type: object
