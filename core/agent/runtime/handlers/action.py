@@ -116,4 +116,7 @@ class ActionHandler(IStepHandler):
             agent_id=self.agent_id,
         )
         
+        # Сохраняем результат в контексте для пост-обработки рекордером
+        context.step_context._last_execution_result = result
+        
         return result
