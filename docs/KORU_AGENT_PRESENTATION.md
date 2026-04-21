@@ -316,13 +316,15 @@ class ContractCompiler:
 | `active` | Активная версия в production | ✅ |
 | `archived` | Архивная версия | ❌ |
 
-Профиль `prod` запрещает `draft`:
+Профиль `prod` разрешает только `active`:
 
 ```python
 def _validate_status_by_profile(self, config: ComponentConfig):
-    if self.profile == "prod" and config.status == "draft":
-        raise ProductionDraftViolation(
-            f"Компонент {config.name} имеет статус draft"
+    allowed = {"active"} if self.profile == "prod" else {"draft", "active", "archived"}
+    if config.status not in allowed:
+        raise ProductionStatusViolation(
+            f"Компонент {config.name} имеет статус {config.status}, "
+            f"доступные в prod: active"
         )
 ```
 
