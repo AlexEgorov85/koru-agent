@@ -339,15 +339,41 @@ class AgentRuntime:
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
                 self.log.info(
-                    f"Завершение: {decision.reasoning if decision.reasoning else 'готов'}",
+                    f"Завершение: {decision.reasoning if decision.reasoning else 'готов'}. "
+                    f"Запускаю final_answer.generate...",
                     extra={"event_type": LogEventType.AGENT_STOP},
                 )
-                # Сохраняем диалог в историю
-                final_answer = decision.reasoning or ""
-                if decision.result and decision.result.data:
-                    final_answer = str(decision.result.data)
+                try:
+                    final_result = await self.safe_executor.execute(
+                        capability_name="final_answer.generate",
+                        parameters={
+                            "format_type": "structured",
+                            "include_steps": True,
+                            "include_evidence": True,
+                            "max_sources": 20
+                        },
+                        context=ExecutionContext(
+                            session_context=self.session_context,
+                            session_id=self.session_context.session_id,
+                            agent_id=self.agent_id,
+                        ),
+                    )
+
+                    if final_result.status == ExecutionStatus.COMPLETED:
+                        self.session_context.commit_turn(
+                            user_query=self.goal,
+                            assistant_response=str(final_result.data.get("final_answer", "")),
+                            tools_used=["final_answer.generate"],
+                        )
+                        self._sync_dialogue_history_back()
+                        return final_result
+                except Exception as e:
+                    self.log.error(f"Ошибка генерации финального ответа: {e}")
+
                 self.session_context.commit_turn(
-                    user_query=self.goal, assistant_response=final_answer, tools_used=[]
+                    user_query=self.goal,
+                    assistant_response=decision.reasoning or "Завершено",
+                    tools_used=[],
                 )
                 self._sync_dialogue_history_back()
                 return decision.result or ExecutionResult.success(
@@ -755,43 +781,6 @@ class AgentRuntime:
                     agent_id=self.agent_id,
                 )
 
-                # Если это был final_answer.generate и результат успешный - завершаем
-                if (
-                    decision.action == "final_answer.generate"
-                    and result.status == ExecutionStatus.COMPLETED
-                    and result.data
-                ):
-                    final_answer_data = str(result.data)
-                    await event_bus.publish(
-                        EventType.AGENT_THINKING,
-                        {
-                            "message": "✅ Финальный ответ сгенерирован",
-                            "step": step + 1,
-                        },
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id,
-                    )
-                    await event_bus.publish(
-                        EventType.SESSION_ANSWER,
-                        {"answer": final_answer_data, "goal": self.goal},
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id,
-                    )
-                    await event_bus.publish(
-                        EventType.INFO,
-                        {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"},
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id,
-                    )
-                    # Сохраняем диалог в историю
-                    self.session_context.commit_turn(
-                        user_query=self.goal,
-                        assistant_response=final_answer_data,
-                        tools_used=[],
-                    )
-                    self._sync_dialogue_history_back()
-                    return result
-
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:
                 await event_bus.publish(
@@ -924,7 +913,7 @@ class AgentRuntime:
             "next_step_hint": "Продолжай по текущему плану",
         }
 
-    async def _get_available_capabilities(self):
+async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""
         if hasattr(self.application_context, "get_all_skills"):
             all_caps = self.application_context.get_all_skills()

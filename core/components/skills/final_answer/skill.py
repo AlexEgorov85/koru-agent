@@ -74,7 +74,7 @@ class FinalAnswerSkill(Skill):
                 description="Генерация финального ответа на основе всего контекста сессии с поддержкой различных форматов вывода",
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies,
-                visiable=True,
+                visiable=False,
                 meta={
                     "requires_llm": True,
                     "execution_type": "llm-powered",

@@ -38,7 +38,7 @@ content: |
   - Для генерации SQL → sql_generation.generate_query
   - Для анализа данных → data_analysis.analyze_step_data
   - Для планирования → planning capabilities
-  - Для финального ответа → final_answer.generate
+  - Для завершения цикла → верни FINISH (система сама сгенерирует ответ)
 
   === ТРЕБОВАНИЯ БЕЗОПАСНОСТИ ===
   1. Никогда не выполняй деструктивные операции (DELETE, DROP, UPDATE без подтверждения)

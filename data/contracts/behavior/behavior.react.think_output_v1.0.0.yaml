@@ -47,7 +47,7 @@ schema_data:
 
     analysis_stop:
       type: string
-      description: "Все подвопросы решены? Данные полные? Можно ли переходить к final_answer?"
+      description: "Все подвопросы решены? Данные полные? Можно ли завершать цикл (FINISH)?"
 
     analysis_final:
       type: string
