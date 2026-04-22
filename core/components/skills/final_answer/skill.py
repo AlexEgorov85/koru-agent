@@ -298,13 +298,23 @@ class FinalAnswerSkill(Skill):
 
                 # Классификация элементов контекста
                 for item_id, item in all_items.items():
-                    # item может быть dict или объектом
+                    # item может быть dict или объектом ContextItem
                     if isinstance(item, dict):
-                        item_type = item.get("item_type", "")
+                        item_type_raw = item.get("item_type", "")
                         item_content = item.get("content", {})
                     else:
-                        item_type = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
+                        # Это объект ContextItem
+                        item_type_raw = item.item_type
                         item_content = item.content
+                    
+                    # Нормализация item_type до строки
+                    if hasattr(item_type_raw, 'value'):
+                        # Это Enum (ContextItemType)
+                        item_type = item_type_raw.value
+                    elif isinstance(item_type_raw, str):
+                        item_type = item_type_raw
+                    else:
+                        item_type = str(item_type_raw)
                     
                     self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=LogEventType.DEBUG)
 
