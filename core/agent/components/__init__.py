@@ -1,30 +1,34 @@
 """
-Модуль компонентов.
+Модуль компонентов агента.
 
 КОМПОНЕНТЫ:
-- component: универсальный базовый класс для всех компонентов
 - action_executor: исполнитель действий
-- component_factory: фабрика создания компонентов
-- component_discovery: автоматическое обнаружение компонентов
+- observer: наблюдатель за результатами
+- safe_executor: безопасный исполнитель с retry
+- policy: политика агента
+- agent_metrics: метрики агента
 
 USAGE:
 ```python
-from core.agent.components import Component
+from core.agent.components import ActionExecutor
 ```
 """
-from .component import Component
 from .action_executor import ActionExecutor, ExecutionContext
-from .component_factory import ComponentFactory
-from .component_discovery import ComponentDiscovery
-from .lifecycle import ComponentLifecycle
-from core.models.enums.component_status import ComponentStatus
+from .observer import Observer
+from .safe_executor import SafeExecutor
+from .policy import AgentPolicy, RetryPolicy
+from .agent_metrics import AgentMetrics
+from .sql_recovery import SQLRecoveryAnalyzer
+from .observation_signal import ObservationSignalService
 
 __all__ = [
-    'Component',
     'ActionExecutor',
     'ExecutionContext',
-    'ComponentFactory',
-    'ComponentDiscovery',
-    'ComponentLifecycle',
-    'ComponentStatus',
+    'Observer',
+    'SafeExecutor',
+    'AgentPolicy',
+    'RetryPolicy',
+    'AgentMetrics',
+    'SQLRecoveryAnalyzer',
+    'ObservationSignalService',
 ]

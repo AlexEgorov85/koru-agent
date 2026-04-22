@@ -335,7 +335,7 @@ class TestErrorInterpretation:
     @pytest.mark.asyncio
     async def test_different_error_types_tracked(self):
         """Разные типы ошибок различимы."""
-        from core.agent.components.failure_memory import FailureMemory
+        from core.errors.failure_memory import FailureMemory
         from core.models.enums.common_enums import ErrorType
         
         memory = FailureMemory()

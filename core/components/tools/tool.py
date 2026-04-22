@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 
 from core.models.data.capability import Capability
 from core.config.component_config import ComponentConfig
-from core.agent.components.component import Component
+from core.components.component import Component
 
 
 # =============================================================================

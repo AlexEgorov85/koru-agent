@@ -10,8 +10,8 @@
 from typing import Any, Dict, List, Tuple
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
-from core.agent.strategies.react.schema_validator import SchemaValidator
-from core.agent.strategies.react.utils import analyze_context
+from core.agent.behaviors.react.schema_validator import SchemaValidator
+from core.agent.behaviors.react.utils import analyze_context
 from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest

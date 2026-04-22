@@ -21,7 +21,7 @@ from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
-from core.agent.components.component import Component
+from core.components.component import Component
 from core.config.component_config import ComponentConfig
 from core.utils.async_utils import safe_async_call
 
@@ -330,7 +330,7 @@ class PromptBuilderService:
                         if hasattr(item, "quick_content") and item.quick_content:
                             obs_parts.append(item.quick_content)
                         elif hasattr(item, "content"):
-                            from core.agent.observation_formatter import (
+                            from core.utils.observation_formatter import (
                                 format_observation,
                             )
 
@@ -340,11 +340,11 @@ class PromptBuilderService:
                 if obs_parts:
                     obs_text = "\n".join(obs_parts)
             elif hasattr(step, "result") and step.result is not None:
-                from core.agent.observation_formatter import format_observation
+                from core.utils.observation_formatter import format_observation
 
                 obs_text = format_observation(step.result, capability, parameters)
             elif isinstance(step, dict) and step.get("result"):
-                from core.agent.observation_formatter import format_observation
+                from core.utils.observation_formatter import format_observation
 
                 obs_text = format_observation(step["result"], capability, parameters)
 

@@ -10,7 +10,7 @@
 """
 import pytest
 
-from core.agent.components.error_classifier import ErrorClassifier
+from core.errors.error_classifier import ErrorClassifier
 from core.models.enums.common_enums import ErrorType
 
 

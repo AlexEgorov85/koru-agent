@@ -574,19 +574,19 @@ async def cmd_bench_optimize(args) -> int:
             }
 
     # Компоненты оркестратора
-    from core.agent.components.optimization.orchestrator import (
+    from core.services.optimization.orchestrator import (
         OptimizationOrchestrator, OrchestratorV2Config,
     )
     from core.components.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
-    from core.agent.components.optimization.trace_collector import TraceCollector
-    from core.agent.components.optimization.evaluator import Evaluator
-    from core.agent.components.optimization.prompt_generator import PromptGenerator
-    from core.agent.components.optimization.version_manager import VersionManager
-    from core.agent.components.optimization.safety_layer import SafetyLayer
-    from core.agent.components.optimization.pattern_analyzer import PatternAnalyzer
-    from core.agent.components.optimization.prompt_analyzer import PromptResponseAnalyzer
-    from core.agent.components.optimization.root_cause_analyzer import RootCauseAnalyzer
-    from core.agent.components.optimization.example_extractor import ExampleExtractor
+    from core.services.optimization.trace_collector import TraceCollector
+    from core.services.optimization.evaluator import Evaluator
+    from core.services.optimization.prompt_generator import PromptGenerator
+    from core.services.optimization.version_manager import VersionManager
+    from core.services.optimization.safety_layer import SafetyLayer
+    from core.services.optimization.pattern_analyzer import PatternAnalyzer
+    from core.services.optimization.prompt_analyzer import PromptResponseAnalyzer
+    from core.services.optimization.root_cause_analyzer import RootCauseAnalyzer
+    from core.services.optimization.example_extractor import ExampleExtractor
     from core.components.benchmarks.benchmark_models import PromptVersion, OptimizationMode
     from core.models.data.execution_trace import ExecutionTrace, StepTrace, ErrorDetail, ErrorType
     from unittest.mock import AsyncMock

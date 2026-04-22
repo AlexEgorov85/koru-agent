@@ -4,7 +4,7 @@
 import pytest
 import json
 from core.infrastructure.providers.llm.json_parser import _fix_missing_commas as fix_commas_parser
-from core.agent.strategies.react.validation import _fix_missing_commas_simple
+from core.agent.behaviors.react.validation import _fix_missing_commas_simple
 
 
 class TestMissingCommasFix:

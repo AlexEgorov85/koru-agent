@@ -182,7 +182,7 @@ async def diagnose_application_context(infra_ctx: InfrastructureContext) -> Appl
     else:
         fail("table_description_service НЕ НАЙДЕН!")
         # Попробуем найти через ComponentDiscovery
-        from core.agent.components.component_discovery import ComponentDiscovery
+        from core.components.component_discovery import ComponentDiscovery
         disc = ComponentDiscovery()
         disc.scan()
         entry = disc.find_component("service", "table_description")

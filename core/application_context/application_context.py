@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Any, Literal, Type
 from pydantic import BaseModel
 
 from core.agent.components.action_executor import ActionExecutor
-from core.agent.components.component_factory import ComponentFactory
+from core.components.component_factory import ComponentFactory
 from core.application_context.base_system_context import BaseSystemContext
 from core.config.component_config import ComponentConfig
 from core.infrastructure_context.infrastructure_context import InfrastructureContext

@@ -8,7 +8,7 @@ from core.infrastructure.providers.llm.json_parser import (
     _fix_json_trailing_garbage,
     _fix_missing_commas
 )
-from core.agent.strategies.react.validation import (
+from core.agent.behaviors.react.validation import (
     _fix_missing_closing_brackets_simple,
     _fix_json_trailing_garbage_simple,
     _fix_missing_commas_simple

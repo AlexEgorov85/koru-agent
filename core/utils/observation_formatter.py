@@ -39,7 +39,7 @@ def smart_format_observation(
 ) -> str:
     """
     Интеллектуальное форматирование для быстрого просмотра.
-    
+
     ПРАВИЛА:
     - Данные до 5 строк или 500 символов → показать всё
     - Большие данные → статистика + пример (3 строки или 100 символов)
@@ -48,7 +48,7 @@ def smart_format_observation(
         return "Данные отсутствуют"
 
     data_type = type(result_data).__name__
-    
+
     if isinstance(result_data, list):
         row_count = len(result_data)
         sample_count = min(3, row_count)
@@ -58,7 +58,7 @@ def smart_format_observation(
 
     if hasattr(result_data, 'rows'):
         row_count = len(getattr(result_data, 'rows', [])) or row_count
-    
+
     try:
         if hasattr(result_data, 'model_dump'):
             data_dict = result_data.model_dump()
@@ -68,26 +68,26 @@ def smart_format_observation(
             data_dict = result_data
         else:
             data_dict = None
-        
+
         if data_dict:
             data_str = json.dumps(data_dict, ensure_ascii=False, default=str)
         else:
             data_str = str(result_data)
     except:
         data_str = str(result_data)
-    
+
     char_count = len(data_str)
-    
+
     MAX_ROWS = 5
     MAX_CHARS = 500
-    
+
     if row_count <= MAX_ROWS and char_count <= MAX_CHARS:
         return format_observation(result_data, capability_name, parameters)
-    
+
     lines = []
-    
+
     rows_data = []
-    
+
     if isinstance(result_data, list) and result_data:
         rows_data = result_data[:sample_count]
     elif hasattr(result_data, 'rows') and result_data.rows:
@@ -121,7 +121,7 @@ def smart_format_observation(
                 lines.append(f"[{i}] {row_str}")
             else:
                 lines.append(f"[{i}] {str(row)}")
-    
+
     return "\n".join(lines)
 
 
@@ -132,7 +132,7 @@ def _format_dict_observation(
 ) -> str:
     """Форматирует dict/dataclass/pydantic результат."""
     data_dict = _to_dict(data)
-    
+
     if "rows" in data_dict and "rowcount" in data_dict:
         return _format_sql_observation(data_dict, parameters)
     elif "results" in data_dict and "query" in data_dict:
@@ -162,20 +162,19 @@ def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = 
     max_display = 10
 
     lines = []
-    
+
     if sql_query:
         lines.append(f"SQL: {sql_query}")
         if rows:
             lines.append("")
-    
+
     if warning:
         lines.append(f"⚠️ {warning}")
 
     if not rows:
         lines.append("Нет данных")
         return "\n".join(lines)
-    
-    # Показываем только данные
+
     for i, row in enumerate(rows[:max_display]):
         if hasattr(row, '__dict__'):
             row = row.__dict__
@@ -184,7 +183,7 @@ def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = 
             lines.append(f"[{i}] {row_str}")
         else:
             lines.append(f"[{i}] {str(row)}")
-    
+
     if len(rows) > max_display:
         lines.append(f"... и ещё {len(rows) - max_display} записей")
 
@@ -203,7 +202,7 @@ def _format_vector_search_result_object(data: Any) -> str:
     lines.append(f"Запрос: {query}")
     lines.append(f"Найдено: {len(results)}")
     lines.append("")
-    
+
     for i, r in enumerate(results[:10]):
         if hasattr(r, 'text'):
             score = getattr(r, 'score', 0)
@@ -270,7 +269,7 @@ def _format_vector_search_observation(data: dict) -> str:
     lines.append(f"Запрос: {query}")
     lines.append(f"Найдено: {len(results)}")
     lines.append("")
-    
+
     for i, r in enumerate(results[:10]):
         if hasattr(r, 'text'):
             score = getattr(r, 'score', 0)

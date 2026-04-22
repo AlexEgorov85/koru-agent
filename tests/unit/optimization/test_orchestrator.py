@@ -27,7 +27,7 @@ from core.components.benchmarks.benchmark_models import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 
-from core.agent.components.optimization.orchestrator import (
+from core.services.optimization.orchestrator import (
     OptimizationOrchestrator,
     OrchestratorConfig,
 )

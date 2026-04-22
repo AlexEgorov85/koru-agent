@@ -33,7 +33,7 @@ from typing import List, Any, Optional, Dict, ClassVar
 from abc import abstractmethod
 
 from core.config.component_config import ComponentConfig
-from core.agent.components.component import Component
+from core.components.component import Component
 
 
 class Service(Component):

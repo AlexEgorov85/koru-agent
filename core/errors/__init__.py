@@ -84,7 +84,16 @@ from .exceptions import (
     PromptNotFoundError,
 )
 
+from .error_classifier import ErrorClassifier
+
+from .failure_memory import FailureMemory, FailureRecord
+
 __all__ = [
+    # Classifier and memory
+    'ErrorClassifier',
+    'FailureMemory',
+    'FailureRecord',
+
     # Error handler
     'ErrorHandler',
     'ErrorContext',

@@ -261,7 +261,7 @@ class DynamicComponentLoader:
 
     async def _register_in_context(self, component_class, manifest: DeploymentManifest):
         """Регистрация компонента в ApplicationContext."""
-        from core.agent.components.component_factory import ComponentFactory
+        from core.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
 
         app_ctx = self.application_context

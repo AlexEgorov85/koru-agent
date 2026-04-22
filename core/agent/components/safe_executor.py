@@ -34,8 +34,8 @@ if TYPE_CHECKING:
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.common_enums import ErrorCategory, ErrorType
 from core.models.types.retry_policy import ExecutionErrorInfo, RetryResult, RetryDecision
-from core.agent.components.error_classifier import ErrorClassifier
-from core.agent.components.failure_memory import FailureMemory
+from core.errors.error_classifier import ErrorClassifier
+from core.errors.failure_memory import FailureMemory
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
 from core.infrastructure.logging.event_types import LogEventType

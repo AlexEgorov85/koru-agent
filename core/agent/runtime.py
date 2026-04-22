@@ -20,12 +20,12 @@ from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.component_status import ComponentStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
-from core.agent.components.failure_memory import FailureMemory
+from core.errors.failure_memory import FailureMemory
 from core.agent.components.observation_signal import ObservationSignalService
 from core.agent.components.policy import RetryPolicy, AgentPolicy
 from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.behaviors.base import Decision, DecisionType
-from core.agent.observation_formatter import (
+from core.utils.observation_formatter import (
     format_observation,
     smart_format_observation,
 )
@@ -182,7 +182,7 @@ class AgentRuntime:
             agent_id=self.agent_id,
         )
 
-        from core.agent.components.component_factory import ComponentFactory
+        from core.components.component_factory import ComponentFactory
         from core.agent.behaviors.react.pattern import ReActPattern
         from core.config.component_config import ComponentConfig
 
@@ -913,7 +913,7 @@ class AgentRuntime:
             "next_step_hint": "Продолжай по текущему плану",
         }
 
-async def _get_available_capabilities(self):
+    async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""
         if hasattr(self.application_context, "get_all_skills"):
             all_caps = self.application_context.get_all_skills()
