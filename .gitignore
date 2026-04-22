@@ -1,62 +1,43 @@
-```gitignore
-# Python cache files
+```
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Compiled Python files
-*.cpython-*.pyc
+# IDE
+.vscode/
+.idea/
 
-# Dependencies
-.venv/
-venv/
-env/
+# Environment
 .env
 .env.local
 .env.*
+.venv/
+venv/
+ENV/
 
 # Logs
 *.log
 
-# Test coverage
-.coverage
-htmlcov/
-coverage/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-target/
-.gradle/
-
-# Temporary files
-*.tmp
-*~
-```
-
-Wait, let me reconsider this. Looking at the changes again, I see there are many `.pyc` files being modified, which indicates this is a Python project with compiled cache files that should be ignored. However, I need to output only what's necessary based on the detected patterns.
-
-```gitignore
-# Python cache files
-__pycache__/
-*.pyc
-
-# Virtual environments
-.venv/
-venv/
-.env
-.env.local
-.env.*
 ```
