@@ -31,6 +31,8 @@ from core.utils.observation_formatter import (
 )
 from core.components.skills.utils.observation_policy import ObservationPolicy
 from core.agent.components.observer import Observer
+from core.agent.components.step_executor import StepExecutor
+from core.config.agent_config import AgentConfig
 
 
 class AgentRuntime:
@@ -81,6 +83,7 @@ class AgentRuntime:
             base_delay=self.policy.retry_base_delay,
             max_delay=self.policy.retry_max_delay,
         )
+        
         # Выделенный сервис observation-сигналов (SRP: runtime только оркестрирует).
         self.observation_signal_service = ObservationSignalService()
 
@@ -93,6 +96,17 @@ class AgentRuntime:
             session_id=str(uuid.uuid4()), agent_id=self.agent_id
         )
         self.session_context.set_goal(goal)
+
+        # Инициализируем step_executor с правильным session_id (после создания session_context)
+        event_bus = self.application_context.infrastructure_context.event_bus
+        log_session = self.application_context.infrastructure_context.log_session
+        self.step_executor = StepExecutor(
+            safe_executor=self.safe_executor,
+            event_bus=event_bus,
+            session_id=self.session_context.session_id,
+            agent_id=self.agent_id,
+            log_session=log_session
+        )
 
         # Сохраняем ссылку на глобальную историю для обратной записи
         self._shared_dialogue_history = dialogue_history
@@ -344,20 +358,45 @@ class AgentRuntime:
                     extra={"event_type": LogEventType.AGENT_STOP},
                 )
                 try:
-                    final_result = await self.safe_executor.execute(
-                        capability_name="final_answer.generate",
-                        parameters={
-                            "format_type": "structured",
-                            "include_steps": True,
-                            "include_evidence": True,
-                            "max_sources": 20
-                        },
-                        context=ExecutionContext(
-                            session_context=self.session_context,
-                            session_id=self.session_context.session_id,
-                            agent_id=self.agent_id,
-                        ),
-                    )
+                    # Проверяем есть ли конфигурация для final_answer.generate
+                    step_config = None
+                    if self.agent_config and hasattr(self.agent_config, 'steps'):
+                        for sid, cfg in self.agent_config.steps.items():
+                            if cfg.capability == "final_answer.generate":
+                                step_config = cfg
+                                break
+                    
+                    if step_config:
+                        final_result = await self.step_executor.execute_with_config(
+                            step_config=step_config,
+                            parameters={
+                                "format_type": "structured",
+                                "include_steps": True,
+                                "include_evidence": True,
+                                "max_sources": 20
+                            },
+                            context=ExecutionContext(
+                                session_context=self.session_context,
+                                session_id=self.session_context.session_id,
+                                agent_id=self.agent_id,
+                            ),
+                            step_id=f"step_{sid}_finish"
+                        )
+                    else:
+                        final_result = await self.safe_executor.execute(
+                            capability_name="final_answer.generate",
+                            parameters={
+                                "format_type": "structured",
+                                "include_steps": True,
+                                "include_evidence": True,
+                                "max_sources": 20
+                            },
+                            context=ExecutionContext(
+                                session_context=self.session_context,
+                                session_id=self.session_context.session_id,
+                                agent_id=self.agent_id,
+                            ),
+                        )
 
                     if final_result.status == ExecutionStatus.COMPLETED:
                         self.session_context.commit_turn(
@@ -478,15 +517,38 @@ class AgentRuntime:
                 )
 
                 try:
-                    result = await self.safe_executor.execute(
-                        capability_name=decision.action,
-                        parameters=decision.parameters or {},
-                        context=ExecutionContext(
-                            session_context=self.session_context,
-                            session_id=self.session_context.session_id,
-                            agent_id=self.agent_id,
-                        ),
-                    )
+                    # Используем StepExecutor если есть конфигурация шага
+                    step_config = None
+                    if self.agent_config and hasattr(self.agent_config, 'steps'):
+                        # Ищем шаг по capability name
+                        for sid, cfg in self.agent_config.steps.items():
+                            if cfg.capability == decision.action:
+                                step_config = cfg
+                                break
+                    
+                    if step_config:
+                        # Выполняем через StepExecutor с конфигурацией
+                        result = await self.step_executor.execute_with_config(
+                            step_config=step_config,
+                            parameters=decision.parameters or {},
+                            context=ExecutionContext(
+                                session_context=self.session_context,
+                                session_id=self.session_context.session_id,
+                                agent_id=self.agent_id,
+                            ),
+                            step_id=f"step_{sid}_{step + 1}"
+                        )
+                    else:
+                        # Выполняем напрямую через SafeExecutor (без конфигурации шага)
+                        result = await self.safe_executor.execute(
+                            capability_name=decision.action,
+                            parameters=decision.parameters or {},
+                            context=ExecutionContext(
+                                session_context=self.session_context,
+                                session_id=self.session_context.session_id,
+                                agent_id=self.agent_id,
+                            ),
+                        )
 
                     # Логирование результата
                     if result.status == ExecutionStatus.FAILED:
@@ -818,20 +880,45 @@ class AgentRuntime:
                 f"Пытаюсь сгенерировать итоговый ответ на основе {executed_steps} шагов..."
             )
             try:
-                final_result = await self.safe_executor.execute(
-                    capability_name="final_answer.generate",
-                    parameters={
-                        "format_type": "structured",
-                        "include_steps": True,
-                        "include_evidence": True,
-                        "max_sources": 20
-                    },
-                    context=ExecutionContext(
-                        session_context=self.session_context,
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id
+                # Проверяем есть ли конфигурация для final_answer.generate
+                step_config = None
+                if self.agent_config and hasattr(self.agent_config, 'steps'):
+                    for sid, cfg in self.agent_config.steps.items():
+                        if cfg.capability == "final_answer.generate":
+                            step_config = cfg
+                            break
+                
+                if step_config:
+                    final_result = await self.step_executor.execute_with_config(
+                        step_config=step_config,
+                        parameters={
+                            "format_type": "structured",
+                            "include_steps": True,
+                            "include_evidence": True,
+                            "max_sources": 20
+                        },
+                        context=ExecutionContext(
+                            session_context=self.session_context,
+                            session_id=self.session_context.session_id,
+                            agent_id=self.agent_id
+                        ),
+                        step_id=f"step_{sid}_final"
                     )
-                )
+                else:
+                    final_result = await self.safe_executor.execute(
+                        capability_name="final_answer.generate",
+                        parameters={
+                            "format_type": "structured",
+                            "include_steps": True,
+                            "include_evidence": True,
+                            "max_sources": 20
+                        },
+                        context=ExecutionContext(
+                            session_context=self.session_context,
+                            session_id=self.session_context.session_id,
+                            agent_id=self.agent_id
+                        )
+                    )
 
                 if final_result.status == ExecutionStatus.COMPLETED:
                     self.session_context.commit_turn(

@@ -1,71 +1,62 @@
-```
-# Python
+```gitignore
+# Python cache files
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+*.pyc
+*.pyo
+*.pyd
 
-# Environment
+# Compiled Python files
+*.cpython-*.pyc
+
+# Dependencies
+.venv/
+venv/
+env/
 .env
 .env.local
 .env.*
-.venv/
-venv/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
 
 # Logs
 *.log
 
-# Coverage
+# Test coverage
 .coverage
-coverage/
 htmlcov/
+coverage/
 
-# Data & Logs
-data/logs/
-logs/
-data/vector/*.faiss
-data/vector/*_metadata.json
-data/metrics/
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Models
-models/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Test & Temp
-test_*.txt
-test_*.ipynb
-run_ui.bat
-.qwen/
-
-# System
+# OS files
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+target/
+.gradle/
+
+# Temporary files
+*.tmp
+*~
+```
+
+Wait, let me reconsider this. Looking at the changes again, I see there are many `.pyc` files being modified, which indicates this is a Python project with compiled cache files that should be ignored. However, I need to output only what's necessary based on the detected patterns.
+
+```gitignore
+# Python cache files
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+.env
+.env.local
+.env.*
 ```
