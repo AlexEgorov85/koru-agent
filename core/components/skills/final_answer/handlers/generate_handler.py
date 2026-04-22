@@ -128,20 +128,22 @@ class GenerateFinalAnswerHandler(SkillHandler):
                 
                 # ContextItem uses item_type (uppercase), check both formats
                 if isinstance(item, dict):
-                    item_type = item.get("item_type", item.get("type", "unknown")).lower()
-                    if item_type == "observation":
-                        content = item.get("content", item.get("quick_content", ""))
+                    item_type_raw = item.get("item_type", item.get("type", "unknown"))
+                    item_type = str(item_type_raw).lower() if item_type_raw else "unknown"
+                    content = item.get("content", item.get("quick_content", ""))
+                    if item_type in ("observation", "obs", "obs_result"):
                         observations.append(content)
-                    elif item_type == "thought":
-                        content = item.get("content", item.get("quick_content", ""))
+                    elif item_type in ("thought", "think", "reasoning"):
                         thoughts.append(content)
-                    elif item_type in ("action", "action_result", "tool_result"):
-                        content = item.get("content", item.get("quick_content", ""))
+                    elif item_type in ("action", "action_result", "tool_result", "act", "tool"):
                         actions.append(content)
                 else:
                     # Fallback for unknown types
                     content = str(item)
                     observations.append(content)
+            
+            from core.infrastructure.logging.event_types import LogEventType
+            self._log_info(f"Собрано контекста: observations={len(observations)}, thoughts={len(thoughts)}, actions={len(actions)}", event_type=LogEventType.DEBUG)
 
         return observations, thoughts, actions
 

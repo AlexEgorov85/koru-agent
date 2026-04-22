@@ -293,6 +293,8 @@ class FinalAnswerSkill(Skill):
                 )
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.data:
                 all_items = all_items_result.data.get("items", {})
+                
+                self._log_info(f"[DEBUG] all_items count: {len(all_items)}, items: {list(all_items.keys())}", event_type=LogEventType.DEBUG)
 
                 # Классификация элементов контекста
                 for item_id, item in all_items.items():
@@ -303,6 +305,8 @@ class FinalAnswerSkill(Skill):
                     else:
                         item_type = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
                         item_content = item.content
+                    
+                    self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=LogEventType.DEBUG)
 
                     if item_type == "OBSERVATION":
                         # Используем content напрямую - там ВСЕ данные!

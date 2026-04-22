@@ -399,9 +399,16 @@ class AgentRuntime:
                         )
 
                     if final_result.status == ExecutionStatus.COMPLETED:
+                        final_answer = ""
+                        if hasattr(final_result.data, 'get'):
+                            final_answer = final_result.data.get("final_answer", "")
+                        elif hasattr(final_result.data, 'final_answer'):
+                            final_answer = final_result.data.final_answer
+                        else:
+                            final_answer = str(final_result.data)
                         self.session_context.commit_turn(
                             user_query=self.goal,
-                            assistant_response=str(final_result.data.get("final_answer", "")),
+                            assistant_response=final_answer,
                             tools_used=["final_answer.generate"],
                         )
                         self._sync_dialogue_history_back()
@@ -921,9 +928,16 @@ class AgentRuntime:
                     )
 
                 if final_result.status == ExecutionStatus.COMPLETED:
+                    final_answer = ""
+                    if hasattr(final_result.data, 'get'):
+                        final_answer = final_result.data.get("final_answer", "")
+                    elif hasattr(final_result.data, 'final_answer'):
+                        final_answer = final_result.data.final_answer
+                    else:
+                        final_answer = str(final_result.data)
                     self.session_context.commit_turn(
                         user_query=self.goal,
-                        assistant_response=str(final_result.data.get("final_answer", "")),
+                        assistant_response=final_answer,
                         tools_used=["final_answer.generate"]
                     )
                     self._sync_dialogue_history_back()

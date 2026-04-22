@@ -448,28 +448,12 @@ class ReActPattern(BaseBehaviorPattern):
     def _handle_stop_condition(
         self, capability_name: str, parameters: Dict[str, Any], stop_reason: str
     ) -> Decision:
-        """Обработать условие остановки."""
-        if capability_name and capability_name != "final_answer.generate":
-            return Decision(
-                type=DecisionType.ACT,
-                action="final_answer.generate",
-                parameters={
-                    "input": f"Цель достигнута: {stop_reason or 'goal_achieved'}"
-                },
-                reasoning="final_answer_on_stop",
-                is_final=True,
-            )
-
-        if capability_name == "final_answer.generate":
-            return Decision(
-                type=DecisionType.ACT,
-                action="final_answer.generate",
-                parameters=parameters,
-                reasoning="final_answer_before_stop",
-                is_final=True,
-            )
-
-        return Decision(type=DecisionType.FAIL, error=stop_reason or "goal_achieved")
+        """Обработать условие остановки - просто FINISH, Runtime сам вызовет final_answer."""
+        return Decision(
+            type=DecisionType.FINISH,
+            reasoning=f"Цель достигнута: {stop_reason or 'goal_achieved'}",
+            is_final=True,
+        )
 
     def _handle_error(self, reason: str, capabilities: List[Capability]) -> Decision:
         """Обработать ошибку - возвращаем FAIL."""
