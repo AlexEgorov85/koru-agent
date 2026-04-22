@@ -24,18 +24,20 @@ component = await factory.create_and_initialize(
 )
 ```
 """
-from typing import Type, Any, Optional
+from typing import Type, Any, Optional, TYPE_CHECKING
 import logging
 
 from core.components.component import Component
-from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.logging.event_types import LogEventType
+
+if TYPE_CHECKING:
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
 
 class ComponentFactory:
     """Фабрика для создания и инициализации компонентов с DI."""
 
-    def __init__(self, infrastructure_context: InfrastructureContext):
+    def __init__(self, infrastructure_context: 'InfrastructureContext'):
         """
         Инициализация фабрики.
 

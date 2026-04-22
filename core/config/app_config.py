@@ -465,8 +465,8 @@ class AppConfig(BaseSettings):
             comp_type = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
 
             if comp_type in component_prefixes:
-                # Исключаем fallback - этот паттерн не существует
-                if comp_type == 'behavior' and parts[1] == 'fallback':
+                # Исключаем fallback и behavior (без суффикса) - эти паттерны не существуют
+                if comp_type == 'behavior' and (parts[1] in ('fallback', 'user') or len(parts) == 1):
                     continue
                 if comp_type == 'behavior':
                     component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
@@ -489,7 +489,7 @@ class AppConfig(BaseSettings):
 
         # Собираем контракты по компонентам
         for contract in contracts:
-            if contract.status.value != 'active' or contract.capability == 'behavior.fallback':
+            if contract.status.value != 'active' or contract.capability in ('behavior.fallback', 'behavior'):
                 continue
             parts = contract.capability.split('.')
             prefix = parts[0] if parts else contract.capability
