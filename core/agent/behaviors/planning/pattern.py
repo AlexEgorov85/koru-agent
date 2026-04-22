@@ -172,7 +172,7 @@ class PlanningPattern(BaseBehaviorPattern):
             raise ValueError("Capability 'planning.get_next_step' не найдена")
 
         # Выполнение capability получения следующего шага через executor
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ExecutionContext
         exec_context = ExecutionContext()
         execution_result = await self.executor.execute_action(
             action_name="planning.get_next_step",

@@ -14,7 +14,7 @@ SQL Diagnostic Service — пост-обработчик пустых SQL-рез
 import re
 from typing import Any, Dict, List, Optional
 
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.components.skills.utils.param_validator import ParamValidator
 from core.models.data.execution import ExecutionStatus
 

@@ -240,7 +240,7 @@ async def diagnose_sql_tool(app_ctx: ApplicationContext):
 
     if db_provider:
         from core.models.data.capability import Capability
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ExecutionContext
 
         cap = Capability(
             name="sql_tool.execute",
@@ -302,7 +302,7 @@ async def diagnose_table_description_service(app_ctx: ApplicationContext):
             db_available = sql_tool._get_db_provider() is not None
 
         if db_available:
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
 
             exec_ctx = ExecutionContext()
 

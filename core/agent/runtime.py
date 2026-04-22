@@ -18,7 +18,7 @@ from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.component_status import ComponentStatus
-from core.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.errors.failure_memory import FailureMemory
 from core.agent.components.observation_signal import ObservationSignalService

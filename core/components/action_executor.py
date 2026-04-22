@@ -52,7 +52,7 @@ class ActionExecutor:
     - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
     """
 
-    def __init__(self, application_context: 'ApplicationContext'):
+    def __init__(self, application_context):
         self.application_context = application_context
         self._event_bus = None
         self._log_session = None
@@ -1153,46 +1153,41 @@ class ActionExecutor:
         RETURNS:
         - ExecutionResult: результат выполнения
         """
+        # Извлекаем имя метода из action_name
+        # "sql_query_service.execute" -> "execute" или полное имя для маршрутизации
+        parts = action_name.split('.')
+        method_name = parts[-1] if parts else "execute"
+
+        # Проверяем, есть ли такой метод
+        if not hasattr(service, method_name):
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Метод '{method_name}' не найден в сервисе '{service.name}'"
+            )
+
+        # Вызываем метод
         try:
-            # Извлекаем имя метода из имени действия
-            method_name = action_name
-            if '.' in action_name:
-                method_name = action_name.split('.')[-1]
-
-            # Проверяем наличие метода
-            if not hasattr(service, method_name):
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    error=f"Метод '{method_name}' не найден в сервисе '{service.name}'"
-                )
-
-            # Вызываем метод сервиса
             method = getattr(service, method_name)
-            result = await method(**parameters)
-
-            # Возвращаем результат
+            
+            # Если это async метод -await
+            if asyncio.iscoroutinefunction(method):
+                result = await method(**parameters)
+            else:
+                result = method(**parameters)
+            
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
                 data=result
             )
-
         except Exception as e:
             _module_logger.error(
-                f"Ошибка сервиса '{action_name}': {e}",
+                f"Ошибка выполнения сервиса '{action_name}': {e}",
                 extra={"event_type": LogEventType.ERROR},
                 exc_info=True
             )
-            if self._event_bus:
-                await self._event_bus.publish(
-                    event_type="executor.service_error",
-                    data={"action_name": action_name, "service": service.name, "error": str(e)},
-                    source="action_executor",
-                    session_id=context.session_id,
-                    agent_id=context.agent_id
-                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=str(e)
+                error=f"Ошибка выполнения сервиса: {str(e)}"
             )
 
     async def _execute_tool_action(
@@ -1203,75 +1198,35 @@ class ActionExecutor:
         context: ExecutionContext
     ) -> ExecutionResult:
         """
-        Выполнение действия инструмента.
-
-        Инструменты не имеют capability, поэтому вызываем метод напрямую по имени действия.
-        Например: sql_tool.execute_query -> tool.execute(...)
+        Выполнение действия инструмента (Tool).
 
         ARGS:
         - tool: инструмент для выполнения
-        - action_name: имя действия (например, "sql_tool.execute_query")
+        - action_name: имя действия
         - parameters: параметры выполнения
         - context: контекст выполнения
 
         RETURNS:
         - ExecutionResult: результат выполнения
         """
+        from core.models.data.capability import Capability
+
+        # Создаём capability на основе action_name
+        capability = self._resolve_capability(action_name)
+
         try:
-            # Создаём Capability объект из action_name
-            from core.models.data.capability import Capability
-            capability_obj = Capability(
-                name=action_name,
-                description=f"Capability {action_name}",
-                skill_name=tool.name,
-                visiable=True,
-                supported_strategies=["react", "planning"]
-            )
-
-            # Вызываем execute() который вызовет _execute_impl() для FileTool/SQLTool
-            # или async execute() для VectorSearchTool
-            result = await tool.execute(
-                capability=capability_obj,
-                parameters=parameters,
-                execution_context=context
-            )
-
-            # result — это уже ExecutionResult от BaseComponent.execute()
-            # Не оборачиваем второй раз!
-            if self._event_bus:
-                await self._event_bus.publish(
-                    event_type="executor.tool_result",
-                    data={
-                        "action_name": action_name,
-                        "tool": tool.name,
-                        "status": result.status.name if hasattr(result, 'status') else "completed",
-                        "data": result.data if hasattr(result, 'data') else result
-                    },
-                    source="action_executor",
-                    session_id=context.session_id,
-                    agent_id=context.agent_id
-                )
-                self._log_debug(f"Опубликовано executor.tool_result: {action_name}")
-
+            # Выполняем через универсальный интерфейс компонента
+            result = await tool.execute(capability, parameters, context)
             return result
-
         except Exception as e:
             _module_logger.error(
-                f"Ошибка инструмента '{action_name}': {e}",
+                f"Ошибка выполнения инструмента '{action_name}': {e}",
                 extra={"event_type": LogEventType.ERROR},
                 exc_info=True
             )
-            if self._event_bus:
-                await self._event_bus.publish(
-                    event_type="executor.tool_error",
-                    data={"action_name": action_name, "tool": tool.name, "error": str(e)},
-                    source="action_executor",
-                    session_id=context.session_id,
-                    agent_id=context.agent_id
-                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=str(e)
+                error=f"Ошибка выполнения инструмента: {str(e)}"
             )
 
     async def _execute_skill_or_behavior_action(
@@ -1282,71 +1237,33 @@ class ActionExecutor:
         context: ExecutionContext
     ) -> ExecutionResult:
         """
-        Выполнение действия навыка или behavior паттерна.
-
-        Навыки и behavior имеют capability, поэтому используем execute().
+        Выполнение действия навыка или поведения через универсальный интерфейс Component.
 
         ARGS:
-        - component: навык или behavior для выполнения
-        - action_name: имя действия (например, "planning.create_plan")
+        - component: компонент (Skill или Behavior) для выполнения
+        - action_name: имя действия
         - parameters: параметры выполнения
         - context: контекст выполнения
 
         RETURNS:
         - ExecutionResult: результат выполнения
         """
+        from core.models.data.capability import Capability
+
+        # Создаём capability на основе action_name
+        capability = self._resolve_capability(action_name)
+
         try:
-            # Валидируем входные параметры через контракт компонента
-            capability = self._resolve_capability(action_name)
-            if not capability:
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    error=f"Capability для действия '{action_name}' не найден"
-                )
-
-            # Выполняем компонент
+            # Выполняем через универсальный интерфейс компонента
             result = await component.execute(capability, parameters, context)
-
-            # Публикация события об успешном выполнении
-            if self._event_bus and result.status == ExecutionStatus.COMPLETED:
-                await self._event_bus.publish(
-                    event_type="executor.component_result",
-                    data={
-                        "action_name": action_name,
-                        "component": component.name,
-                        "capability": capability.name,
-                        "status": "completed",
-                        "data": result.data,
-                        "metadata": result.metadata
-                    },
-                    source="action_executor",
-                    session_id=context.session_id,
-                    agent_id=context.agent_id
-                )
-                self._log_debug(f"Опубликовано executor.component_result: {action_name}")
-
             return result
-
         except Exception as e:
             _module_logger.error(
-                f"Ошибка компонента '{action_name}': {e}",
+                f"Ошибка выполнения компонента '{action_name}': {e}",
                 extra={"event_type": LogEventType.ERROR},
                 exc_info=True
             )
-            if self._event_bus:
-                await self._event_bus.publish(
-                    event_type="executor.component_error",
-                    data={
-                        "action_name": action_name,
-                        "component": component.name,
-                        "error": str(e),
-                        "error_type": type(e).__name__
-                    },
-                    source="action_executor",
-                    session_id=context.session_id,
-                    agent_id=context.agent_id
-                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=str(e)
+                error=f"Ошибка выполнения компонента: {str(e)}"
             )

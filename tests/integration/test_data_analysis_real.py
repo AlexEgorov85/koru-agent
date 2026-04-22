@@ -24,7 +24,7 @@ from core.config import get_config
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.application_context.application_context import ApplicationContext
 from core.session_context.session_context import SessionContext
-from core.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.models.enums.common_enums import ExecutionStatus
 
 

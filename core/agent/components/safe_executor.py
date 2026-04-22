@@ -36,7 +36,7 @@ from core.models.enums.common_enums import ErrorCategory, ErrorType
 from core.models.types.retry_policy import ExecutionErrorInfo, RetryResult, RetryDecision
 from core.errors.error_classifier import ErrorClassifier
 from core.errors.failure_memory import FailureMemory
-from core.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
 from core.infrastructure.logging.event_types import LogEventType
 

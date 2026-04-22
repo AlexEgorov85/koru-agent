@@ -106,7 +106,7 @@ class TableDescriptionService(Service):
             ORDER BY cols.ordinal_position
             """
             
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
             
             result = await self.executor.execute_action(

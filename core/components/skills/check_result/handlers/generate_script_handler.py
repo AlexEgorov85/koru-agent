@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.errors.exceptions import SQLGenerationError
 from core.components.skills.handlers.base_handler import SkillHandler
 

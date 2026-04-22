@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Literal
 from pydantic import BaseModel
 
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.skills.utils.param_validator import ParamValidator

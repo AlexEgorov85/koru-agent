@@ -28,8 +28,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.components.skills.skill import Skill
 from core.config.component_config import ComponentConfig
 from core.application_context.application_context import ApplicationContext
-from core.agent.components.action_executor import ActionExecutor
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ActionExecutor
+from core.components.action_executor import ExecutionContext
 
 from core.components.skills.check_result.handlers import (
     ExecuteScriptHandler,

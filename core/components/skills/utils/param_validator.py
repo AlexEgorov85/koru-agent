@@ -152,7 +152,7 @@ SCRIPTS_REGISTRY = {
 """
 
 from typing import Dict, Any, List, Optional
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 
 

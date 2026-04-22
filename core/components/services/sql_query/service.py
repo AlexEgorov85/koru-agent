@@ -138,7 +138,7 @@ class SQLQueryService(Service):
         ВОЗВРАЩАЕТ:
         - DBQueryResult: результат выполнения запроса
         """
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ExecutionContext
 
         try:
             await self._publish_with_context(
@@ -185,7 +185,7 @@ class SQLQueryService(Service):
                 source="sql_query"
             )
 
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
             from core.models.data.execution import ExecutionStatus
 
             exec_context = ExecutionContext()
@@ -332,7 +332,7 @@ class SQLQueryService(Service):
                 execution_context=execution_context
             )
             # Генерируем SQL через executor (не напрямую!)
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
             exec_context = execution_context or ExecutionContext()
 
             result = await self.executor.execute_action(

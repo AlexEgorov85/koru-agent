@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.config.component_config import ComponentConfig
 from core.components.component import Component
 

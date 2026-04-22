@@ -1,7 +1,7 @@
 from typing import Dict, Any
 from datetime import date, datetime
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.session_context.base_session_context import BaseSessionContext
 from core.components.skills.handlers.base_handler import SkillHandler
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.execution import ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.tools.vector_search_tool import VectorSearchDefaults
 

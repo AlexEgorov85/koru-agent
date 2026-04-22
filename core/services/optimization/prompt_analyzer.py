@@ -569,7 +569,7 @@ class SessionPromptAnalyzer:
         
         # Пытаемся использовать LLM через executor если доступен
         try:
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
             from core.models.data.execution import ExecutionStatus
             
             exec_context = ExecutionContext()

@@ -794,7 +794,7 @@ class LLMOrchestrator:
 
                         # Вызываем JsonParsingService через ActionExecutor
                         # Создаём простой контекст для вызова сервиса
-                        from core.agent.components.action_executor import ExecutionContext
+                        from core.components.action_executor import ExecutionContext
                         execution_context = ExecutionContext(
                             session_id=session_id or "system",
                             agent_id=agent_id or "system"
@@ -989,7 +989,7 @@ class LLMOrchestrator:
             # Валидация через JsonParsingService
             if request.structured_output and raw_content:
                 # Создаём контекст для вызова сервиса
-                from core.agent.components.action_executor import ExecutionContext
+                from core.components.action_executor import ExecutionContext
                 execution_context = ExecutionContext(
                     session_id=session_id or "system",
                     agent_id=agent_id or "system"

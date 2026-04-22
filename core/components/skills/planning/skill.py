@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from pydantic import BaseModel
 from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.infrastructure.logging.event_types import LogEventType
 

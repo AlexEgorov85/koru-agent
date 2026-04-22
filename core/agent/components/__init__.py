@@ -2,18 +2,21 @@
 Модуль компонентов агента.
 
 КОМПОНЕНТЫ:
-- action_executor: исполнитель действий
 - observer: наблюдатель за результатами
 - safe_executor: безопасный исполнитель с retry
 - policy: политика агента
 - agent_metrics: метрики агента
 
+NOTE: ActionExecutor и ExecutionContext перенесены в core.components.action_executor
+
 USAGE:
 ```python
-from core.agent.components import ActionExecutor
+from core.agent.components import Observer, SafeExecutor
+from core.components import ActionExecutor, ExecutionContext
 ```
 """
-from .action_executor import ActionExecutor, ExecutionContext
+from core.components.action_executor import ActionExecutor, ExecutionContext
+
 from .observer import Observer
 from .safe_executor import SafeExecutor
 from .policy import AgentPolicy, RetryPolicy

@@ -14,7 +14,7 @@
 """
 import pytest
 
-from core.agent.components.action_executor import ActionExecutor
+from core.components.action_executor import ActionExecutor
 from core.session_context.session_context import SessionContext
 from core.models.enums.common_enums import ExecutionStatus
 

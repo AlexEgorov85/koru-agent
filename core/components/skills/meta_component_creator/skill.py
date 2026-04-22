@@ -29,7 +29,7 @@ from core.components.skills.meta_component_creator.contracts.meta_component impo
 )
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 

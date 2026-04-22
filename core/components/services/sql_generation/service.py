@@ -280,7 +280,7 @@ class SQLGenerationService(Service):
 
         try:
             # 4. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR
-            from core.agent.components.action_executor import ExecutionContext
+            from core.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
             output = None  # Будет заполнен structured output или fallback
 
@@ -526,7 +526,7 @@ class SQLGenerationService(Service):
     # Вспомогательные методы (приватные)
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:
         """Получение метаданных таблиц через executor"""
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ExecutionContext
         from core.models.data.execution import ExecutionStatus
 
         metadata_list = []
@@ -658,7 +658,7 @@ class SQLGenerationService(Service):
         Вызов осуществляется через executor согласно архитектурным правилам.
         """
         from core.components.services.sql_validator.service import ValidatedSQL
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ExecutionContext
         from core.models.data.execution import ExecutionStatus
 
         exec_context = ExecutionContext()

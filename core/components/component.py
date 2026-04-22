@@ -30,7 +30,7 @@ from typing import Dict, Any, Optional, Type, List
 
 from pydantic import BaseModel
 
-from core.agent.components.action_executor import ExecutionContext
+from core.components.action_executor import ExecutionContext
 from core.config.component_config import ComponentConfig
 from core.infrastructure.logging.event_types import LogEventType
 from core.models.data.capability import Capability

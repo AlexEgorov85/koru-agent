@@ -66,7 +66,7 @@ async def app_context(infrastructure):
 
 @pytest_asyncio.fixture(scope="module")
 async def executor(app_context):
-    from core.agent.components.action_executor import ActionExecutor
+    from core.components.action_executor import ActionExecutor
     return ActionExecutor(application_context=app_context)
 
 
