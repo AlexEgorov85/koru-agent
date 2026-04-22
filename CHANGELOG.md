@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [5.42.0] - 2026-04-22
+
+### Changed
+- **FINISH signal теперь явно запускает final_answer.generate**
+  - Pattern возвращает FINISH вместо ACT с final_answer.generate
+  - Runtime.py при FINISH явно вызывает final_answer.generate
+  - Убрана дублирующая обработка final_answer.generate в runtime loop
+  - final_answer.generate помечен как visiable=False в skill.py
+
+- **Промпты обновлены для новой логики завершения**
+  - behavior.react.think.system: FINISH вместо final_answer.generate
+  - behavior.react.act.user: завершение цикла вместо вызова навыка
+  - behavior.react.think_output: описание поля analysis_stop обновлено
+
+### Technical
+- Чистка старых веток: agent_v5, refactor/*, codex/*, и другие отработанные ветки удалены с remote
+
 ## [5.41.1] - 2026-04-20
 
 ### Added
