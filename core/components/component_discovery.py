@@ -66,7 +66,7 @@ class ComponentDiscovery:
         logger: Optional[Any] = None,
     ):
         if project_root is None:
-            project_root = Path(__file__).resolve().parents[3]
+            project_root = Path(__file__).resolve().parents[2]
         self._project_root = project_root
         self._logger = logger
         # Обновляем глобальный logger если передан
