@@ -1,0 +1,118 @@
+# Конфигурация рабочих шагов агента
+# 
+# Этот файл определяет декларативную конфигурацию для каждого шага выполнения агента.
+# Каждый шаг может иметь свои таймауты, политики retry и fallback-стратегии.
+#
+# ПРИМЕР ИСПОЛЬЗОВАНИЯ:
+# ```python
+# from core.config.agent_config import AgentConfig
+# config = AgentConfig.from_yaml("data/configs/agent_workflow.yaml", capability_registry)
+# ```
+
+# Глобальные параметры агента
+max_steps: 15
+max_retries: 3
+temperature: 0.7
+
+# Конфигурация шагов
+steps:
+  # === Шаг 1: Генерация SQL запроса ===
+  sql_generation:
+    capability: "sql_generation.generate"
+    description: "Генерация SQL запроса на основе естественного языка"
+    timeout_ms: 30000
+    max_retries: 2
+    retry_delay_ms: 1000
+    on_error: fallback
+    fallback_capability: "sql_generation.simple"
+    metadata:
+      priority: high
+      category: data_access
+  
+  # === Шаг 2: Выполнение SQL запроса ===
+  sql_execution:
+    capability: "sql.execute"
+    description: "Выполнение SQL запроса в базе данных"
+    timeout_ms: 60000
+    max_retries: 1
+    retry_delay_ms: 2000
+    on_error: retry
+    metadata:
+      priority: high
+      category: data_access
+  
+  # === Шаг 3: Анализ данных ===
+  data_analysis:
+    capability: "data_analysis.analyze"
+    description: "Анализ результатов запроса и выявление паттернов"
+    timeout_ms: 45000
+    max_retries: 2
+    retry_delay_ms: 1500
+    retry_backoff_multiplier: 2.0
+    on_error: fallback
+    fallback_capability: "data_analysis.basic"
+    metadata:
+      priority: medium
+      category: analytics
+  
+  # === Шаг 4: Визуализация (опционально) ===
+  visualization:
+    capability: "visualization.create_chart"
+    description: "Создание визуализации данных"
+    timeout_ms: 30000
+    max_retries: 1
+    retry_delay_ms: 1000
+    on_error: stop
+    metadata:
+      priority: low
+      category: presentation
+      optional: true
+  
+  # === Шаг 5: Формирование финального ответа ===
+  final_answer:
+    capability: "final_answer.generate"
+    description: "Генерация структурированного финального ответа"
+    timeout_ms: 60000
+    max_retries: 0  # Без retry для final_answer
+    on_error: stop
+    metadata:
+      priority: critical
+      category: output
+      include_steps: true
+      include_evidence: true
+      max_sources: 20
+
+# === Примеры для различных сценариев ===
+# 
+# Сценарий A: Быстрый ответ с минимальными задержками
+# steps:
+#   quick_search:
+#     capability: "search.quick"
+#     timeout_ms: 5000
+#     max_retries: 0
+#     on_error: fallback
+#     fallback_capability: "search.cache"
+#
+# Сценарий B: Надёжное выполнение с множественными retry
+# steps:
+#   reliable_task:
+#     capability: "task.execute"
+#     timeout_ms: 120000
+#     max_retries: 5
+#     retry_delay_ms: 2000
+#     retry_backoff_multiplier: 1.5
+#     on_error: retry
+#
+# Сценарий C: Параллельное выполнение (Phase 4)
+# steps:
+#   parallel_step_1:
+#     capability: "data.fetch_a"
+#     parallel_group: "group_alpha"
+#     depends_on: []
+#   parallel_step_2:
+#     capability: "data.fetch_b"
+#     parallel_group: "group_alpha"
+#     depends_on: []
+#   aggregate:
+#     capability: "data.aggregate"
+#     depends_on: ["parallel_step_1", "parallel_step_2"]

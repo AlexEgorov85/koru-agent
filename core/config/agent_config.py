@@ -1,7 +1,9 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, Optional, Literal, Any
+from typing import Dict, List, Optional, Any, Literal
 from datetime import datetime
 import uuid
+
+from core.agent.models import StepConfig
 
 
 class AgentConfig(BaseModel):
@@ -21,6 +23,9 @@ class AgentConfig(BaseModel):
     
     # Версии контрактов: {contract_name: version}
     contract_versions: Dict[str, str] = Field(default_factory=dict)
+    
+    # Конфигурация шагов: {step_id: StepConfig}
+    steps: Dict[str, StepConfig] = Field(default_factory=dict)
     
     # Параметры поведения агента
     max_steps: int = Field(10, ge=1, le=50)
@@ -63,6 +68,68 @@ class AgentConfig(BaseModel):
             },
             source="auto_resolved"
         )
+    
+    @classmethod
+    def from_yaml(cls, yaml_path: str, capability_registry: Optional[set] = None) -> 'AgentConfig':
+        """
+        Загрузка конфигурации из YAML файла.
+        
+        ПАРАМЕТРЫ:
+        - yaml_path: путь к YAML файлу
+        - capability_registry: множество зарегистрированных capability для валидации
+        
+        ВОЗВРАЩАЕТ:
+        - AgentConfig: загруженная конфигурация
+        
+        ИСКЛЮЧЕНИЯ:
+        - ValueError: если шаг ссылается на несуществующую capability
+        - FileNotFoundError: если файл не найден
+        """
+        import yaml
+        
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        if not isinstance(data, dict):
+            raise ValueError(f"YAML должен содержать объект, получен: {type(data)}")
+        
+        # Преобразуем шаги из YAML в StepConfig
+        steps_data = data.pop('steps', {})
+        steps = {}
+        
+        for step_id, step_config in steps_data.items():
+            if not isinstance(step_config, dict):
+                raise ValueError(f"Шаг '{step_id}' должен быть объектом")
+            
+            # Создаём StepConfig
+            step = StepConfig(**step_config)
+            
+            # Валидация: capability должен существовать в реестре
+            if capability_registry is not None:
+                if step.capability not in capability_registry:
+                    raise ValueError(
+                        f"Шаг '{step_id}' ссылается на несуществующую capability: {step.capability}. "
+                        f"Доступные: {sorted(capability_registry)[:10]}..."
+                    )
+                
+                # Валидация fallback_capability
+                if step.fallback_capability and step.fallback_capability not in capability_registry:
+                    raise ValueError(
+                        f"Шаг '{step_id}' имеет несуществующий fallback_capability: {step.fallback_capability}"
+                    )
+                
+                # Проверка на циклическую зависимость A → A
+                if step.fallback_capability == step.capability:
+                    raise ValueError(
+                        f"Шаг '{step_id}': fallback_capability не может указывать на себя"
+                    )
+            
+            steps[step_id] = step
+        
+        # Создаём конфигурацию
+        config = cls(steps=steps, **data)
+        
+        return config
     
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация для сохранения в отчёт бенчмарка"""
