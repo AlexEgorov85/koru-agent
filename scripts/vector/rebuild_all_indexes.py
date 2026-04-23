@@ -3,8 +3,11 @@
 Полная переиндексация всех векторных БД.
 """
 import asyncio
+import json
 import sys
 from pathlib import Path
+
+from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
 
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
@@ -14,41 +17,34 @@ if str(project_root) not in sys.path:
 async def main():
     from core.config import get_config
     from core.infrastructure_context.infrastructure_context import InfrastructureContext
-    from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-    from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
-    from core.config.vector_config import EmbeddingConfig, VectorSearchConfig
-    import psycopg2
-    import numpy as np
+    from core.models.enums.common_enums import ResourceType
 
     config = get_config(profile="dev", data_dir="data")
     vs_config = config.vector_search
 
-    # Инициализация embedding
-    embedding = SentenceTransformersProvider(vs_config.embedding)
-    await embedding.initialize()
-    print(f"✅ Embedding модель: {vs_config.embedding.model_name} ({vs_config.embedding.dimension}d)")
+    # Инициализация InfrastructureContext
+    infra = InfrastructureContext(config)
+    await infra.initialize()
+
+    # Получение embedding провайдера
+    embedding = infra.get_embedding_provider()
+    if not embedding:
+        print("[X] Embedding провайдер не инициализирован")
+        return 1
+    print(f"[*] Embedding модель: {vs_config.embedding.model_name} ({vs_config.embedding.dimension}d)")
+
+    # Получение DB провайдера
+    db_info = infra.resource_registry.get_default_resource(ResourceType.DATABASE)
+    if not db_info:
+        print("[X] DB провайдер не найден")
+        return 1
+    
+    db_provider = db_info.instance
+    print("[*] Подключение к БД: PostgreSQL")
 
     # Путь к хранилищу
     storage_path = Path(vs_config.storage.base_path)
     storage_path.mkdir(parents=True, exist_ok=True)
-
-    # Подключение к БД
-    db_config = config.db_providers.get("default_db")
-    if not db_config:
-        print("❌ DB провайдер 'default_db' не найден")
-        return 1
-
-    params = db_config.parameters
-    conn = psycopg2.connect(
-        host=params.get("host", "localhost"),
-        port=params.get("port", 5432),
-        database=params.get("database", "postgres"),
-        user=params.get("user", "postgres"),
-        password=params.get("password", ""),
-    )
-    conn.autocommit = True
-    cursor = conn.cursor()
-    print("✅ Подключение к БД: PostgreSQL")
 
     # =========================================================================
     # 1. ИНДЕКСАЦИЯ АВТОРОВ
@@ -57,13 +53,13 @@ async def main():
     print("1. ИНДЕКСАЦИЯ АВТОРОВ")
     print("=" * 60)
 
-    cursor.execute("""
+    result = await db_provider.execute_query("""
         SELECT DISTINCT a.last_name as author_name
         FROM "Lib".authors a
         WHERE a.last_name IS NOT NULL
         ORDER BY author_name
     """)
-    authors = [row[0] for row in cursor.fetchall()]
+    authors = [row["author_name"] for row in result.rows]
     print(f"Найдено авторов: {len(authors)}")
 
     authors_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
@@ -81,7 +77,7 @@ async def main():
     authors_index_path = storage_path / vs_config.indexes["authors"]
     await authors_provider.save(str(authors_index_path))
     count = await authors_provider.count()
-    print(f"✅ Сохранено authors_index: {count} векторов")
+    print("[OK] Сохранено authors_index: {count} векторов")
     await authors_provider.shutdown()
 
     # =========================================================================
@@ -91,13 +87,13 @@ async def main():
     print("2. ИНДЕКСАЦИЯ АУДИТОРСКИХ ПРОВЕРОК")
     print("=" * 60)
 
-    cursor.execute("""
+    result = await db_provider.execute_query("""
         SELECT id, title, audit_type, status, auditee_entity
         FROM audits
         WHERE title IS NOT NULL
         ORDER BY id
     """)
-    audits = cursor.fetchall()
+    audits = result.rows
     print(f"Найдено проверок: {len(audits)}")
 
     audits_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
@@ -106,7 +102,11 @@ async def main():
     audits_vectors = []
     audits_metadata = []
     for row in audits:
-        audit_id, title, audit_type, status, auditee_entity = row
+        audit_id = row["id"]
+        title = row["title"]
+        audit_type = row["audit_type"]
+        status = row["status"]
+        auditee_entity = row["auditee_entity"]
         search_parts = [title]
         if auditee_entity:
             search_parts.append(auditee_entity)
@@ -130,7 +130,7 @@ async def main():
     audits_index_path = storage_path / vs_config.indexes["audits"]
     await audits_provider.save(str(audits_index_path))
     count = await audits_provider.count()
-    print(f"✅ Сохранено audits_index: {count} векторов")
+    print("[OK] Сохранено audits_index: {count} векторов")
     await audits_provider.shutdown()
 
     # =========================================================================
@@ -140,7 +140,7 @@ async def main():
     print("4. ИНДЕКСАЦИЯ ОТКЛОНЕНИЙ")
     print("=" * 60)
 
-    cursor.execute("""
+    result = await db_provider.execute_query("""
         SELECT v.id, v.violation_code, v.description, v.severity, v.status,
                v.responsible, a.title as audit_title
         FROM violations v
@@ -148,7 +148,7 @@ async def main():
         WHERE v.description IS NOT NULL
         ORDER BY v.id
     """)
-    violations = cursor.fetchall()
+    violations = result.rows
     print(f"Найдено отклонений: {len(violations)}")
 
     violations_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
@@ -157,7 +157,13 @@ async def main():
     violations_vectors = []
     violations_metadata = []
     for row in violations:
-        viol_id, viol_code, description, severity, status, responsible, audit_title = row
+        viol_id = row["id"]
+        viol_code = row["violation_code"]
+        description = row["description"]
+        severity = row["severity"]
+        status = row["status"]
+        responsible = row["responsible"]
+        audit_title = row["audit_title"]
         search_parts = []
         if description:
             search_parts.append(description)
@@ -185,33 +191,30 @@ async def main():
     violations_index_path = storage_path / vs_config.indexes["violations"]
     await violations_provider.save(str(violations_index_path))
     count = await violations_provider.count()
-    print(f"✅ Сохранено violations_index: {count} векторов")
+    print(f"[OK] Сохранено violations_index: {count} векторов")
     await violations_provider.shutdown()
 
     # =========================================================================
     # ИТОГО
     # =========================================================================
-    cursor.close()
-    conn.close()
-    await embedding.shutdown()
+    await infra.shutdown()
 
     print("\n" + "=" * 60)
     print("ИТОГОВАЯ СТАТИСТИКА")
     print("=" * 60)
 
-    import json
     for source, index_file in vs_config.indexes.items():
         metadata_path = storage_path / index_file.replace(".faiss", "_metadata.json")
         if metadata_path.exists():
             with open(metadata_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 count = len(data.get("metadata", {}))
-                print(f"  ✅ {source}: {count} векторов")
+                print(f"  [OK] {source}: {count} векторов")
         else:
-            print(f"  ❌ {source}: файл не найден")
+            print(f"  [X] {source}: файл не найден")
 
     print("\n" + "=" * 60)
-    print("✅ ВСЕ ИНДЕКСЫ ПЕРЕСОЗДАНЫ!")
+    print("[OK] ВСЕ ИНДЕКСЫ ПЕРЕСОЗДАНЫ!")
     print("=" * 60)
     return 0
 
