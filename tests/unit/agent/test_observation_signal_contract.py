@@ -9,7 +9,7 @@ def test_observation_signal_contract_fields_for_success() -> None:
     service = ObservationSignalService()
 
     signal = service.build_signal(
-        result=ExecutionResult.success(data={"value": 1}),
+        result=ExecutionResult.create_success(data={"value": 1}),
         action_name="planning.create_plan",
         parameters={},
     )

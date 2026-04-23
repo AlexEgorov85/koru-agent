@@ -4,13 +4,13 @@
 СОДЕРЖИТ:
 - Валидацию согласованности версий до создания агента
 - Использование существующего ApplicationContext
+- Поддержку старого (AgentRuntime) и нового (MinimalAgentRuntime) runtime
 """
 import logging
 from typing import Optional, List
 from enum import Enum
 
 from core.application_context.application_context import ApplicationContext
-from core.agent.runtime import AgentRuntime
 from core.config.agent_config import AgentConfig
 from core.infrastructure.logging.event_types import LogEventType
 
@@ -51,8 +51,9 @@ class AgentFactory:
         config: Optional[AgentConfig] = None,
         correlation_id: Optional[str] = None,
         agent_id: Optional[str] = "agent_001",
-        dialogue_history=None  # ← НОВОЕ: общая история диалога для копирования
-    ) -> AgentRuntime:
+        dialogue_history=None,
+        use_minimal_runtime: bool = False  # ← НОВОЕ: переключатель на минималистичный runtime
+    ):
         """
         Создание изолированного агента с валидацией версий.
 
@@ -62,9 +63,10 @@ class AgentFactory:
         - correlation_id: ID для отслеживания сессии
         - agent_id: ID агента для логирования
         - dialogue_history: Общая история диалога (копируется в новый SessionContext)
+        - use_minimal_runtime: Использовать минималистичный runtime (True) или старый (False)
 
         ВОЗВРАЩАЕТ:
-        - AgentRuntime: Созданный агент
+        - AgentRuntime или MinimalAgentRuntime: Созданный агент
         """
         # 1. Валидация версий ПЕРЕД созданием агента
         if config:
@@ -75,22 +77,103 @@ class AgentFactory:
         # 2. ИСПОЛЬЗУЕМ существующий application_context
         app_context = self.application_context
 
-        # 3. Создание агента — SessionContext всегда новый, но с копией истории
-        agent = AgentRuntime(
-            application_context=app_context,
-            goal=goal,
-            correlation_id=correlation_id,
-            agent_id=agent_id,
-            dialogue_history=dialogue_history,
-            agent_config=config
-        )
+        if use_minimal_runtime:
+            # === НОВЫЙ МИНИМАЛИСТИЧНЫЙ RUNTIME ===
+            from core.agent.runtime_minimal import (
+                MinimalAgentRuntime,
+                AgentLoop,
+                Executor,
+                RetryExecutor,
+                Controller,
+                Observer as MinimalObserver,
+                AgentMetrics
+            )
+            from core.agent.behaviors.planning.pattern import Pattern
+            
+            # Получаем зависимости из application_context
+            infra = app_context.infrastructure_context
+            tool_registry = app_context.tool_registry
+            event_bus = infra.event_bus
+            
+            session_id = str(infra.id)
+            
+            # Создаём компоненты
+            base_executor = Executor(
+                tool_registry=tool_registry,
+                event_bus=event_bus,
+                session_id=session_id,
+                agent_id=agent_id
+            )
+            
+            executor = RetryExecutor(
+                executor=base_executor,
+                max_retries=config.max_retries if config else 2,
+                base_delay=0.5
+            )
+            
+            controller = Controller(
+                max_steps=config.max_steps if config else 10,
+                max_failures=3,
+                max_empty_results=3
+            )
+            
+            observer = MinimalObserver()
+            
+            # Pattern для принятия решений
+            decision_maker = Pattern(
+                application_context=app_context,
+                temperature=config.temperature if config else 0.3
+            )
+            
+            # AgentLoop — сердце системы
+            loop = AgentLoop(
+                decision_maker=decision_maker,
+                executor=executor,
+                observer=observer,
+                controller=controller
+            )
+            
+            # Metrics
+            metrics = AgentMetrics()
+            
+            # Создаём минималистичный runtime
+            agent = MinimalAgentRuntime(
+                loop=loop,
+                metrics=metrics,
+                application_context=app_context,
+                goal=goal,
+                max_steps=config.max_steps if config else 10,
+                agent_id=agent_id,
+                correlation_id=correlation_id
+            )
+            
+            self._get_logger().info(
+                f"Создан агент (MINIMAL) с ID {agent_id}. Версии: из конфигурации",
+                extra={"event_type": LogEventType.SYSTEM_INIT}
+            )
+            
+            return agent
+        
+        else:
+            # === СТАРЫЙ RUNTIME (обратная совместимость) ===
+            from core.agent.runtime import AgentRuntime
+            
+            # 3. Создание агента — SessionContext всегда новый, но с копией истории
+            agent = AgentRuntime(
+                application_context=app_context,
+                goal=goal,
+                correlation_id=correlation_id,
+                agent_id=agent_id,
+                dialogue_history=dialogue_history,
+                agent_config=config
+            )
 
-        self._get_logger().info(
-            f"Создан агент с ID {app_context.id}. Версии: из конфигурации",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
-        )
+            self._get_logger().info(
+                f"Создан агент с ID {app_context.id}. Версии: из конфигурации",
+                extra={"event_type": LogEventType.SYSTEM_INIT}
+            )
 
-        return agent
+            return agent
 
     async def _validate_version_consistency(self, config: AgentConfig) -> List[str]:
         """

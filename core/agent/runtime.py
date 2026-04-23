@@ -422,7 +422,7 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return decision.result or ExecutionResult.success(
+                return decision.result or ExecutionResult.create_success(
                     data=decision.reasoning
                 )
 

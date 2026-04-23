@@ -40,7 +40,7 @@ class TestSkillArchitecture:
 
     def test_execution_result_success_factory(self):
         """ExecutionResult.success создаёт правильный результат"""
-        result = ExecutionResult.success(
+        result = ExecutionResult.create_success(
             data={"answer": "test"},
             metadata={"tokens": 100},
             side_effect=False

@@ -18,13 +18,16 @@
 + Metrics (отдельно)
 """
 import uuid
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from core.application_context.application_context import ApplicationContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.infrastructure.logging.event_types import LogEventType
+
+# Ленивый импорт для избежания циклических зависимостей
+if TYPE_CHECKING:
+    from core.application_context.application_context import ApplicationContext
 
 
 @dataclass
@@ -63,8 +66,9 @@ class AgentState:
             "timestamp": datetime.now().isoformat()
         })
         
-        # Обновление счётчика ошибок
-        if not result.success:
+        # Обновление счётчика ошибок (используем универсальную проверку)
+        is_success = _is_execution_success(result)
+        if not is_success:
             self.failures += 1
         else:
             self.failures = 0
@@ -93,6 +97,31 @@ class StepResult:
     @classmethod
     def continue_(cls, state: AgentState):
         return cls(done=False, success=True, state=state)
+
+
+def _is_execution_success(result: Any) -> bool:
+    """
+    Проверка успешности выполнения.
+    
+    Поддерживает:
+    - ExecutionResult (проверка status == COMPLETED или is_success property)
+    - StepResult (проверка success атрибута)
+    """
+    from core.models.enums.common_enums import ExecutionStatus
+    
+    # Если это ExecutionResult
+    if hasattr(result, 'status'):
+        return result.status == ExecutionStatus.COMPLETED
+    
+    # Если есть is_success property (ExecutionResult)
+    if hasattr(result, 'is_success'):
+        return result.is_success is True
+    
+    # Если это StepResult или другой объект с атрибутом success
+    if hasattr(result, 'success') and not callable(getattr(result, 'success')):
+        return result.success is True
+    
+    return False
 
 
 class AgentMetrics:
@@ -145,13 +174,16 @@ class AgentRuntime:
     НЕ ЗНАЕТ ПРО:
     - Детали executor / policy / fallback
     - Создание зависимостей
+    
+    DEPRECATED: используйте MinimalAgentRuntime вместо этого класса.
+    Это имя сохранено для обратной совместимости.
     """
     
     def __init__(
         self,
         loop: Any,  # AgentLoop
         metrics: AgentMetrics,
-        application_context: ApplicationContext,
+        application_context: 'ApplicationContext',
         goal: str,
         max_steps: int = 10,
         agent_id: str = "agent_001",
@@ -216,8 +248,8 @@ class AgentRuntime:
                         f"Агент завершил работу успешно за {state.steps} шагов",
                         extra={"event_type": LogEventType.AGENT_STOP}
                     )
-                    return ExecutionResult.success(
-                        result={
+                    return ExecutionResult.create_success(
+                        data={
                             "steps": state.steps,
                             "history": state.history
                         }
@@ -359,7 +391,7 @@ class Executor:
                     "result": result
                 }, session_id=self.session_id, agent_id=self.agent_id)
             
-            return ExecutionResult.success(result)
+            return ExecutionResult.create_success(result)
             
         except Exception as e:
             latency = (datetime.now() - start_time).total_seconds()
@@ -409,7 +441,8 @@ class RetryExecutor:
         for attempt in range(self.max_retries + 1):
             result = await self.executor.execute(action, state)
             
-            if result.success:
+            # Используем универсальную проверку успешности
+            if _is_execution_success(result):
                 return result
             
             # Если это не последняя попытка — задержка
@@ -462,14 +495,16 @@ class Controller:
             return StepResult.done(state)
         
         # Success condition — цель достигнута
-        if result.success and state.is_goal_reached():
+        is_success = _is_execution_success(result)
+        if is_success and state.is_goal_reached():
             return StepResult.done(state)
         
         # Failure handling
-        if not result.success:
+        if not is_success:
             # Проверяем количество последовательных ошибок
             if state.failures > self.max_failures:
-                return StepResult.fail("too many errors", state)
+                error_msg = getattr(result, 'error', 'unknown error') or 'unknown error'
+                return StepResult.fail(f"too many errors: {error_msg}", state)
         
         # Продолжаем выполнение
         return StepResult.continue_(state)
@@ -497,16 +532,22 @@ class Observer:
         ВОЗВРАЩАЕТ:
         - observation: словарь с наблюдением
         """
+        is_success = _is_execution_success(result)
+        
         observation = {
-            "success": result.success,
+            "success": is_success,
             "error": result.error if hasattr(result, 'error') else None,
-            "status": "success" if result.success else "error"
+            "status": "success" if is_success else "error"
         }
         
         # Проверка на пустой результат
-        if result.success:
-            data = getattr(result, 'result', None)
+        if is_success:
+            data = getattr(result, 'data', None)
             if data is None or (isinstance(data, (list, dict)) and len(data) == 0):
                 observation["status"] = "empty"
         
         return observation
+
+
+# Алиас для обратной совместимости
+MinimalAgentRuntime = AgentRuntime

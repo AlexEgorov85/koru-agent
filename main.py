@@ -61,7 +61,8 @@ async def run_agent(
     goal: str,
     max_steps: int = None,
     temperature: float = None,
-    dialogue_history=None  # ← НОВОЕ: история диалога между запросами
+    dialogue_history=None,  # ← НОВОЕ: история диалога между запросами
+    use_minimal_runtime: bool = True  # ← НОВОЕ: используем минималистичный runtime по умолчанию
 ) -> str:
     """
     Запуск агента с заданной целью.
@@ -119,7 +120,8 @@ async def run_agent(
         agent = await agent_factory.create_agent(
             goal=goal,
             config=agent_config,
-            dialogue_history=dialogue_history
+            dialogue_history=dialogue_history,
+            use_minimal_runtime=use_minimal_runtime  # ← НОВОЕ: переключатель runtime
         )
 
         logger.info("Запуск агента...")

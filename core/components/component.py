@@ -587,7 +587,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             )
             
             # Этап 6: Возврат результата
-            return ExecutionResult.success(
+            return ExecutionResult.create_success(
                 data=validated_result,
                 metadata={"execution_time_ms": execution_time_ms}
             )

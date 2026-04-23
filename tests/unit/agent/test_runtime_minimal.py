@@ -42,7 +42,7 @@ class TestAgentState:
         from core.models.data.execution import ExecutionResult
         
         state = AgentState(goal="test")
-        result = ExecutionResult.success({"data": "test"})
+        result = ExecutionResult.create_success({"data": "test"})
         observation = {"status": "success"}
         
         state.apply("test_action", result, observation)
@@ -79,7 +79,7 @@ class TestAgentState:
         assert state.failures == 3
         
         # Успех сбрасывает счётчик
-        result = ExecutionResult.success({"data": "ok"})
+        result = ExecutionResult.create_success({"data": "ok"})
         state.apply("success_action", result, {})
         
         assert state.failures == 0
@@ -184,7 +184,7 @@ class TestController:
         state = AgentState(goal="test")
         
         from core.models.data.execution import ExecutionResult
-        result = ExecutionResult.success({"data": "ok"})
+        result = ExecutionResult.create_success({"data": "ok"})
         
         decision = controller.evaluate(state, result)
         
@@ -197,7 +197,7 @@ class TestController:
         state = AgentState(goal="test", steps=5)
         
         from core.models.data.execution import ExecutionResult
-        result = ExecutionResult.success({"data": "ok"})
+        result = ExecutionResult.create_success({"data": "ok"})
         
         decision = controller.evaluate(state, result)
         
@@ -227,7 +227,7 @@ class TestObserver:
         observer = Observer()
         
         from core.models.data.execution import ExecutionResult
-        result = ExecutionResult.success({"data": "test"})
+        result = ExecutionResult.create_success({"data": "test"})
         state = AgentState(goal="test")
         
         observation = await observer.observe(result, state)
@@ -256,7 +256,7 @@ class TestObserver:
         observer = Observer()
         
         from core.models.data.execution import ExecutionResult
-        result = ExecutionResult.success({})  # Пустой dict
+        result = ExecutionResult.create_success({})  # Пустой dict
         state = AgentState(goal="test")
         
         observation = await observer.observe(result, state)
@@ -338,17 +338,18 @@ class TestRetryExecutor:
     @pytest.mark.asyncio
     async def test_retry_on_failure(self):
         """Retry при неудаче."""
+        from core.models.data.execution import ExecutionResult
+        
         call_count = 0
         
         async def failing_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                from core.models.data.execution import ExecutionResult
                 return ExecutionResult.failure(f"attempt {call_count}")
-            return ExecutionResult.success({"result": "success"})
+            return ExecutionResult.create_success({"result": "success"})
         
-        mock_executor = MagicMock()
+        mock_executor = AsyncMock()
         mock_executor.execute = failing_execute
         
         retry_executor = RetryExecutor(
@@ -366,11 +367,16 @@ class TestRetryExecutor:
     @pytest.mark.asyncio
     async def test_no_retry_on_success(self):
         """Нет retry при успехе."""
-        async def success_execute(*args, **kwargs):
-            from core.models.data.execution import ExecutionResult
-            return ExecutionResult.success({"result": "success"})
+        from core.models.data.execution import ExecutionResult
         
-        mock_executor = MagicMock()
+        call_count = 0
+        
+        async def success_execute(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return ExecutionResult.create_success({"result": "success"})
+        
+        mock_executor = AsyncMock()
         mock_executor.execute = success_execute
         
         retry_executor = RetryExecutor(
@@ -382,7 +388,7 @@ class TestRetryExecutor:
         result = await retry_executor.execute("test_action", state)
         
         assert result.success is True
-        mock_executor.execute.assert_called_once()
+        assert call_count == 1  # Вызван только 1 раз
 
 
 class TestAgentLoop:
@@ -397,7 +403,7 @@ class TestAgentLoop:
         
         mock_executor = AsyncMock()
         from core.models.data.execution import ExecutionResult
-        mock_executor.execute = AsyncMock(return_value=ExecutionResult.success({"data": "ok"}))
+        mock_executor.execute = AsyncMock(return_value=ExecutionResult.create_success({"data": "ok"}))
         
         mock_observer = AsyncMock()
         mock_observer.observe = AsyncMock(return_value={"status": "success"})

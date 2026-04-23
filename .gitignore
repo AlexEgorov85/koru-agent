@@ -1,51 +1,38 @@
-```
-# Python
+```gitignore
+# Python cache files
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+*.pyc
+*.pyo
+*.pyd
 
-# Environment
-.env
-.env.local
-.env.*
-.venv/
-venv/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# Logs
-*.log
-
-# Coverage
+# Test cache and coverage
+.pytest_cache/
 .coverage
 coverage/
 htmlcov/
 
-# Testing
-.pytest_cache/
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# IDE specific
+.vscode/
+.idea/
+
+# Dependencies and builds
+venv/
+.venv/
+pip-wheel-metadata/
+.wheelhouse/
 .mypy_cache/
+__pypackages__/
 ```

@@ -671,7 +671,7 @@ class FinalAnswerSkill(Skill):
             else:
                 result_data = result_dict
 
-            return ExecutionResult.success(
+            return ExecutionResult.create_success(
                 data=result_data,
                 metadata={
                     "observations_count": len(observations),
