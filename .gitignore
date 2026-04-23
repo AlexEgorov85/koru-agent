@@ -22,10 +22,6 @@ wheels/
 *.egg
 MANIFEST
 
-# IDE
-.vscode/
-.idea/
-
 # Environment
 .env
 .env.local
@@ -34,10 +30,22 @@ MANIFEST
 venv/
 ENV/
 
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
 # Logs
 *.log
 
-# OS
-.DS_Store
-Thumbs.db
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```
