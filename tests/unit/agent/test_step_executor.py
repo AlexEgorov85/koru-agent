@@ -313,7 +313,7 @@ class TestStepExecutorIntegration:
         
         # Мок SafeExecutor без импорта ExecutionContext
         mock_safe_executor = AsyncMock()
-        mock_safe_executor.execute.return_value = ExecutionResult.success(data={"result": "ok"})
+        mock_safe_executor.execute.return_value = ExecutionResult.create_success(data={"result": "ok"})
         
         step_executor = StepExecutor(safe_executor=mock_safe_executor)
         
@@ -341,7 +341,7 @@ class TestStepExecutorIntegration:
         mock_safe_executor.execute.side_effect = [
             Exception("Network error"),
             Exception("Timeout"),
-            ExecutionResult.success(data={"result": "ok"})
+            ExecutionResult.create_success(data={"result": "ok"})
         ]
         
         step_executor = StepExecutor(safe_executor=mock_safe_executor)
@@ -373,7 +373,7 @@ class TestStepExecutorIntegration:
         # Имитация долгого выполнения
         async def slow_execute(*args, **kwargs):
             await asyncio.sleep(10)
-            return ExecutionResult.success()
+            return ExecutionResult.create_success()
         
         mock_safe_executor.execute.side_effect = slow_execute
         
@@ -408,7 +408,7 @@ class TestStepExecutorIntegration:
         async def execute_side_effect(capability_name, **kwargs):
             if capability_name == "main.cap":
                 raise Exception("Main failed")
-            return ExecutionResult.success(data={"from": "fallback"})
+            return ExecutionResult.create_success(data={"from": "fallback"})
         
         mock_safe_executor.execute.side_effect = execute_side_effect
         
@@ -467,7 +467,7 @@ class TestStepExecutorIntegration:
         mock_safe_executor = AsyncMock()
         mock_safe_executor.execute.side_effect = [
             Exception("First fail"),
-            ExecutionResult.success()
+            ExecutionResult.create_success()
         ]
         
         step_executor = StepExecutor(safe_executor=mock_safe_executor)

@@ -8,7 +8,7 @@ def test_build_observation_signal_sql_year_empty_adds_year_hint() -> None:
     """Пустой SQL-ответ с фильтром по году должен давать подсказку проверить доступные годы."""
     service = ObservationSignalService()
 
-    result = ExecutionResult.success(data=[])
+    result = ExecutionResult.create_success(data=[])
     signal = service.build_signal(
         result=result,
         action_name="sql_tool.execute_query",
@@ -26,7 +26,7 @@ def test_build_observation_signal_sql_string_filter_adds_universal_hint() -> Non
     """Пустой SQL-ответ с НЕ-датовым фильтром тоже должен получать диагностику фильтров."""
     service = ObservationSignalService()
 
-    result = ExecutionResult.success(data=[])
+    result = ExecutionResult.create_success(data=[])
     signal = service.build_signal(
         result=result,
         action_name="sql_tool.execute_query",
@@ -45,7 +45,7 @@ def test_build_observation_signal_non_sql_empty_has_default_hint() -> None:
     """Для не-SQL действий остаётся базовая подсказка при пустом результате."""
     service = ObservationSignalService()
 
-    result = ExecutionResult.success(data=[])
+    result = ExecutionResult.create_success(data=[])
     signal = service.build_signal(
         result=result,
         action_name="planning.create_plan",

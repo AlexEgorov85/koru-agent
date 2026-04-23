@@ -1109,7 +1109,7 @@ class ActionExecutor:
         if response.success:
             # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict
             # Сериализация будет вызвана только на границе через result.to_dict()
-            return ExecutionResult.success(
+            return ExecutionResult.create_success(
                 data=response.parsed_content,  # ← Pydantic модель типа T
                 metadata={
                     "model": response.raw_response.model,

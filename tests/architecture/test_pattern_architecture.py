@@ -512,7 +512,7 @@ class TestExecutionResult:
         """is_failure() работает корректно."""
         from core.models.data.execution import ExecutionResult
         
-        success_result = ExecutionResult.success(data={'result': 'ok'})
+        success_result = ExecutionResult.create_success(data={'result': 'ok'})
         failure_result = ExecutionResult.failure(error='test error')
         
         assert not success_result.is_failure()
@@ -522,8 +522,8 @@ class TestExecutionResult:
         """is_empty() работает корректно."""
         from core.models.data.execution import ExecutionResult
         
-        empty_result = ExecutionResult.success(data=None)
-        non_empty_result = ExecutionResult.success(data={'result': 'ok'})
+        empty_result = ExecutionResult.create_success(data=None)
+        non_empty_result = ExecutionResult.create_success(data={'result': 'ok'})
         
         assert empty_result.is_empty()
         assert not non_empty_result.is_empty()

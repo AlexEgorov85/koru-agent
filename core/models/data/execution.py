@@ -69,7 +69,7 @@ class ExecutionResult:
         }
 
     @classmethod
-    def success(cls, data: Any = None, metadata: Optional[Dict[str, Any]] = None, side_effect: bool = False) -> 'ExecutionResult':
+    def create_success(cls, data: Any = None, metadata: Optional[Dict[str, Any]] = None, side_effect: bool = False) -> 'ExecutionResult':
         """Factory метод для успешного результата."""
         return cls(
             status=ExecutionStatus.COMPLETED,
@@ -141,6 +141,24 @@ class ExecutionResult:
     def technical_success(self, value: bool):
         """Сеттер для обратной совместимости."""
         self.status = ExecutionStatus.COMPLETED if value else ExecutionStatus.FAILED
+
+    @property
+    def is_success(self) -> bool:
+        """Алиас: True если статус COMPLETED (для удобства)."""
+        return self.status == ExecutionStatus.COMPLETED
+
+    @is_success.setter
+    def is_success(self, value: bool):
+        """Сеттер для обратной совместимости."""
+        self.status = ExecutionStatus.COMPLETED if value else ExecutionStatus.FAILED
+
+    # Примечание: property 'success' удалён, чтобы не конфликтовать с classmethod success()
+    # Используйте is_success или technical_success для проверки успешности
+    
+    @property
+    def success(self) -> bool:
+        """Основное свойство для проверки успешности: True если статус COMPLETED."""
+        return self.is_success
 
 
 @dataclass
