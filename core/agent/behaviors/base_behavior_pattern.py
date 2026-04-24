@@ -339,14 +339,14 @@ class PromptBuilderService:
                             )
                 if obs_parts:
                     obs_text = "\n".join(obs_parts)
-            elif hasattr(step, "result") and step.result is not None:
+            elif hasattr(step, "result") and step.data is not None:
                 from core.utils.observation_formatter import format_observation
 
-                obs_text = format_observation(step.result, capability, parameters)
+                obs_text = format_observation(step.data, capability, parameters)
             elif isinstance(step, dict) and step.get("result"):
                 from core.utils.observation_formatter import format_observation
 
-                obs_text = format_observation(step["result"], capability, parameters)
+                obs_text = format_observation(step["data"], capability, parameters)
 
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"

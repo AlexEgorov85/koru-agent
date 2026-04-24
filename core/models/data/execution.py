@@ -121,27 +121,6 @@ class ExecutionResult:
         """
         return self.data is None or self.data == {}
 
-    # Алиасы для обратной совместимости
-    @property
-    def result(self) -> Optional[Any]:
-        """Алиас на data для обратной совместимости."""
-        return self.data
-
-    @result.setter
-    def result(self, value: Optional[Any]):
-        """Сеттер для обратной совместимости."""
-        self.data = value
-
-    @property
-    def technical_success(self) -> bool:
-        """Алиас: True если статус COMPLETED."""
-        return self.status == ExecutionStatus.COMPLETED
-
-    @technical_success.setter
-    def technical_success(self, value: bool):
-        """Сеттер для обратной совместимости."""
-        self.status = ExecutionStatus.COMPLETED if value else ExecutionStatus.FAILED
-
 
 @dataclass
 class ExecutionContextSnapshot:

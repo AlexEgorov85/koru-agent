@@ -40,7 +40,7 @@ class Decision:
     reasoning: str = ""
     
     # Для FINISH
-    result: Optional[Any] = None
+    data: Optional[Any] = None
     
     # Для SWITCH_STRATEGY
     next_pattern: Optional[str] = None
@@ -60,6 +60,17 @@ class Decision:
     @capability_name.setter
     def capability_name(self, value: Optional[str]):
         self.action = value
+    
+    # Алиас для обратной совместимости (будет удален)
+    @property
+    def result(self) -> Optional[Any]:
+        """Алиас на data для обратной совместимости."""
+        return self.data
+    
+    @result.setter
+    def result(self, value: Optional[Any]):
+        """Сеттер для обратной совместимости."""
+        self.data = value
 
 
 # Алиас для обратной совместимости

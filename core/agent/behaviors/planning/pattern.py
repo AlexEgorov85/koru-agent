@@ -96,7 +96,7 @@ class PlanningPattern(BaseBehaviorPattern):
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="evaluation.v1.0.0",  # ← Переключение на оценку результата
                 reason="plan_execution_completed",
-                parameters={"plan_result": next_step_result.result}
+                parameters={"plan_result": next_step_result.data}
             )
 
         # 4. Выполнение шага плана
@@ -187,7 +187,7 @@ class PlanningPattern(BaseBehaviorPattern):
         if execution_result.status != ExecutionStatus.COMPLETED:
             return False
 
-        result_data = execution_result.result or {}
+        result_data = execution_result.data or {}
         return result_data.get("all_steps_completed", False)
 
     async def _execute_plan_step(
@@ -207,7 +207,7 @@ class PlanningPattern(BaseBehaviorPattern):
             # Ошибка получения следующего шага — попытка коррекции плана
             return await self._handle_step_retrieval_error(session_context, context_analysis, next_step_result)
 
-        step_data = next_step_result.result or {}
+        step_data = next_step_result.data or {}
         step_id = step_data.get("step_id")
         step_description = step_data.get("description", "")
         required_capability = step_data.get("required_capability")

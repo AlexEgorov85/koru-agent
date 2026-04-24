@@ -403,8 +403,8 @@ class FinalAnswerSkill(Skill):
                 context=execution_context
             )
 
-            if steps_result.status == ExecutionStatus.COMPLETED and steps_result.result:
-                steps_list = steps_result.result.get("steps", [])
+            if steps_result.status == ExecutionStatus.COMPLETED and steps_result.data:
+                steps_list = steps_result.data.get("steps", [])
                 for step in steps_list[-10:]:  # Последние 10 шагов
                     if isinstance(step, dict):
                         # Извлекаем данные из AgentStep dict (новый формат)

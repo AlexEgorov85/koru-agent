@@ -7,11 +7,28 @@
 """
 
 import random
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional, List
 
 if TYPE_CHECKING:
     # Delay import to avoid circular imports
     pass
+
+
+@dataclass
+class PolicyVerdict:
+    """Вердикт политики о допустимости действия."""
+    allowed: bool
+    violations: List[str] = field(default_factory=list)
+    action: str = ""
+
+
+class PolicyViolationError(Exception):
+    """Исключение при нарушении политики."""
+    
+    def __init__(self, verdict: PolicyVerdict):
+        self.verdict = verdict
+        super().__init__(f"Policy violation: {', '.join(verdict.violations)}")
 
 
 class AgentPolicy:
@@ -53,6 +70,10 @@ class AgentPolicy:
         self.max_consecutive_errors = max_consecutive_errors
         self.max_no_progress_steps = max_no_progress_steps
 
+        # Проверки
+        self.max_repeated_actions = max_repeated_actions
+        self.max_empty_results = max_empty_results
+
         # Retry
         self._max_retries = retry_max_attempts  # ← Приватное поле
         self.retry_base_delay = retry_base_delay
@@ -76,15 +97,15 @@ class AgentPolicy:
             delay *= random.uniform(0.5, 1.5)
         return delay
     
-    def check(
+    def evaluate(
         self,
         action_name: str,
         metrics: Any,
         state_data: Optional[Dict[str, Any]] = None,
         parameters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> 'PolicyVerdict':
         """
-        Проверка действия политикой.
+        Оценка действия политикой. Выбрасывает PolicyViolationError если действие запрещено.
 
         ПАРАМЕТРЫ:
         - action_name: имя планируемого действия
@@ -93,22 +114,35 @@ class AgentPolicy:
         - parameters: параметры действия (учитываются при проверке повторов)
 
         ВОЗВРАЩАЕТ:
-        - (allowed, reason): True если действие разрешено, иначе False + причина
+        - PolicyVerdict: вердикт политики
+
+        RAISES:
+        - PolicyViolationError: если действие запрещено политикой
         """
         parameters = parameters or {}
+        violations = []
 
         if self._check_repeat_action(action_name, metrics, parameters):
-            return False, f"repeat_action:{action_name}"
+            violations.append(f"repeat_action:{action_name}")
         
         # Проверка на empty loop
         if self._check_empty_loop(metrics):
-            return False, "empty_loop"
+            violations.append("empty_loop")
         
         # Проверка на превышение ошибок
         if self._check_max_errors(metrics):
-            return False, "max_errors_reached"
+            violations.append("max_errors_reached")
         
-        return True, None
+        verdict = PolicyVerdict(
+            allowed=len(violations) == 0,
+            violations=violations,
+            action=action_name
+        )
+        
+        if not verdict.allowed:
+            raise PolicyViolationError(verdict)
+        
+        return verdict
     
     def _check_repeat_action(
         self,
@@ -166,100 +200,6 @@ class AgentPolicy:
             return False
         
         return len(metrics.errors) >= self.max_errors
-    
-    def get_violations(
-        self,
-        action_name: str,
-        metrics: Any
-    ) -> List[str]:
-        """
-        Получить список всех нарушений политики.
-        
-        ПАРАМЕТРЫ:
-        - action_name: имя действия
-        - metrics: объект AgentMetrics
-        
-        ВОЗВРАЩАЕТ:
-        - список строк с описаниями нарушений
-        """
-        violations = []
-        
-        if self._check_repeat_action(action_name, metrics):
-            violations.append(f"repeat_action:{action_name}")
-        
-        if self._check_empty_loop(metrics):
-            violations.append("empty_loop")
-        
-        if self._check_max_errors(metrics):
-            violations.append("max_errors_reached")
-        
-        return violations
-
-    def check_step(self, action_name: str, state) -> Tuple[bool, str]:
-        """Проверить допустимость шага на основе state."""
-        recent_actions = state.get_recent_actions(limit=3) if state else []
-
-        if action_name and action_name in recent_actions:
-            return False, "repeat_action"
-
-        if state and state.empty_results_count >= 2:
-            return False, "empty_loop"
-
-        return True, ""
-
-    def check_step(
-        self, action_name: str, parameters: Dict[str, Any], state
-    ) -> Tuple[bool, str]:
-        """
-        Проверить допустимость шага на основе state.
-
-        ВАЖНО:
-        - Проверяем повторы по action_signature (action + параметры),
-          а не только по имени действия.
-        - Это уменьшает ложные блокировки для валидных повторных вызовов
-          инструмента с новыми параметрами.
-        """
-        recent_signatures = state.get_recent_action_signatures(limit=3) if state else []
-        action_signature = (
-            state.build_action_signature(action_name, parameters)
-            if state and action_name
-            else action_name
-        )
-
-        if action_signature and action_signature in recent_signatures:
-            return False, "repeat_action"
-
-        if state and state.consecutive_empty_results >= 2:
-            return False, "empty_loop"
-
-        return True, ""
-
-    def check_step(
-        self, action_name: str, parameters: Dict[str, Any], state
-    ) -> Tuple[bool, str]:
-        """
-        Проверить допустимость шага на основе state.
-
-        ВАЖНО:
-        - Проверяем повторы по action_signature (action + параметры),
-          а не только по имени действия.
-        - Это уменьшает ложные блокировки для валидных повторных вызовов
-          инструмента с новыми параметрами.
-        """
-        recent_signatures = state.get_recent_action_signatures(limit=3) if state else []
-        action_signature = (
-            state.build_action_signature(action_name, parameters)
-            if state and action_name
-            else action_name
-        )
-
-        if action_signature and action_signature in recent_signatures:
-            return False, "repeat_action"
-
-        if state and state.consecutive_empty_results >= 2:
-            return False, "empty_loop"
-
-        return True, ""
 
 
 # Alias для обратной совместимости

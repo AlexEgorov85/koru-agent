@@ -67,7 +67,7 @@ class UpdatePlanHandler(SkillHandler):
         if not llm_result.status == ExecutionStatus.COMPLETED:
             raise RuntimeError(f"Ошибка обновления плана: {llm_result.error}")
 
-        llm_data = llm_result.result
+        llm_data = llm_result.data
         updated_plan = llm_data.parsed_content if hasattr(llm_data, 'parsed_content') else llm_data.get("parsed_content", {}) if isinstance(llm_data, dict) else llm_data
 
         # ✅ ПРОВЕРКА: LLM вернул пустой результат

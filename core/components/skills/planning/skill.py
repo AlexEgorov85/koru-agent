@@ -171,7 +171,7 @@ class PlanningSkill(Skill):
 
             # 5. Получаем структурированные данные
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
-            llm_result_data = llm_result.result
+            llm_result_data = llm_result.data
             if hasattr(llm_result_data, 'parsed_content'):
                 # LLMResponse — извлекаем parsed_content
                 plan_data = llm_result_data.parsed_content
@@ -334,7 +334,7 @@ class PlanningSkill(Skill):
 
             # 6. Получаем структурированные данные
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
-            llm_result_data = llm_result.result
+            llm_result_data = llm_result.data
             if hasattr(llm_result_data, 'parsed_content'):
                 # LLMResponse — извлекаем parsed_content
                 updated_plan = llm_result_data.parsed_content
@@ -695,7 +695,7 @@ class PlanningSkill(Skill):
 
             # Получаем структурированные данные
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
-            llm_result_data = llm_result.result
+            llm_result_data = llm_result.data
             if hasattr(llm_result_data, 'parsed_content'):
                 # LLMResponse — извлекаем parsed_content
                 corrected_plan = llm_result_data.parsed_content
@@ -728,7 +728,7 @@ class PlanningSkill(Skill):
 
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
-                data=llm_result.result,
+                data=llm_result.data,
                 metadata={"correction_applied": True}
             )
         except Exception as e:
@@ -778,7 +778,7 @@ class PlanningSkill(Skill):
 
             # Получаем структурированные данные
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
-            llm_result_data = llm_result.result
+            llm_result_data = llm_result.data
             if hasattr(llm_result_data, 'parsed_content'):
                 # LLMResponse — извлекаем parsed_content
                 decompose_data = llm_result_data.parsed_content
@@ -825,11 +825,11 @@ class PlanningSkill(Skill):
 
             # Сохранение иерархии в контекст
             hierarchy_data = {
-                "parent_task_id": llm_result.result.get("parent_task_id") if llm_result.result else None,
-                "original_task": llm_result.result.get("original_task") if llm_result.result else None,
+                "parent_task_id": llm_result.data.get("parent_task_id") if llm_result.data else None,
+                "original_task": llm_result.data.get("original_task") if llm_result.data else None,
                 "sub_plans": sub_plans,
-                "decomposition_strategy": llm_result.result.get("decomposition_strategy") if llm_result.result else None,
-                "metadata": llm_result.result.get("metadata") if llm_result.result else None
+                "decomposition_strategy": llm_result.data.get("decomposition_strategy") if llm_result.data else None,
+                "metadata": llm_result.data.get("metadata") if llm_result.data else None
             }
 
             hierarchy_result = await self.executor.execute_action(

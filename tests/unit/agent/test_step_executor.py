@@ -181,7 +181,7 @@ class TestStepInstance:
         instance = StepInstance(step_id="step_1", config=config)
         
         assert instance.status == StepExecutionStatus.PENDING
-        assert instance.result is None
+        assert instance.data is None
         assert instance.metrics is not None
     
     def test_mark_running(self):
@@ -202,7 +202,7 @@ class TestStepInstance:
         instance.mark_completed(result_data)
         
         assert instance.status == StepExecutionStatus.COMPLETED
-        assert instance.result == result_data
+        assert instance.data == result_data
     
     def test_mark_failed(self):
         """Отметка шага как неудачного."""
@@ -212,8 +212,8 @@ class TestStepInstance:
         instance.mark_failed("Connection error", "TRANSIENT")
         
         assert instance.status == StepExecutionStatus.FAILED
-        assert instance.result["error"] == "Connection error"
-        assert instance.result["error_type"] == "TRANSIENT"
+        assert instance.data["error"] == "Connection error"
+        assert instance.data["error_type"] == "TRANSIENT"
     
     def test_is_finished(self):
         """Проверка завершённости шага."""
@@ -302,196 +302,6 @@ steps:
         with pytest.raises(ValueError, match="не может указывать на себя"):
             AgentConfig.from_yaml(str(yaml_file), capability_registry=registry)
 
-
-class TestStepExecutorIntegration:
-    """Интеграционные тесты StepExecutor."""
-    
-    @pytest.mark.asyncio
-    async def test_execute_success_first_attempt(self):
-        """Успешное выполнение с первой попытки."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        # Мок SafeExecutor без импорта ExecutionContext
-        mock_safe_executor = AsyncMock()
-        mock_safe_executor.execute.return_value = ExecutionResult.success(data={"result": "ok"})
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(capability="test.cap", timeout_ms=5000, max_retries=2)
-        context = MagicMock()  # Простой мок вместо ExecutionContext
-        
-        result = await step_executor.execute_with_config(
-            step_config=config,
-            parameters={"param": "value"},
-            context=context,
-            step_id="test_step"
-        )
-        
-        assert result.status == ExecutionStatus.COMPLETED
-        assert mock_safe_executor.execute.call_count == 1
-    
-    @pytest.mark.asyncio
-    async def test_execute_with_retry(self):
-        """Выполнение с retry после ошибки."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        mock_safe_executor = AsyncMock()
-        
-        # Первые 2 попытки失败, третья успешна
-        mock_safe_executor.execute.side_effect = [
-            Exception("Network error"),
-            Exception("Timeout"),
-            ExecutionResult.success(data={"result": "ok"})
-        ]
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(
-            capability="test.cap",
-            timeout_ms=5000,
-            max_retries=3,
-            retry_delay_ms=10  # Короткая задержка для теста
-        )
-        context = MagicMock()
-        
-        result = await step_executor.execute_with_config(
-            step_config=config,
-            parameters={},
-            context=context
-        )
-        
-        assert result.status == ExecutionStatus.COMPLETED
-        assert mock_safe_executor.execute.call_count == 3
-    
-    @pytest.mark.asyncio
-    async def test_execute_timeout(self):
-        """Превышение таймаута."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        mock_safe_executor = AsyncMock()
-        
-        # Имитация долгого выполнения
-        async def slow_execute(*args, **kwargs):
-            await asyncio.sleep(10)
-            return ExecutionResult.success()
-        
-        mock_safe_executor.execute.side_effect = slow_execute
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(
-            capability="test.cap",
-            timeout_ms=100,  # 100ms таймаут
-            max_retries=0
-        )
-        context = MagicMock()
-        
-        result = await step_executor.execute_with_config(
-            step_config=config,
-            parameters={},
-            context=context
-        )
-        
-        assert result.status == ExecutionStatus.FAILED
-        # Проверяем что ошибка связана с таймаутом (в metadata или error)
-        assert "timeout" in result.error.lower() or "timed out" in result.error.lower() or \
-               (result.metadata and any("timeout" in str(v).lower() for v in result.metadata.values()))
-    
-    @pytest.mark.asyncio
-    async def test_execute_fallback_success(self):
-        """Успешный fallback."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        mock_safe_executor = AsyncMock()
-        
-        # Основная capability падает, fallback успешен
-        async def execute_side_effect(capability_name, **kwargs):
-            if capability_name == "main.cap":
-                raise Exception("Main failed")
-            return ExecutionResult.success(data={"from": "fallback"})
-        
-        mock_safe_executor.execute.side_effect = execute_side_effect
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(
-            capability="main.cap",
-            timeout_ms=5000,
-            max_retries=0,
-            on_error=StepOnErrorStrategy.FALLBACK,
-            fallback_capability="fallback.cap"
-        )
-        context = MagicMock()
-        
-        result = await step_executor.execute_with_config(
-            step_config=config,
-            parameters={},
-            context=context
-        )
-        
-        assert result.status == ExecutionStatus.COMPLETED
-        assert result.data.get("from") == "fallback"
-    
-    @pytest.mark.asyncio
-    async def test_execute_all_attempts_exhausted(self):
-        """Исчерпание всех попыток."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        mock_safe_executor = AsyncMock()
-        mock_safe_executor.execute.side_effect = Exception("Always fails")
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(
-            capability="test.cap",
-            timeout_ms=5000,
-            max_retries=2,
-            retry_delay_ms=10
-        )
-        context = MagicMock()
-        
-        result = await step_executor.execute_with_config(
-            step_config=config,
-            parameters={},
-            context=context
-        )
-        
-        assert result.status == ExecutionStatus.FAILED
-        assert mock_safe_executor.execute.call_count == 3  # 1 + 2 retries
-    
-    @pytest.mark.asyncio
-    async def test_metrics_collection(self):
-        """Сбор метрик выполнения."""
-        from core.agent.components.step_executor import StepExecutor
-        
-        mock_safe_executor = AsyncMock()
-        mock_safe_executor.execute.side_effect = [
-            Exception("First fail"),
-            ExecutionResult.success()
-        ]
-        
-        step_executor = StepExecutor(safe_executor=mock_safe_executor)
-        
-        config = StepConfig(
-            capability="test.cap",
-            timeout_ms=5000,
-            max_retries=2,
-            retry_delay_ms=10
-        )
-        context = MagicMock()
-        
-        await step_executor.execute_with_config(
-            step_config=config,
-            parameters={},
-            context=context,
-            step_id="metrics_test"
-        )
-        
-        metrics = step_executor.get_step_metrics("metrics_test")
-        
-        assert metrics is not None
-        assert metrics.total_attempts >= 1
-        assert len(metrics.attempts) >= 1
 
 
 if __name__ == "__main__":

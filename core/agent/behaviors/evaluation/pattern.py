@@ -267,7 +267,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             # Извлекаем результат
             # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель для типизированного доступа
-            result = llm_result.result
+            result = llm_result.data
             if hasattr(result, 'parsed_content'):
                 result = result.parsed_content  # ← Pydantic модель, не dict!
             elif isinstance(result, dict):

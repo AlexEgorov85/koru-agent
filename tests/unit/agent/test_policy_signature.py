@@ -1,13 +1,15 @@
 """Тесты policy с учётом action signature."""
 
-from core.agent.components.policy import AgentPolicy
+from core.agent.components.policy import AgentPolicy, PolicyViolationError
 from core.agent.state import AgentState
+from core.agent.components.agent_metrics import AgentMetrics
 
 
 def test_policy_allows_same_action_with_different_parameters() -> None:
     """Одинаковый action с разными параметрами не должен считаться повтором."""
     state = AgentState()
     policy = AgentPolicy()
+    metrics = AgentMetrics()
 
     state.add_step(
         action_name="sql_tool.execute_query",
@@ -15,20 +17,22 @@ def test_policy_allows_same_action_with_different_parameters() -> None:
         parameters={"query": "SELECT * FROM sales WHERE year = 2024"},
     )
 
-    allowed, reason = policy.check_step(
+    # Policy.evaluate теперь выбрасывает исключение при нарушении, иначе возвращает вердикт
+    verdict = policy.evaluate(
         action_name="sql_tool.execute_query",
-        parameters={"query": "SELECT * FROM sales WHERE year = 2025"},
-        state=state,
+        metrics=metrics,
+        parameters={"query": "SELECT * FROM sales WHERE year = 2025"}
     )
 
-    assert allowed is True
-    assert reason == ""
+    assert verdict.allowed is True
+    assert len(verdict.violations) == 0
 
 
 def test_policy_blocks_same_action_with_same_parameters() -> None:
     """Одинаковый action и параметры должны блокироваться как repeat_action."""
     state = AgentState()
     policy = AgentPolicy()
+    metrics = AgentMetrics()
 
     params = {"query": "SELECT * FROM sales WHERE year = 2025"}
     state.add_step(
@@ -37,11 +41,17 @@ def test_policy_blocks_same_action_with_same_parameters() -> None:
         parameters=params,
     )
 
-    allowed, reason = policy.check_step(
-        action_name="sql_tool.execute_query",
-        parameters=params,
-        state=state,
-    )
+    # Симулируем повторное действие через metrics
+    metrics.check_repeated_action = lambda name, params: name == "sql_tool.execute_query" and params == params
+    metrics.repeated_actions_count = 3
 
-    assert allowed is False
-    assert reason == "repeat_action"
+    # При нарушении политики должно выбрасываться исключение
+    try:
+        policy.evaluate(
+            action_name="sql_tool.execute_query",
+            metrics=metrics,
+            parameters=params
+        )
+        assert False, "Expected PolicyViolationError"
+    except PolicyViolationError as e:
+        assert "repeat_action" in str(e.verdict.violations[0])

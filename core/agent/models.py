@@ -180,7 +180,7 @@ class StepInstance(BaseModel):
     - config: конфигурация шага
     - status: текущий статус выполнения
     - metrics: метрики выполнения
-    - result: результат выполнения (если завершён)
+    - data: результат выполнения (если завершён)
     - created_at: время создания
     - updated_at: время последнего обновления
     """
@@ -188,7 +188,7 @@ class StepInstance(BaseModel):
     config: StepConfig
     status: StepExecutionStatus = StepExecutionStatus.PENDING
     metrics: StepMetrics = None  # type: ignore
-    result: Optional[Dict[str, Any]] = None
+    data: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -205,16 +205,16 @@ class StepInstance(BaseModel):
         self.status = StepExecutionStatus.RUNNING
         self.updated_at = datetime.utcnow()
     
-    def mark_completed(self, result: Optional[Dict[str, Any]] = None):
+    def mark_completed(self, data: Optional[Dict[str, Any]] = None):
         """Отметить шаг как завершённый успешно."""
         self.status = StepExecutionStatus.COMPLETED
-        self.result = result
+        self.data = data
         self.updated_at = datetime.utcnow()
     
     def mark_failed(self, error: str, error_type: Optional[str] = None):
         """Отметить шаг как завершённый с ошибкой."""
         self.status = StepExecutionStatus.FAILED
-        self.result = {"error": error, "error_type": error_type}
+        self.data = {"error": error, "error_type": error_type}
         self.updated_at = datetime.utcnow()
     
     def mark_timeout(self):
@@ -244,7 +244,7 @@ class StepInstance(BaseModel):
             "capability": self.config.capability,
             "status": self.status.value,
             "metrics": self.metrics.to_dict(),
-            "result": self.result,
+            "data": self.data,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()
         }
