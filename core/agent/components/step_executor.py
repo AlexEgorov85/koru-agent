@@ -30,7 +30,7 @@ from typing import Optional, Any, TYPE_CHECKING
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.agent.models import StepConfig, StepExecutionStatus, StepAttempt, StepMetrics
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.agent.components.safe_executor import SafeExecutor
@@ -124,7 +124,7 @@ class StepExecutor:
         logger.info(
             f"Запуск шага {step_id}: {step_config.capability} "
             f"(timeout={step_config.timeout_ms}ms, retries={step_config.max_retries})",
-            extra={"event_type": LogEventType.STEP_STARTED}
+            extra={"event_type": EventType.STEP_STARTED}
         )
         
         # Публикация события START
@@ -154,7 +154,7 @@ class StepExecutor:
                 logger.debug(
                     f"Попытка {attempt}/{step_config.max_retries + 1} "
                     f"(timeout={timeout_seconds}s)",
-                    extra={"event_type": LogEventType.DEBUG}
+                    extra={"event_type": EventType.DEBUG}
                 )
                 
                 result = await asyncio.wait_for(
@@ -181,7 +181,7 @@ class StepExecutor:
                     logger.info(
                         f"Шаг {step_id} завершён успешно (попытка {attempt}, "
                         f"длительность={attempt_record.duration_ms}ms)",
-                        extra={"event_type": LogEventType.STEP_COMPLETED}
+                        extra={"event_type": EventType.STEP_COMPLETED}
                     )
                     
                     await self._publish_event("STEP_COMPLETED", {
@@ -211,7 +211,7 @@ class StepExecutor:
                 logger.warning(
                     f"Таймаут шага {step_id} (попытка {attempt}, "
                     f"длительность={attempt_record.duration_ms}ms)",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": EventType.WARNING}
                 )
                 
                 await self._publish_event("STEP_TIMEOUT", {
@@ -236,7 +236,7 @@ class StepExecutor:
                 
                 logger.error(
                     f"Ошибка шага {step_id} (попытка {attempt}): {e}",
-                    extra={"event_type": LogEventType.ERROR},
+                    extra={"event_type": EventType.ERROR},
                     exc_info=True
                 )
                 
@@ -254,7 +254,7 @@ class StepExecutor:
             if step_config.on_error.value == "fallback" and step_config.has_fallback():
                 logger.info(
                     f"Активация fallback для шага {step_id}: {step_config.fallback_capability}",
-                    extra={"event_type": LogEventType.INFO}
+                    extra={"event_type": EventType.INFO}
                 )
                 
                 await self._publish_event("STEP_FALLBACK_TRIGGERED", {
@@ -276,7 +276,7 @@ class StepExecutor:
                     if fallback_result.status == ExecutionStatus.COMPLETED:
                         logger.info(
                             f"Fallback успешен для шага {step_id}",
-                            extra={"event_type": LogEventType.STEP_COMPLETED}
+                            extra={"event_type": EventType.STEP_COMPLETED}
                         )
                         
                         await self._publish_event("STEP_FALLBACK_SUCCESS", {
@@ -289,7 +289,7 @@ class StepExecutor:
                 except Exception as fallback_error:
                     logger.error(
                         f"Fallback не удался для шага {step_id}: {fallback_error}",
-                        extra={"event_type": LogEventType.ERROR}
+                        extra={"event_type": EventType.ERROR}
                     )
                     
                     await self._publish_event("STEP_FALLBACK_FAILED", {
@@ -309,14 +309,14 @@ class StepExecutor:
             delay_seconds = step_config.get_retry_delay_seconds(attempt - 1)
             logger.debug(
                 f"Задержка перед retry {attempt}: {delay_seconds:.2f}s",
-                extra={"event_type": LogEventType.DEBUG}
+                extra={"event_type": EventType.DEBUG}
             )
             await asyncio.sleep(delay_seconds)
         
         # Все попытки исчерпаны
         logger.error(
             f"Шаг {step_id} исчерпал все попытки ({step_config.max_retries + 1})",
-            extra={"event_type": LogEventType.STEP_EXHAUSTED}
+            extra={"event_type": EventType.STEP_EXHAUSTED}
         )
         
         await self._publish_event("STEP_EXHAUSTED", {

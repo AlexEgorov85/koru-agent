@@ -9,7 +9,7 @@ from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
 from core.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class PlanningSkill(Skill):
@@ -124,9 +124,9 @@ class PlanningSkill(Skill):
         """
         try:
             # Используем _log_info для публикации событий
-            self._log_info(f"Событие {event_type}: {data}", event_type=LogEventType.INFO)
+            self._log_info(f"Событие {event_type}: {data}", event_type=EventType.INFO)
         except Exception as e:
-            self._log_warning(f"Не удалось опубликовать событие {event_type}: {str(e)}", event_type=LogEventType.WARNING)
+            self._log_warning(f"Не удалось опубликовать событие {event_type}: {str(e)}", event_type=EventType.WARNING)
 
     async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         try:
@@ -191,7 +191,7 @@ class PlanningSkill(Skill):
                 self._log_error(
                     f"LLM вернул пустой план | finish_reason={finish_reason} | "
                     f"validation_errors={getattr(llm_result_data, 'validation_errors', [])}",
-                    event_type=LogEventType.ERROR
+                    event_type=EventType.ERROR
                 )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
@@ -207,7 +207,7 @@ class PlanningSkill(Skill):
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             self._log_info(
                 f"Plan создан с structured output (попыток: {parsing_attempts})",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             # 6. Сохранение плана в контекст
@@ -250,7 +250,7 @@ class PlanningSkill(Skill):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка создания плана: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка создания плана: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось создать план: {str(e)}"
@@ -353,7 +353,7 @@ class PlanningSkill(Skill):
 
                 self._log_error(
                     f"LLM вернул пустой ответ при обновлении плана | finish_reason={finish_reason}",
-                    event_type=LogEventType.ERROR
+                    event_type=EventType.ERROR
                 )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
@@ -368,7 +368,7 @@ class PlanningSkill(Skill):
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             self._log_info(
                 f"Plan обновлён с structured output (попыток: {parsing_attempts})",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             # 5. Сохранение обновленного плана
@@ -411,7 +411,7 @@ class PlanningSkill(Skill):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка обновления плана: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка обновления плана: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить план: {str(e)}"
@@ -470,7 +470,7 @@ class PlanningSkill(Skill):
                 )
 
         except Exception as e:
-            self._log_error(f"Ошибка получения следующего шага: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка получения следующего шага: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось получить следующего шага: {str(e)}"
@@ -643,7 +643,7 @@ class PlanningSkill(Skill):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка обновления статуса шага: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка обновления статуса шага: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить статус шага: {str(e)}"
@@ -707,7 +707,7 @@ class PlanningSkill(Skill):
             # Логирование успешного structured output
             self._log_info(
                 f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             # Сохраняем исправленный план
@@ -732,7 +732,7 @@ class PlanningSkill(Skill):
                 metadata={"correction_applied": True}
             )
         except Exception as e:
-            self._log_error(f"Ошибка коррекции плана: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка коррекции плана: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка коррекции плана: {str(e)}"
@@ -790,7 +790,7 @@ class PlanningSkill(Skill):
             # Логирование успешного structured output
             self._log_info(
                 f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             # Создание вложенных планов для подзадач
@@ -853,7 +853,7 @@ class PlanningSkill(Skill):
                 metadata={"subtasks_count": len(sub_plans)}
             )
         except Exception as e:
-            self._log_error(f"Ошибка декомпозиции задачи: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка декомпозиции задачи: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось декомпозировать задачу: {str(e)}"
@@ -995,7 +995,7 @@ class PlanningSkill(Skill):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка отметки задачи как завершенной: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка отметки задачи как завершенной: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось отметить задачу как завершенную: {str(e)}"

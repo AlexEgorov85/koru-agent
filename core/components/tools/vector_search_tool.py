@@ -31,7 +31,7 @@ from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.types.vector_types import VectorSearchResult, VectorQuery
 from core.models.types.analysis import AnalysisResult
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class VectorSearchTool(Tool):
@@ -191,9 +191,9 @@ class VectorSearchTool(Tool):
             params_dict = parameters
 
         # Получаем инфраструктуру (загружаем embedding если нужно)
-        self._log_debug(f"VectorSearchTool: getting infrastructure...", event_type=LogEventType.DEBUG)
+        self._log_debug(f"VectorSearchTool: getting infrastructure...", event_type=EventType.DEBUG)
         self._get_infrastructure()
-        self._log_debug(f"VectorSearchTool: infrastructure ready, embedding={self._embedding_provider is not None}", event_type=LogEventType.DEBUG)
+        self._log_debug(f"VectorSearchTool: infrastructure ready, embedding={self._embedding_provider is not None}", event_type=EventType.DEBUG)
 
         # Выполняем async операцию напрямую
         if operation == "search":
@@ -201,7 +201,7 @@ class VectorSearchTool(Tool):
             top_k = params_dict.get('top_k', 10)
             min_score = params_dict.get('min_score', 0.5)
             source = params_dict.get('source', 'books')
-            self._log_debug(f"VectorSearchTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=LogEventType.DEBUG)
+            self._log_debug(f"VectorSearchTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=EventType.DEBUG)
 
             return await self._search(query=query, top_k=top_k, min_score=min_score, source=source)
 
@@ -228,7 +228,7 @@ class VectorSearchTool(Tool):
 
         else:
             error_msg = f"Unknown operation: {operation}"
-            self._log_error(error_msg, event_type=LogEventType.ERROR)
+            self._log_error(error_msg, event_type=EventType.ERROR)
             return {"error": error_msg}
     
     async def _search(
@@ -256,11 +256,11 @@ class VectorSearchTool(Tool):
         import numpy as np
         start_time = time.time()
 
-        self._log_debug(f"[_search] START | query='{query[:50]}...', source={source}", event_type=LogEventType.DEBUG)
+        self._log_debug(f"[_search] START | query='{query[:50]}...', source={source}", event_type=EventType.DEBUG)
 
         try:
             # 1. Генерируем вектор через embedding_provider
-            self._log_debug(f"[_search] Generating embedding...", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] Generating embedding...", event_type=EventType.DEBUG)
 
             if not self._embedding_provider:
                 return {"error": "Embedding provider not initialized", "search_type": "error"}
@@ -268,10 +268,10 @@ class VectorSearchTool(Tool):
             embedding_start = time.time()
             query_vector_list = await self._embedding_provider.generate([query])
             query_vector = np.array(query_vector_list[0], dtype=np.float32) if query_vector_list else None
-            self._log_debug(f"[_search] Embedding done", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] Embedding done", event_type=EventType.DEBUG)
 
             # 2. Получаем FAISS индекс для указанного source
-            self._log_debug(f"[_search] Getting FAISS for source='{source}'...", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] Getting FAISS for source='{source}'...", event_type=EventType.DEBUG)
 
             faiss = self._get_faiss_for_source(source)
 
@@ -285,11 +285,11 @@ class VectorSearchTool(Tool):
                 )
 
             # 3. Поиск в FAISS
-            self._log_debug(f"[_search] Searching FAISS ({count} vectors)...", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] Searching FAISS ({count} vectors)...", event_type=EventType.DEBUG)
 
             faiss_search_start = time.time()
             faiss_results = await faiss.search(query_vector.tolist() if query_vector is not None else [], top_k=top_k)
-            self._log_debug(f"[_search] FAISS done | results={len(faiss_results)}", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] FAISS done | results={len(faiss_results)}", event_type=EventType.DEBUG)
 
             results = []
             for result in faiss_results:
@@ -313,7 +313,7 @@ class VectorSearchTool(Tool):
                 results.append(result_item)
 
             total_time = time.time() - start_time
-            self._log_debug(f"[_search] COMPLETE: {total_time:.2f}s, found={len(results)}", event_type=LogEventType.DEBUG)
+            self._log_debug(f"[_search] COMPLETE: {total_time:.2f}s, found={len(results)}", event_type=EventType.DEBUG)
 
             return {
                 "results": results,
@@ -321,9 +321,9 @@ class VectorSearchTool(Tool):
             }
 
         except Exception as e:
-            self._log_error(f"[_search] ERROR: {e}", event_type=LogEventType.ERROR)
+            self._log_error(f"[_search] ERROR: {e}", event_type=EventType.ERROR)
             import traceback
-            self._log_error(f"Traceback: {traceback.format_exc()}", event_type=LogEventType.ERROR)
+            self._log_error(f"Traceback: {traceback.format_exc()}", event_type=EventType.ERROR)
 
             from core.errors.exceptions import VectorSearchError
             raise VectorSearchError(

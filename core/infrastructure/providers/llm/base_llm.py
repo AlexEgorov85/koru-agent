@@ -17,7 +17,7 @@ from typing import Dict, Any, Optional
 
 from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig
 from core.infrastructure.providers.base_provider import BaseProvider, ProviderHealthStatus
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 
 
@@ -98,10 +98,10 @@ class BaseLLMProvider(BaseProvider, ABC):
         """Логирование начала LLM вызова."""
         self.log.info("📝 LLM вызов | Модель: %s | Промт: %d симв. | Max tokens: %d | Temperature: %s",
                       self.model_name, len(request.prompt), request.max_tokens, request.temperature,
-                      extra={"event_type": LogEventType.LLM_CALL})
+                      extra={"event_type": EventType.LLM_CALL})
 
         self.log.debug("Промт LLM (%d симв.): %s", len(request.prompt), request.prompt,
-                       extra={"event_type": LogEventType.LLM_CALL})
+                       extra={"event_type": EventType.LLM_CALL})
 
     async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
         """Логирование завершения LLM вызова."""
@@ -114,22 +114,22 @@ class BaseLLMProvider(BaseProvider, ABC):
                     error_msg = response.metadata
             self.log.error("❌ LLM ответ | Модель: %s | Ошибка: %s | Время: %.2fс",
                            self.model_name, error_msg, elapsed_time,
-                           extra={"event_type": LogEventType.LLM_ERROR})
+                           extra={"event_type": EventType.LLM_ERROR})
         else:
             content_length = len(response.content) if response.content else 0
             self.log.info("✅ LLM ответ | Модель: %s | Ответ: %d симв. | Токенов: %s | Время: %.2fс | Причина: %s",
                           self.model_name, content_length, response.tokens_used, elapsed_time, response.finish_reason,
-                          extra={"event_type": LogEventType.LLM_RESPONSE})
+                          extra={"event_type": EventType.LLM_RESPONSE})
 
             if response.content:
                 self.log.debug("Ответ LLM: %s", response.content,
-                               extra={"event_type": LogEventType.LLM_RESPONSE})
+                               extra={"event_type": EventType.LLM_RESPONSE})
 
     async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
         """Логирование ошибки LLM вызова."""
         self.log.error("❌ LLM ошибка | Модель: %s | %s: %s | Время: %.2fс",
                        self.model_name, type(error).__name__, str(error), elapsed_time,
-                       extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
+                       extra={"event_type": EventType.LLM_ERROR}, exc_info=True)
     
     @abstractmethod
     async def initialize(self) -> bool:

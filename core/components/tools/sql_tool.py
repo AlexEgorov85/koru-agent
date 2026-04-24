@@ -14,7 +14,7 @@ from core.components.tools.tool import Tool, ToolInput, ToolOutput
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.enums.common_enums import ResourceType
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 @dataclass
@@ -60,7 +60,7 @@ class SQLTool(Tool):
 
     async def shutdown(self) -> None:
         """Корректное завершение работы (базовая реализация)."""
-        self._log_debug(f"Завершение работы для инструмента {self.name}", event_type=LogEventType.DEBUG)
+        self._log_debug(f"Завершение работы для инструмента {self.name}", event_type=EventType.DEBUG)
 
     def _is_write_query(self, sql: str) -> bool:
         """Проверяет, является ли SQL-запрос write-операцией."""
@@ -90,7 +90,7 @@ class SQLTool(Tool):
             if db_resources:
                 return db_resources[0].instance
         except Exception as e:
-            self._log_error(f"Ошибка получения DB провайдера: {e}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка получения DB провайдера: {e}", event_type=EventType.ERROR)
         return None
 
     async def _execute_impl(
@@ -111,7 +111,7 @@ class SQLTool(Tool):
             params_dict = parameters
         else:
             error_msg = f"Неподдерживаемый тип параметров: {type(parameters)}"
-            self._log_error(error_msg, event_type=LogEventType.ERROR)
+            self._log_error(error_msg, event_type=EventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
@@ -130,7 +130,7 @@ class SQLTool(Tool):
         db_provider = self._get_db_provider()
         if not db_provider:
             error_msg = "DB провайдер не найден в infrastructure_context"
-            self._log_error(error_msg, event_type=LogEventType.ERROR)
+            self._log_error(error_msg, event_type=EventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
@@ -143,7 +143,7 @@ class SQLTool(Tool):
         # Проверка sandbox-режима
         if not self.component_config.side_effects_enabled and self._is_write_query(input_data.sql):
             error_msg = "Sandbox режим: write-запрос отклонён"
-            self._log_warning(error_msg, event_type=LogEventType.WARNING)
+            self._log_warning(error_msg, event_type=EventType.WARNING)
             return {
                 "rows": [],
                 "columns": [],
@@ -161,7 +161,7 @@ class SQLTool(Tool):
             )
         except Exception as e:
             error_msg = str(e)
-            self._log_error(f"Ошибка выполнения SQL: {error_msg}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка выполнения SQL: {error_msg}", event_type=EventType.ERROR)
             return {
                 "rows": [],
                 "columns": [],
@@ -189,7 +189,7 @@ class SQLTool(Tool):
                 output_schema.model_validate(output)
             except Exception as e:
                 error_msg = f"Валидация выходных данных не пройдена: {e}"
-                self._log_error(error_msg, event_type=LogEventType.ERROR)
+                self._log_error(error_msg, event_type=EventType.ERROR)
                 return {
                     "rows": [],
                     "columns": [],

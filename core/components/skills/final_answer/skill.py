@@ -19,7 +19,7 @@ from core.components.skills.skill import Skill
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class FinalAnswerSkill(Skill):
@@ -99,15 +99,15 @@ class FinalAnswerSkill(Skill):
 
         # Проверяем промпт и схемы (без логирования - только ошибки)
         if capability_name not in self.prompts:
-            self._log_error(f"Критический промпт {capability_name} не загружен", event_type=LogEventType.ERROR)
+            self._log_error(f"Критический промпт {capability_name} не загружен", event_type=EventType.ERROR)
             return False
 
         if capability_name not in self.input_contracts:
-            self._log_error(f"Входная схема {capability_name} не загружена", event_type=LogEventType.ERROR)
+            self._log_error(f"Входная схема {capability_name} не загружена", event_type=EventType.ERROR)
             return False
 
         if capability_name not in self.output_contracts:
-            self._log_error(f"Выходная схема {capability_name} не загружена", event_type=LogEventType.ERROR)
+            self._log_error(f"Выходная схема {capability_name} не загружена", event_type=EventType.ERROR)
             return False
 
         return True
@@ -159,7 +159,7 @@ class FinalAnswerSkill(Skill):
         self._log_error(
             "❌ _generate_final_answer вернул ExecutionResult с пустым data. "
             "Это указывает на ошибку генерации финального ответа.",
-            event_type=LogEventType.ERROR
+            event_type=EventType.ERROR
         )
         
         # Возвращаем явный fallback с предупреждением
@@ -204,7 +204,7 @@ class FinalAnswerSkill(Skill):
             if dialogue_history_str:
                 self._log_debug(
                     f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов",
-                    event_type=LogEventType.DEBUG
+                    event_type=EventType.DEBUG
                 )
         # Обработка параметров (могут быть Pydantic моделью или dict)
         from pydantic import BaseModel
@@ -284,7 +284,7 @@ class FinalAnswerSkill(Skill):
                 debug_msg += " - IS NONE"
             elif isinstance(sc, ExecCtx):
                 debug_msg += " - IS NESTED ExecutionContext!"
-            self._log_debug(debug_msg, event_type=LogEventType.DEBUG)
+            self._log_debug(debug_msg, event_type=EventType.DEBUG)
             if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
                 sc = execution_context.session_context
                 self._log_debug(
@@ -294,7 +294,7 @@ class FinalAnswerSkill(Skill):
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.data:
                 all_items = all_items_result.data.get("items", {})
                 
-                self._log_info(f"[DEBUG] all_items count: {len(all_items)}, items: {list(all_items.keys())}", event_type=LogEventType.DEBUG)
+                self._log_info(f"[DEBUG] all_items count: {len(all_items)}, items: {list(all_items.keys())}", event_type=EventType.DEBUG)
 
                 # Классификация элементов контекста
                 for item_id, item in all_items.items():
@@ -316,7 +316,7 @@ class FinalAnswerSkill(Skill):
                     else:
                         item_type = str(item_type_raw)
                     
-                    self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=LogEventType.DEBUG)
+                    self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=EventType.DEBUG)
 
                     if item_type == "OBSERVATION":
                         # Используем content напрямую - там ВСЕ данные!
@@ -370,7 +370,7 @@ class FinalAnswerSkill(Skill):
                                 "result": str(item_content.get("result", "")) if item_content.get("result") else ""
                             })
         except Exception as e:
-            self._log_warning(f"Не удалось получить items из контекста: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"Не удалось получить items из контекста: {e}", event_type=EventType.WARNING)
             # Продолжаем с пустыми списками
 
         # Получаем шаги выполнения через executor
@@ -449,7 +449,7 @@ class FinalAnswerSkill(Skill):
 
                         steps_taken.append(step_entry)
         except Exception as e:
-            self._log_warning(f"Не удалось получить step history: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"Не удалось получить step history: {e}", event_type=EventType.WARNING)
             # Продолжаем с пустыми шагами
 
         # Получение промпта из кэша (через BaseComponent.get_prompt)
@@ -463,25 +463,25 @@ class FinalAnswerSkill(Skill):
         all_prompt_keys = list(self.prompts.keys())
         self._log_debug(
             f"[DEBUG final_answer] Загруженные промпты: {all_prompt_keys}",
-            event_type=LogEventType.DEBUG
+            event_type=EventType.DEBUG
         )
         self._log_debug(
             f"[DEBUG final_answer] prompt_obj: {'НАЙДЕН' if prompt_obj else 'НЕ НАЙДЕН'}",
-            event_type=LogEventType.DEBUG
+            event_type=EventType.DEBUG
         )
         self._log_debug(
             f"[DEBUG final_answer] system_prompt_obj: {'НАЙДЕН' if system_prompt_obj else 'НЕ НАЙДЕН'}",
-            event_type=LogEventType.DEBUG
+            event_type=EventType.DEBUG
         )
         if system_prompt_obj:
             self._log_debug(
                 f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content}...",
-                event_type=LogEventType.DEBUG
+                event_type=EventType.DEBUG
             )
         else:
             self._log_warning(
                 "[DEBUG final_answer] СИСТЕМНЫЙ ПРОМПТ НЕ ЗАГРУЖЕН!",
-                event_type=LogEventType.WARNING
+                event_type=EventType.WARNING
             )
         if not prompt_obj:
             from core.errors.exceptions import SkillExecutionError
@@ -532,7 +532,7 @@ class FinalAnswerSkill(Skill):
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
 
-            self._log_info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}", event_type=LogEventType.INFO)
+            self._log_info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}", event_type=EventType.INFO)
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
             # Используем системный промпт из файла
@@ -540,7 +540,7 @@ class FinalAnswerSkill(Skill):
                 system_prompt = system_prompt_obj.content
                 self._log_info(
                         f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ системный промпт из файла (длина: {len(system_prompt)})",
-                        event_type=LogEventType.INFO
+                        event_type=EventType.INFO
                     )
             else:
                 import json
@@ -553,11 +553,11 @@ class FinalAnswerSkill(Skill):
                         f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ FALLBACK системный промпт! "
                         f"system_prompt_obj={system_prompt_obj}, "
                         f"has_content={bool(system_prompt_obj and system_prompt_obj.content)}",
-                        event_type=LogEventType.WARNING
+                        event_type=EventType.WARNING
                     )
             self._log_debug(
                     f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt}...",
-                    event_type=LogEventType.DEBUG
+                    event_type=EventType.DEBUG
                 )
             llm_result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
@@ -572,8 +572,9 @@ class FinalAnswerSkill(Skill):
                     },
                     "temperature": 0.1,  # Низкая температура для точности
                     "max_tokens": 1500,
-                    "total_timeout": 600.0,  # Общий timeout на все попытки (10 минут)
-                    "attempt_timeout": 300.0  # Timeout на одну попытку (5 минут)
+                    # Таймауты из централизованной конфигурации
+                    "total_timeout": execution_context.config.timeouts.resolve_for('llm', 'generate_structured'),
+                    "attempt_timeout": execution_context.config.timeouts.resolve_for('llm', 'generate'),
                 },
                 context=execution_context
             )
@@ -582,7 +583,7 @@ class FinalAnswerSkill(Skill):
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
-                self._log_error(f"LLM structured output ошибка: {error_msg}", event_type=LogEventType.ERROR)
+                self._log_error(f"LLM structured output ошибка: {error_msg}", event_type=EventType.ERROR)
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные
@@ -604,7 +605,7 @@ class FinalAnswerSkill(Skill):
             # Логирование успешного structured output
             self._log_info(
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
 
             # Формирование финального результата через динамическую Pydantic модель из контракта
@@ -626,7 +627,7 @@ class FinalAnswerSkill(Skill):
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
             if not final_answer_val and sources_val:
-                self._log_debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}", event_type=LogEventType.DEBUG)
+                self._log_debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}", event_type=EventType.DEBUG)
                 # Извлекаем названия книг из sources
                 book_titles = []
                 for source in sources_val:
@@ -644,9 +645,9 @@ class FinalAnswerSkill(Skill):
                     count = len(book_titles)
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
-                    self._log_info(f"FALLBACK: сгенерирован ответ: {final_answer_val}", event_type=LogEventType.INFO)
+                    self._log_info(f"FALLBACK: сгенерирован ответ: {final_answer_val}", event_type=EventType.INFO)
             elif not final_answer_val:
-                self._log_warning(f"FALLBACK: final_answer пустой, sources={sources_val}", event_type=LogEventType.WARNING)
+                self._log_warning(f"FALLBACK: final_answer пустой, sources={sources_val}", event_type=EventType.WARNING)
             # Формируем результат через динамическую Pydantic модель из контракта
             result_dict = {
                 "final_answer": final_answer_val,
@@ -666,7 +667,7 @@ class FinalAnswerSkill(Skill):
                 try:
                     result_data = output_schema(**result_dict)
                 except Exception as e:
-                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=LogEventType.WARNING)
+                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=EventType.WARNING)
                     result_data = result_dict
             else:
                 result_data = result_dict
@@ -683,7 +684,7 @@ class FinalAnswerSkill(Skill):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка вызова LLM: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка вызова LLM: {str(e)}", event_type=EventType.ERROR)
             # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
             from core.errors.exceptions import SkillExecutionError

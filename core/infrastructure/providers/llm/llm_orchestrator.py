@@ -41,7 +41,7 @@ from core.models.types.llm_types import (
     LLMResponse,
     RawLLMResponse
 )
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.errors.exceptions import StructuredOutputError
 
@@ -294,7 +294,7 @@ class LLMOrchestrator:
             self._logger.info(
                 "LLMOrchestrator инициализирован: max_workers=%d, cleanup_interval=%dс",
                 self._max_workers, self._cleanup_interval,
-                extra={"event_type": LogEventType.SYSTEM_INIT}
+                extra={"event_type": EventType.SYSTEM_INIT}
             )
 
             # Event bus publish
@@ -309,7 +309,7 @@ class LLMOrchestrator:
 
         except Exception as e:
             if self._logger:
-                self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}", exc_info=True, extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}", exc_info=True, extra={"event_type": EventType.SYSTEM_ERROR})
             return False
 
     async def shutdown(self) -> None:
@@ -332,10 +332,10 @@ class LLMOrchestrator:
                 metrics = self._metrics.to_dict()
                 self._logger.info(
                     f"LLMOrchestrator завершён. Метрики: {metrics}",
-                    extra={"event_type": LogEventType.SYSTEM_SHUTDOWN}
+                    extra={"event_type": EventType.SYSTEM_SHUTDOWN}
                 )
 
-            self._logger.info("LLMOrchestrator остановлен", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+            self._logger.info("LLMOrchestrator остановлен", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
             # Event bus publish
             if self._event_bus:
@@ -347,7 +347,7 @@ class LLMOrchestrator:
             
         except Exception as e:
             if self._logger:
-                self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}", extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}", extra={"event_type": EventType.SYSTEM_ERROR})
     
     async def execute(
         self,
@@ -456,7 +456,7 @@ class LLMOrchestrator:
             f"step={record.step_number} | phase={record.phase} | "
             f"prompt_len={len(record.request.prompt)} | "
             f"timeout={record.timeout}s",
-            extra={"event_type": LogEventType.LLM_CALL}
+            extra={"event_type": EventType.LLM_CALL}
         )
 
         # Публикация события LLM_PROMPT_GENERATED
@@ -526,7 +526,7 @@ class LLMOrchestrator:
 
             # Fail-fast: проверяем провайдер
             if provider is None:
-                self._logger.warning("Provider is None — модель не загружена!", extra={"event_type": LogEventType.LLM_ERROR})
+                self._logger.warning("Provider is None — модель не загружена!", extra={"event_type": EventType.LLM_ERROR})
                 raise StructuredOutputError(
                     message="LLM провайдер не инициализирован (provider=None)",
                     model_name=getattr(request, 'model_name', self.model_name),
@@ -544,7 +544,7 @@ class LLMOrchestrator:
                         f"🔵 [STRUCTURED] Выполнение попытки {attempt_num}/{max_retries} | "
                         f"prompt_len={len(request.prompt)} | "
                         f"use_native_structured_output={use_native_structured_output}",
-                        extra={"event_type": LogEventType.LLM_CALL}
+                        extra={"event_type": EventType.LLM_CALL}
                     )
 
                 attempt = await self._execute_structured_attempt(
@@ -566,14 +566,14 @@ class LLMOrchestrator:
                     "[STRUCTURED] Результат попытки %d/%d | success=%s | error_type=%s | error_message=%s",
                     attempt_num, max_retries, attempt.success, attempt.error_type,
                     attempt.error_message if attempt.error_message else 'None',
-                    extra={"event_type": LogEventType.LLM_CALL}
+                    extra={"event_type": EventType.LLM_CALL}
                 )
                     
                 # Детальное логирование сырого ответа при ошибке
                 if not attempt.success and attempt.raw_response:
                     self._logger.error(
                         f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response}",
-                        extra={"event_type": LogEventType.LLM_ERROR}
+                        extra={"event_type": EventType.LLM_ERROR}
                     )
 
                 if attempt.success:
@@ -613,7 +613,7 @@ class LLMOrchestrator:
                         if self._logger:
                             self._logger.warning(
                                 f"⚠️ [STRUCTURED] Retry {attempt_num}/{max_retries} failed, trying again...",
-                                extra={"event_type": LogEventType.LLM_ERROR}
+                                extra={"event_type": EventType.LLM_ERROR}
                             )
                     # Продолжаем цикл — следующая попытка
 
@@ -683,7 +683,7 @@ class LLMOrchestrator:
                     f"content_len={self._get_content_length(response)}, "
                     f"has_parsed={hasattr(response, 'parsed_content')}, "
                     f"finish_reason={self._get_finish_reason(response)}",
-                    extra={"event_type": LogEventType.LLM_RESPONSE}
+                    extra={"event_type": EventType.LLM_RESPONSE}
                 )
 
                 # Логируем ПОЛНЫЙ сырой ответ (только в файл, DEBUG)
@@ -691,11 +691,11 @@ class LLMOrchestrator:
                     raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
                     self._logger.info(
                         f"🔵 [STRUCTURED] Raw response summary: len={len(raw_content)}",
-                        extra={"event_type": LogEventType.LLM_RESPONSE}
+                        extra={"event_type": EventType.LLM_RESPONSE}
                     )
                     self._logger.debug(
                         f"🔵 [STRUCTURED] === RAW LLM RESPONSE ===\n{raw_content}",
-                        extra={"event_type": LogEventType.LLM_RESPONSE}
+                        extra={"event_type": EventType.LLM_RESPONSE}
                     )
 
             duration = time.time() - start_time
@@ -712,7 +712,7 @@ class LLMOrchestrator:
                     if self._logger:
                         self._logger.warning(
                             f"⚠️ [STRUCTURED] finish_reason=error, но пробуем распарсить raw_response (len={len(raw_content)})",
-                            extra={"event_type": LogEventType.LLM_ERROR}
+                            extra={"event_type": EventType.LLM_ERROR}
                         )
                     # Продолжаем обработку ниже
                 else:
@@ -739,7 +739,7 @@ class LLMOrchestrator:
                     self._logger.warning(
                         f"⚠️ [STRUCTURED] Пустой ответ от LLM (attempt {attempt_num}/{max_retries}) | "
                         f"finish_reason={finish_reason}",
-                        extra={"event_type": LogEventType.LLM_ERROR}
+                        extra={"event_type": EventType.LLM_ERROR}
                     )
                     return RetryAttempt(
                         attempt_number=attempt_num,
@@ -755,7 +755,7 @@ class LLMOrchestrator:
                 if self._logger:
                     self._logger.info(
                         f"🔵 [STRUCTURED] Обработка raw_response.content, len={len(raw_content) if raw_content else 0}",
-                        extra={"event_type": LogEventType.LLM_RESPONSE}
+                        extra={"event_type": EventType.LLM_RESPONSE}
                     )
 
                 # Проверяем есть ли уже parsed_content (Pydantic модель)
@@ -764,7 +764,7 @@ class LLMOrchestrator:
                     if self._logger:
                         self._logger.info(
                             f"🔵 [STRUCTURED] parsed_content уже заполнен: {type(response.parsed_content).__name__}",
-                            extra={"event_type": LogEventType.LLM_RESPONSE}
+                            extra={"event_type": EventType.LLM_RESPONSE}
                         )
                     return RetryAttempt(
                         attempt_number=attempt_num,
@@ -789,7 +789,7 @@ class LLMOrchestrator:
                             schema_keys = list(schema.keys()) if isinstance(schema, dict) else "unknown"
                             self._logger.info(
                                 f"🔵 [STRUCTURED] Вызов json_parsing.parse_to_model: модель={model_name} | schema_keys={schema_keys}",
-                                extra={"event_type": LogEventType.LLM_RESPONSE}
+                                extra={"event_type": EventType.LLM_RESPONSE}
                             )
 
                         # Вызываем JsonParsingService через ActionExecutor
@@ -816,7 +816,7 @@ class LLMOrchestrator:
                                 f"🔵 [STRUCTURED] parse_result: type={type(parse_result).__name__}, "
                                 f"has_data={hasattr(parse_result, 'data') if parse_result else False}, "
                                 f"data={getattr(parse_result, 'data', None) if parse_result else None}",
-                                extra={"event_type": LogEventType.LLM_RESPONSE}
+                                extra={"event_type": EventType.LLM_RESPONSE}
                             )
 
                         if parse_result and parse_result.data:
@@ -833,12 +833,12 @@ class LLMOrchestrator:
                                     if self._logger:
                                         self._logger.info(
                                             f"✅ [STRUCTURED] Pydantic модель {model_name} создана через JsonParsingService",
-                                            extra={"event_type": LogEventType.LLM_RESPONSE}
+                                            extra={"event_type": EventType.LLM_RESPONSE}
                                         )
                                         if steps:
                                             self._logger.debug(
                                                 f"🔵 [STRUCTURED] Steps обработки: {steps}",
-                                                extra={"event_type": LogEventType.LLM_RESPONSE}
+                                                extra={"event_type": EventType.LLM_RESPONSE}
                                             )
                                     
                                     # Если есть объект Pydantic - используем его, иначе создаём из dict
@@ -879,12 +879,12 @@ class LLMOrchestrator:
                                 if self._logger:
                                     self._logger.error(
                                         f"❌ [STRUCTURED] JsonParsingService вернул ошибку: {error_type}: {error_message}",
-                                        extra={"event_type": LogEventType.LLM_ERROR}
+                                        extra={"event_type": EventType.LLM_ERROR}
                                     )
                                     if steps:
                                         self._logger.debug(
                                             f"🔵 [STRUCTURED] Steps до ошибки: {steps}",
-                                            extra={"event_type": LogEventType.LLM_ERROR}
+                                            extra={"event_type": EventType.LLM_ERROR}
                                         )
                                     if error_details:
                                         for detail in error_details[:3]:  # Первые 3 ошибки
@@ -892,7 +892,7 @@ class LLMOrchestrator:
                                             msg = detail.get("msg", "")
                                             self._logger.error(
                                                 f"   - {'.'.join(str(x) for x in loc)}: {msg}",
-                                                extra={"event_type": LogEventType.LLM_ERROR}
+                                                extra={"event_type": EventType.LLM_ERROR}
                                             )
 
                                 return RetryAttempt(
@@ -910,7 +910,7 @@ class LLMOrchestrator:
                             if self._logger:
                                 self._logger.error(
                                     f"❌ [STRUCTURED] JsonParsingService вернул пустой результат",
-                                    extra={"event_type": LogEventType.LLM_ERROR}
+                                    extra={"event_type": EventType.LLM_ERROR}
                                 )
                             return RetryAttempt(
                                 attempt_number=attempt_num,
@@ -928,7 +928,7 @@ class LLMOrchestrator:
                         if self._logger:
                             self._logger.error(
                                 f"❌ [STRUCTURED] Исключение при вызове JsonParsingService: {type(parse_err).__name__}: {parse_err}",
-                                extra={"event_type": LogEventType.LLM_ERROR},
+                                extra={"event_type": EventType.LLM_ERROR},
                                 exc_info=True
                             )
                         return RetryAttempt(
@@ -947,7 +947,7 @@ class LLMOrchestrator:
                     if self._logger:
                         self._logger.error(
                             "❌ [STRUCTURED] Нет structured_output в запросе",
-                            extra={"event_type": LogEventType.LLM_ERROR}
+                            extra={"event_type": EventType.LLM_ERROR}
                         )
                     return RetryAttempt(
                         attempt_number=attempt_num,
@@ -965,7 +965,7 @@ class LLMOrchestrator:
                 if self._logger:
                     self._logger.warning(
                         f"⚠️ [STRUCTURED] Нет raw_response, используем LLMResponse.content",
-                        extra={"event_type": LogEventType.LLM_RESPONSE}
+                        extra={"event_type": EventType.LLM_RESPONSE}
                     )
                 raw_content = response.content
 
@@ -973,7 +973,7 @@ class LLMOrchestrator:
                 if not raw_content or not raw_content.strip():
                     self._logger.warning(
                         f"⚠️ [STRUCTURED] Пустой LLMResponse.content (attempt {attempt_num}/{max_retries})",
-                        extra={"event_type": LogEventType.LLM_ERROR}
+                        extra={"event_type": EventType.LLM_ERROR}
                     )
                     return RetryAttempt(
                         attempt_number=attempt_num,
@@ -1099,7 +1099,7 @@ class LLMOrchestrator:
             f"📋 Structured LLM | call_id={call_id} | "
             f"session={session_id} | "
             f"schema={schema_name}",
-            extra={"event_type": LogEventType.LLM_CALL}
+            extra={"event_type": EventType.LLM_CALL}
         )
 
         # Компактное логирование метаданных запроса в отдельный логгер
@@ -1110,17 +1110,17 @@ class LLMOrchestrator:
                 f"system_len={len(request.system_prompt) if request.system_prompt else 0} | "
                 f"user_len={len(request.prompt)} | "
                 f"temp={request.temperature} | max_tokens={request.max_tokens}",
-                extra={"event_type": LogEventType.LLM_CALL_REQUEST}
+                extra={"event_type": EventType.LLM_CALL_REQUEST}
             )
             # Полный промт в DEBUG
             if request.system_prompt:
                 self._llm_call_logger.debug(
                     f"[LLM_REQ] System Prompt (call_id={call_id}):\n{request.system_prompt}",
-                    extra={"event_type": LogEventType.LLM_CALL_REQUEST}
+                    extra={"event_type": EventType.LLM_CALL_REQUEST}
                 )
             self._llm_call_logger.debug(
                 f"[LLM_REQ] User Prompt (call_id={call_id}):\n{request.prompt}",
-                extra={"event_type": LogEventType.LLM_CALL_REQUEST}
+                extra={"event_type": EventType.LLM_CALL_REQUEST}
             )
 
         # Публикация события LLM_PROMPT_GENERATED
@@ -1167,7 +1167,7 @@ class LLMOrchestrator:
             f"✅ Structured SUCCESS | call_id={call_id} | "
             f"session={session_id} | attempt={attempt_num} | "
             f"duration={duration:.2f}s",
-            extra={"event_type": LogEventType.LLM_RESPONSE}
+            extra={"event_type": EventType.LLM_RESPONSE}
         )
 
         # Компактное логирование ответа в отдельный логгер
@@ -1177,17 +1177,17 @@ class LLMOrchestrator:
                     f"LLM_RESP | call_id={call_id} | attempt={attempt_num} | "
                     f"response_len={len(response_content)} | tokens={tokens_used} | "
                     f"duration={duration:.2f}s | model={model}",
-                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                    extra={"event_type": EventType.LLM_CALL_RESPONSE}
                 )
                 # Полный ответ в DEBUG
                 self._llm_call_logger.debug(
                     f"[LLM_RESP] Response (call_id={call_id}):\n{response_content}",
-                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                    extra={"event_type": EventType.LLM_CALL_RESPONSE}
                 )
             else:
                 self._llm_call_logger.warning(
                     f"LLM_RESP | call_id={call_id} | attempt={attempt_num} | EMPTY",
-                    extra={"event_type": LogEventType.LLM_CALL_RESPONSE}
+                    extra={"event_type": EventType.LLM_CALL_RESPONSE}
                 )
 
         # Публикация события LLM_RESPONSE_RECEIVED
@@ -1233,7 +1233,7 @@ class LLMOrchestrator:
             f"attempt={attempt_num} | error={error_type} | "
             f"message={error_message if error_message else 'unknown'} | "
             f"will_retry={will_retry}",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
         # Логирование в llm_calls логгер
@@ -1243,7 +1243,7 @@ class LLMOrchestrator:
                 level,
                 f"LLM_RETRY | call_id={call_id} | attempt={attempt_num} | "
                 f"error={error_type} | will_retry={will_retry}",
-                extra={"event_type": LogEventType.LLM_ERROR}
+                extra={"event_type": EventType.LLM_ERROR}
             )
 
     async def _log_structured_exhausted(
@@ -1261,7 +1261,7 @@ class LLMOrchestrator:
             f"❌ Structured EXHAUSTED | call_id={call_id} | "
             f"session={session_id} | total_attempts={total_attempts} | "
             f"last_error={last_error if last_error else 'unknown'}",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
     async def _log_structured_failure(
@@ -1279,7 +1279,7 @@ class LLMOrchestrator:
             f"❌ Structured FAILURE | call_id={call_id} | "
             f"attempt={attempt_num} | type={failure_type} | "
             f"message={message}",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
     async def _log_structured_error(
@@ -1295,7 +1295,7 @@ class LLMOrchestrator:
         self._logger.error(
             f"❌ Structured EXCEPTION | call_id={call_id} | "
             f"session={session_id} | error={error}",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
     async def _execute_call(
@@ -1331,7 +1331,7 @@ class LLMOrchestrator:
                     f"🚀 Вызов провайдера _generate_impl | provider={type(provider).__name__} | "
                     f"is_initialized={getattr(provider, 'is_initialized', 'unknown')} | "
                     f"has_llm={hasattr(provider, 'llm') and provider.llm is not None}",
-                    extra={"event_type": LogEventType.LLM_CALL}
+                    extra={"event_type": EventType.LLM_CALL}
                 )
 
             # Вызываем провайдер напрямую — он сам управляет потоком
@@ -1391,7 +1391,7 @@ class LLMOrchestrator:
             f"session={record.session_id} | step={record.step_number} | "
             f"response_len={self._get_content_length(result)} | tokens={self._get_tokens_used(result)} | "
             f"duration={record.duration:.2f}s",
-            extra={"event_type": LogEventType.LLM_RESPONSE}
+            extra={"event_type": EventType.LLM_RESPONSE}
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED
@@ -1408,7 +1408,7 @@ class LLMOrchestrator:
             f"step={record.step_number} | phase={record.phase} | "
             f"elapsed={elapsed:.2f}s | timeout={timeout}s | "
             f"prompt_len={len(record.request.prompt)}",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
@@ -1430,7 +1430,7 @@ class LLMOrchestrator:
             f"❌ LLM ERROR | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"{type(error).__name__}: {str(error)} | elapsed={elapsed:.2f}s",
-            extra={"event_type": LogEventType.LLM_ERROR}
+            extra={"event_type": EventType.LLM_ERROR}
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
@@ -1550,7 +1550,7 @@ class LLMOrchestrator:
                 break
             except Exception as e:
                 if self._logger:
-                    self._logger.error(f"Ошибка в cleanup loop: {e}", extra={"event_type": LogEventType.SYSTEM_ERROR})
+                    self._logger.error(f"Ошибка в cleanup loop: {e}", extra={"event_type": EventType.SYSTEM_ERROR})
     
     async def _cleanup_old_records(self, max_age: float = 300.0) -> int:
         """
@@ -1577,7 +1577,7 @@ class LLMOrchestrator:
                 removed += 1
         
         if removed > 0 and self._logger:
-            self._logger.debug(f"Очищено {removed} старых записей", extra={"event_type": LogEventType.SYSTEM_INIT})
+            self._logger.debug(f"Очищено {removed} старых записей", extra={"event_type": EventType.SYSTEM_INIT})
         
         return removed
     

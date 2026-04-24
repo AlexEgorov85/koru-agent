@@ -24,7 +24,7 @@ from enum import Enum
 import asyncio
 import logging
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.models.enums.common_enums import ResourceType
 from core.models.enums.component_status import ComponentStatus
@@ -185,7 +185,7 @@ class LifecycleManager:
 
             self.log.debug("Зарегистрирован ресурс '%s' типа %s",
                            name, resource_type.value,
-                           extra={"event_type": LogEventType.SYSTEM_INIT})
+                           extra={"event_type": EventType.SYSTEM_INIT})
 
     # ==================== УДОБНЫЕ МЕТОДЫ РЕГИСТРАЦИИ ====================
 
@@ -259,12 +259,12 @@ class LifecycleManager:
         async with self._lock:
             if self._initialized:
                 self.log.warning("LifecycleManager уже инициализирован",
-                                 extra={"event_type": LogEventType.WARNING})
+                                 extra={"event_type": EventType.WARNING})
                 return {name: True for name in self._resources}
 
             self.log.info("Начало инициализации %d инфраструктурных ресурсов",
                           len(self._resources),
-                          extra={"event_type": LogEventType.SYSTEM_INIT})
+                          extra={"event_type": EventType.SYSTEM_INIT})
 
             # Построение графа зависимостей
             graph = {name: set(record.dependencies) for name, record in self._resources.items()}
@@ -289,7 +289,7 @@ class LifecycleManager:
                     results[name] = False
                     self.log.error("Ресурс '%s' не инициализирован: failed зависимости %s",
                                    name, failed_deps,
-                                   extra={"event_type": LogEventType.SYSTEM_ERROR})
+                                   extra={"event_type": EventType.SYSTEM_ERROR})
                     continue
                 
                 record.status = ComponentStatus.INITIALIZING
@@ -306,13 +306,13 @@ class LifecycleManager:
                         record.initialized_at = datetime.now()
                         results[name] = True
                         self.log.debug("Ресурс '%s' успешно инициализирован", name,
-                                       extra={"event_type": LogEventType.SYSTEM_INIT})
+                                       extra={"event_type": EventType.SYSTEM_INIT})
                     else:
                         record.status = ComponentStatus.FAILED
                         record.init_error = "initialize returned False"
                         results[name] = False
                         self.log.error("Ресурс '%s' вернул False при инициализации", name,
-                                       extra={"event_type": LogEventType.SYSTEM_ERROR})
+                                       extra={"event_type": EventType.SYSTEM_ERROR})
                             
                 except Exception as e:
                     record.status = ComponentStatus.FAILED
@@ -320,7 +320,7 @@ class LifecycleManager:
                     results[name] = False
                     self.log.error("Ошибка инициализации ресурса '%s': %s",
                                    name, str(e),
-                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
+                                   extra={"event_type": EventType.SYSTEM_ERROR}, exc_info=True)
                     await self._publish_event("resource_init_failed", {
                         "name": name, 
                         "error": str(e)
@@ -332,7 +332,7 @@ class LifecycleManager:
             success_count = sum(1 for v in results.values() if v)
             self.log.info("Все инфраструктурные ресурсы инициализированы: %d/%d успешно",
                           success_count, len(results),
-                          extra={"event_type": LogEventType.SYSTEM_READY})
+                          extra={"event_type": EventType.SYSTEM_READY})
             
             await self._publish_event("lifecycle_initialized", {
                 "total": len(results),
@@ -398,7 +398,7 @@ class LifecycleManager:
             self._shutdown_in_progress = True
 
             self.log.info("Завершение работы инфраструктурных ресурсов",
-                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                          extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
             # Обратный порядок инициализации
             graph = {name: set(record.dependencies) for name, record in self._resources.items()}
@@ -423,13 +423,13 @@ class LifecycleManager:
                     results[name] = True
 
                     self.log.debug("Ресурс '%s' завершён", name,
-                                   extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                                   extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
                 except Exception as e:
                     results[name] = False
                     self.log.error("Ошибка при завершении ресурса '%s': %s",
                                    name, str(e),
-                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
+                                   extra={"event_type": EventType.SYSTEM_ERROR}, exc_info=True)
 
             self._initialized = False
             self._shutdown_in_progress = False
@@ -437,7 +437,7 @@ class LifecycleManager:
             success_count = sum(1 for v in results.values() if v)
             self.log.info("Все инфраструктурные ресурсы завершены: %d/%d успешно",
                           success_count, len(results),
-                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                          extra={"event_type": EventType.SYSTEM_SHUTDOWN})
             
             await self._publish_event("lifecycle_shutdown", {
                 "total": len(results),
@@ -793,4 +793,4 @@ class LifecycleManager:
                 )
             except Exception as e:
                 self.log.debug("Ошибка публикации события: %s", e,
-                               extra={"event_type": LogEventType.DEBUG})
+                               extra={"event_type": EventType.DEBUG})

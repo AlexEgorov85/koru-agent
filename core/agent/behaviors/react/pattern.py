@@ -12,7 +12,7 @@ from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
 from core.agent.behaviors.react.schema_validator import SchemaValidator
 from core.agent.behaviors.react.utils import analyze_context
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest
 from core.agent.behaviors.services import FallbackStrategyService
@@ -125,7 +125,7 @@ class ReActPattern(BaseBehaviorPattern):
                 f"session_id={session_context.session_id}, "
                 f"goal={session_context.goal}, "
                 f"caps={len(available_capabilities)}",
-                event_type=LogEventType.AGENT_DECISION,
+                event_type=EventType.AGENT_DECISION,
             )
 
             # Берём промпт и контракт (загружены в initialize())
@@ -142,7 +142,7 @@ class ReActPattern(BaseBehaviorPattern):
                 f"📋 [ReAct.decide] Промпты загружены: "
                 f"system={len(system) if system else 0} симв., "
                 f"user={len(user) if user else 0} симв.",
-                event_type=LogEventType.LLM_CALL,
+                event_type=EventType.LLM_CALL,
             )
 
             # Schema из контракта (model_json_schema - метод класса, не экземпляра)
@@ -170,7 +170,7 @@ class ReActPattern(BaseBehaviorPattern):
             # Логируем метаданные запроса ПЕРЕД вызовом LLM (только в файл)
             self._log_debug(
                 f"[ReAct.decide] prompt loaded: system={len(system)} chars, user={len(full_prompt)} chars, schema_keys={list(schema.keys())}",
-                event_type=LogEventType.LLM_CALL,
+                event_type=EventType.LLM_CALL,
             )
 
             # Вызов LLM
@@ -208,7 +208,7 @@ class ReActPattern(BaseBehaviorPattern):
             try:
                 self._log_info(
                     f"🔮 LLM вызов (temperature=0.3, max_tokens=2000, structured_output)",
-                    event_type=LogEventType.LLM_CALL,
+                    event_type=EventType.LLM_CALL,
                 )
 
                 # Извлекаем данные для трассировки из session_context
@@ -232,7 +232,7 @@ class ReActPattern(BaseBehaviorPattern):
             except Exception as e:
                 self._log_error(
                     f"❌ Исключение при LLM вызове: {type(e).__name__}: {e}",
-                    event_type=LogEventType.LLM_ERROR,
+                    event_type=EventType.LLM_ERROR,
                     exc_info=True,
                 )
                 return self.fallback_strategy.create_error(
@@ -243,7 +243,7 @@ class ReActPattern(BaseBehaviorPattern):
             if not result:
                 self._log_error(
                     "❌ LLM вернул None (result=None)",
-                    event_type=LogEventType.LLM_ERROR,
+                    event_type=EventType.LLM_ERROR,
                 )
                 return self.fallback_strategy.create_error(
                     "llm_returned_none", available_capabilities
@@ -252,7 +252,7 @@ class ReActPattern(BaseBehaviorPattern):
                 self._log_error(
                     f"❌ LLM вернул пустой ответ (finish_reason=empty) | "
                     f"model={result.model} | attempts={getattr(result, 'parsing_attempts', 'N/A')}",
-                    event_type=LogEventType.LLM_ERROR,
+                    event_type=EventType.LLM_ERROR,
                 )
                 return self.fallback_strategy.create_error(
                     "llm_empty_response", available_capabilities
@@ -261,7 +261,7 @@ class ReActPattern(BaseBehaviorPattern):
                 self._log_error(
                     f"❌ LLM вернул ответ без контента | "
                     f"finish_reason={result.finish_reason} | model={result.model}",
-                    event_type=LogEventType.LLM_ERROR,
+                    event_type=EventType.LLM_ERROR,
                 )
                 return self.fallback_strategy.create_error(
                     "llm_no_content", available_capabilities
@@ -272,7 +272,7 @@ class ReActPattern(BaseBehaviorPattern):
                     f"❌ JSON не распарсен | "
                     f"finish_reason={result.finish_reason} | "
                     f"errors={validation_errors}",
-                    event_type=LogEventType.LLM_ERROR,
+                    event_type=EventType.LLM_ERROR,
                 )
                 return self.fallback_strategy.create_error(
                     "llm_json_parse_failed", available_capabilities
@@ -306,7 +306,7 @@ class ReActPattern(BaseBehaviorPattern):
                     )
                 self._log_warning(
                     f"⛔ Reflection gate заблокировал шаг: {reflection_reason}",
-                    event_type=LogEventType.WARNING,
+                    event_type=EventType.WARNING,
                 )
                 return self.fallback_strategy.create_error(
                     f"reflection_blocked:{reflection_reason}", available_capabilities
@@ -314,7 +314,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             self._log_info(
                 f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')})",
-                event_type=LogEventType.LLM_RESPONSE,
+                event_type=EventType.LLM_RESPONSE,
             )
 
             # Логируем ПОЛНЫЙ ответ LLM (сырой + распарсенный, только в файл)
@@ -325,7 +325,7 @@ class ReActPattern(BaseBehaviorPattern):
                 f"--- Raw Response (len={len(raw_text)}) ---\n{raw_text}\n\n"
                 f"--- Parsed Content (Pydantic модель) ---\n"
                 f"{reasoning_result.model_dump_json(indent=2) if hasattr(reasoning_result, 'model_dump_json') else str(reasoning_result)}",
-                event_type=LogEventType.LLM_RESPONSE,
+                event_type=EventType.LLM_RESPONSE,
             )
 
             # Извлекаем размышление из 10 полей анализа
@@ -346,7 +346,7 @@ class ReActPattern(BaseBehaviorPattern):
                 f"action={decision.action or 'N/A'}, "
                 f"params={list((decision.parameters or {}).keys())}, "
                 f"reasoning={decision.reasoning or 'N/A'}",
-                event_type=LogEventType.AGENT_DECISION,
+                event_type=EventType.AGENT_DECISION,
             )
 
             self.error_count = 0

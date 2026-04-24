@@ -4,7 +4,7 @@ from core.components.services.service import Service
 from abc import ABC
 from core.utils.async_utils import safe_async_call
 import logging
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
@@ -415,8 +415,8 @@ class SQLGenerationService(Service):
                 final_check = getattr(output, 'final_check', '')
 
             # Логируем поля самоанализа
-            log.info(f"SQL Generation Analysis: understanding={analysis_understanding[:50]}...", extra={"event_type": LogEventType.LLM_RESPONSE})
-            log.info(f"SQL confidence_score={confidence_score}, potential_issues={len(potential_issues)}", extra={"event_type": LogEventType.LLM_RESPONSE})
+            log.info(f"SQL Generation Analysis: understanding={analysis_understanding[:50]}...", extra={"event_type": EventType.LLM_RESPONSE})
+            log.info(f"SQL confidence_score={confidence_score}, potential_issues={len(potential_issues)}", extra={"event_type": EventType.LLM_RESPONSE})
 
             # 5. Формирование результата
             result = SQLGenerationResult(

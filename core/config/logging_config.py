@@ -81,26 +81,26 @@ class ConsoleConfig(BaseModel):
     use_icons: bool = Field(default=True, description="Использовать иконки")
     allowed_terminal_events: Optional[set] = Field(
         default_factory=lambda: _default_allowed_events(),
-        description="Разрешённые LogEventType для консоли (None = все)"
+        description="Разрешённые EventType для консоли (None = все)"
     )
 
 
 def _default_allowed_events():
     """Дефолные события для терминала (ленивый импорт для избежания циклических импортов)."""
-    from core.infrastructure.logging.event_types import LogEventType
+    from core.infrastructure.event_bus.unified_event_bus import EventType
     return {
-        LogEventType.USER_PROGRESS,
-        LogEventType.USER_RESULT,
-        LogEventType.USER_MESSAGE,
-        LogEventType.AGENT_START,
-        LogEventType.AGENT_STOP,
-        LogEventType.AGENT_THINKING,
-        LogEventType.AGENT_DECISION,
-        LogEventType.STEP_STARTED,
-        LogEventType.STEP_COMPLETED,
-        LogEventType.WARNING,
-        LogEventType.ERROR,
-        LogEventType.CRITICAL,
+        EventType.USER_PROGRESS,
+        EventType.USER_RESULT,
+        EventType.USER_MESSAGE,
+        EventType.AGENT_START,
+        EventType.AGENT_STOP,
+        EventType.AGENT_THINKING,
+        EventType.AGENT_DECISION,
+        EventType.STEP_STARTED,
+        EventType.STEP_COMPLETED,
+        EventType.WARNING,
+        EventType.ERROR,
+        EventType.CRITICAL,
     }
 
 

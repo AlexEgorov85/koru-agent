@@ -12,7 +12,7 @@ from enum import Enum
 from core.application_context.application_context import ApplicationContext
 from core.agent.runtime import AgentRuntime
 from core.config.agent_config import AgentConfig
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class ProfileType(Enum):
@@ -87,7 +87,7 @@ class AgentFactory:
 
         self._get_logger().info(
             f"Создан агент с ID {app_context.id}. Версии: из конфигурации",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         return agent

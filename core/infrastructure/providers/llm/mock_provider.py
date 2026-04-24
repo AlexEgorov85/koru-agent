@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Pattern, Union
 from pydantic import BaseModel, Field
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
@@ -95,7 +95,7 @@ class MockLLMProvider(BaseLLMProvider):
             self._prompt_responses[f"substring:{prompt_pattern}"] = response
         self.log.debug("Зарегистрирован ответ для паттерна: %s...",
                        prompt_pattern[:50],
-                       extra={"event_type": LogEventType.DEBUG})
+                       extra={"event_type": EventType.DEBUG})
 
     def register_exact_response(self, prompt: str, response: str):
         """Регистрация ответа для точного совпадения промпта."""
@@ -118,7 +118,7 @@ class MockLLMProvider(BaseLLMProvider):
         for pattern, response in responses.items():
             self.register_response(pattern, response)
         self.log.info("Зарегистрировано %d ответов批量", len(responses),
-                     extra={"event_type": LogEventType.DEBUG})
+                     extra={"event_type": EventType.DEBUG})
 
     def register_regex_response(self, pattern: str, response: str):
         """Регистрация ответа для regex-паттерна."""
@@ -126,14 +126,14 @@ class MockLLMProvider(BaseLLMProvider):
         self._prompt_responses[compiled_pattern] = response
         self.log.debug("Зарегистрирован regex-ответ для паттерна: %s",
                        pattern,
-                       extra={"event_type": LogEventType.DEBUG})
+                       extra={"event_type": EventType.DEBUG})
 
     def set_default_response(self, response: str):
         """Установка ответа по умолчанию."""
         self._default_response = response
         self.log.debug("Установлен ответ по умолчанию: %s...",
                        response[:50],
-                       extra={"event_type": LogEventType.DEBUG})
+                       extra={"event_type": EventType.DEBUG})
 
     def get_call_history(self) -> List[Dict[str, Any]]:
         """Получение истории вызовов для тестов."""
@@ -143,7 +143,7 @@ class MockLLMProvider(BaseLLMProvider):
         """Очистка истории вызовов."""
         self._call_history.clear()
         self.log.debug("История вызовов очищена",
-                       extra={"event_type": LogEventType.DEBUG})
+                       extra={"event_type": EventType.DEBUG})
 
     def get_last_call(self) -> Optional[Dict[str, Any]]:
         """Получение последнего вызова."""
@@ -173,14 +173,14 @@ class MockLLMProvider(BaseLLMProvider):
         try:
             self.log.info("Mock LLM провайдер инициализирован для модели: %s",
                           self.model_name,
-                          extra={"event_type": LogEventType.SYSTEM_INIT})
+                          extra={"event_type": EventType.SYSTEM_INIT})
             self.initialized = True
             self.is_initialized = True
             self._set_healthy_status()
             return True
         except Exception as e:
             self.log.error("Ошибка инициализации MockLLMProvider: %s", str(e),
-                           extra={"event_type": LogEventType.LLM_ERROR})
+                           extra={"event_type": EventType.LLM_ERROR})
             return False
 
     async def health_check(self) -> Dict[str, Any]:
@@ -201,11 +201,11 @@ class MockLLMProvider(BaseLLMProvider):
         start_time = time.time()
 
         self.log.debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", request.prompt,
-                      extra={"event_type": LogEventType.DEBUG})
+                      extra={"event_type": EventType.DEBUG})
 
         self.log.debug("Mock выполнение запроса: %s",
                        request.prompt,
-                       extra={"event_type": LogEventType.LLM_CALL})
+                       extra={"event_type": EventType.LLM_CALL})
 
         # Публикация события LLM_CALL_STARTED
         if hasattr(self, '_event_bus') and self._event_bus:
@@ -283,7 +283,7 @@ class MockLLMProvider(BaseLLMProvider):
         generation_time = time.time() - start_time
 
         self.log.debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", response,
-                      extra={"event_type": LogEventType.DEBUG})
+                      extra={"event_type": EventType.DEBUG})
 
         # Публикация события LLM_CALL_COMPLETED
         if hasattr(self, '_event_bus') and self._event_bus:
@@ -320,7 +320,7 @@ class MockLLMProvider(BaseLLMProvider):
     async def shutdown(self):
         """Завершение работы провайдера."""
         self.log.info("Mock LLM провайдер завершает работу",
-                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                      extra={"event_type": EventType.SYSTEM_SHUTDOWN})
         self.initialized = False
         self.is_initialized = False
 
@@ -385,7 +385,7 @@ class MockLLMProvider(BaseLLMProvider):
 
                 self.log.warning("Mock: Попытка %d/%d не удалась: %s",
                                  attempt, config.max_retries, e,
-                                 extra={"event_type": LogEventType.WARNING})
+                                 extra={"event_type": EventType.WARNING})
 
         raise StructuredOutputError(
             message="Mock: Не удалось получить валидный структурированный ответ",

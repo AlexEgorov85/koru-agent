@@ -38,7 +38,7 @@ from core.errors.error_classifier import ErrorClassifier
 from core.errors.failure_memory import FailureMemory
 from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.policy import RetryPolicy
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class SafeExecutor:
@@ -133,7 +133,7 @@ class SafeExecutor:
         """
         self._get_logger().debug(
             f"SafeExecutor.execute: {capability_name}",
-            extra={"event_type": LogEventType.DEBUG}
+            extra={"event_type": EventType.DEBUG}
         )
 
         last_error: Optional[Exception] = None
@@ -173,7 +173,7 @@ class SafeExecutor:
 
                 self._get_logger().warning(
                     f"Ошибка {error_type.value}: {capability_name} (attempt {attempt + 1}/{self.max_retries}): {e}",
-                    extra={"event_type": LogEventType.WARNING},
+                    extra={"event_type": EventType.WARNING},
                     exc_info=True
                 )
 

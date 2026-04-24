@@ -2,19 +2,19 @@
 Обработчики и фильтры для системы логирования.
 
 АРХИТЕКТУРА:
-- EventTypeFilter — фильтрует записи в StreamHandler по LogEventType
+- EventTypeFilter — фильтрует записи в StreamHandler по EventType
 - Применяется ТОЛЬКО к консольному выводу (файлы пишут всё)
-- Работает с extra={"event_type": LogEventType.XXX}
+- Работает с extra={"event_type": EventType.XXX}
 
 USAGE:
 ```python
 from core.infrastructure.logging.handlers import EventTypeFilter
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 filter = EventTypeFilter({
-    LogEventType.USER_PROGRESS,
-    LogEventType.USER_RESULT,
-    LogEventType.USER_MESSAGE,
+    EventType.USER_PROGRESS,
+    EventType.USER_RESULT,
+    EventType.USER_MESSAGE,
 })
 console_handler.addFilter(filter)
 ```
@@ -22,7 +22,7 @@ console_handler.addFilter(filter)
 import logging
 from typing import Set
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class EventTypeFilter(logging.Filter):
@@ -35,10 +35,10 @@ class EventTypeFilter(logging.Filter):
     - Файлы пишут всё — фильтр только для консоли
 
     ATTRIBUTES:
-    - allowed: Set[LogEventType] — разрешённые типы
+    - allowed: Set[EventType] — разрешённые типы
     """
 
-    def __init__(self, allowed: Set[LogEventType]):
+    def __init__(self, allowed: Set[EventType]):
         """
         Инициализация фильтра.
 

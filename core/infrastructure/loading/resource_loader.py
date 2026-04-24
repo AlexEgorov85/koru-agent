@@ -23,7 +23,7 @@ from core.models.data.prompt import Prompt, PromptStatus, PromptVariable
 from core.models.data.contract import Contract, ContractDirection
 from core.models.enums.common_enums import ComponentType
 from core.errors.exceptions import ResourceLoadError
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.config.component_config import ComponentConfig
 
 
@@ -133,7 +133,7 @@ class ResourceLoader:
 
         self.logger.info(
             "Начало загрузки ресурсов...",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         self._scan_dir(
@@ -151,7 +151,7 @@ class ResourceLoader:
             f"промптов={self._stats['prompts_loaded']}, "
             f"контрактов={self._stats['contracts_loaded']} "
             f"(профиль={self.profile})",
-            extra={"event_type": LogEventType.SYSTEM_READY}
+            extra={"event_type": EventType.SYSTEM_READY}
         )
 
     def get_prompt(self, capability: str, version: str) -> Optional[Prompt]:
@@ -226,7 +226,7 @@ class ResourceLoader:
             else:
                 self.logger.warning(
                     f"Промпт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": EventType.WARNING}
                 )
 
         # Input контракты
@@ -237,7 +237,7 @@ class ResourceLoader:
             else:
                 self.logger.warning(
                     f"Входной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": EventType.WARNING}
                 )
 
         # Output контракты
@@ -248,7 +248,7 @@ class ResourceLoader:
             else:
                 self.logger.warning(
                     f"Выходной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": EventType.WARNING}
                 )
 
         return {
@@ -276,7 +276,7 @@ class ResourceLoader:
         if not base_dir.exists():
             self.logger.warning(
                 f"Директория не найдена: {base_dir}",
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
             return
 

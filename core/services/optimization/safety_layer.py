@@ -14,7 +14,7 @@ from enum import Enum
 
 from core.components.benchmarks.benchmark_models import EvaluationResult, PromptVersion
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure.logging.session import LoggingSession
@@ -132,7 +132,7 @@ class SafetyLayer:
         """
         self._get_logger().info(
             f"Проверка безопасности для {candidate.version_id}",
-            extra={"event_type": LogEventType.TOOL_CALL}
+            extra={"event_type": EventType.TOOL_CALL}
         )
 
         checks = []
@@ -202,7 +202,7 @@ class SafetyLayer:
             self._checks_passed += 1
             self._get_logger().info(
                 f"Проверка безопасности пройдена для {candidate.version_id}",
-                extra={"event_type": LogEventType.TOOL_CALL}
+                extra={"event_type": EventType.TOOL_CALL}
             )
         else:
             self._checks_failed += 1
@@ -211,7 +211,7 @@ class SafetyLayer:
             self._get_logger().warning(
                 f"Проверка безопасности НЕ пройдена для {candidate.version_id}. "
                 f"Провалены: {[c.check_type.value for c in failed_checks]}",
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
 
             # Счётчик предотвращённых регрессий

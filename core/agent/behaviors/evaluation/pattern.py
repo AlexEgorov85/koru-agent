@@ -1,7 +1,7 @@
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType, Decision
 from core.agent.behaviors.services import FallbackStrategyService
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
@@ -86,7 +86,7 @@ class EvaluationPattern(BaseBehaviorPattern):
         **kwargs
     ):
         """Логирование размышления (запрос + ответ от LLM) для самообучения."""
-        event_type = LogEventType.LLM_RESPONSE if success else LogEventType.LLM_ERROR
+        event_type = EventType.LLM_RESPONSE if success else EventType.LLM_ERROR
         status = "успешно" if success else f"ошибка: {error}"
         msg = f"[Самообучение] {phase}: {status}"
         self._log_info(msg, extra={"event_type": event_type})

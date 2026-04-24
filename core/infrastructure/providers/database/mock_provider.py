@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class MockDBProvider(BaseDBProvider):
@@ -23,12 +23,12 @@ class MockDBProvider(BaseDBProvider):
         try:
             self.log.info("Mock DB провайдер инициализирован для базы: %s",
                           self.config.database,
-                          extra={"event_type": LogEventType.SYSTEM_INIT})
+                          extra={"event_type": EventType.SYSTEM_INIT})
             self.is_initialized = True
             return True
         except Exception as e:
             self.log.error("Ошибка инициализации MockDBProvider: %s", str(e),
-                           extra={"event_type": LogEventType.DB_ERROR})
+                           extra={"event_type": EventType.DB_ERROR})
             return False
 
     async def health_check(self) -> Dict[str, Any]:
@@ -45,7 +45,7 @@ class MockDBProvider(BaseDBProvider):
             await self.initialize()
 
         self.log.debug("Mock выполнение запроса: %s", query,
-                       extra={"event_type": LogEventType.DB_QUERY})
+                       extra={"event_type": EventType.DB_QUERY})
 
         # Возвращаем mock-результат в виде списка словарей
         return [{"test": 1}]  # Простой тестовый результат
@@ -56,7 +56,7 @@ class MockDBProvider(BaseDBProvider):
             await self.initialize()
 
         self.log.debug("Mock выполнение запроса: %s", query,
-                       extra={"event_type": LogEventType.DB_QUERY})
+                       extra={"event_type": EventType.DB_QUERY})
 
         # Возвращаем mock-результат
         mock_result = DBQueryResult(
@@ -88,5 +88,5 @@ class MockDBProvider(BaseDBProvider):
     async def shutdown(self):
         """Завершение работы провайдера."""
         self.log.info("Mock DB провайдер завершает работу",
-                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                      extra={"event_type": EventType.SYSTEM_SHUTDOWN})
         self.is_initialized = False

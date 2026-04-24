@@ -6,7 +6,7 @@
 - Использует методы Component.get_prompt/get_input_contract/get_output_contract
 - Все паттерны (ReAct, Planning, Evaluation, Fallback) наследуются от этого класса
 - Предоставляет общие сервисы: PromptBuilderService, CapabilityResolverService
-- Логирование через стандартный logging + LogEventType (НЕ через EventBus)
+- Логирование через стандартный logging + EventType (НЕ через EventBus)
 """
 
 import json
@@ -17,7 +17,7 @@ from typing import Dict, Any, Optional, List, Type
 from pydantic import BaseModel
 
 from core.agent.behaviors.base import BehaviorPatternInterface, Decision, DecisionType
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
@@ -1094,9 +1094,9 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
 
-    def _get_event_type_for_success(self) -> LogEventType:
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения паттерна."""
-        return LogEventType.AGENT_START
+        return EventType.AGENT_START
 
     def _execute_impl(
         self,

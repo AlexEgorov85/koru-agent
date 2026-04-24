@@ -3,7 +3,7 @@ from core.application_context.application_context import ApplicationContext
 from core.models.sql_schemas import SQLCorrectionInput, SQLCorrectionOutput
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 import logging
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
@@ -38,13 +38,13 @@ class SQLCorrectionEngine:
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""
         await self.error_analyzer.initialize()
-        log.info("SQLCorrectionEngine успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
+        log.info("SQLCorrectionEngine успешно инициализирован", extra={"event_type": EventType.SYSTEM_READY})
         return True
 
     async def shutdown(self) -> None:
         """Завершение работы движка коррекции"""
         await self.error_analyzer.shutdown()
-        log.info("Завершение работы SQLCorrectionEngine", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+        log.info("Завершение работы SQLCorrectionEngine", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
     
     async def correct_query(self, correction_input: SQLCorrectionInput) -> SQLCorrectionOutput:
         """

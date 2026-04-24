@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.models.enums.common_enums import ComponentType
 
@@ -70,7 +70,7 @@ class VersionedStorage(ABC, Generic[T]):
 
         _logger.info(
             f"{self.__class__.__name__} инициализировано: {self.storage_dir}",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
     def _validate_directory(self) -> None:

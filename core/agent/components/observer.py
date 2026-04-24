@@ -8,7 +8,7 @@ Observer — LLM-анализ результатов выполнения дей
 4. Использует контракт behavior.react.observe_output_v1.0.0
 """
 from typing import Any, Dict, Optional
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class Observer:
@@ -55,14 +55,14 @@ class Observer:
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
             log_session = self.application_context.infrastructure_context.log_session
             logger = log_session.get_component_logger("observer")
-            logger.info(message, extra={"event_type": event_type or LogEventType.INFO})
+            logger.info(message, extra={"event_type": event_type or EventType.INFO})
 
     def _log_error(self, message: str, exc_info=False):
         """Логирование error уровня."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
             log_session = self.application_context.infrastructure_context.log_session
             logger = log_session.get_component_logger("observer")
-            logger.error(message, extra={"event_type": LogEventType.ERROR}, exc_info=exc_info)
+            logger.error(message, extra={"event_type": EventType.ERROR}, exc_info=exc_info)
     
     async def analyze(
         self,
@@ -116,7 +116,7 @@ class Observer:
                     elif hasattr(contract_service, 'get_contract'):
                         output_contract = contract_service.get_contract("behavior.react.observe", direction="output")
                 except Exception as e:
-                    self._log_info(f"⚠️ [Observer.analyze] ContractService не вернул контракт: {e}", event_type=LogEventType.WARNING)
+                    self._log_info(f"⚠️ [Observer.analyze] ContractService не вернул контракт: {e}", event_type=EventType.WARNING)
                     pass
             
             # Извлекаем схему из контракта
@@ -169,7 +169,7 @@ class Observer:
                     "required": ["status", "observation", "requires_additional_action"],
                     "additionalProperties": True
                 }
-                self._log_info("⚠️ [Observer.analyze] Контракт behavior.react.observe не найден, используем fallback схему", event_type=LogEventType.WARNING)
+                self._log_info("⚠️ [Observer.analyze] Контракт behavior.react.observe не найден, используем fallback схему", event_type=EventType.WARNING)
             
             # Форматируем результат
             result_str = self._format_result(result)
@@ -185,7 +185,7 @@ class Observer:
             
             self._log_info(
                 f"👁️ [Observer.analyze] Анализ результата: action={action_name}, error={bool(error)}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             
             # Вызов LLM
@@ -237,7 +237,7 @@ class Observer:
             
             self._log_info(
                 f"✅ [Observer.analyze] Наблюдение: status={obs_dict.get('status')}, quality={obs_dict.get('data_quality', {})}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             
             return obs_dict

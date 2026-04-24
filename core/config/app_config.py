@@ -26,12 +26,22 @@ config.logging.level       # из LoggingConfig
 """
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Literal, Union
+from functools import lru_cache
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from core.config.vector_config import VectorSearchConfig
 from core.config.logging_config import LoggingConfig
+from core.config.timeout_config import TimeoutConfig
+
+
+# ============================================================
+# КЭШИРОВАНИЕ DISCOVERY (Фаза 4)
+# ============================================================
+
+_DISCOVERY_CACHE: Dict[tuple, "AppConfig"] = {}
+_DISCOVERY_CACHE_MTIMES: Dict[str, float] = {}
 
 
 # ============================================================
@@ -117,6 +127,44 @@ class LLMSettings(BaseSettings):
 
     def __repr__(self) -> str:
         return f"LLMSettings(provider={self.provider!r}, model={self.model!r}, temperature={self.temperature})"
+
+
+class AgentDefaults(BaseSettings):
+    """
+    Дефолтные параметры агента (единый источник истины).
+    
+    ЗАМЕНЯЕТ:
+    - AppConfig.max_steps, AppConfig.max_retries, AppConfig.temperature
+    - AgentSettings.max_steps, AgentSettings.max_retries
+    
+    ИСТОЧНИК:
+    - Env vars: AGENT_MAX_STEPS, AGENT_MAX_RETRIES, AGENT_TEMPERATURE
+    - Fallback: значения по умолчанию
+    """
+    model_config = SettingsConfigDict(
+        env_prefix='AGENT_',
+        env_file='.env',
+        extra='ignore'
+    )
+    
+    max_steps: int = Field(default=10, ge=1, le=100, description="Макс. шагов")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток")
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура")
+    timeout_seconds: float = Field(default=300.0, ge=0.0, description="Таймаут (сек)")
+    enable_self_reflection: bool = Field(default=True, description="Саморефлексия")
+    enable_context_window_management: bool = Field(default=True, description="Управление контекстом")
+    enable_benchmark: bool = Field(default=False, description="Бенчмарки")
+    profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
+    
+    @field_validator('max_steps')
+    @classmethod
+    def validate_max_steps(cls, v):
+        if v < 1 or v > 100:
+            raise ValueError("max_steps must be between 1 and 100")
+        return v
+    
+    def __repr__(self) -> str:
+        return f"AgentDefaults(max_steps={self.max_steps}, temperature={self.temperature}, profile={self.profile!r})"
 
 
 class AgentSettings(BaseSettings):
@@ -235,7 +283,10 @@ class AppConfig(BaseSettings):
     # === ENV VARS SETTINGS ===
     database: DatabaseSettings = Field(default_factory=DatabaseSettings, description="БД")
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM")
-    agent: AgentSettings = Field(default_factory=AgentSettings, description="Агент")
+    agent: AgentSettings = Field(default_factory=AgentSettings, description="Агент (для совместимости)")
+
+    # === AGENT DEFAULTS (Single Source of Truth) ===
+    agent_defaults: AgentDefaults = Field(default_factory=AgentDefaults, description="Параметры агента по умолчанию")
 
     # === DISCOVERY PROVIDERS ===
     llm_providers: Dict[str, LLMProviderConfig] = Field(default_factory=dict, description="LLM провайдеры")
@@ -259,11 +310,16 @@ class AppConfig(BaseSettings):
     tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Инструменты")
     behavior_configs: Dict[str, Any] = Field(default_factory=dict, description="Поведения")
 
-    # === ПАРАМЕТРЫ АГЕНТА ===
-    max_steps: int = Field(default=10, ge=1, le=50, description="Макс. шагов")
-    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток")
-    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура")
-    llm_timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут LLM (сек)")
+
+    # === TIMEOUTS (единый источник таймаутов) ===
+    timeouts: TimeoutConfig = Field(default_factory=TimeoutConfig, description="Таймауты для всех компонентов")
+    # === ПАРАМЕТРЫ АГЕНТА (DEPRECATED: использовать agent_defaults) ===
+    # Эти поля оставлены для обратной совместимости, но будут удалены в будущих версиях
+    # Используйте: config.agent_defaults.max_steps, config.agent_defaults.temperature
+    max_steps: int = Field(default=10, ge=1, le=50, description="Макс. шагов (DEPRECATED)")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток (DEPRECATED)")
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура (DEPRECATED)")
+    # llm_timeout_seconds DEPRECATED: использовать config.timeouts.llm_attempt_timeout
     side_effects_enabled: bool = Field(default=True, description="Побочные эффекты")
     detailed_metrics: bool = Field(default=False, description="Детальная метрика")
     enable_self_reflection: bool = Field(default=True, description="Саморефлексия")
@@ -365,7 +421,12 @@ class AppConfig(BaseSettings):
     def from_discovery(cls, profile: str = "prod", data_dir: str = "data"):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
-
+        
+        КЭШИРОВАНИЕ (Фаза 4):
+        - Первый вызов для (profile, data_dir) выполняет полное сканирование ФС
+        - Последующие вызовы возвращают кэш (<10ms)
+        - Кэш инвалидируется при изменении mtime файлов в data/
+        
         Профиль определяет разрешённые статусы:
         - prod → только status: active
         - sandbox → status: active + draft
@@ -377,7 +438,39 @@ class AppConfig(BaseSettings):
         from core.models.data.prompt import PromptStatus
         from core.config.component_config import ComponentConfig
         import yaml
-
+        import os
+        
+        # === ПРОВЕРКА КЭША (Фаза 4) ===
+        cache_key = (profile, data_dir)
+        
+        if cache_key in _DISCOVERY_CACHE:
+            # Проверяем инвалидацию по mtime основных файлов
+            config_file = Path(__file__).parent / "defaults" / f"{profile}.yaml"
+            data_path = Path(data_dir)
+            cache_valid = True
+            
+            # Проверяем изменение конфига профиля
+            if config_file.exists():
+                current_mtime = os.path.getmtime(config_file)
+                if _DISCOVERY_CACHE_MTIMES.get(str(config_file)) != current_mtime:
+                    cache_valid = False
+            
+            # Проверяем изменение директории data
+            if cache_valid and data_path.exists():
+                data_mtime = max(
+                    (os.path.getmtime(f) for f in data_path.rglob("*") if f.is_file()),
+                    default=0.0
+                )
+                if _DISCOVERY_CACHE_MTIMES.get(str(data_path)) != data_mtime:
+                    cache_valid = False
+            
+            # Если кэш валиден, возвращаем
+            if cache_valid:
+                return _DISCOVERY_CACHE[cache_key]
+            
+            # Кэш устарел, инвалидируем
+            _DISCOVERY_CACHE.pop(cache_key, None)
+        
         # === ЗАГРУЗКА LLM/DB ПРОВАЙДЕРОВ ИЗ YAML ===
         llm_providers = {}
         db_providers = {}
@@ -413,6 +506,10 @@ class AppConfig(BaseSettings):
                     vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
             except Exception:
                 pass
+        
+        # Сохраняем mtime конфига для будущей проверки инвалидации
+        if config_file.exists():
+            _DISCOVERY_CACHE_MTIMES[str(config_file)] = os.path.getmtime(config_file)
 
         # === СКАНИРОВАНИЕ РЕСУРСОВ через ResourceLoader ===
         # ResourceLoader.get() гарантирует ОДНО сканирование ФС на (data_dir, profile)
@@ -581,7 +678,7 @@ class AppConfig(BaseSettings):
             detailed_metrics=False,
             max_steps=10,
             max_retries=3,
-            llm_timeout_seconds=600.0,
+            # llm_timeout_seconds удалено (теперь используется config.timeouts),
             temperature=0.7,
             enable_self_reflection=True,
             enable_context_window_management=True,
@@ -589,6 +686,19 @@ class AppConfig(BaseSettings):
             db_providers=db_providers,
             vector_search=vector_search_config,
         )
+        
+        # === СОХРАНЕНИЕ В КЭШ (Фаза 4) ===
+        _DISCOVERY_CACHE[cache_key] = config
+        
+        # Сохраняем mtime data_dir для будущей проверки инвалидации
+        if data_path.exists():
+            data_mtime = max(
+                (os.path.getmtime(f) for f in data_path.rglob("*") if f.is_file()),
+                default=0.0
+            )
+            _DISCOVERY_CACHE_MTIMES[str(data_path)] = data_mtime
+        
+        return config
 
 
 # ============================================================

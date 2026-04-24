@@ -33,7 +33,7 @@ from typing import List, Dict, Any, Optional
 from core.components.skills.skill import Skill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ class DataAnalysisSkill(Skill):
             self._log_warning(
                 f"❌ Данные шага {step_id} не найдены. "
                 f"execution_context type={type(execution_context).__name__}",
-                event_type=LogEventType.WARNING
+                event_type=EventType.WARNING
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
 
@@ -261,7 +261,7 @@ class DataAnalysisSkill(Skill):
             f"⚙️ [data_analysis] LLM: context={self._context_window}, "
             f"max_new={self._max_new_tokens}, chars_per_token={self._chars_per_token:.2f}, "
             f"max_chunk_chars={max_chunk_chars}",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
 
         from core.infrastructure.providers.vector.chunking_service import ChunkingService
@@ -276,14 +276,14 @@ class DataAnalysisSkill(Skill):
             chunks = chunking_service.chunk_rows(data)
             self._log_info(
                 f"📊 [data_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             input_type = "rows"
         elif isinstance(data, str):
             chunks = chunking_service.chunk_text(data)
             self._log_info(
                 f"📄 [data_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             input_type = "text"
         else:
@@ -442,10 +442,10 @@ class DataAnalysisSkill(Skill):
             )
             self._log_info(
                 f"💾 Результат анализа сохранён в контекст (step={step_id + 1})",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
         except Exception as e:
-            self._log_warning(f"Не удалось сохранить результат в контекст: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"Не удалось сохранить результат в контекст: {e}", event_type=EventType.WARNING)
 
     def _get_session_context(self, context: Any):
         if hasattr(context, 'session_context'):
@@ -498,7 +498,7 @@ class DataAnalysisSkill(Skill):
             if isinstance(result, Exception):
                 self._log_warning(
                     f"⚠️ [text_analysis] Ошибка анализа чанка {i}: {result}",
-                    event_type=LogEventType.WARNING
+                    event_type=EventType.WARNING
                 )
                 summaries.append({"content": "", "chunk_id": i, "error": str(result)})
             elif not self._is_valid_result(result):
@@ -603,7 +603,7 @@ class DataAnalysisSkill(Skill):
             self._log_info(
                 f"🌲 [data_analysis] Tree Reduce iteration {iteration}: "
                 f"{len(current_level)} → {len(next_level)}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             current_level = next_level
@@ -633,7 +633,7 @@ class DataAnalysisSkill(Skill):
 
         self._log_info(
             f"🌲 [data_analysis] Reduce: {len(items)} items → {len(batches)} batches",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
 
         merged_results = []
@@ -739,7 +739,7 @@ class DataAnalysisSkill(Skill):
                         content = str(result.data)
                 return {"content": self._safe_get_content(content) or combined}
         except Exception as e:
-            self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=EventType.WARNING)
 
         return {"content": combined}
 
@@ -776,7 +776,7 @@ class DataAnalysisSkill(Skill):
                         content = str(result.data)
                 return {"content": self._safe_get_content(content) or f"{content1}\n\n{content2}"}
         except Exception as e:
-            self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=LogEventType.WARNING)
+            self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=EventType.WARNING)
 
         return {"content": f"{content1}\n\n{content2}"}
 
