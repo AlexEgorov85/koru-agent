@@ -59,6 +59,7 @@ class JsonParsingService(Service):
         )
         # Кэш созданных Pydantic моделей: {(model_name, schema_key): Type}
         self._model_cache: Dict[Tuple[str, str], Type] = {}
+        self._first_parse = True  # Логируем полный ответ только один раз
 
     async def _custom_initialize(self) -> bool:
         """Сервис не требует дополнительной инициализации."""
@@ -161,8 +162,8 @@ class JsonParsingService(Service):
             event_type=EventType.INFO
         )
         self._log_debug(
-            f"🔵 [JsonParsing.extract_json] Полный входной текст:\n{content}",
-            event_type=EventType.INFO
+            f"[JsonParsing.extract_json] input={len(content)} chars",
+            event_type=EventType.DEBUG
         )
 
         if not content:
@@ -274,10 +275,6 @@ class JsonParsingService(Service):
             f"📥 [JsonParsing.parse_json] Начало: входная строка {len(raw)} симв.",
             event_type=EventType.INFO
         )
-        self._log_debug(
-            f"🔵 [JsonParsing.parse_json] Полный входной текст:\n{raw}",
-            event_type=EventType.INFO
-        )
 
         if not raw:
             self._log_warning(
@@ -304,21 +301,6 @@ class JsonParsingService(Service):
                     f"✅ [JsonParsing.parse_json] JSON распарсен успешно: {len(raw)} симв., ключи={keys_info}",
                     event_type=EventType.INFO
                 )
-            elif isinstance(parsed_data, list):
-                self._log_info(
-                    f"✅ [JsonParsing.parse_json] JSON массив распарсен: {len(raw)} симв., элементов={len(parsed_data)}",
-                    event_type=EventType.INFO
-                )
-            else:
-                self._log_info(
-                    f"✅ [JsonParsing.parse_json] JSON распарсен: {len(raw)} симв., тип={type(parsed_data).__name__}",
-                    event_type=EventType.INFO
-                )
-
-            self._log_debug(
-                f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
-                event_type=EventType.INFO
-            )
 
             return JsonParseResult(
                 status=JsonParseStatus.SUCCESS,
@@ -377,24 +359,9 @@ class JsonParsingService(Service):
                     if isinstance(parsed_data, dict):
                         keys_info = list(parsed_data.keys())
                         self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., ключи={keys_info}",
+                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв.",
                             event_type=EventType.INFO
                         )
-                    elif isinstance(parsed_data, list):
-                        self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON массив распарсен после исправления: {len(fixed_raw)} симв., элементов={len(parsed_data)}",
-                            event_type=EventType.INFO
-                        )
-                    else:
-                        self._log_info(
-                            f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., тип={type(parsed_data).__name__}",
-                            event_type=EventType.INFO
-                        )
-
-                    self._log_debug(
-                        f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
-                        event_type=EventType.INFO
-                    )
 
                     return JsonParseResult(
                         status=JsonParseStatus.SUCCESS,
@@ -416,10 +383,6 @@ class JsonParsingService(Service):
             # Если исправления не помогли
             self._log_error(
                 f"❌ [JsonParsing.parse_json] Ошибка парсинга JSON: {type(e).__name__}: {e}",
-                event_type=EventType.ERROR
-            )
-            self._log_debug(
-                f"🔴 [JsonParsing.parse_json] Невалидный JSON:\n{raw}",
                 event_type=EventType.ERROR
             )
             return JsonParseResult(
@@ -459,19 +422,10 @@ class JsonParsingService(Service):
 
         # Логирование входа
         self._log_info(
-            f"📥 [JsonParsing.parse_to_model] Начало: вход {len(raw_response)} симв., модель={model_name}, схема={bool(schema_def)}",
+            f"📥 [JsonParsing.parse_to_model] Начало: вход {len(raw_response)} симв., модель={model_name}",
             event_type=EventType.INFO
         )
-        self._log_debug(
-            f"🔵 [JsonParsing.parse_to_model] Полный входной текст:\n{raw_response}",
-            event_type=EventType.INFO
-        )
-        if schema_def:
-            self._log_debug(
-                f"🔵 [JsonParsing.parse_to_model] Схема модели:\n{json.dumps(schema_def, indent=2, ensure_ascii=False)}",
-                event_type=EventType.INFO
-            )
-        steps.append(f"Вход: {len(raw_response)} симв., модель={model_name}, схема={bool(schema_def)}")
+        steps.append(f"Вход: {len(raw_response)} симв., модель={model_name}")
 
         extract_result = await self._action_extract_json({"content": raw_response})
         steps.extend(extract_result.get("processing_steps", []))
@@ -518,6 +472,14 @@ class JsonParsingService(Service):
 
         parsed_data = parse_result.get("parsed_data", {})
 
+        # Логируем полный ответ только один раз (для отладки)
+        if self._first_parse and parsed_data:
+            self._first_parse = False
+            self._log_info(
+                f"🔵 [JsonParsing.parse_to_model] Ответ LLM ({len(parsed_data)} симв.)",
+                event_type=EventType.DEBUG
+            )
+
         # Шаг 3: Создание Pydantic модели из схемы
         if not schema_def:
             self._log_debug(
@@ -543,41 +505,19 @@ class JsonParsingService(Service):
             defs = schema_def.get("$defs", {})
             cache_key = (model_name, str(schema_def))
 
-            # Проверяем кэш
             if cache_key in self._model_cache:
                 DynamicModel = self._model_cache[cache_key]
-                self._log_debug(
-                    f"📦 [JsonParsing.parse_to_model] Модель {model_name} взята из кэша",
-                    event_type=EventType.INFO
-                )
                 steps.append(f"Модель {model_name} взята из кэша")
             else:
-                self._log_debug(
-                    f"🔨 [JsonParsing.parse_to_model] Создание модели {model_name} из схемы...",
-                    event_type=EventType.INFO
-                )
                 DynamicModel = self._create_model_from_schema(model_name, schema_def, defs)
                 self._model_cache[cache_key] = DynamicModel
-                self._log_debug(
-                    f"✅ [JsonParsing.parse_to_model] Модель {model_name} создана",
-                    event_type=EventType.INFO
-                )
                 steps.append(f"Модель {model_name} создана из схемы")
 
-            # Шаг 4: Валидация и создание модели
-            self._log_debug(
-                f"🔍 [JsonParsing.parse_to_model] Валидация данных и создание модели...",
-                event_type=EventType.INFO
-            )
             pydantic_instance = DynamicModel(**parsed_data)
             steps.append(f"Модель {model_name} валидирована успешно")
 
             self._log_info(
                 f"✅ [JsonParsing.parse_to_model] Модель {model_name} создана и валидирована успешно",
-                event_type=EventType.INFO
-            )
-            self._log_debug(
-                f"🟢 [JsonParsing.parse_to_model] Данные модели:\n{json.dumps(pydantic_instance.model_dump(), indent=2, ensure_ascii=False)}",
                 event_type=EventType.INFO
             )
 

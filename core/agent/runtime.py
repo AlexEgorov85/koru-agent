@@ -229,14 +229,27 @@ class AgentRuntime:
         Инициализация Pattern (вызывается один раз за сессию).
 
         Промпты и контракты загружаются из хранилища и НЕ модифицируются.
+        Используем уже инициализированный паттерн из ApplicationContext.
         """
         if self._pattern is not None:
             return
 
+        from core.models.enums.component_type import ComponentType
+        components = self.application_context.components
+        
+        pattern = components.get(ComponentType.BEHAVIOR, "react_pattern")
+        if pattern:
+            self._pattern = pattern
+            self.log.info(
+                f"Pattern react_pattern взят из registry (уже инициализирован)",
+                extra={"event_type": EventType.SYSTEM_INIT}
+            )
+            return
+
         event_bus = self.application_context.infrastructure_context.event_bus
         await event_bus.publish(
-            EventType.DEBUG,
-            {"message": "🏭 Создание Pattern через ComponentFactory..."},
+            EventType.WARNING,
+            {"message": "⚠️ react_pattern не найден в registry, создаём новый"},
             session_id=self.session_context.session_id,
             agent_id=self.agent_id,
         )
@@ -248,27 +261,9 @@ class AgentRuntime:
         behavior_configs = getattr(
             self.application_context.config, "behavior_configs", {}
         )
-
-        component_config = behavior_configs.get("react_pattern")
-        if not component_config:
-            await event_bus.publish(
-                EventType.WARNING,
-                {
-                    "message": "⚠️ react_pattern не найден в behavior_configs, создаём новый"
-                },
-                session_id=self.session_context.session_id,
-                agent_id=self.agent_id,
-            )
-            component_config = ComponentConfig(
-                name="react_pattern", variant_id="default"
-            )
-        else:
-            await event_bus.publish(
-                EventType.INFO,
-                {"message": "✅ Получен component_config из application_context"},
-                session_id=self.session_context.session_id,
-                agent_id=self.agent_id,
-            )
+        component_config = behavior_configs.get("react_pattern", ComponentConfig(
+            name="react_pattern", variant_id="default"
+        ))
 
         factory = ComponentFactory(
             infrastructure_context=self.application_context.infrastructure_context
@@ -281,9 +276,6 @@ class AgentRuntime:
             component_config=component_config,
             executor=self.executor,
         )
-
-        if self._pattern._state == ComponentStatus.CREATED:
-            await self._pattern.initialize()
 
     async def _run_async(self) -> ExecutionResult:
         """

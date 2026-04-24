@@ -132,28 +132,24 @@ class InfrastructureContext:
                            extra={"event_type": EventType.SYSTEM_ERROR})
             return False
 
-        # === ЭТАП 1: Базовая инициализация ===
-        # Логгер ещё не создан — используем стандартный logging напрямую
+        # === ЭТАП 1: Логирование и EventBus ===
+        self.log.info("=== ЭТАП 1: Логирование и EventBus ===",
+                      extra={"event_type": EventType.SYSTEM_INIT})
         _init_logger = logging.getLogger(__name__)
         _init_logger.info("🚀 Инициализация инфраструктурного контекста...")
 
-        # Настройка файловой системы логов (создаёт директорию и файлы контекстов)
         self.log_session.setup_context_loggers()
         self.log = self.log_session.infra_logger
         self.log.info("🚀 Инициализация инфраструктуры...",
                       extra={"event_type": EventType.SYSTEM_INIT})
 
-        # Инициализация шины событий (ПЕРВЫЙ компонент)
         self.event_bus = UnifiedEventBus()
         self.log.info("Инициализирована шина событий: UnifiedEventBus",
                       extra={"event_type": EventType.SYSTEM_INIT})
 
-        # === Инициализация обработкторов (вместо TelemetryCollector) ===
         from pathlib import Path
-
         storage_dir = Path(self.config.data_dir)
 
-        # 1. SessionLogHandler — запись логов сессий в файлы
         self.session_handler = SessionLogHandler(
             event_bus=self.event_bus,
             base_log_dir=storage_dir / "logs" / "sessions"
@@ -161,11 +157,8 @@ class InfrastructureContext:
         self.log.info("SessionLogHandler инициализирован",
                       extra={"event_type": EventType.SYSTEM_INIT})
 
-        # 2. MetricsPublisher — сбор метрик
         metrics_storage = FileSystemMetricsStorage(storage_dir / "metrics")
         self.metrics_publisher = MetricsPublisher(metrics_storage, self.event_bus)
-
-        # Подписка на события метрик
         self.event_bus.subscribe(EventType.SKILL_EXECUTED, self._on_skill_executed)
         self.event_bus.subscribe(EventType.CAPABILITY_SELECTED, self._on_capability_selected)
         self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error_occurred)
@@ -174,22 +167,18 @@ class InfrastructureContext:
         self.log.info("MetricsPublisher инициализирован",
                       extra={"event_type": EventType.SYSTEM_INIT})
 
-        # Инициализация менеджера жизненного цикла
         from core.infrastructure_context.lifecycle_manager import LifecycleManager
         self.lifecycle_manager = LifecycleManager(self.event_bus, log=self.log)
-
-        # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
 
         # === ЭТАП 2: Фабрики провайдеров ===
+        self.log.info("=== ЭТАП 2: Фабрики провайдеров ===",
+                      extra={"event_type": EventType.SYSTEM_INIT})
         self.llm_provider_factory = LLMProviderFactory()
         self.db_provider_factory = DBProviderFactory()
 
-        # === ЭТАП 3: Инфраструктурные хранилища ===
-        from pathlib import Path
-
-        # === ЭТАП 3.5: ResourceLoader (ЕДИНЫЙ загрузчик) ===
-        self.log.info("=== ЭТАП 3.5: ResourceLoader — загрузка промптов и контрактов ===",
+        # === ЭТАП 3: Хранилища и загрузка ресурсов ===
+        self.log.info("=== ЭТАП 3: Хранилища и загрузка ресурсов ===",
                       extra={"event_type": EventType.SYSTEM_INIT})
         import asyncio
         data_dir = Path(self.config.data_dir)
@@ -200,22 +189,17 @@ class InfrastructureContext:
         )
         await asyncio.to_thread(self.resource_loader.load_all)
 
-        # === ЭТАП 4: Метрики (уже инициализированы в telemetry) ===
-        # Доступ через self.telemetry.metrics_publisher
-
-        # === ЭТАП 5: Vector Search ===
-        # Инициализация Vector Search
+        # === ЭТАП 4: Vector Search ===
+        self.log.info("=== ЭТАП 4: Vector Search ===",
+                      extra={"event_type": EventType.SYSTEM_INIT})
         if self.config.vector_search and self.config.vector_search.enabled:
             await self._init_vector_search()
 
-        # === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
-        # Вызываем регистрацию провайдеров через LifecycleManager
+        # === ЭТАП 5: Регистрация и инициализация провайдеров ===
         try:
-            self.log.info("=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===",
+            self.log.info("=== ЭТАП 5: Регистрация и инициализация провайдеров ===",
                           extra={"event_type": EventType.SYSTEM_INIT})
             await self._register_providers_from_config()
-
-            # Инициализация всех зарегистрированных провайдеров через LifecycleManager
             self.log.info("Вызов lifecycle_manager.initialize_all()...",
                           extra={"event_type": EventType.SYSTEM_INIT})
             await self.lifecycle_manager.initialize_all()

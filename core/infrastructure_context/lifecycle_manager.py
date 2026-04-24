@@ -258,8 +258,8 @@ class LifecycleManager:
         """
         async with self._lock:
             if self._initialized:
-                self.log.warning("LifecycleManager уже инициализирован",
-                                 extra={"event_type": EventType.WARNING})
+                self.log.info("LifecycleManager уже инициализирован (infra resources ready)",
+                              extra={"event_type": EventType.SYSTEM_INIT})
                 return {name: True for name in self._resources}
 
             self.log.info("Начало инициализации %d инфраструктурных ресурсов",
