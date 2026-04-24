@@ -39,6 +39,7 @@ from core.agent.phases.observation_phase import ObservationPhase
 from core.agent.phases.context_update_phase import ContextUpdatePhase
 from core.agent.phases.final_answer_phase import FinalAnswerPhase
 from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
+from core.agent.agent_factory import AgentFactory
 
 
 class AgentRuntime:
@@ -76,82 +77,29 @@ class AgentRuntime:
         
         event_bus = application_context.infrastructure_context.event_bus
         
-        self.executor = ActionExecutor(application_context)
-        self.failure_memory = FailureMemory()
-        self.policy = AgentPolicy()
-        self.metrics = AgentMetrics()
-        
-        observer_trigger_mode = "always"
-        if application_context and hasattr(application_context, 'config'):
-            app_cfg = application_context.config
-            if hasattr(app_cfg, 'agent_defaults') and hasattr(app_cfg.agent_defaults, 'observer_trigger_mode'):
-                observer_trigger_mode = app_cfg.agent_defaults.observer_trigger_mode
-        self.observer = Observer(application_context, trigger_mode=observer_trigger_mode)
-        
-        from core.agent.behaviors.services import FallbackStrategyService
-        self.fallback_strategy = FallbackStrategyService()
-
-        self.safe_executor = SafeExecutor(
-            executor=self.executor,
-            failure_memory=self.failure_memory,
-            max_retries=self.policy.max_retries,
-            base_delay=self.policy.retry_base_delay,
-            max_delay=self.policy.retry_max_delay,
-        )
-        
-        self.decision_phase = DecisionPhase(
-            log=self.log,
-            event_bus=event_bus,
-        )
-        
-        self.policy_check_phase = PolicyCheckPhase(
-            policy=self.policy,
-            log=self.log,
-            event_bus=event_bus,
-        )
-        
-        self.execution_phase = ExecutionPhase(
-            safe_executor=self.safe_executor,
-            log=self.log,
-            event_bus=event_bus,
-            agent_config=agent_config,
-        )
-        
-        self.observation_phase = ObservationPhase(
-            observer=self.observer,
-            metrics=self.metrics,
-            policy=self.policy,
-            log=self.log,
-            event_bus=event_bus,
-        )
-        
-        # SQL diagnostic service для error recovery
-        sql_diagnostic = None
-        try:
-            from core.agent.components.sql_diagnostic import SQLDiagnosticService
-            sql_diagnostic = SQLDiagnosticService(application_context)
-        except Exception:
-            pass  # Optional component
-        
-        self.error_recovery_phase = ErrorRecoveryPhase(
-            sql_diagnostic_service=sql_diagnostic,
-            log=self.log,
-        )
-        
-        self.context_update_phase = ContextUpdatePhase(
-            log=self.log,
-            event_bus=event_bus,
-            error_recovery_handler=self.error_recovery_phase,
-        )
-        
-        self.final_answer_phase = FinalAnswerPhase(
-            application_context=self.application_context,
-            executor=self.executor,
+        # Используем фабрику для создания всех компонентов
+        components = AgentFactory.create_components(
+            application_context=application_context,
             agent_config=agent_config,
             log=self.log,
             event_bus=event_bus,
-            executor=self.executor,
         )
+        
+        # Присваиваем компоненты
+        self.executor = components.executor
+        self.failure_memory = components.failure_memory
+        self.policy = components.policy
+        self.metrics = components.metrics
+        self.observer = components.observer
+        self.fallback_strategy = components.fallback_strategy
+        self.safe_executor = components.safe_executor
+        self.decision_phase = components.decision_phase
+        self.policy_check_phase = components.policy_check_phase
+        self.execution_phase = components.execution_phase
+        self.observation_phase = components.observation_phase
+        self.context_update_phase = components.context_update_phase
+        self.final_answer_phase = components.final_answer_phase
+        self.error_recovery_phase = components.error_recovery_phase
 
         self._pattern = None
 
@@ -511,24 +459,6 @@ class AgentRuntime:
                 self._pattern = None
                 pattern = await self._get_pattern()
 
-            # Pattern решил FINISH/FAIL?
-            if decision.type == DecisionType.FINISH:
-                await event_bus.publish(
-                    EventType.INFO,
-                    {
-                        "message": f"✅ FINISH: {decision.reasoning if decision.reasoning else 'Done'}..."
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-            if decision.type == DecisionType.FAIL:
-                await event_bus.publish(
-                    EventType.ERROR_OCCURRED,
-                    {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"},
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-
         # ─────────────────────────────────────────────────────────────
         # ЦИКЛ ЗАВЕРШЁН: Попытка сформировать ответ по имеющимся данным
         # ─────────────────────────────────────────────────────────────
@@ -538,9 +468,9 @@ class AgentRuntime:
                 f"Пытаюсь сгенерировать итоговый ответ на основе {executed_steps} шагов..."
             )
             
-            # Делегируем обработку FinalAnswerHandler (Фаза 2)
+            # Делегируем обработку FinalAnswerPhase
             try:
-                final_result = await self.final_answer_handler.generate_fallback_answer(
+                final_result = await self.final_answer_phase.generate_fallback_answer(
                     session_context=self.session_context,
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id,
@@ -568,57 +498,6 @@ class AgentRuntime:
         )
         self._sync_dialogue_history_back()
         return ExecutionResult.failure(fallback_msg)
-
-    def _build_observation_signal(
-        self,
-        result: ExecutionResult,
-        action_name: Optional[str] = None,
-        parameters: Optional[dict] = None,
-    ) -> dict:
-        """Построить observation-сигнал для state из результата выполнения."""
-        if result.status == ExecutionStatus.FAILED:
-            return {
-                "status": "error",
-                "quality": "low",
-                "issues": [result.error or "unknown_error"],
-                "insight": result.error or "Ошибка выполнения действия",
-                "next_step_hint": "Измени стратегию и выбери альтернативное действие",
-            }
-
-        if result.data in (None, {}, [], ""):
-            hint = "Уточни параметры или выбери другой инструмент"
-            issues = ["empty_result"]
-
-            # Для unit-тестов, где Runtime создаётся через __new__,
-            # инициализируем анализатор лениво.
-            if (
-                not hasattr(self, "sql_recovery_analyzer")
-                or self.sql_recovery_analyzer is None
-            ):
-                self.sql_recovery_analyzer = SQLRecoveryAnalyzer()
-
-            if self.sql_recovery_analyzer.is_sql_action(action_name):
-                sql_analysis = self.sql_recovery_analyzer.analyze_empty_result(
-                    parameters
-                )
-                issues.extend(sql_analysis.get("issues", []))
-                hint = sql_analysis.get("next_step_hint", hint)
-
-            return {
-                "status": "empty",
-                "quality": "useless",
-                "issues": issues,
-                "insight": "Действие завершилось без полезных данных",
-                "next_step_hint": hint,
-            }
-
-        return {
-            "status": "success",
-            "quality": "high",
-            "issues": [],
-            "insight": "Получен полезный результат",
-            "next_step_hint": "Продолжай по текущему плану",
-        }
 
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""
