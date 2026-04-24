@@ -1,13 +1,13 @@
 """
-Policy Check Step: Policy.evaluate() with Fail-Fast.
+Фаза проверки политики: Policy.evaluate() с Fail-Fast.
 
-Responsibility:
-- Check loop conditions (repeated actions, empty results)
-- Validate action against policy rules
-- Raise PolicyViolationError on violations
-- Return True if action is allowed
+Ответственность:
+- Проверять условия цикла (повторяющиеся действия, пустые результаты)
+- Валидировать действие по правилам политики
+- Выбрасывать PolicyViolationError при нарушениях
+- Возвращать True, если действие разрешено
 
-This step implements SRP: only policy validation, no side effects.
+Эта фаза реализует SRP: только валидация политики, без побочных эффектов.
 """
 
 import logging

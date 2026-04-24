@@ -1,13 +1,13 @@
 """
-Decision Step: Pattern.decide() orchestration.
+Фаза принятия решений: оркестрация Pattern.decide().
 
-Responsibility:
-- Get current agent state
-- Call pattern.decide() with session context and capabilities
-- Log decision details
-- Return Decision object
+Ответственность:
+- Получить текущее состояние агента
+- Вызвать pattern.decide() с контекстом сессии и возможностями
+- Логировать детали решения
+- Возвращать объект Decision
 
-This is a READONLY operation - Pattern contains only prompts and contracts.
+Это операция ТОЛЬКО ДЛЯ ЧТЕНИЯ - Pattern содержит только промпты и контракты.
 """
 
 import logging

@@ -762,7 +762,7 @@ class ErrorHandler:
 
 
 # ============================================================
-# Factory Functions
+# Фабричные функции
 # ============================================================
 
 _global_error_handler: Optional[ErrorHandler] = None

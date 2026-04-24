@@ -1,14 +1,14 @@
 """
-Observer Step: Observer.analyze() with LLM skip logic (Фаза 1).
+Фаза наблюдателя: Observer.analyze() с логикой пропуска LLM (Фаза 1).
 
-Responsibility:
-- Determine if LLM call is needed based on trigger_mode and result status
-- Call observer.analyze() with force_llm flag
-- Record metrics for LLM usage
-- Update agent metrics based on observation
-- Publish observation events
+Ответственность:
+- Определять необходимость LLM-вызова на основе trigger_mode и статуса результата
+- Вызывать observer.analyze() с флагом force_llm
+- Записывать метрики использования LLM
+- Обновлять метрики агента на основе наблюдения
+- Публиковать события наблюдения
 
-This step implements the cost optimization from Фаза 1.
+Эта фаза реализует оптимизацию стоимости из Фазы 1.
 """
 
 import logging

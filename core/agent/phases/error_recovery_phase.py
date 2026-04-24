@@ -1,13 +1,13 @@
 """
-Error Recovery Step: SQL diagnostics and empty result handling.
+Фаза восстановления ошибок: диагностика SQL и обработка пустых результатов.
 
-Responsibility:
-- Diagnose empty SQL results
-- Provide actionable suggestions for SyntaxError and TimeoutError
-- Handle policy violations with recovery strategies
-- Return DiagnosticSignal for Pattern
+Ответственность:
+- Диагностировать пустые SQL-результаты
+- Предоставлять полезные рекомендации для SyntaxError и TimeoutError
+- Обрабатывать нарушения политики со стратегиями восстановления
+- Возвращать DiagnosticSignal для Pattern
 
-This step encapsulates all error recovery logic.
+Эта фаза инкапсулирует всю логику восстановления ошибок.
 """
 
 import logging

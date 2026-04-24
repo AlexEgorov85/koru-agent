@@ -1,13 +1,13 @@
 """
-Final Answer Step: Final answer generation (FINISH decision or fallback).
+Фаза финального ответа: генерация финального ответа (решение FINISH или fallback).
 
-Responsibility:
-- Generate final answer when Pattern decides FINISH
-- Generate fallback answer when step limit is reached
-- Handle Pydantic response validation
-- Commit dialogue and sync history
+Ответственность:
+- Генерировать финальный ответ при решении FINISH
+- Генерировать fallback-ответ при достижении лимита шагов
+- Обрабатывать валидацию ответа через Pydantic
+- Фиксировать диалог и синхронизировать историю
 
-This step encapsulates all finalization logic.
+Эта фаза инкапсулирует всю логику финализации.
 """
 
 import logging

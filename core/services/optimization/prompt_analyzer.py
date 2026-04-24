@@ -618,21 +618,21 @@ class SessionPromptAnalyzer:
         return result
     
     def _generate_fix_with_llm_sync(self, issue: SessionBasedIssue, session_context: Dict) -> str:
-        """Генерация промта для анализа."""
-        return f"""You are a prompt optimization expert. Analyze the following issue and generate a specific improvement.
+        """Генерация промпта для анализа."""
+        return f"""Вы эксперт по оптимизации промптов. Проанализируйте следующую проблему и сгенерируйте конкретное улучшение.
 
-PROBLEM:
-- Type: {issue.issue_type}
+ПРОБЛЕМА:
+- Тип: {issue.issue_type}
 - Capability: {issue.capability}
-- File: {issue.prompt_file}
-- Section: {issue.section}
-- Description: {issue.description}
+- Файл: {issue.prompt_file}
+- Секция: {issue.section}
+- Описание: {issue.description}
 
-SESSION STATISTICS:
-- Patterns: {session_context.get('patterns', {})}
+СТАТИСТИКА СЕССИИ:
+- Паттерны: {session_context.get('patterns', {})}
 
-TASK:
-Generate a specific improvement as YAML text for the prompt file. Be concise and actionable.
+ЗАДАНИЕ:
+Сгенерируйте конкретное улучшение в виде YAML-текста для файла промпта. Будьте лаконичны и практичны.
 """
     
     async def _generate_fix_with_llm(self, issue: SessionBasedIssue, session_context: Dict) -> str:
@@ -651,7 +651,7 @@ Generate a specific improvement as YAML text for the prompt file. Be concise and
                 if orchestrator:
                     response = await orchestrator.generate(
                         prompt=prompt,
-                        system_prompt="You are a prompt optimization expert. Return ONLY the YAML text to add to the prompt file.",
+                        prompt="Вы эксперт по оптимизации промптов. Верните ТОЛЬКО YAML-текст для добавления в файл промпта.",
                         temperature=0.3,
                         max_tokens=500
                     )
@@ -671,37 +671,37 @@ Generate a specific improvement as YAML text for the prompt file. Be concise and
         
         issues_text = []
         for i, action in enumerate(failed_actions[:5], 1):
-            issues_text.append(f"{i}. Action: {action.get('action', 'unknown')}, Error: {action.get('error', 'N/A')}")
+            issues_text.append(f"{i}. Действие: {action.get('action', 'неизвестно')}, Ошибка: {action.get('error', 'N/A')}")
         
-        return f"""You are a prompt optimization expert. Analyze this agent session log and generate improvements.
+        return f"""Вы эксперт по оптимизации промптов. Проанализируйте лог сессии агента и сгенерируйте улучшения.
 
-SESSION SUMMARY:
-- Duration: {session_report.get('summary', {}).get('duration_seconds', 0):.0f}s
-- LLM calls: {session_report.get('summary', {}).get('total_llm_calls', 0)}
-- Failed actions: {len(failed_actions)}
-- Goals: {', '.join(goals[:2])}
+СВОДКА СЕССИИ:
+- Длительность: {session_report.get('summary', {}).get('duration_seconds', 0):.0f}с
+- LLM-вызовов: {session_report.get('summary', {}).get('total_llm_calls', 0)}
+- Неудачных действий: {len(failed_actions)}
+- Целей: {', '.join(goals[:2])}
 
-PATTERNS DETECTED:
-- execute_script used: {patterns.get('uses_execute_script', 0)} times
-- search_books used: {patterns.get('uses_search_books', 0)} times
-- Loops: {patterns.get('loops', 0)} times
+ОБ��АРУЖЕННЫЕ ПАТТЕРНЫ:
+- execute_script использован: {patterns.get('uses_execute_script', 0)} раз
+- search_books использован: {patterns.get('uses_search_books', 0)} раз
+- Циклы: {patterns.get('loops', 0)} раз
 
-FAILED ACTIONS:
+НЕУДАЧНЫЕ ДЕЙСТВИЯ:
 {chr(10).join(issues_text)}
 
-TASK:
-For each issue, generate a specific YAML improvement for the corresponding prompt file.
-Return the improvements in this format:
+ЗАДАНИЕ:
+Для каждой проблемы сгенерируйте конкретное YAML-улучшение для соответствующего файла промпта.
+Верните улучшения в следующем формате:
 
-### Issue 1: [issue_type]
-File: [path]
-Section: [section]
-Improvement:
+### Проблема 1: [issue_type]
+Файл: [path]
+Секция: [section]
+Улучшение:
 ```yaml
-[yaml content here]
+[содержимое yaml здесь]
 ```
 
-### Issue 2: ...
+### Проблема 2: ...
 """
     
     def get_report(self) -> Dict[str, Any]:

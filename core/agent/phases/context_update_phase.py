@@ -1,13 +1,13 @@
 """
-Context Update Step: SessionContext registration and state updates.
+Фаза обновления контекста: регистрация в SessionContext и обновление состояния.
 
-Responsibility:
-- Save observation/error data to data_context
-- Register step in session context
-- Update agent state with observation signal
-- Handle empty SQL results with diagnostics
+Ответственность:
+- Сохранять данные наблюдения/ошибки в data_context
+- Регистрировать шаг в контексте сессии
+- Обновлять состояние агента сигналом наблюдения
+- Обрабатывать пустые SQL-результаты с диагностикой
 
-This step encapsulates all context mutation logic.
+Эта фаза инкапсулирует всю логику мутации контекста.
 """
 
 import logging
@@ -20,7 +20,7 @@ from core.utils.observation_formatter import format_observation, smart_format_ob
 
 
 class ContextUpdatePhase:
-    """Orchestrates the context update stage of the agent loop."""
+    """Оркестрирует этап обновления контекста в цикле агента."""
     
     def __init__(
         self,
@@ -187,17 +187,47 @@ class ContextUpdatePhase:
             )
             
         elif result.data in (None, {}, [], ""):
-            # Empty result - handle separately
+            # Пустой результат - сохраняем как наблюдение для отслеживания
             self.log.info(
                 f"⚠️ {decision_action} → ПУСТОЙ РЕЗУЛЬТАТ",
                 extra={"event_type": EventType.TOOL_RESULT},
             )
-            
-            # Record empty result
+
+            # Записать пустой результат в состояние агента
             self._record_empty_result(
                 action_name=decision_action,
                 parameters=decision_parameters,
                 session_context=session_context,
+            )
+
+            # Save empty observation for final_answer visibility
+            empty_observation_data = {
+                "status": "empty",
+                "data": None,
+                "action": decision_action,
+                "parameters": decision_parameters or {},
+            }
+            quick_content = f"empty: {decision_action}"
+            observation_item = ContextItem(
+                item_id="",
+                session_id=session_context.session_id,
+                item_type=ContextItemType.OBSERVATION,
+                content=empty_observation_data,
+                quick_content=quick_content,
+                metadata=ContextItemMetadata(
+                    source=decision_action,
+                    step_number=executed_steps + 1,
+                    capability_name=decision_action,
+                    additional_data={"is_empty": True},
+                ),
+            )
+            observation_item_id = session_context.data_context.add_item(observation_item)
+            observation_item_ids = [observation_item_id]
+
+            items_count_after = session_context.data_context.count()
+            self.log.debug(
+                f"📝 Сохранено empty observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
+                extra={"event_type": EventType.STEP_COMPLETED},
             )
             
         elif result.data is not None:
@@ -262,7 +292,7 @@ class ContextUpdatePhase:
         parameters: Dict[str, Any],
         session_context: Any,
     ) -> None:
-        """Record empty result in agent state."""
+        """Записать пустой результат в состояние агента."""
         session_context.agent_state.register_step_outcome(
             action_name=action_name,
             status="empty",

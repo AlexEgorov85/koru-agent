@@ -1,13 +1,13 @@
 """
-Execution Step: SafeExecutor.execute() with result handling.
+Фаза выполнения: SafeExecutor.execute() с обработкой результатов.
 
-Responsibility:
-- Execute action through SafeExecutor (with or without step config)
-- Handle execution exceptions
-- Log results and publish events
-- Return ExecutionResult
+Ответственность:
+- Выполнять действие через SafeExecutor (с конфигом шага или без)
+- Обрабатывать исключения выполнения
+- Логировать результаты и публиковать события
+- Возвращать ExecutionResult
 
-This step encapsulates all execution logic including error handling.
+Эта фаза инкапсулирует всю логику выполнения, включая обработку ошибок.
 """
 
 import logging
