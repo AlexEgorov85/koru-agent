@@ -826,7 +826,8 @@ class InfrastructureContext:
             from pathlib import Path
             for source, provider in self._faiss_providers.items():
                 try:
-                    index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
+                    index_file = self.config.vector_search.indexes.get(source, f"{source}_index.faiss")
+                    index_path = Path(self.config.vector_search.storage.base_path) / index_file
                     index_path.parent.mkdir(parents=True, exist_ok=True)
                     await provider.save(str(index_path))
                     self.log.info("💾 Сохранён индекс %s: %s",
