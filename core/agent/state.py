@@ -13,6 +13,34 @@
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
+
+
+class ObservationAnalysis(BaseModel):
+    """
+    Структурированный результат анализа наблюдения.
+    
+    АРХИТЕКТУРА:
+    - Используется как единый контракт между ObservationPhase и AgentState
+    - Содержит как сырые данные, так и интерпретацию
+    - Поддерживает history с лимитом 3 записи
+    
+    ПОЛЯ:
+    - status: статус выполнения (success/error/empty)
+    - quality: оценка качества данных
+    - insight: ключевое наблюдение
+    - hint: рекомендация для следующего шага
+    - rule_based: был ли использован rule-based анализ
+    - timestamp: время анализа
+    """
+    status: str = "unknown"
+    quality: Dict[str, Any] = Field(default_factory=dict)
+    insight: str = ""
+    hint: str = ""
+    rule_based: bool = False
+    timestamp: Optional[str] = None
+    action_name: Optional[str] = None
+    step_number: Optional[int] = None
 
 
 @dataclass
@@ -28,6 +56,9 @@ class AgentState:
     _step_number: int = field(default=0, repr=False)
     _history: List[Dict[str, Any]] = field(default_factory=list, repr=False)
     _errors: List[str] = field(default_factory=list, repr=False)
+    
+    # История наблюдений (лимит 3 записи) - Шаг 2.2
+    _observation_history: List[ObservationAnalysis] = field(default_factory=list, repr=False)
 
     # TOTAL метрики (приватные)
     _total_empty_results: int = field(default=0, repr=False)
@@ -85,6 +116,27 @@ class AgentState:
     @last_corrected_params.setter
     def last_corrected_params(self, value: Optional[Dict[str, Any]]):
         self._last_corrected_params = value
+    
+    @property
+    def observation_history(self) -> List[ObservationAnalysis]:
+        """Получить копию истории наблюдений (лимит 3)."""
+        return list(self._observation_history)
+    
+    def push_observation(self, analysis: ObservationAnalysis) -> None:
+        """
+        Добавить наблюдение в историю с автосдвигом старых записей.
+        
+        АРХИТЕКТУРА:
+        - Лимит max_history=3 записи (конфигурируемо)
+        - Старые записи автоматически удаляются (FIFO)
+        - Шаг 2.2 плана рефакторинга
+        """
+        max_history = 3
+        self._observation_history.append(analysis)
+        
+        # Автосдвиг старых записей если превышен лимит
+        if len(self._observation_history) > max_history:
+            self._observation_history = self._observation_history[-max_history:]
 
     def add_step(
         self,

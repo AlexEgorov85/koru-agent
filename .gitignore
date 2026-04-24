@@ -1,65 +1,53 @@
 ```gitignore
-# Python cache files
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Test cache and coverage
-.pytest_cache/
+# Virtual environments
+venv/
+.venv/
+env/
+.ENV/
+
+# Dependencies
+node_modules/
+pip-wheel-metadata/
+*.egg-info/
+
+# Build and distribution
+dist/
+build/
+*.egg
+*.whl
+*.tar.gz
+*.zip
+
+# Testing
 .coverage
-coverage/
 htmlcov/
+.pytest_cache/
+.hypothesis/
 
 # Logs
-logs/
 *.log
 
-# Data and session logs
-data/logs/
+# OS generated files
+.DS_Store
+Thumbs.db
 
-# Environment files
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables
 .env
 .env.local
 *.env.*
 
-# Temporary files
-*.tmp
-*.swp
-*.swo
-
-# IDE specific
-.vscode/
-.idea/
-
-# Qwen
-.qwen/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Data directories
-data/metrics/
-data/vector/
-
-# Models
-models/embedding/
-
-# Scripts
-run_ui.bat
-scripts/debug/
-
-# Test files
-test_component.ipynb
-
-# Local data
-core/data/
-
-# Dependencies and builds
-venv/
-.venv/
-pip-wheel-metadata/
-.wheelhouse/
-.mypy_cache/
-__pypackages__/
+# Coverage reports
+coverage/
+```

@@ -144,7 +144,8 @@ class AgentRuntime:
         )
         
         self.final_answer_phase = FinalAnswerPhase(
-            safe_executor=self.safe_executor,
+            application_context=self.application_context,
+            executor=self.executor,
             agent_config=agent_config,
             log=self.log,
             event_bus=event_bus,

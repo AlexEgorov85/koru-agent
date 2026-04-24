@@ -15,6 +15,7 @@ from typing import Any, Callable, Optional
 
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 
 
 class FinalAnswerPhase:
@@ -22,12 +23,14 @@ class FinalAnswerPhase:
     
     def __init__(
         self,
-        safe_executor: Any,
+        application_context: Any,
+        executor: Any,
         agent_config: Optional[Any],
         log: logging.Logger,
         event_bus: Any,
     ):
-        self.safe_executor = safe_executor
+        self.application_context = application_context
+        self.executor = executor
         self.agent_config = agent_config
         self.log = log
         self.event_bus = event_bus
@@ -62,40 +65,44 @@ class FinalAnswerPhase:
         )
         
         try:
-            # Get application_context и executor
-            app_ctx = getattr(session_context, '_application_context', None)
-            if app_ctx:
-                executor = getattr(app_ctx, 'executor', None)
-                if executor:
-                    # Вызов final_answer.generate через executor
-                    execution_context = type('ExecutionContext', (), {
-                        'session_context': session_context,
-                        'goal': goal,
-                        'decision_reasoning': decision_reasoning,
-                    })()
+            # Вызов final_answer.generate через executor
+            from core.components.action_executor import ExecutionContext
+            
+            execution_context = ExecutionContext(
+                session_context=session_context,
+                goal=goal,
+                decision_reasoning=decision_reasoning,
+            )
+            
+            result = await self.executor.execute_action(
+                action_name="final_answer.generate",
+                parameters={
+                    "goal": goal,
+                    "format_type": "structured",
+                    "include_steps": True,
+                    "include_evidence": True,
+                    "decision_reasoning": decision_reasoning,
+                },
+                context=execution_context,
+            )
+            
+            if result and result.status == ExecutionStatus.COMPLETED:
+                data = result.data if hasattr(result, 'data') else result
+                final_answer_text = ""
+                if isinstance(data, dict):
+                    # Приоритет: final_answer (по контракту), затем answer (legacy), затем другие поля
+                    final_answer_text = data.get("final_answer") or data.get("answer", "")
+                else:
+                    final_answer_text = str(data)
                     
-                    result = await executor.execute_action(
-                        action_name="final_answer.generate",
-                        parameters={
-                            "goal": goal,
-                            "format_type": "structured",
-                            "include_steps": True,
-                            "include_evidence": True,
-                            "decision_reasoning": decision_reasoning,
-                        },
-                        context=execution_context,
-                    )
-                    
-                    if result and result.status.value == "success":
-                        data = result.data if hasattr(result, 'data') else result
-                        session_context.commit_turn(
-                            user_query=goal,
-                            assistant_response=data.get("answer", "") if isinstance(data, dict) else str(data),
-                            tools_used=["final_answer.generate"],
-                        )
-                        sync_dialogue_callback()
-                        
-                        return ExecutionResult.success(data=data)
+                session_context.commit_turn(
+                    user_query=goal,
+                    assistant_response=final_answer_text,
+                    tools_used=["final_answer.generate"],
+                )
+                sync_dialogue_callback()
+                
+                return ExecutionResult.success(data=data)
                     
         except Exception as e:
             if self.log:
@@ -169,15 +176,22 @@ class FinalAnswerPhase:
                 )
                 
                 if result:
+                    # Приоритет: final_answer (по контракту), затем answer (legacy)
+                    fallback_text = ""
+                    if isinstance(result, dict):
+                        fallback_text = result.get("final_answer") or result.get("answer", "")
+                    else:
+                        fallback_text = str(result)
+                        
                     session_context.commit_turn(
                         user_query=goal,
-                        assistant_response=result.get("answer", "") if isinstance(result, dict) else str(result),
+                        assistant_response=fallback_text,
                         tools_used=[],
                     )
                     sync_dialogue_callback()
                     
                     return ExecutionResult.success(
-                        data=result if isinstance(result, dict) else {"answer": str(result)}
+                        data=result if isinstance(result, dict) else {"final_answer": str(result)}
                     )
                     
         except Exception as e:

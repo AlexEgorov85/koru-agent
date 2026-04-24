@@ -278,11 +278,32 @@ class PromptBuilderService:
         return "\n".join(lines)
 
     def _build_step_history(self, last_steps: list, session_context=None) -> str:
-        """Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение."""
+        """
+        Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение.
+        
+        АРХИТЕКТУРА:
+        - Шаг 2.4: Берёт наблюдения из observation_history, а не парсит сырые data_context
+        - Использует типизированные ObservationAnalysis если доступны
+        """
         if not last_steps:
             return "Шаги не выполнены"
 
         lines = ["\n"]
+
+        # Проверяем есть ли observation_history (Шаг 2.4)
+        has_observation_history = (
+            session_context 
+            and hasattr(session_context, 'agent_state')
+            and hasattr(session_context.agent_state, 'observation_history')
+            and len(session_context.agent_state.observation_history) > 0
+        )
+        
+        # Получаем наблюдения из истории если доступна
+        obs_history_map = {}
+        if has_observation_history:
+            for obs in session_context.agent_state.observation_history:
+                if obs.step_number:
+                    obs_history_map[obs.step_number] = obs
 
         for i, step in enumerate(last_steps, 1):
             capability = None
@@ -290,6 +311,7 @@ class PromptBuilderService:
             status = "unknown"
             parameters = {}
             obs_ids = []
+            step_num = None
 
             if hasattr(step, "capability_name"):
                 capability = step.capability_name
@@ -305,6 +327,7 @@ class PromptBuilderService:
                     if hasattr(step, "observation_item_ids")
                     else []
                 )
+                step_num = getattr(step, 'step_number', None)
             elif isinstance(step, dict):
                 capability = step.get(
                     "capability_name", step.get("capability", step.get("action", "unknown"))
@@ -313,14 +336,23 @@ class PromptBuilderService:
                 status = step.get("status", "unknown")
                 parameters = step.get("parameters", {}) or {}
                 obs_ids = step.get("observation_item_ids", [])
+                step_num = step.get("step_number")
             else:
                 lines.append(f"[ШАГ {i}]\n{str(step)}\n")
                 continue
 
             thought = summary.strip() if summary else "Не указано"
 
+            # Пытаемся взять наблюдение из observation_history (Шаг 2.4)
             obs_text = "Нет данных"
-            if obs_ids and session_context and hasattr(session_context, "data_context"):
+            if step_num and step_num in obs_history_map:
+                # Используем типизированное наблюдение из истории
+                obs_analysis = obs_history_map[step_num]
+                obs_text = f"{obs_analysis.insight}"
+                if obs_analysis.hint:
+                    obs_text += f"\n💡 Подсказка: {obs_analysis.hint}"
+            elif obs_ids and session_context and hasattr(session_context, "data_context"):
+                # Fallback на старый метод через data_context
                 obs_parts = []
                 for obs_id in obs_ids:
                     item = session_context.data_context.get_item(
