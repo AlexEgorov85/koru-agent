@@ -6,8 +6,12 @@ Observer — LLM-анализ результатов выполнения дей
 2. Оценивает статус, качество, проблемы
 3. Генерирует insight и рекомендации для следующего шага
 4. Использует контракт behavior.react.observe_output_v1.0.0
+
+ОПТИМИЗАЦИЯ (Фаза 1):
+- Поддержка режимов trigger_mode: "always", "on_error", "on_empty"
+- Rule-based анализ для success-статусов (экономия LLM-вызовов)
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Literal
 from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
@@ -20,6 +24,12 @@ class Observer:
     - Оценка качества данных
     - Выявление проблем и инсайтов
     - Генерация рекомендаций для следующего шага
+    
+    КОНФИГУРАЦИЯ:
+    - trigger_mode: "always" | "on_error" | "on_empty"
+      - "always": вызывать LLM на каждом шаге (по умолчанию)
+      - "on_error": вызывать LLM только при ошибках/пустых результатах
+      - "on_empty": вызывать LLM только при пустых результатах
     """
     
     DEPENDENCIES = ["prompt_service", "contract_service", "llm_orchestrator"]
@@ -27,10 +37,12 @@ class Observer:
     def __init__(
         self,
         application_context=None,
-        component_name: str = "observer"
+        component_name: str = "observer",
+        trigger_mode: Literal["always", "on_error", "on_empty"] = "always"
     ):
         self.application_context = application_context
         self.component_name = component_name
+        self.trigger_mode = trigger_mode
     
     @property
     def llm_orchestrator(self):
@@ -64,6 +76,125 @@ class Observer:
             logger = log_session.get_component_logger("observer")
             logger.error(message, extra={"event_type": EventType.ERROR}, exc_info=exc_info)
     
+    def should_call_llm(self, result: Any, error: Optional[str], status: Optional[str] = None) -> bool:
+        """
+        Определение необходимости вызова LLM на основе trigger_mode.
+        
+        ПАРАМЕТРЫ:
+        - result: результат выполнения
+        - error: ошибка (если есть)
+        - status: статус выполнения (если известен заранее)
+        
+        ВОЗВРАЩАЕТ:
+        - True если нужно вызвать LLM, False для rule-based fallback
+        """
+        # Определяем статус если не передан
+        if status is None:
+            if error:
+                status = "error"
+            elif result is None or (isinstance(result, (list, dict)) and len(result) == 0):
+                status = "empty"
+            else:
+                status = "success"
+        
+        # Режимы trigger_mode
+        if self.trigger_mode == "always":
+            return True
+        elif self.trigger_mode == "on_error":
+            return status in ("error", "empty")
+        elif self.trigger_mode == "on_empty":
+            return status == "empty"
+        
+        return True
+    
+    def _rule_based_observation(
+        self,
+        action_name: str,
+        parameters: Dict[str, Any],
+        result: Any,
+        error: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Rule-based анализ результата без вызова LLM.
+        
+        ПАРАМЕТРЫ:
+        - action_name: имя действия
+        - parameters: параметры действия
+        - result: результат выполнения
+        - error: ошибка (если есть)
+        
+        ВОЗВРАЩАЕТ:
+        - observation: структурированное наблюдение
+        """
+        # Определяем статус
+        if error:
+            return {
+                "status": "error",
+                "observation": f"Error during execution: {error}",
+                "key_findings": [f"Action '{action_name}' failed"],
+                "data_quality": {"completeness": 0.0, "reliability": 0.0},
+                "errors": [error],
+                "next_step_suggestion": "Retry with different parameters or use recovery strategy",
+                "requires_additional_action": True,
+                "_rule_based": True
+            }
+        
+        # Проверяем пустоту результата
+        if result is None or (isinstance(result, (list, dict)) and len(result) == 0):
+            return {
+                "status": "empty",
+                "observation": "Empty result received",
+                "key_findings": [f"Action '{action_name}' returned no data"],
+                "data_quality": {"completeness": 0.0, "reliability": 0.5},
+                "errors": [],
+                "next_step_suggestion": "Try different parameters or check data availability",
+                "requires_additional_action": True,
+                "_rule_based": True
+            }
+        
+        # Успешный результат - базовая оценка качества
+        completeness = 1.0
+        reliability = 0.8
+        
+        if isinstance(result, dict):
+            data = result.get('result') or result.get('data') or result.get('rows', [])
+            if isinstance(data, list):
+                row_count = len(data)
+                if row_count == 0:
+                    completeness = 0.0
+                elif row_count < 5:
+                    completeness = 0.5
+                elif row_count > 100:
+                    completeness = 1.0
+                else:
+                    completeness = 0.8
+                
+                # Проверяем наличие warning-флагов
+                if result.get('warning') or result.get('truncated'):
+                    reliability = 0.6
+                    self._log_info(
+                        f"⚠️ [Rule-based] Result has warnings: {result.get('warning', 'N/A')}",
+                        event_type=EventType.WARNING
+                    )
+        elif isinstance(result, list):
+            if len(result) == 0:
+                completeness = 0.0
+            elif len(result) < 5:
+                completeness = 0.5
+            else:
+                completeness = 0.8
+        
+        return {
+            "status": "success",
+            "observation": f"Action '{action_name}' completed successfully",
+            "key_findings": [f"Received {type(result).__name__} result"],
+            "data_quality": {"completeness": completeness, "reliability": reliability},
+            "errors": [],
+            "next_step_suggestion": "Continue with next step based on goal progress",
+            "requires_additional_action": False,
+            "_rule_based": True
+        }
+    
     async def analyze(
         self,
         action_name: str,
@@ -72,7 +203,8 @@ class Observer:
         error: Optional[str] = None,
         session_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        step_number: Optional[int] = None
+        step_number: Optional[int] = None,
+        force_llm: bool = False
     ) -> Dict[str, Any]:
         """
         Анализ результата действия через LLM.
@@ -85,10 +217,27 @@ class Observer:
         - session_id: ID сессии
         - agent_id: ID агента
         - step_number: номер шага
+        - force_llm: принудительный вызов LLM (игнорирует trigger_mode)
         
         ВОЗВРАЩАЕТ:
         - observation: структурированное наблюдение
         """
+        # Проверяем необходимость вызова LLM
+        use_llm = force_llm or self.should_call_llm(result, error)
+        
+        if not use_llm:
+            # Rule-based анализ без LLM
+            self._log_info(
+                f"⚡ [Observer.analyze] Skip LLM (trigger_mode={self.trigger_mode}): action={action_name}",
+                event_type=EventType.INFO
+            )
+            return self._rule_based_observation(
+                action_name=action_name,
+                parameters=parameters,
+                result=result,
+                error=error
+            )
+        
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
             

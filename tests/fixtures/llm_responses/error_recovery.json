@@ -1,0 +1,33 @@
+{
+  "name": "error_recovery",
+  "description": "Сценарий с ошибкой и последующим восстановлением",
+  "responses": [
+    {
+      "type": "act",
+      "action": "sql_tool.execute",
+      "parameters": {
+        "query": "SELECT * FROM nonexistent_table"
+      },
+      "reasoning": "Попытка запроса к несуществующей таблице"
+    },
+    {
+      "type": "error",
+      "error": "Table 'nonexistent_table' doesn't exist",
+      "retry": true,
+      "suggestion": "Проверьте имя таблицы или используйте INFORMATION_SCHEMA"
+    },
+    {
+      "type": "act",
+      "action": "sql_tool.execute",
+      "parameters": {
+        "query": "SELECT table_name FROM information_schema.tables LIMIT 5"
+      },
+      "reasoning": "Получаем список доступных таблиц"
+    },
+    {
+      "type": "finish",
+      "answer": "Ошибка устранена, получены данные о доступных таблицах.",
+      "confidence": 0.85
+    }
+  ]
+}

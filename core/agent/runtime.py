@@ -15,7 +15,6 @@ from typing import Any, Dict, Optional
 from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.application_context.application_context import ApplicationContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
-from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.component_status import ComponentStatus
 from core.components.action_executor import ActionExecutor, ExecutionContext
@@ -32,6 +31,13 @@ from core.utils.observation_formatter import (
 from core.components.skills.utils.observation_policy import ObservationPolicy
 from core.agent.components.observer import Observer
 from core.config.agent_config import AgentConfig
+from core.agent.phases.decision_phase import DecisionPhase
+from core.agent.phases.policy_check_phase import PolicyCheckPhase
+from core.agent.phases.execution_phase import ExecutionPhase
+from core.agent.phases.observer_phase import ObserverPhase
+from core.agent.phases.context_update_phase import ContextUpdatePhase
+from core.agent.phases.final_answer_phase import FinalAnswerPhase
+from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
 
 
 class AgentRuntime:
@@ -85,6 +91,61 @@ class AgentRuntime:
         
         # Выделенный сервис observation-сигналов (SRP: runtime только оркестрирует).
         self.observation_signal_service = ObservationSignalService()
+        
+        # Step orchestrators для делегирования ответственности (Фаза 2)
+        event_bus = application_context.infrastructure_context.event_bus
+        
+        self.decision_phase = DecisionPhase(
+            log=self.log,
+            event_bus=event_bus,
+        )
+        
+        self.policy_check_phase = PolicyCheckPhase(
+            policy=self.policy,
+            log=self.log,
+            event_bus=event_bus,
+        )
+        
+        self.execution_phase = ExecutionPhase(
+            safe_executor=self.safe_executor,
+            log=self.log,
+            event_bus=event_bus,
+            agent_config=agent_config,
+        )
+        
+        self.observer_phase = ObserverPhase(
+            observer=self.observer,
+            metrics=self.metrics,
+            policy=self.policy,
+            log=self.log,
+            event_bus=event_bus,
+        )
+        
+        # SQL diagnostic service для error recovery
+        sql_diagnostic = None
+        try:
+            from core.agent.components.sql_diagnostic import SQLDiagnosticService
+            sql_diagnostic = SQLDiagnosticService(application_context)
+        except Exception:
+            pass  # Optional component
+        
+        self.error_recovery_phase = ErrorRecoveryPhase(
+            sql_diagnostic_service=sql_diagnostic,
+            log=self.log,
+        )
+        
+        self.context_update_phase = ContextUpdatePhase(
+            log=self.log,
+            event_bus=event_bus,
+            error_recovery_handler=self.error_recovery_phase,
+        )
+        
+        self.final_answer_phase = FinalAnswerPhase(
+            safe_executor=self.safe_executor,
+            agent_config=agent_config,
+            log=self.log,
+            event_bus=event_bus,
+        )
 
         self._pattern = None
 
@@ -106,6 +167,10 @@ class AgentRuntime:
         # Логгер агента (1 сессия = 1 файл)
         log_session = application_context.infrastructure_context.log_session
         self.log = log_session.create_agent_logger(agent_id)
+        
+        # Передаём логгер в error_recovery_phase
+        self.error_recovery_phase.log = self.log
+        
         self.log.info(
             f"Агент {agent_id} запущен, цель: {goal[:50]}...",
             extra={"event_type": EventType.AGENT_START},
@@ -273,43 +338,13 @@ class AgentRuntime:
         for step in range(self.max_steps):
             agent_state = self.session_context.agent_state
             
-            # Проверка условий остановки через Policy (Fail-Fast)
-            try:
-                self.policy.evaluate(
-                    action_name="loop_check",
-                    metrics=self.metrics,
-                    state_data={
-                        "consecutive_repeated_actions": agent_state.consecutive_repeated_actions,
-                        "consecutive_empty_results": agent_state.consecutive_empty_results,
-                    }
-                )
-            except PolicyViolationError as e:
-                stop_reason = f"Policy violation: {', '.join(e.verdict.violations)}"
-                self.log.warning(
-                    f"🛑 Остановка по policy: {stop_reason}",
-                    extra={"event_type": EventType.AGENT_STOP}
-                )
-                await event_bus.publish(
-                    EventType.SESSION_FAILED,
-                    {"reason": stop_reason, "step": step + 1},
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-                self.session_context.commit_turn(
-                    user_query=self.goal,
-                    assistant_response=f"Остановлено по policy: {stop_reason}",
-                    tools_used=[],
-                )
-                self._sync_dialogue_history_back()
-                return ExecutionResult.failure(stop_reason)
-
-            self.log.info(
-                f"📍 ШАГ {step + 1}/{self.max_steps}",
-                extra={"event_type": EventType.STEP_STARTED},
+            # Проверка условий остановки через Policy (Fail-Fast) - ДЕЛЕГИРОВАНО STEP
+            should_stop, stop_reason = self.policy_check_phase.check_loop_conditions(
+                session_context=self.session_context,
+                metrics=self.metrics,
+                step_number=step,
+                agent_config=self.agent_config,
             )
-            
-            # Проверка условий остановки по метрикам
-            should_stop, stop_reason = self.metrics.should_stop()
             if should_stop:
                 self.log.warning(
                     f"🛑 Остановка: {stop_reason}",
@@ -321,97 +356,37 @@ class AgentRuntime:
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id
                 )
+                self.session_context.commit_turn(
+                    user_query=self.goal,
+                    assistant_response=f"Остановлено: {stop_reason}",
+                    tools_used=[],
+                )
+                self._sync_dialogue_history_back()
                 return ExecutionResult.failure(f"Stopped: {stop_reason}")
             
-            self.log.info(
-                "🤔 Анализирую запрос и выбираю следующее действие...",
-                extra={"event_type": EventType.AGENT_THINKING},
-            )
-
-            # Pattern решает
-            self.log.info(
-                "🧠 Pattern.decide()...",
-                extra={"event_type": EventType.AGENT_DECISION},
-            )
-            decision = await pattern.decide(
+            # Pattern решает - ДЕЛЕГИРОВАНО STEP
+            decision = await self.decision_phase.execute(
+                pattern=pattern,
                 session_context=self.session_context,
                 available_capabilities=available_caps,
-            )
-            decision_msg = (
-                f"✅ Pattern вернул: type={decision.type.value}"
-                + (f", action={decision.action}" if decision.action else "")
-                + (f", reasoning: {decision.reasoning}" if decision.reasoning else "")
-            )
-            self.log.info(
-                decision_msg, extra={"event_type": EventType.AGENT_DECISION}
+                step_number=step + 1,
             )
 
-            # Pattern решил FINISH?
+            # Pattern решил FINISH? - ДЕЛЕГИРОВАНО STEP
             if decision.type == DecisionType.FINISH:
-                self.log.info(
-                    f"Завершение: {decision.reasoning if decision.reasoning else 'готов'}. "
-                    f"Запускаю final_answer.generate...",
-                    extra={"event_type": EventType.AGENT_STOP},
+                final_result = await self.final_answer_phase.generate_final_answer(
+                    session_context=self.session_context,
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                    goal=self.goal,
+                    decision_reasoning=decision.reasoning,
+                    sync_dialogue_callback=self._sync_dialogue_history_back,
                 )
-                try:
-                    # Проверяем есть ли конфигурация для final_answer.generate
-                    step_config = None
-                    if self.agent_config and hasattr(self.agent_config, 'steps'):
-                        for sid, cfg in self.agent_config.steps.items():
-                            if cfg.capability == "final_answer.generate":
-                                step_config = cfg
-                                break
-                    
-                    if step_config:
-                        final_result = await self.safe_executor.execute_with_config(
-                            step_config=step_config,
-                            parameters={
-                                "format_type": "structured",
-                                "include_steps": True,
-                                "include_evidence": True,
-                                "max_sources": 20
-                            },
-                            context=ExecutionContext(
-                                session_context=self.session_context,
-                                session_id=self.session_context.session_id,
-                                agent_id=self.agent_id,
-                            ),
-                            step_id=f"step_{sid}_finish"
-                        )
-                    else:
-                        final_result = await self.safe_executor.execute(
-                            capability_name="final_answer.generate",
-                            parameters={
-                                "format_type": "structured",
-                                "include_steps": True,
-                                "include_evidence": True,
-                                "max_sources": 20
-                            },
-                            context=ExecutionContext(
-                                session_context=self.session_context,
-                                session_id=self.session_context.session_id,
-                                agent_id=self.agent_id,
-                            ),
-                        )
-
-                    if final_result.status == ExecutionStatus.COMPLETED:
-                        final_answer = ""
-                        if hasattr(final_result.data, 'get'):
-                            final_answer = final_result.data.get("final_answer", "")
-                        elif hasattr(final_result.data, 'final_answer'):
-                            final_answer = final_result.data.final_answer
-                        else:
-                            final_answer = str(final_result.data)
-                        self.session_context.commit_turn(
-                            user_query=self.goal,
-                            assistant_response=final_answer,
-                            tools_used=["final_answer.generate"],
-                        )
-                        self._sync_dialogue_history_back()
-                        return final_result
-                except Exception as e:
-                    self.log.error(f"Ошибка генерации финального ответа: {e}")
-
+                
+                if final_result:
+                    return final_result
+                
+                # Fallback если генерация не удалась
                 self.session_context.commit_turn(
                     user_query=self.goal,
                     assistant_response=decision.reasoning or "Завершено",
@@ -437,53 +412,24 @@ class AgentRuntime:
                 self._sync_dialogue_history_back()
                 return ExecutionResult.failure(decision.error or "Unknown error")
 
-            # Pattern решил ACT?
+            # Pattern решил ACT? - ДЕЛЕГИРОВАНО STEP
             if decision.type == DecisionType.ACT:
-                # Policy проверка через evaluate() с Fail-Fast
+                # Policy проверка через evaluate() с Fail-Fast - ДЕЛЕГИРОВАНО STEP
                 try:
-                    self.policy.evaluate(
+                    self.policy_check_phase.validate_action(
                         action_name=decision.action or "",
                         metrics=self.metrics,
-                        state_data={
-                            "consecutive_repeated_actions": self.session_context.agent_state.consecutive_repeated_actions,
-                            "consecutive_empty_results": self.session_context.agent_state.consecutive_empty_results,
-                        },
-                        parameters=decision.parameters or {}
+                        session_context=self.session_context,
+                        parameters=decision.parameters or {},
                     )
                 except PolicyViolationError as e:
-                    policy_msg = f"POLICY_BLOCKED: {', '.join(e.verdict.violations)}. Действие отклонено. Смени инструмент или параметры."
-                    self.log.warning(
-                        f"⛔ Policy заблокировал действие {decision.action}: {policy_msg}",
-                        extra={"event_type": EventType.WARNING},
-                    )
-                    # Регистрируем заблокированное действие через единый метод
-                    self.session_context.agent_state.register_step_outcome(
-                        action_name=decision.action or "unknown",
-                        status="blocked",
-                        parameters=decision.parameters or {},
-                        observation={"status": "blocked", "reason": policy_msg},
-                        error_message=policy_msg
-                    )
-                    # Добавляем заблокированное действие в step_context чтобы оно попало в историю
-                    self.session_context.register_step(
+                    policy_msg = self.policy_check_phase.handle_violation(
+                        error=e,
+                        decision_action=decision.action,
                         step_number=step + 1,
-                        capability_name=decision.action or "unknown",
-                        skill_name="",
-                        action_item_id=None,
-                        observation_item_ids=[],
-                        summary=f"Action blocked by policy: {policy_msg}",
-                        status=ExecutionStatus.FAILED,
-                        parameters=decision.parameters or {},
+                        session_context=self.session_context,
                     )
-                    self.session_context.record_action(
-                        action_data={
-                            "action": decision.action,
-                            "parameters": decision.parameters,
-                            "status": "blocked",
-                            "reason": policy_msg,
-                        },
-                        step_number=step + 1,
-                    )
+                    
                     await event_bus.publish(
                         EventType.ERROR_OCCURRED,
                         {
@@ -497,330 +443,56 @@ class AgentRuntime:
                     executed_steps += 1
                     continue
 
-                self.log.info(
-                    f"⚙️ Запускаю {decision.action} с параметрами: {decision.parameters or {}}",
-                    extra={"event_type": EventType.TOOL_CALL},
-                )
-                self.log.info(
-                    f"⚙️ Executor.execute({decision.action})...",
-                    extra={"event_type": EventType.TOOL_CALL},
-                )
-
-                # Публикуем детали выбран capability
-                await event_bus.publish(
-                    EventType.CAPABILITY_SELECTED,
-                    {
-                        "capability": decision.action,
-                        "pattern": decision.type.value,
-                        "reasoning": decision.reasoning or "",
-                        "step": step + 1,
-                    },
+                # Выполнение действия - ДЕЛЕГИРОВАНО STEP
+                result = await self.execution_phase.execute(
+                    decision_action=decision.action,
+                    decision_parameters=decision.parameters or {},
+                    session_context=self.session_context,
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id,
+                    step_number=step + 1,
                 )
 
-                # Логируем для UI (читается из файла)
-                self.log.info(
-                    f"🎯 Capability: {decision.action} | {decision.reasoning or ''}",
-                    extra={"event_type": EventType.AGENT_DECISION},
-                )
-
-                try:
-                    # Используем execute_with_config если есть конфигурация шага
-                    step_config = None
-                    if self.agent_config and hasattr(self.agent_config, 'steps'):
-                        # Ищем шаг по capability name
-                        for sid, cfg in self.agent_config.steps.items():
-                            if cfg.capability == decision.action:
-                                step_config = cfg
-                                break
-                    
-                    if step_config:
-                        # Выполняем через SafeExecutor с конфигурацией
-                        result = await self.safe_executor.execute_with_config(
-                            step_config=step_config,
-                            parameters=decision.parameters or {},
-                            context=ExecutionContext(
-                                session_context=self.session_context,
-                                session_id=self.session_context.session_id,
-                                agent_id=self.agent_id,
-                            ),
-                            step_id=f"step_{sid}_{step + 1}"
-                        )
-                    else:
-                        # Выполняем напрямую через SafeExecutor (без конфигурации шага)
-                        result = await self.safe_executor.execute(
-                            capability_name=decision.action,
-                            parameters=decision.parameters or {},
-                            context=ExecutionContext(
-                                session_context=self.session_context,
-                                session_id=self.session_context.session_id,
-                                agent_id=self.agent_id,
-                            ),
-                        )
-
-                    # Логирование результата
-                    if result.status == ExecutionStatus.FAILED:
-                        self.log.error(
-                            f"❌ Действие {decision.action} завершилось с ошибкой: {result.error or 'неизвестная'}",
-                            extra={"event_type": EventType.TOOL_ERROR},
-                        )
-                    else:
-                        self.log.info(
-                            f"✅ Действие {decision.action} выполнено",
-                            extra={"event_type": EventType.TOOL_RESULT},
-                        )
-                except Exception as e:
-                    # SafeExecutor не должен выбрасывать, но на всякий случай
-                    self.log.error(
-                        f"❌ Исключение при выполнении {decision.action}: {e}",
-                        extra={"event_type": EventType.TOOL_ERROR},
-                        exc_info=True,
-                    )
-                    result = ExecutionResult.failure(str(e))
-
-                # Публикуем детали выполненного действия
-                await event_bus.publish(
-                    EventType.ACTION_PERFORMED,
-                    {
-                        "action": decision.action,
-                        "parameters": decision.parameters or {},
-                        "status": result.status.value,
-                        "error": result.error,
-                        "step": step + 1,
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-
-                # Логируем для UI (читается из файла)
-                if result.status == ExecutionStatus.FAILED:
-                    self.log.info(
-                        f"❌ {decision.action} → FAILED: {result.error or 'неизвестная'}",
-                        extra={"event_type": EventType.TOOL_ERROR},
-                    )
-                else:
-                    self.log.info(
-                        f"✅ {decision.action} → {result.status.value}",
-                        extra={"event_type": EventType.TOOL_RESULT},
-                    )
-
-                # Сохранение данных результата в data_context
-                observation_item_ids = []
-                items_count_before = (
-                    self.session_context.data_context.count()
-                    if hasattr(self.session_context, "data_context")
-                    else -1
-                )
-
-                if result.status == ExecutionStatus.FAILED:
-                    # При ошибке создаём observation с деталями ошибки для истории шагов
-                    from core.session_context.model import (
-                        ContextItem,
-                        ContextItemType,
-                        ContextItemMetadata,
-                    )
-
-                    error_details = {
-                        "error": result.error or "Неизвестная ошибка",
-                        "status": "FAILED",
-                        "capability": decision.action,
-                        "parameters": decision.parameters or {},
-                    }
-
-                    # Добавляем stack trace если есть
-                    if hasattr(result, "traceback") and result.traceback:
-                        error_details["traceback"] = result.traceback[
-                            :2000
-                        ]  # Ограничиваем размер
-
-                    observation_item = ContextItem(
-                        item_id="",
-                        session_id=self.session_context.session_id,
-                        item_type=ContextItemType.ERROR_LOG,
-                        content=error_details,
-                        quick_content=f"❌ {result.error or 'Неизвестная ошибка'}"[
-                            :200
-                        ],
-                        metadata=ContextItemMetadata(
-                            source=decision.action,
-                            step_number=executed_steps + 1,
-                            capability_name=decision.action,
-                            additional_data={
-                                "is_error": True,
-                                "error_type": (
-                                    type(result.error).__name__
-                                    if result.error
-                                    else "Unknown"
-                                ),
-                            },
-                        ),
-                    )
-                    observation_item_id = self.session_context.data_context.add_item(
-                        observation_item
-                    )
-                    observation_item_ids = [observation_item_id]
-                    items_count_after = self.session_context.data_context.count()
-                    self.log.info(
-                        f"📝 Сохранена ошибка: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
-                        extra={"event_type": EventType.STEP_COMPLETED},
-                    )
-                elif result.data in (None, {}, [], ""):
-                    self.log.info(
-                        f"⚠️ {decision.action} → ПУСТОЙ РЕЗУЛЬТАТ",
-                        extra={"event_type": EventType.TOOL_RESULT},
-                    )
-                    self._record_empty_result(decision.action, decision.parameters)
-                    await self._run_sql_diagnostic(decision, result)
-                elif result.data is not None:
-                    from core.session_context.model import (
-                        ContextItem,
-                        ContextItemType,
-                        ContextItemMetadata,
-                    )
-
-                    additional_metadata = {}
-                    parameters = decision.parameters or {}
-
-                    # Проверяем, нужно ли использовать smart_format или полный формат
-                    # data_analysis уже сохраняет результат в observation - используем полный формат
-                    is_data_analysis = (
-                        decision.action and "data_analysis" in decision.action
-                    )
-
-                    if is_data_analysis:
-                        # Для data_analysis - используем полный формат (данные уже структурированы)
-                        quick_content = format_observation(
-                            result_data=result.data,
-                            capability_name=decision.action,
-                            parameters=decision.parameters,
-                        )
-                    else:
-                        # Для остальных - smart_format с усечением
-                        quick_content = smart_format_observation(
-                            result_data=result.data,
-                            capability_name=decision.action,
-                            parameters=decision.parameters,
-                        )
-
-                    observation_item = ContextItem(
-                        item_id="",
-                        session_id=self.session_context.session_id,
-                        item_type=ContextItemType.OBSERVATION,
-                        content=result.data,
-                        quick_content=quick_content,
-                        metadata=ContextItemMetadata(
-                            source=decision.action,
-                            step_number=executed_steps + 1,
-                            capability_name=decision.action,
-                            additional_data=(
-                                additional_metadata if additional_metadata else None
-                            ),
-                        ),
-                    )
-                    observation_item_id = self.session_context.data_context.add_item(
-                        observation_item
-                    )
-                    observation_item_ids = [observation_item_id]
-                    items_count_after = self.session_context.data_context.count()
-                    self.log.debug(
-                        f"📝 Сохранено observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
-                        extra={"event_type": EventType.STEP_COMPLETED},
-                    )
-                    # Логируем наблюдение в формате промта (INFO)
-                    if quick_content:
-                        self.log.info(
-                            f"[OBSERVATION] step={executed_steps + 1} | capability={decision.action}\n{quick_content}",
-                            extra={"event_type": EventType.STEP_COMPLETED},
-                        )
-
-                # Запись шага только после выполнения ACT
-                executed_steps += 1
-                
-                # ============================================
-                # OBSERVER + METRICS (новый этап v2.0)
-                # ============================================
-                
-                # Observer анализирует результат
-                self.log.info(
-                    f"👁️ Observer.analyze({decision.action})...",
-                    extra={"event_type": EventType.INFO}
-                )
-                
-                observation = await self.observer.analyze(
-                    action_name=decision.action,
-                    parameters=decision.parameters or {},
-                    result=result.data if hasattr(result, 'data') else result,
-                    error=result.error if result.status == ExecutionStatus.FAILED else None,
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                    step_number=executed_steps
-                )
-                
-                # Публикуем событие OBSERVATION
-                await event_bus.publish(
-                    EventType.DEBUG,
-                    {"event": "OBSERVATION", "status": observation.get("status"), "quality": observation.get("data_quality")},
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id
-                )
-                
-                # Обновляем метрики на основе наблюдения
-                status = observation.get("status", "unknown")
-                self.metrics.add_step(
-                    action_name=decision.action,
-                    status=status,
-                    error=observation.get("errors", [None])[0] if observation.get("errors") else None
-                )
-                self.metrics.update_observation(observation)
-                
-                # Логируем результат наблюдения
-                self.log.info(
-                    f"📊 Observation: status={status}, quality={observation.get('data_quality', {})}",
-                    extra={"event_type": EventType.INFO}
-                )
-                
-                # Проверяем рекомендации Observer для следующего шага
-                if observation.get("requires_additional_action") and status in ["empty", "error"]:
-                    self.log.warning(
-                        f"⚠️ Observer рекомендует сменить стратегию: {observation.get('next_step_suggestion', '')}",
-                        extra={"event_type": EventType.INFO}
-                    )
-
-                # Данные хранятся ТОЛЬКО в data_context (observation_item_ids)
-                # AgentStep содержит только ССЫЛКИ на данные, не копии!
-                self.session_context.register_step(
-                    step_number=executed_steps,
-                    capability_name=decision.action or "unknown",
-                    skill_name=(decision.action or "unknown").split(".")[0],
-                    action_item_id="",
-                    observation_item_ids=observation_item_ids,
-                    summary=decision.reasoning,
-                    status=result.status,
-                    parameters=decision.parameters or {},
-                )
-
-                if (
-                    not hasattr(self, "observation_signal_service")
-                    or self.observation_signal_service is None
-                ):
-                    self.observation_signal_service = ObservationSignalService()
-
-                observation_signal = self.observation_signal_service.build_signal(
+                # Сохранение данных результата и регистрация шага - ДЕЛЕГИРОВАНО STEP
+                observation_item_ids = await self.context_update_phase.save_and_register(
                     result=result,
-                    action_name=decision.action,
-                    parameters=decision.parameters or {},
-                )
-                self.session_context.agent_state.add_step(
-                    action_name=decision.action or "unknown",
-                    status=result.status.value,
-                    parameters=decision.parameters or {},
-                    observation=observation_signal,
-                )
-                self.session_context.agent_state.register_observation(
-                    observation_signal
+                    decision_action=decision.action,
+                    decision_parameters=decision.parameters or {},
+                    session_context=self.session_context,
+                    executed_steps=executed_steps,
+                    decision_reasoning=decision.reasoning,
+                    error_recovery_handler=self.error_recovery_phase,
                 )
 
+                # ============================================
+                # OBSERVER + METRICS (Фаза 1) - ДЕЛЕГИРОВАНО STEP
+                # ============================================
+                
+                observation = await self.observer_phase.analyze(
+                    decision_action=decision.action,
+                    decision_parameters=decision.parameters or {},
+                    result_data=result.data if hasattr(result, 'data') else result,
+                    error_msg=result.error if result.status == ExecutionStatus.FAILED else None,
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                    step_number=executed_steps + 1,
+                )
+
+                # Запись шага в agent_state - ДЕЛЕГИРОВАНО STEP
+                self.context_update_phase.update_agent_state(
+                    session_context=self.session_context,
+                    executed_steps=executed_steps,
+                    decision_action=decision.action,
+                    decision_parameters=decision.parameters or {},
+                    result_status=result.status,
+                    observation_signal=self.observation_signal_service.build_signal(
+                        result=result,
+                        action_name=decision.action,
+                        parameters=decision.parameters or {},
+                    ),
+                )
+
+                # Публикация событий
                 await event_bus.publish(
                     EventType.SESSION_STEP,
                     {
@@ -836,12 +508,11 @@ class AgentRuntime:
                     {
                         "step": executed_steps,
                         "action": decision.action,
-                        "observation": observation_signal,
+                        "observation": self.session_context.agent_state.last_observation,
                     },
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id,
                 )
-
                 await event_bus.publish(
                     EventType.INFO,
                     {
@@ -852,6 +523,8 @@ class AgentRuntime:
                     agent_id=self.agent_id,
                 )
 
+                executed_steps += 1
+
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:
                 await event_bus.publish(
@@ -860,7 +533,9 @@ class AgentRuntime:
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id,
                 )
-                pattern = self._load_pattern(decision.next_pattern)
+                # Switch pattern by re-initializing
+                self._pattern = None
+                pattern = await self._get_pattern()
 
             # Pattern решил FINISH/FAIL?
             if decision.type == DecisionType.FINISH:
@@ -888,63 +563,18 @@ class AgentRuntime:
                 f"Лимит шагов ({self.max_steps}) исчерпан. "
                 f"Пытаюсь сгенерировать итоговый ответ на основе {executed_steps} шагов..."
             )
+            
+            # Делегируем обработку FinalAnswerHandler (Фаза 2)
             try:
-                # Проверяем есть ли конфигурация для final_answer.generate
-                step_config = None
-                if self.agent_config and hasattr(self.agent_config, 'steps'):
-                    for sid, cfg in self.agent_config.steps.items():
-                        if cfg.capability == "final_answer.generate":
-                            step_config = cfg
-                            break
-                
-                if step_config:
-                    final_result = await self.safe_executor.execute_with_config(
-                        step_config=step_config,
-                        parameters={
-                            "format_type": "structured",
-                            "include_steps": True,
-                            "include_evidence": True,
-                            "max_sources": 20
-                        },
-                        context=ExecutionContext(
-                            session_context=self.session_context,
-                            session_id=self.session_context.session_id,
-                            agent_id=self.agent_id
-                        ),
-                        step_id=f"step_{sid}_final"
-                    )
-                else:
-                    final_result = await self.safe_executor.execute(
-                        capability_name="final_answer.generate",
-                        parameters={
-                            "format_type": "structured",
-                            "include_steps": True,
-                            "include_evidence": True,
-                            "max_sources": 20
-                        },
-                        context=ExecutionContext(
-                            session_context=self.session_context,
-                            session_id=self.session_context.session_id,
-                            agent_id=self.agent_id
-                        )
-                    )
-
-                if final_result.status == ExecutionStatus.COMPLETED:
-                    final_answer = ""
-                    if hasattr(final_result.data, 'get'):
-                        final_answer = final_result.data.get("final_answer", "")
-                    elif hasattr(final_result.data, 'final_answer'):
-                        final_answer = final_result.data.final_answer
-                    else:
-                        final_answer = str(final_result.data)
-                    self.session_context.commit_turn(
-                        user_query=self.goal,
-                        assistant_response=final_answer,
-                        tools_used=["final_answer.generate"]
-                    )
-                    self._sync_dialogue_history_back()
-                    return final_result
-
+                final_result = await self.final_answer_handler.generate_fallback_answer(
+                    session_context=self.session_context,
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                    goal=self.goal,
+                    executed_steps=executed_steps,
+                    sync_dialogue_callback=self._sync_dialogue_history_back,
+                )
+                return final_result
             except Exception as e:
                 self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
 
@@ -1021,141 +651,16 @@ class AgentRuntime:
         if hasattr(self.application_context, "get_all_skills"):
             all_caps = self.application_context.get_all_skills()
         elif hasattr(self.application_context, "get_all_capabilities"):
-            filter_config = self._get_capability_filter_config()
+            # Simple filter config - no special filtering needed
             all_caps = await self.application_context.get_all_capabilities(
-                include_hidden=filter_config.get("include_hidden", False),
-                component_types=filter_config.get("component_types", ["skill"]),
+                include_hidden=False,
+                component_types=["skill"],
             )
         else:
             return []
 
         # Фильтрация по флагу visiable в самом capability
         return [cap for cap in all_caps if getattr(cap, "visiable", True)]
-
-    def _get_capability_filter_config(self) -> dict:
-        """Получить конфигурацию фильтрации capability из AgentConfig."""
-        if hasattr(self, "agent_config") and self.agent_config:
-            cap_filter = getattr(self.agent_config, "capability_filter", None)
-            if cap_filter:
-                return cap_filter
-
-        return {}
-
-    def _load_pattern(self, pattern_name: str):
-        """Загрузить другой паттерн."""
-        from core.agent.behaviors.react.pattern import ReActPattern
-        from core.config.component_config import ComponentConfig
-
-        # Создаём простой ComponentConfig
-        component_config = ComponentConfig(
-            name=pattern_name or "react_pattern", variant_id="default"
-        )
-
-        return ReActPattern(
-            component_name=pattern_name or "react_pattern",
-            component_config=component_config,
-            application_context=self.application_context,
-            executor=self.executor,
-        )
-
-    def _record_empty_result(self, action_name: str, parameters: Dict[str, Any]) -> None:
-        """
-        Записать пустой результат в лог для активации режима исследования данных.
-
-        Вызывается при пустом SQL-результате для активации _build_exploration_rules.
-        """
-        import re
-        tables = []
-        filters = {}
-
-        sql = parameters.get("sql") or parameters.get("query") or ""
-        if sql:
-            match = re.search(r"\bfrom\s+([a-zA-Z0-9_\.]+)", sql, re.IGNORECASE)
-            if match:
-                tables.append(match.group(1))
-
-            where_match = re.search(
-                r"\bwhere\b(.*?)(\bgroup\s+by\b|\border\s+by\b|\blimit\b|$)",
-                sql,
-                re.IGNORECASE | re.DOTALL,
-            )
-            if where_match:
-                where_clause = where_match.group(1)
-                cond_pattern = re.compile(
-                    r"([a-zA-Z_][a-zA-Z0-9_\.]*)\s*(=|!=|<>|>|<|>=|<=|like|ilike)\s*"
-                    r"('(?:[^']|''|\\')*'|\d+(?:\.\d+)?|\b\d{4}-\d{2}-\d{2}\b)",
-                    re.IGNORECASE,
-                )
-                for cond_match in cond_pattern.finditer(where_clause):
-                    col = cond_match.group(1).split(".")[-1]
-                    op = cond_match.group(2)
-                    val = cond_match.group(3)
-                    filters[col] = f"{op} {val}"
-        elif parameters:
-            for key, value in parameters.items():
-                if key not in ("max_results", "max_rows", "query", "hints"):
-                    filters[key] = value
-
-        self.session_context.record_empty_result(
-            tool=action_name,
-            tables=tables,
-            filters=filters if filters else None,
-        )
-        self.log.info(
-            f"📊 Записан пустой результат: {action_name}, tables={tables}, filters={list(filters.keys())}",
-            extra={"event_type": EventType.INFO},
-        )
-
-    async def _run_sql_diagnostic(
-        self, decision: "Decision", result: "ExecutionResult"
-    ) -> None:
-        """
-        Запускает SQLDiagnosticService после пустого результата.
-
-        Выполняет диагностические запросы и инжектирует подсказки в agent_state.
-        """
-        import json
-
-        sql_query = decision.parameters.get("sql") or decision.parameters.get("query") or ""
-        if not sql_query or "sql" not in decision.action.lower():
-            return
-
-        try:
-            if not hasattr(self, "_sql_diagnostic"):
-                from core.agent.components.sql_diagnostic import SQLDiagnosticService
-
-                self._sql_diagnostic = SQLDiagnosticService(self.executor)
-
-            diag_result = await self._sql_diagnostic.analyze_empty_result(
-                sql_query=sql_query,
-                original_params=decision.parameters or {},
-            )
-
-            hints_text = "; ".join(diag_result.get("hints", []))
-            # Используем приватное поле для добавления ошибки (инкапсуляция)
-            self.session_context.agent_state._errors.append(
-                f"SQL_DIAGNOSTIC: {hints_text}"
-            )
-
-            if diag_result.get("corrected_params"):
-                self.session_context.agent_state.last_corrected_params = diag_result[
-                    "corrected_params"
-                ]
-                corrected_list = ", ".join(
-                    f"{k}={v}" for k, v in diag_result["corrected_params"].items()
-                )
-                self.log.info(
-                    f"🔍 Диагностика нашла исправления: {corrected_list}",
-                    extra={"event_type": EventType.INFO},
-                )
-
-            self.log.info(
-                f"🔍 SQL диагностика: {hints_text}",
-                extra={"event_type": EventType.INFO},
-            )
-
-        except Exception as e:
-            self.log.warning(f"Ошибка SQL диагностики: {e}")
 
     async def stop(self):
         """Остановка (для совместимости)."""

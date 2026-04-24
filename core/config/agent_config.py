@@ -35,6 +35,10 @@ class AgentConfig(BaseModel):
     session_id: Optional[str] = Field(default=None, description="ID сессии (runtime)")
     parent_trace_id: Optional[str] = Field(default=None, description="ID родительского трейса (runtime)")
     
+    # Бюджет токенов (Фаза 3)
+    max_total_tokens: int = Field(50000, description="Максимальное количество токенов на сессию")
+    context_token_threshold: int = Field(8000, description="Порог для сжатия контекста")
+    
     # Флаги для тестирования
     allow_inactive_resources: bool = Field(False)
     
