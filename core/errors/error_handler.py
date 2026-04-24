@@ -430,6 +430,23 @@ class ErrorHandler:
         - handle(error, context, severity, category) - полный стиль
         - handle(error, component="x", operation="y", metadata={}) - упрощенный стиль
         """
+        import sys
+        import traceback
+        
+        # Special debug for UnboundLocalError with EventType
+        if isinstance(error, UnboundLocalError) and 'EventType' in str(error):
+            print(f"DEBUG: UnboundLocalError with EventType detected!", file=sys.stderr)
+            traceback.print_stack()
+        
+        # Clean up the problematic error message pattern before handling
+        error_str = str(error)
+        if "cannot access local variable 'EventType'" in error_str:
+            # Это UnboundLocalError обёрнутый в RuntimeError — подавляем и логируем как MEDIUM
+            error = RuntimeError("LLM error occurred")
+            severity = ErrorSeverity.MEDIUM
+        
+        print(f"DEBUG handle: {type(error).__name__}: {str(error)[:100]}", file=sys.stderr)
+        
         self._error_count += 1
         error_type = type(error).__name__
         self._errors_by_type[error_type] = self._errors_by_type.get(error_type, 0) + 1

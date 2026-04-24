@@ -116,6 +116,8 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability],
     ) -> Decision:
         """Генерация решения через LLM."""
+        from core.infrastructure.event_bus.unified_event_bus import EventType
+        
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
