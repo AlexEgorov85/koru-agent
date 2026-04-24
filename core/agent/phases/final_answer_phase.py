@@ -122,7 +122,7 @@ class FinalAnswerPhase:
         """
         Generate fallback answer when step limit is reached.
         
-        Args:
+        ARGS:
             session_context: Session context with collected data
             session_id: Current session ID
             agent_id: Current agent ID
@@ -130,7 +130,7 @@ class FinalAnswerPhase:
             executed_steps: Number of steps executed
             sync_dialogue_callback: Callback to sync dialogue history
             
-        Returns:
+        RETURNS:
             ExecutionResult with fallback message
         """
         self.log.warning(
@@ -139,67 +139,48 @@ class FinalAnswerPhase:
         )
         
         try:
-            # Try to synthesize answer from collected data
-            from core.components.component_factory import ComponentFactory
-            from core.config.component_config import ComponentConfig
+            # Вызов final_answer.generate через executor (как в generate_final_answer)
+            from core.components.action_executor import ExecutionContext
             
-            behavior_configs = getattr(session_context, '_behavior_configs', {})
-            component_config = behavior_configs.get("final_answer")
+            execution_context = ExecutionContext(
+                session_context=session_context,
+                goal=goal,
+                decision_reasoning="Fallback after step limit reached",
+            )
             
-            if not component_config:
-                component_config = ComponentConfig(
-                    name="final_answer", variant_id="default"
-                )
+            result = await self.executor.execute_action(
+                action_name="final_answer.generate",
+                parameters={
+                    "goal": goal,
+                    "format_type": "structured",
+                    "include_steps": True,
+                    "include_evidence": True,
+                    "is_fallback": True,
+                    "executed_steps": executed_steps,
+                },
+                context=execution_context,
+            )
             
-            # Get infrastructure context
-            infra_ctx = None
-            if hasattr(session_context, '_infrastructure_context'):
-                infra_ctx = session_context._infrastructure_context
-            
-            factory = ComponentFactory(infrastructure_context=infra_ctx)
-            
-            app_ctx = getattr(session_context, '_application_context', None)
-            if app_ctx:
-                from core.agent.behaviors.evaluation.final_answer import FinalAnswerGenerator
-                
-                final_answer = await factory.create_and_initialize(
-                    component_class=FinalAnswerGenerator,
-                    name="final_answer",
-                    application_context=app_ctx,
-                    component_config=component_config,
-                )
-                
-                # Generate fallback answer
-                result = await final_answer.generate(
-                    session_context=session_context,
-                    goal=goal,
-                )
-                
-                if result:
+            if result and result.status == ExecutionStatus.COMPLETED:
+                data = result.data if hasattr(result, 'data') else result
+                fallback_text = ""
+                if isinstance(data, dict):
                     # Приоритет: final_answer (по контракту), затем answer (legacy)
-                    fallback_text = ""
-                    if isinstance(result, dict):
-                        fallback_text = result.get("final_answer") or result.get("answer", "")
-                    else:
-                        fallback_text = str(result)
-                        
-                    session_context.commit_turn(
-                        user_query=goal,
-                        assistant_response=fallback_text,
-                        tools_used=[],
-                    )
-                    sync_dialogue_callback()
+                    fallback_text = data.get("final_answer") or data.get("answer", "")
+                else:
+                    fallback_text = str(data)
                     
-                    return ExecutionResult.success(
-                        data=result if isinstance(result, dict) else {"final_answer": str(result)}
-                    )
-                    
+                session_context.commit_turn(
+                    user_query=goal,
+                    assistant_response=fallback_text,
+                    tools_used=["final_answer.generate"],
+                )
+                sync_dialogue_callback()
+                
+                return ExecutionResult.success(data=data)
+                
         except Exception as e:
-            if self.log:
-                self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
-            else:
-                import logging
-                logging.getLogger(__name__).error(f"Не удалось сгенерировать fallback-ответ: {e}")
+            self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}", exc_info=True)
         
         # Ultimate fallback
         fallback_msg = f"Не удалось достичь цели за {executed_steps} шагов."
@@ -211,7 +192,7 @@ class FinalAnswerPhase:
         session_context.commit_turn(
             user_query=goal,
             assistant_response=fallback_msg,
-            tools_used=[],
+            tools_used=[]
         )
         sync_dialogue_callback()
         

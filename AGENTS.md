@@ -333,13 +333,15 @@ if session_context.needs_exploration(threshold=2):
 
 | Component | ✅ Does | 🚫 Does NOT | 🔄 Communicates via |
 |-----------|---------|------------|-----------------|
-| `AgentRuntime` | Loop, step counter, final result | Decision-making, execution, parsing | `Pattern.decide()`, `Executor.execute()` |
+| `AgentFactory` | Component initialization, dependency injection | Business logic, execution | Creates all components for Runtime |
+| `AgentRuntime` | Thin orchestrator: loop, step counter, final result | Component creation, decision logic | Calls phases, `Pattern.decide()` |
 | `ReActPattern` | Context analysis, reasoning, decision generation | Direct LLM/DB calls, state storage | `LLMOrchestrator`, `SessionContext` (read) |
 | `ActionExecutor` | Routing, contract validation, metric collection | Business logic, decision logic | `Skill.execute_impl()`, `ContractRegistry` |
 | `SafeExecutor` | Retry, circuit breaker, idempotency | Response generation, parsing | `ActionExecutor`, `RetryPolicy` |
 | `LLMOrchestrator` | Provider calls, structured JSON parsing, timeout | Result interpretation | `LLMProvider`, `StructuredOutputParser` |
 | `SessionContext` | Step/observation/plan storage | Branching logic, fallback | Read/write via runtime |
 | Skills/Tools | Business logic, input validation | Agent loop, direct calls | `ActionExecutor` only |
+| Phases | Single responsibility (decision, execution, observation, etc.) | Creating components directly | `ActionExecutor`, injected dependencies |
 
 ---
 
@@ -380,10 +382,23 @@ if session_context.needs_exploration(threshold=2):
 ```
 Agent_v5/
 ├── core/
-│   ├── agent/                  # Runtime, factory, behaviors
+│   ├── agent/
+│   │   ├── runtime.py              # Thin orchestrator (loop only)
+│   │   ├── agent_factory.py       # Factory for component initialization
+│   │   ├── phases/               # Execution phases
+│   │   │   ├── decision_phase.py
+│   │   │   ├── policy_check_phase.py
+│   │   │   ├── execution_phase.py
+│   │   │   ├── observation_phase.py
+│   │   │   ├── context_update_phase.py
+│   │   │   ├── final_answer_phase.py
+│   │   │   └── error_recovery_phase.py
+│   │   ├── behaviors/             # Patterns (ReAct, Planning, etc.)
+│   │   └── components/           # Agent-specific components
 │   ├── application_context/    # ApplicationContext (isolated per agent)
 │   ├── config/
-│   │   └── defaults/           # InfraConfig ONLY (dev.yaml, prod.yaml)
+│   │   ├── defaults/           # InfraConfig ONLY (dev.yaml, prod.yaml)
+│   │   └── version.py          # Version info (5.43.0)
 │   ├── errors/                 # Exceptions + ErrorHandler
 │   ├── infrastructure/         # Providers, EventBus, logging, storage
 │   ├── models/                 # Data models and enums
@@ -391,7 +406,7 @@ Agent_v5/
 │   ├── services/               # Business services and skills
 │   └── session_context/        # Session/Step contexts
 ├── data/                       # SINGLE source of truth for resources
-│   └── prompts/                # Auto-discovery: data/prompts/{type}/{component}/{version}.yaml
+│   ├── prompts/                # Auto-discovery: data/prompts/{type}/{component}/{version}.yaml
 │   └── contracts/              # Auto-discovery: data/contracts/{type}/{component}/{version}.yaml
 ├── docs/
 │   ├── RULES.MD                # Full development rules
@@ -441,6 +456,9 @@ Agent_v5/
 |------|---------|
 | `docs/RULES.MD` | Full development rules and architecture docs |
 | `docs/architecture/ideal.md` | Target architecture blueprint and maturity checklist |
+| `core/agent/agent_factory.py` | Factory for component initialization |
+| `core/agent/runtime.py` | Thin orchestrator (loop only) |
+| `core/version.py` | Version info (5.43.0) |
 | `core/agent/components/base_component.py` | Base class for all components |
 | `core/agent/components/action_executor.py` | Component interaction gateway |
 | `core/infrastructure/logging/session.py` | `LoggingSession` — ядро файлового логирования |

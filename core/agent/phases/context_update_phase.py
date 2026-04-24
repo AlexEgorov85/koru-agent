@@ -29,10 +29,12 @@ class ContextUpdatePhase:
         log: logging.Logger,
         event_bus: Any,
         error_recovery_handler: Optional[Any] = None,
+        observation_signal_service: Optional[Any] = None,
     ):
         self.log = log
         self.event_bus = event_bus
         self.error_recovery_handler = error_recovery_handler
+        self.observation_signal_service = observation_signal_service
     
     async def save_and_register(
         self,
