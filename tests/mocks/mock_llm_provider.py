@@ -111,7 +111,7 @@ class MockLLMProvider(BaseLLMProvider):
             return LLMResponse(
                 content="",
                 finish_reason="error",
-                usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                tokens_used=0,
                 metadata={
                     "type": "error",
                     "error": response.get("error", "Unknown error"),
@@ -124,7 +124,7 @@ class MockLLMProvider(BaseLLMProvider):
             return LLMResponse(
                 content=response.get("answer", ""),
                 finish_reason="stop",
-                usage={"prompt_tokens": 0, "completion_tokens": 20, "total_tokens": 20},
+                tokens_used=20,
                 metadata={
                     "type": "finish",
                     "confidence": response.get("confidence", 0.8),
@@ -143,7 +143,7 @@ class MockLLMProvider(BaseLLMProvider):
             return LLMResponse(
                 content=json.dumps(action_data, ensure_ascii=False),
                 finish_reason="stop",
-                usage={"prompt_tokens": 0, "completion_tokens": 30, "total_tokens": 30},
+                tokens_used=30,
                 metadata={"type": "act"}
             )
 
@@ -154,7 +154,7 @@ class MockLLMProvider(BaseLLMProvider):
             return LLMResponse(
                 content=json.dumps(custom_content, ensure_ascii=False) if isinstance(custom_content, dict) else str(custom_content),
                 finish_reason="stop",
-                usage={"prompt_tokens": 0, "completion_tokens": 10, "total_tokens": 10},
+                tokens_used=10,
                 metadata={"type": "custom"}
             )
 
@@ -170,7 +170,7 @@ class MockLLMProvider(BaseLLMProvider):
             return LLMResponse(
                 content=json.dumps(action_data, ensure_ascii=False),
                 finish_reason="stop",
-                usage={"prompt_tokens": 0, "completion_tokens": 30, "total_tokens": 30},
+                tokens_used=30,
                 metadata={"type": "act"}
             )
 
