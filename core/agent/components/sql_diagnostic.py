@@ -5,27 +5,30 @@ SQL Diagnostic Service — пост-обработчик пустых SQL-рез
 - Выполняет диагностические запросы (COUNT, MIN/MAX, DISTINCT)
 - Использует ParamValidator для fuzzy matching значений фильтров
 - Возвращает структурированные подсказки для LLM
+- Обработка синтаксических ошибок и таймаутов (Фаза 3)
 
 ВЫЗОВ:
-После выполнения SQL с rowcount=0:
+После выполнения SQL с rowcount=0 или ошибкой:
     diag_result = await sql_diagnostic.analyze_empty_result(sql_query, params)
+    diag_result = await sql_diagnostic.analyze_error(sql_query, error_message)
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 from core.components.action_executor import ExecutionContext
 from core.components.skills.utils.param_validator import ParamValidator
-from core.models.data.execution import ExecutionStatus
+from core.models.data.execution import ExecutionStatus, ExecutionResult
 
 
 class SQLDiagnosticService:
     """
-    Сервис диагностики пустых SQL-результатов.
+    Сервис диагностики SQL-ошибок и пустых результатов.
 
     ОБЪЕДИНЯЕТ:
     - Автоматические диагностические запросы (COUNT, MIN/MAX)
     - ParamValidator для fuzzy/enum matching значений фильтров
+    - Анализ синтаксических ошибок и таймаутов (Фаза 3)
     """
 
     def __init__(self, executor):
@@ -205,4 +208,184 @@ class SQLDiagnosticService:
             if "_year" in key_lower and col_check.endswith("_year"):
                 return key
 
+        return None
+
+    # ========================================================================
+    # ERROR DIAGNOSTICS (Фаза 3)
+    # ========================================================================
+
+    async def analyze_error(
+        self,
+        sql_query: str,
+        error_message: str,
+        original_params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Анализирует ошибку выполнения SQL и возвращает рекомендации.
+        
+        ОБРАБАТЫВАЕТ:
+        - SyntaxError: ошибки синтаксиса SQL
+        - TimeoutError: превышение времени выполнения
+        - OperationalError: проблемы с подключением/блокировками
+        - Другие ошибки выполнения
+        
+        ПАРАМЕТРЫ:
+        - sql_query: исходный SQL запрос
+        - error_message: текст ошибки
+        - original_params: параметры запроса (опционально)
+        
+        ВОЗВРАЩАЕТ:
+        - Dict с ключами:
+          - error_type: тип ошибки (syntax|timeout|operational|other)
+          - hints: список рекомендаций для LLM
+          - suggested_fix: предложенное исправление запроса
+          - retry_possible: можно ли повторить с изменениями
+        """
+        hints = []
+        suggested_fix = None
+        retry_possible = False
+        error_type = "other"
+        
+        # Нормализуем сообщение об ошибке
+        error_lower = error_message.lower()
+        
+        # --------------------------------------------------------------------
+        # Синтаксические ошибки
+        # --------------------------------------------------------------------
+        syntax_patterns = [
+            r"syntax error",
+            r"parse error",
+            r"invalid sql",
+            r"incorrect syntax",
+            r"unexpected token",
+            r"missing keyword",
+        ]
+        
+        if any(re.search(pattern, error_lower) for pattern in syntax_patterns):
+            error_type = "syntax"
+            hints.append("Обнаружена синтаксическая ошибка в SQL запросе")
+            
+            # Эвристики для распространённых ошибок
+            if "select*" in sql_query.replace(" ", ""):
+                hints.append("Возможно, пропущен пробел между SELECT и *")
+                suggested_fix = sql_query.replace("SELECT*", "SELECT *")
+                retry_possible = True
+            
+            if re.search(r"FROM\s*,", sql_query, re.IGNORECASE):
+                hints.append("Обнаружен устаревший стиль JOIN через запятую. Используйте явный JOIN")
+            
+            if re.search(r"WHERE\s+AND", sql_query, re.IGNORECASE):
+                hints.append("Лишнее WHERE перед AND. Проверьте условия фильтрации")
+                retry_possible = True
+            
+            if re.search(r"GROUP\s+BY\s*,", sql_query, re.IGNORECASE):
+                hints.append("Лишняя запятая после GROUP BY")
+            
+            # Предлагаем использовать EXPLAIN для отладки
+            hints.append("Используй EXPLAIN для анализа плана выполнения запроса")
+            
+            if sql_query and not sql_query.upper().startswith("EXPLAIN"):
+                suggested_fix = f"EXPLAIN {sql_query}"
+                retry_possible = True
+        
+        # --------------------------------------------------------------------
+        # Таймауты
+        # --------------------------------------------------------------------
+        timeout_patterns = [
+            r"timeout",
+            r"timed out",
+            r"execution time exceeded",
+            r"query took too long",
+            r"lock wait timeout",
+        ]
+        
+        if any(re.search(pattern, error_lower) for pattern in timeout_patterns):
+            error_type = "timeout"
+            hints.append("Превышено время выполнения запроса")
+            
+            # Извлекаем таблицу из запроса
+            table_match = re.search(r"FROM\s+([^\s,]+)", sql_query, re.IGNORECASE)
+            if table_match:
+                table_name = table_match.group(1)
+                hints.append(f"Таблица `{table_name}` может содержать много данных")
+            
+            # Рекомендации по оптимизации
+            hints.append("Добавь LIMIT для ограничения количества строк")
+            hints.append("Проверь наличие индексов по полям в WHERE")
+            hints.append("Избегай SELECT *, указывай конкретные колонки")
+            
+            # Предлагаем оптимизированный вариант
+            if "LIMIT" not in sql_query.upper():
+                suggested_fix = f"{sql_query.rstrip(';')} LIMIT 100"
+                retry_possible = True
+            
+            if re.search(r"SELECT\s+\*", sql_query, re.IGNORECASE):
+                hints.append("Замени SELECT * на конкретные колонки для ускорения")
+        
+        # --------------------------------------------------------------------
+        # Операционные ошибки (блокировки, подключения)
+        # --------------------------------------------------------------------
+        operational_patterns = [
+            r"connection",
+            r"locked",
+            r"deadlock",
+            r"cannot connect",
+            r"access denied",
+            r"permission denied",
+        ]
+        
+        if any(re.search(pattern, error_lower) for pattern in operational_patterns):
+            error_type = "operational"
+            hints.append("Операционная ошибка: проблема с подключением или блокировкой")
+            
+            if "lock" in error_lower or "deadlock" in error_lower:
+                hints.append("Таблица заблокирована другой транзакцией")
+                hints.append("Повтори запрос через несколько секунд")
+                retry_possible = True
+            
+            if "permission" in error_lower or "access denied" in error_lower:
+                hints.append("Недостаточно прав для выполнения операции")
+                hints.append("Проверь права доступа к таблице")
+        
+        # --------------------------------------------------------------------
+        # Общие рекомендации
+        # --------------------------------------------------------------------
+        if not hints:
+            hints.append("Не удалось определить конкретную причину ошибки")
+            hints.append("Проверь логи базы данных для детальной информации")
+        
+        # Всегда предлагаем упростить запрос как fallback
+        if not suggested_fix and sql_query:
+            # Упрощаем: убираем JOIN, оставляем только базовый SELECT
+            simple_select = re.search(
+                r"SELECT\s+(.+?)\s+FROM\s+(\w+)",
+                sql_query,
+                re.IGNORECASE,
+            )
+            if simple_select:
+                columns, table = simple_select.groups()
+                suggested_fix = f"SELECT {columns} FROM {table} LIMIT 10"
+                retry_possible = True
+                hints.append("Попробуй упрощённую версию запроса без JOIN и подзапросов")
+        
+        return {
+            "status": "error_diagnosed",
+            "error_type": error_type,
+            "original_error": error_message,
+            "hints": hints,
+            "suggested_fix": suggested_fix,
+            "retry_possible": retry_possible,
+            "table_name": self._extract_table_name(sql_query),
+        }
+
+    def _extract_table_name(self, sql_query: str) -> Optional[str]:
+        """Извлекает имя таблицы из SQL запроса."""
+        if not sql_query:
+            return None
+        
+        # Основная таблица из FROM
+        table_match = re.search(r"FROM\s+([^\s,(]+)", sql_query, re.IGNORECASE)
+        if table_match:
+            return table_match.group(1).strip('"').strip("'")
+        
         return None

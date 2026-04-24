@@ -1,0 +1,27 @@
+{
+  "name": "default",
+  "description": "Стандартный сценарий: 2 действия + завершение",
+  "responses": [
+    {
+      "type": "act",
+      "action": "sql_tool.execute",
+      "parameters": {
+        "query": "SELECT COUNT(*) FROM users"
+      },
+      "reasoning": "Нужно получить количество пользователей"
+    },
+    {
+      "type": "act",
+      "action": "sql_tool.execute",
+      "parameters": {
+        "query": "SELECT * FROM users LIMIT 10"
+      },
+      "reasoning": "Получаем первые 10 записей"
+    },
+    {
+      "type": "finish",
+      "answer": "Данные успешно получены и обработаны.",
+      "confidence": 0.95
+    }
+  ]
+}

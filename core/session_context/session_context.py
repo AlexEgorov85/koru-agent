@@ -3,11 +3,12 @@
 ОСОБЕННОСТИ:
 - Нет лишних зависимостей и сложной логики
 - Легко понять и использовать
+- Поддержка сжатия контекста для длинных сессий (Фаза 3)
 """
 
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.data_context import DataContext
@@ -509,3 +510,175 @@ class SessionContext(BaseSessionContext):
         if not self._empty_query_log:
             return False
         return len(self._empty_query_log) >= threshold
+
+    # ========================================================================
+    # CONTEXT COMPRESSION (Фаза 3)
+    # ========================================================================
+
+    def estimate_context_tokens(self, text: str) -> int:
+        """
+        Оценка количества токенов в тексте.
+        
+        ЭВРИСТИКА: 1 токен ≈ 4 символа (для русского/английского текста).
+        
+        ПАРАМЕТРЫ:
+        - text: текст для оценки
+        
+        ВОЗВРАЩАЕТ:
+        - int: примерное количество токенов
+        """
+        if not text:
+            return 0
+        return len(text) // 4
+
+    def compress_history(
+        self,
+        max_tokens: int = 8000,
+        preserve_last_n: int = 5,
+        llm_summarizer=None,
+    ) -> Tuple[int, int]:
+        """
+        Сжатие истории шагов при превышении лимита токенов.
+        
+        СТРАТЕГИЯ:
+        1. Сохраняем последние N шагов без изменений
+        2. Шаги 1..(N-preserve) заменяем на LLM-саммари
+        3. Критичные observation (data_quality=high) сохраняются
+        
+        ПАРАМЕТРЫ:
+        - max_tokens: максимальное количество токенов
+        - preserve_last_n: количество последних шагов для сохранения
+        - llm_summarizer: опциональный LLM-сервис для суммаризации
+        
+        ВОЗВРАЩАЕТ:
+        - Tuple[int, int]: (было токенов, стало токенов)
+        """
+        steps = list(self.step_context.steps)
+        if len(steps) <= preserve_last_n:
+            return (0, 0)  # Нечего сжимать
+        
+        # Оцениваем текущий размер контекста
+        total_tokens_before = sum(
+            self.estimate_context_tokens(str(step.summary)) +
+            self.estimate_context_tokens(str(step.parameters or {})) +
+            self.estimate_context_tokens(str(step.observation_item_ids))
+            for step in steps
+        )
+        
+        if total_tokens_before <= max_tokens:
+            return (total_tokens_before, total_tokens_before)  # Лимит не превышен
+        
+        # Определяем шаги для сжатия
+        steps_to_compress = steps[:-preserve_last_n] if preserve_last_n > 0 else steps
+        steps_to_preserve = steps[-preserve_last_n:] if preserve_last_n > 0 else []
+        
+        # Формируем текст для суммаризации
+        summary_text_parts = []
+        for i, step in enumerate(steps_to_compress):
+            status_icon = "✓" if step.status == ExecutionStatus.COMPLETED else "✗"
+            summary_text_parts.append(
+                f"Шаг {step.step_number} [{status_icon}]: {step.capability_name} → {step.summary}"
+            )
+        
+        summary_text = " | ".join(summary_text_parts)
+        
+        # Генерируем саммари
+        if llm_summarizer:
+            compressed_summary = llm_summarizer(summary_text)
+        else:
+            # Rule-based саммари (fallback без LLM)
+            completed_count = sum(
+                1 for s in steps_to_compress if s.status == ExecutionStatus.COMPLETED
+            )
+            failed_count = len(steps_to_compress) - completed_count
+            steps_count = len(steps_to_compress)
+            steps_count = len(steps_to_compress)
+            compressed_summary = (
+                f"Шаги 1-{steps_count}: выполнено {completed_count}, "
+                f"ошибок {failed_count}. Данные собраны по запросу."
+            )
+            steps_count = len(steps_to_compress)
+            compressed_summary = (
+                f"Шаги 1-{steps_count}: выполнено {completed_count}, "
+                f"ошибок {failed_count}. Данные собраны по запросу."
+            )
+            steps_count = len(steps_to_compress)
+            compressed_summary = (
+                f"Шаги 1-{steps_count}: выполнено {completed_count}, "
+                f"ошибок {failed_count}. Данные собраны по запросу."
+            )
+            steps_count = len(steps_to_compress)
+            compressed_summary = (
+                f"Шаги 1-{steps_count}: выполнено {completed_count}, "
+                f"ошибок {failed_count}. Данные собраны по запросу."
+            )
+            steps_count = len(steps_to_compress)
+            compressed_summary = (
+                f"Шаги 1-{steps_count}: выполнено {completed_count}, "
+                f"ошибок {failed_count}. Данные собраны по запросу."
+            )
+        
+        # Создаём специальный context item с саммари
+        from core.session_context.model import ContextItemType
+        
+        summary_item = ContextItem(
+            id=f"summary_{uuid.uuid4().hex[:8]}",
+            item_type=ContextItemType.OBSERVATION,
+            content={
+                "type": "compressed_history",
+                "summary": compressed_summary,
+                "original_steps_count": len(steps_to_compress),
+                "compressed_at": datetime.now().isoformat(),
+            },
+            metadata=ContextItemMetadata(
+                source="context_compression",
+                step_number=steps_to_compress[0].step_number if steps_to_compress else 0,
+                confidence=0.95,
+            ),
+        )
+        
+        # Добавляем саммари в data_context
+        self.data_context.add_item(summary_item)
+        
+        # Очищаем старые шаги из step_context
+        for step in steps_to_compress:
+            self.step_context.steps.remove(step)
+        
+        # Обновляем номерацию оставшихся шагов
+        for i, step in enumerate(self.step_context.steps):
+            step.step_number = i + 1
+        
+        # Оцениваем новый размер
+        total_tokens_after = sum(
+            self.estimate_context_tokens(str(step.summary)) +
+            self.estimate_context_tokens(str(step.parameters or {})) +
+            self.estimate_context_tokens(str(step.observation_item_ids))
+            for step in self.step_context.steps
+        ) + self.estimate_context_tokens(compressed_summary)
+        
+        return (total_tokens_before, total_tokens_after)
+
+    def get_context_token_estimate(self) -> int:
+        """
+        Оценка текущего размера контекста в токенах.
+        
+        ВОЗВРАЩАЕТ:
+        - int: примерное количество токенов
+        """
+        total = 0
+        
+        # Считаем токены шагов
+        for step in self.step_context.steps:
+            total += self.estimate_context_tokens(str(step.summary))
+            total += self.estimate_context_tokens(str(step.parameters or {}))
+            if step.observation_item_ids:
+                for obs_id in step.observation_item_ids:
+                    obs_item = self.get_context_item(obs_id)
+                    if obs_item:
+                        total += self.estimate_context_tokens(str(obs_item.content))
+        
+        # Считаем токены dialogue history
+        for msg in self.dialogue_history.messages:
+            total += self.estimate_context_tokens(msg.content)
+        
+        return total

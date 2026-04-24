@@ -5,6 +5,10 @@
 - Отслеживание ошибок, повторов действий, пустых результатов
 - Интеграция с SessionContext через composition
 - Используется для Reflection и Policy проверок
+
+ОПТИМИЗАЦИЯ (Фаза 1):
+- Метрика observer_skip_rate для мониторинга экономии LLM-вызовов
+- Счётчик total_llm_calls для отслеживания количества вызовов LLM
 """
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
@@ -24,6 +28,8 @@ class AgentMetrics:
     - last_observation: последнее наблюдение от Observer
     - recent_actions: последние N действий для детектирования повторов
     - action_hashes: хеши действий с параметрами для точного детектирования повторов
+    - observer_llm_calls: количество вызовов LLM в Observer
+    - observer_skips: количество пропущенных LLM-вызовов (rule-based)
     """
     step_number: int = 0
     errors: List[Dict[str, Any]] = field(default_factory=list)
@@ -33,6 +39,10 @@ class AgentMetrics:
     recent_actions: List[str] = field(default_factory=list)
     max_recent_actions: int = 10
     action_hashes: List[str] = field(default_factory=list)
+    
+    # Метрики Observer (Фаза 1)
+    observer_llm_calls: int = 0
+    observer_skips: int = 0
 
     def _hash_action(self, action_name: str, parameters: Dict[str, Any]) -> str:
         """Создаёт хеш действия учитывая имя и параметры."""
@@ -232,11 +242,46 @@ class AgentMetrics:
     
     def to_dict(self) -> Dict[str, Any]:
         """Конвертация в словарь для prompt."""
+        observer_skip_rate = (
+            self.observer_skips / (self.observer_llm_calls + self.observer_skips)
+            if (self.observer_llm_calls + self.observer_skips) > 0
+            else 0.0
+        )
+        
         return {
             "step_number": self.step_number,
             "total_errors": len(self.errors),
             "empty_results_count": self.empty_results_count,
             "repeated_actions_count": self.repeated_actions_count,
             "recent_actions": self.get_recent_actions(5),
-            "last_errors": self.get_errors_summary(3)
+            "last_errors": self.get_errors_summary(3),
+            # Метрики Observer (Фаза 1)
+            "observer_llm_calls": self.observer_llm_calls,
+            "observer_skips": self.observer_skips,
+            "observer_skip_rate": round(observer_skip_rate, 3)
         }
+    
+    def record_observer_call(self, used_llm: bool):
+        """
+        Регистрация вызова Observer.
+        
+        ПАРАМЕТРЫ:
+        - used_llm: True если был вызван LLM, False если использован rule-based
+        """
+        if used_llm:
+            self.observer_llm_calls += 1
+        else:
+            self.observer_skips += 1
+    
+    @property
+    def observer_skip_rate(self) -> float:
+        """
+        Получить процент пропущенных LLM-вызовов.
+        
+        ВОЗВРАЩАЕТ:
+        - float: доля rule-based наблюдений (0.0-1.0)
+        """
+        total = self.observer_llm_calls + self.observer_skips
+        if total == 0:
+            return 0.0
+        return self.observer_skips / total

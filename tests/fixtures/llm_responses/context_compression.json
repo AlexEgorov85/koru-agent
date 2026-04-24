@@ -1,0 +1,29 @@
+{
+  "name": "context_compression",
+  "description": "Длинный сценарий для тестирования сжатия контекста (25+ шагов)",
+  "responses": [
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 1"}, "reasoning": "Шаг 1"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 2"}, "reasoning": "Шаг 2"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 3"}, "reasoning": "Шаг 3"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 4"}, "reasoning": "Шаг 4"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 5"}, "reasoning": "Шаг 5"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 6"}, "reasoning": "Шаг 6"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 7"}, "reasoning": "Шаг 7"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 8"}, "reasoning": "Шаг 8"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 9"}, "reasoning": "Шаг 9"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 10"}, "reasoning": "Шаг 10"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 11"}, "reasoning": "Шаг 11"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 12"}, "reasoning": "Шаг 12"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 13"}, "reasoning": "Шаг 13"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 14"}, "reasoning": "Шаг 14"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 15"}, "reasoning": "Шаг 15"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 16"}, "reasoning": "Шаг 16"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 17"}, "reasoning": "Шаг 17"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 18"}, "reasoning": "Шаг 18"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 19"}, "reasoning": "Шаг 19"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 20"}, "reasoning": "Шаг 20"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 21"}, "reasoning": "Шаг 21"},
+    {"type": "act", "action": "sql_tool.execute", "parameters": {"query": "SELECT 22"}, "reasoning": "Шаг 22"},
+    {"type": "finish", "answer": "Длинная сессия успешно завершена после 22 шагов.", "confidence": 0.9}
+  ]
+}
