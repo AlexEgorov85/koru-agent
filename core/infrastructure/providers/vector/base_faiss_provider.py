@@ -11,7 +11,9 @@ class IFAISSProvider(ABC):
     Интерфейс FAISS провайдера.
     
     Пример использования:
-        provider = FAISSProvider(dimension=384, metric="IP")
+        # dimension читается из InfraConfig.vector_search.embedding.dimension
+        vs_config = InfraConfig.from_yaml("prod")
+        provider = FAISSProvider(dimension=vs_config.embedding.dimension, metric="IP")
         await provider.add(vectors, metadata)
         results = await provider.search(query_vector, top_k=10)
     """

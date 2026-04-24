@@ -68,8 +68,9 @@ infrastructure:
 
 2. Инициализация FAISS провайдеров в InfraConfig:
 ```python
-# Пример инициализации
-faiss_provider = FaissProvider('authors', dimension=384)
+# dimension читается из InfraConfig.vector_search.embedding.dimension
+vs_config = InfraConfig.from_yaml("prod")
+faiss_provider = FAISSProvider(dimension=vs_config.embedding.dimension)
 infra.set_faiss_provider('authors', faiss_provider)
 ```
 

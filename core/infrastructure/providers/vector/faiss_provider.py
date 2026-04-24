@@ -31,7 +31,7 @@ class FAISSProvider(IFAISSProvider):
     
     def __init__(
         self,
-        dimension: int = 384,
+        dimension: int,
         config: Optional[FAISSConfig] = None
     ):
         if not FAISS_AVAILABLE:
