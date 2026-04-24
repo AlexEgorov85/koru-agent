@@ -2,33 +2,39 @@
 Типы событий для системы логирования.
 
 АРХИТЕКТУРА:
-- ОТДЕЛЬНЫЙ enum от EventType (EventBus) — логирование не зависит от шины
-- Используется через extra={"event_type": LogEventType.XXX} в logging вызовах
-- Фильтруется EventTypeFilter в StreamHandler (консоль/UI)
+- LogEventType — DEPRECATED алиас на EventType для обратной совместимости
+- Используйте напрямую EventType из core.infrastructure.event_bus.unified_event_bus
+- Для проверки на логируемость: event_type.is_loggable
 
 USAGE:
 ```python
-import logging
-from core.infrastructure.logging.event_types import LogEventType
+# НОВЫЙ СПОСОБ (рекомендуется)
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
-log = logging.getLogger(__name__)
-log.info("Поиск информации...", extra={"event_type": LogEventType.USER_PROGRESS})
+log.info("Поиск информации...", extra={"event_type": EventType.USER_PROGRESS})
+
+# СТАРЫЙ СПОСОБ (DEPRECATED, будет удалён)
+from core.infrastructure.event_bus.unified_event_bus import EventType
+
+log.info("Поиск информации...", extra={"event_type": EventType.USER_PROGRESS})
 ```
 """
 from enum import Enum
 
 
+# =============================================================================
+# DEPRECATED: LogEventType — алиас на EventType для обратной совместимости
+# =============================================================================
+# Этот класс будет удалён в следующей мажорной версии.
+# Используйте напрямую EventType из core.infrastructure.event_bus.unified_event_bus
+
+
 class LogEventType(str, Enum):
     """
-    Типы событий для логирования.
-
-    КАТЕГОРИИ:
-    - USER_* — вывод в UI/терминал для пользователя
-    - AGENT_* — действия агента
-    - TOOL_* — вызовы инструментов
-    - LLM_* — LLM вызовы
-    - DB_* — запросы к БД
-    - SYSTEM_* — системные события
+    DEPRECATED: Использовать EventType из unified_event_bus.
+    
+    Этот класс оставлен только для обратной совместимости.
+    Все новые компоненты должны использовать EventType.
     """
 
     # === Пользовательский интерфейс ===
@@ -84,3 +90,14 @@ class LogEventType(str, Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
+    @classmethod
+    def to_event_type(cls, log_event_type: "LogEventType") -> "EventType":
+        """
+        Конвертация LogEventType в EventType.
+        
+        DEPRECATED: Используйте напрямую EventType
+        """
+        from core.infrastructure.event_bus.unified_event_bus import EventType
+        
+        return EventType.from_log_event_type(log_event_type.name)

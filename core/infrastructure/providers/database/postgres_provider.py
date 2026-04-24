@@ -11,7 +11,7 @@ import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class PostgreSQLProvider(BaseDBProvider):
@@ -34,7 +34,7 @@ class PostgreSQLProvider(BaseDBProvider):
         Асинхронная инициализация пула соединений.
         """
         try:
-            self.log.info("Создание пула соединений с PostgreSQL: %s:%s/%s", self.config.host, self.config.port, self.config.database, extra={"event_type": LogEventType.SYSTEM_INIT})
+            self.log.info("Создание пула соединений с PostgreSQL: %s:%s/%s", self.config.host, self.config.port, self.config.database, extra={"event_type": EventType.SYSTEM_INIT})
             start_time = time.time()
 
             # Создаем пул соединений
@@ -57,19 +57,19 @@ class PostgreSQLProvider(BaseDBProvider):
             # Проверяем подключение
             async with self.pool.acquire() as conn:
                 version = await conn.fetchval("SELECT version()")
-                self.log.info("Подключено к PostgreSQL: %s", version, extra={"event_type": LogEventType.SYSTEM_INIT})
+                self.log.info("Подключено к PostgreSQL: %s", version, extra={"event_type": EventType.SYSTEM_INIT})
 
             self.is_initialized = True
             self.health_status = DBHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
             init_time = time.time() - start_time
-            self.log.info("PostgreSQL провайдер успешно инициализирован за %.2f секунд", init_time, extra={"event_type": LogEventType.SYSTEM_INIT})
+            self.log.info("PostgreSQL провайдер успешно инициализирован за %.2f секунд", init_time, extra={"event_type": EventType.SYSTEM_INIT})
 
             return True
 
         except Exception as e:
-            self.log.error("Ошибка инициализации PostgreSQL провайдера: %s", str(e), extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+            self.log.error("Ошибка инициализации PostgreSQL провайдера: %s", str(e), extra={"event_type": EventType.DB_ERROR}, exc_info=True)
             self.health_status = DBHealthStatus.UNHEALTHY
             return False
 
@@ -88,7 +88,7 @@ class PostgreSQLProvider(BaseDBProvider):
             return conn
         except Exception:
             # Подключение мертво — пересоздаём пул
-            self.log.warning("Обнаружено мёртвое подключение, пересоздаю пул...", extra={"event_type": LogEventType.WARNING})
+            self.log.warning("Обнаружено мёртвое подключение, пересоздаю пул...", extra={"event_type": EventType.WARNING})
             try:
                 await self.pool.close()
             except Exception:
@@ -106,15 +106,15 @@ class PostgreSQLProvider(BaseDBProvider):
         async with self._lock:
             try:
                 if self.pool:
-                    self.log.info("Завершение работы пула соединений PostgreSQL...", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                    self.log.info("Завершение работы пула соединений PostgreSQL...", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
                     await self.pool.close()
                     self.pool = None
 
                 self.is_initialized = False
-                self.log.info("PostgreSQL провайдер успешно завершил работу", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                self.log.info("PostgreSQL провайдер успешно завершил работу", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
             except Exception as e:
-                self.log.error("Ошибка при завершении работы PostgreSQL провайдера: %s", str(e), extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+                self.log.error("Ошибка при завершении работы PostgreSQL провайдера: %s", str(e), extra={"event_type": EventType.DB_ERROR}, exc_info=True)
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -156,7 +156,7 @@ class PostgreSQLProvider(BaseDBProvider):
             }
 
         except Exception as e:
-            self.log.error("Ошибка health check для PostgreSQL: %s", str(e), extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+            self.log.error("Ошибка health check для PostgreSQL: %s", str(e), extra={"event_type": EventType.DB_ERROR}, exc_info=True)
             return {
                 "status": DBHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -175,21 +175,21 @@ class PostgreSQLProvider(BaseDBProvider):
 
         # [DB_DEBUG] 3.1. Входные параметры
         self.log.info("[DB_DEBUG] execute_query вызван с query=%s, params=%s",
-                      query, params, extra={"event_type": LogEventType.DB_QUERY})
+                      query, params, extra={"event_type": EventType.DB_QUERY})
 
         try:
             conn = await self._acquire_valid_connection()
             try:
                 # [DB_DEBUG] 3.2. Выполнение запроса
-                self.log.debug("Выполнение SQL: %s", query, extra={"event_type": LogEventType.DB_QUERY})
-                self.log.debug("Params: %s, type: %s", params, type(params), extra={"event_type": LogEventType.DB_QUERY})
+                self.log.debug("Выполнение SQL: %s", query, extra={"event_type": EventType.DB_QUERY})
+                self.log.debug("Params: %s, type: %s", params, type(params), extra={"event_type": EventType.DB_QUERY})
 
-                self.log.info("[DB_DEBUG] выполнение запроса...", extra={"event_type": LogEventType.DB_QUERY})
+                self.log.info("[DB_DEBUG] выполнение запроса...", extra={"event_type": EventType.DB_QUERY})
 
                 # Логируем запрос при необходимости
-                self.log.debug("Executing query: %s", query, extra={"event_type": LogEventType.DB_QUERY})
+                self.log.debug("Executing query: %s", query, extra={"event_type": EventType.DB_QUERY})
                 if params:
-                    self.log.debug("Query params: %s", params, extra={"event_type": LogEventType.DB_QUERY})
+                    self.log.debug("Query params: %s", params, extra={"event_type": EventType.DB_QUERY})
 
                 # Выполняем запрос
                 if params:
@@ -219,8 +219,8 @@ class PostgreSQLProvider(BaseDBProvider):
                         converted_query = query
                         for i in range(len(params)):
                             converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        self.log.debug("After replacing %d: %s", i+1, converted_query, extra={"event_type": LogEventType.DB_QUERY})
-                        self.log.debug("Final query: %s", converted_query, extra={"event_type": LogEventType.DB_QUERY})
+                        self.log.debug("After replacing %d: %s", i+1, converted_query, extra={"event_type": EventType.DB_QUERY})
+                        self.log.debug("Final query: %s", converted_query, extra={"event_type": EventType.DB_QUERY})
                         result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров
@@ -233,7 +233,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 columns = list(rows[0].keys()) if rows else []
 
                 # [DB_DEBUG] 3.2. Результат выполнения
-                self.log.info("[DB_DEBUG] запрос выполнен, rows=%d", len(rows) if rows else 0, extra={"event_type": LogEventType.DB_QUERY})
+                self.log.info("[DB_DEBUG] запрос выполнен, rows=%d", len(rows) if rows else 0, extra={"event_type": EventType.DB_QUERY})
 
                 # Создаем результат
                 query_result = DBQueryResult(
@@ -252,7 +252,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 # [DB_DEBUG] 3.3. Возврат DBQueryResult
                 self.log.info("[DB_DEBUG] возвращаем DBQueryResult: success=%s, error=%s, rows=%d",
                               query_result.success, query_result.error, len(query_result.rows),
-                              extra={"event_type": LogEventType.DB_QUERY})
+                              extra={"event_type": EventType.DB_QUERY})
 
                 # Обновляем метрики
                 self._update_metrics(query_result.execution_time)
@@ -266,11 +266,11 @@ class PostgreSQLProvider(BaseDBProvider):
         except Exception as e:
             # [DB_DEBUG] 3.2. Исключение при выполнении
             self.log.error("[DB_DEBUG] исключение при выполнении запроса: %s", str(e),
-                           extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
-            self.log.error("Ошибка выполнения запроса: %s", str(e), extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
-            self.log.error("Query was: %s", query, extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+                           extra={"event_type": EventType.DB_ERROR}, exc_info=True)
+            self.log.error("Ошибка выполнения запроса: %s", str(e), extra={"event_type": EventType.DB_ERROR}, exc_info=True)
+            self.log.error("Query was: %s", query, extra={"event_type": EventType.DB_ERROR}, exc_info=True)
             if params:
-                self.log.error("Params were: %s", params, extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+                self.log.error("Params were: %s", params, extra={"event_type": EventType.DB_ERROR}, exc_info=True)
 
             self._update_metrics(time.time() - start_time, success=False)
 
@@ -290,7 +290,7 @@ class PostgreSQLProvider(BaseDBProvider):
             )
             self.log.info("[DB_DEBUG] возвращаем DBQueryResult: success=%s, error=%s, rows=%d",
                           error_result.success, error_result.error, len(error_result.rows),
-                          extra={"event_type": LogEventType.DB_QUERY})
+                          extra={"event_type": EventType.DB_QUERY})
             return error_result
 
     @asynccontextmanager
@@ -364,7 +364,7 @@ class PostgreSQLProvider(BaseDBProvider):
                     await self.pool.release(conn)
 
         except Exception as e:
-            self.log.error("Ошибка выполнения запроса: %s", str(e), extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
+            self.log.error("Ошибка выполнения запроса: %s", str(e), extra={"event_type": EventType.DB_ERROR}, exc_info=True)
             self._update_metrics(time.time() - start_time, success=False)
             raise
 

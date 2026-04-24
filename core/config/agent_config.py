@@ -10,6 +10,9 @@ class AgentConfig(BaseModel):
     """
     Конфигурация агента с фиксированными версиями промптов и контрактов.
     Создаётся ОДИН РАЗ при запуске агента и не изменяется во время выполнения.
+    
+    ВАЖНО: Это тонкая проекция AppConfig для runtime-параметров.
+    Параметры max_steps, temperature, max_retries берутся из AppConfig.agent_defaults.
     """
     model_config = ConfigDict(frozen=True)  # Неизменяемая конфигурация
     
@@ -27,10 +30,10 @@ class AgentConfig(BaseModel):
     # Конфигурация шагов: {step_id: StepConfig}
     steps: Dict[str, StepConfig] = Field(default_factory=dict)
     
-    # Параметры поведения агента
-    max_steps: int = Field(10, ge=1, le=50)
-    max_retries: int = Field(3, ge=0, le=10)
-    temperature: float = Field(0.7, ge=0.0, le=1.0)
+    # Runtime-параметры (не дублируются, берутся из AppConfig)
+    goal: Optional[str] = Field(default=None, description="Цель агента (runtime)")
+    session_id: Optional[str] = Field(default=None, description="ID сессии (runtime)")
+    parent_trace_id: Optional[str] = Field(default=None, description="ID родительского трейса (runtime)")
     
     # Флаги для тестирования
     allow_inactive_resources: bool = Field(False)
@@ -42,6 +45,23 @@ class AgentConfig(BaseModel):
             "component_types": ["skill"],
         }
     )
+    
+    @classmethod
+    def from_app_config(cls, app_config: 'AppConfig', **runtime_params) -> 'AgentConfig':
+        """
+        Создать AgentConfig из AppConfig (тонкая проекция).
+        
+        ARGS:
+        - app_config: Исходная конфигурация приложения
+        - runtime_params: Runtime-параметры (goal, session_id, parent_trace_id)
+        
+        RETURNS:
+        - AgentConfig: Конфигурация агента
+        """
+        return cls(
+            source="explicit",
+            **runtime_params
+        )
     
     @classmethod
     def auto_resolve(cls, system_context: Any) -> 'AgentConfig':

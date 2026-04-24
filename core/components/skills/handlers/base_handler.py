@@ -117,15 +117,15 @@ class SkillHandler(Component, ABC):
     async def log_info(self, message: str, event_type=None, **extra_data):
         """Логирование информационного сообщения."""
         if event_type is None:
-            from core.infrastructure.logging.event_types import LogEventType
-            event_type = LogEventType.INFO
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            event_type = EventType.INFO
         self._log_info(message, event_type=event_type, **extra_data)
 
     async def log_warning(self, message: str, event_type=None, **extra_data):
         """Логирование предупреждения."""
         if event_type is None:
-            from core.infrastructure.logging.event_types import LogEventType
-            event_type = LogEventType.WARNING
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            event_type = EventType.WARNING
         self._log_warning(message, event_type=event_type, **extra_data)
 
     # === ОБЩИЕ УТИЛИТЫ ДЛЯ ВСЕХ ХЕНДЛЕРОВ ===
@@ -163,12 +163,12 @@ class SkillHandler(Component, ABC):
         - **kwargs: дополнительные параметры (script_name, etc.)
         """
         if self.skill and hasattr(self.skill, '_publish_metrics'):
-            from core.infrastructure.logging.event_types import LogEventType
+            from core.infrastructure.event_bus.unified_event_bus import EventType
             
             # Определяем event_type на основе успеха
             event_type = kwargs.pop('event_type', None)
             if event_type is None:
-                event_type = LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
+                event_type = EventType.TOOL_CALL if success else EventType.TOOL_ERROR
             
             await self.skill._publish_metrics(
                 capability=None,  # Передаём None, данные будут в extra_data

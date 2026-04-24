@@ -84,16 +84,105 @@ SYSTEM_SESSION_ID = "system"  # Единая системная сессия д�
 
 
 class EventType(Enum):
-    """Типы событий в системе."""
+    """
+    Типы событий в системе. ЕДИНЫЙ источник истины для всех событий.
+    
+    КАТЕГОРИИ:
+    - USER_* — вывод в UI/терминал для пользователя
+    - AGENT_* — действия агента
+    - TOOL_* — вызовы инструментов
+    - LLM_* — LLM вызовы
+    - DB_* — запросы к БД
+    - SYSTEM_* — системные события
+    - SESSION_* — события жизненного цикла сессии
+    - OPTIMIZATION_* — события оптимизации
+    - BENCHMARK_* — события бенчмарков
+    - METRIC_* — события метрик
+    - WORKER_* — telemetry события worker'ов
+    
+    USAGE:
+    ```python
+    # Для EventBus
+    event_bus.publish(EventType.AGENT_STARTED, data={...})
+    
+    # Для логирования
+    log.info("Поиск информации...", extra={"event_type": EventType.USER_PROGRESS})
+    
+    # Проверка на логируемость
+    if event.event_type.is_loggable:
+        logger.log_event(event)
+    ```
+    """
 
-    # === Системные события ===
-    SYSTEM_INITIALIZED = "system.initialized"
+    # === Пользовательский интерфейс ===
+    USER_PROGRESS = "user.progress"
+    USER_RESULT = "user.result"
+    USER_MESSAGE = "user.message"
+    USER_QUESTION = "user.question"
+
+    # === Агент ===
+    AGENT_START = "agent.start"
+    AGENT_STOP = "agent.stop"
+    AGENT_THINKING = "agent.thinking"
+    AGENT_DECISION = "agent.decision"
+    AGENT_CREATED = "agent.created"
+    AGENT_STARTED = "agent.started"
+    AGENT_COMPLETED = "agent.completed"
+    AGENT_FAILED = "agent.failed"
+    PLAN_CREATED = "plan.created"
+    PLAN_UPDATED = "plan.updated"
+    STEP_STARTED = "step.started"
+    STEP_COMPLETED = "step.completed"
+    STEP_TIMEOUT = "step.timeout"
+    STEP_ERROR = "step.error"
+    STEP_FALLBACK_TRIGGERED = "step.fallback.triggered"
+    STEP_FALLBACK_SUCCESS = "step.fallback.success"
+    STEP_FALLBACK_FAILED = "step.fallback.failed"
+    STEP_EXHAUSTED = "step.exhausted"
+    CAPABILITY_SELECTED = "capability.selected"
+    SKILL_EXECUTED = "skill.executed"
+    ACTION_PERFORMED = "action.performed"
+    STEP_REGISTERED = "step.registered"
+    CONTEXT_ITEM_ADDED = "context.item.added"
+
+    # === Инструменты ===
+    TOOL_CALL = "tool.call"
+    TOOL_RESULT = "tool.result"
+    TOOL_ERROR = "tool.error"
+
+    # === LLM ===
+    LLM_CALL = "llm.call"
+    LLM_CALL_REQUEST = "llm.call.request"
+    LLM_CALL_RESPONSE = "llm.call.response"
+    LLM_CALL_START = "llm.call.start"
+    LLM_CALL_END = "llm.call.end"
+    LLM_RESPONSE = "llm.response"
+    LLM_ERROR = "llm.error"
+    LLM_CALL_STARTED = "llm.call.started"
+    LLM_CALL_COMPLETED = "llm.call.completed"
+    LLM_CALL_FAILED = "llm.call.failed"
+    LLM_PROMPT_GENERATED = "llm.prompt.generated"
+    LLM_RESPONSE_RECEIVED = "llm.response.received"
+
+    # === Базы данных ===
+    DB_QUERY = "db.query"
+    DB_RESULT = "db.result"
+    DB_ERROR = "db.error"
+
+    # === Инфраструктура ===
+    SYSTEM_INIT = "system.init"
+    SYSTEM_READY = "system.ready"
     SYSTEM_SHUTDOWN = "system.shutdown"
     SYSTEM_ERROR = "system.error"
-    DEBUG = "debug"
-    WARNING = "warning"
-    INFO = "info"
-    ERROR = "error"
+    SYSTEM_INITIALIZED = "system.initialized"
+    COMPONENT_INITIALIZED = "component.initialized"
+    COMPONENT_SHUTDOWN = "component.shutdown"
+    SERVICE_REGISTERED = "service.registered"
+    SERVICE_INITIALIZED = "service.initialized"
+    SERVICE_SHUTDOWN = "service.shutdown"
+    SERVICE_ERROR = "service.error"
+    PROVIDER_REGISTERED = "provider.registered"
+    PROVIDER_UNREGISTERED = "provider.unregistered"
 
     # === События жизненного цикла сессии ===
     SESSION_CREATED = "session.created"
@@ -102,38 +191,7 @@ class EventType(Enum):
     SESSION_COMPLETED = "session.completed"
     SESSION_FAILED = "session.failed"
     SESSION_CLOSED = "session.closed"
-
-    # === События жизненного цикла агента ===
-    AGENT_CREATED = "agent.created"
-    AGENT_STARTED = "agent.started"
-    AGENT_COMPLETED = "agent.completed"
-    AGENT_FAILED = "agent.failed"
-
-    # === События выполнения ===
-    CAPABILITY_SELECTED = "capability.selected"
-    SKILL_EXECUTED = "skill.executed"
-    ACTION_PERFORMED = "action.performed"
-    STEP_REGISTERED = "step.registered"
-
-    # === События контекста ===
-    CONTEXT_ITEM_ADDED = "context.item.added"
-    PLAN_CREATED = "plan.created"
-    PLAN_UPDATED = "plan.updated"
-
-    # === События провайдеров ===
-    PROVIDER_REGISTERED = "provider.registered"
-    PROVIDER_UNREGISTERED = "provider.unregistered"
-    LLM_CALL_STARTED = "llm.call.started"
-    LLM_CALL_COMPLETED = "llm.call.completed"
-    LLM_CALL_FAILED = "llm.call.failed"
-    LLM_PROMPT_GENERATED = "llm.prompt.generated"
-    LLM_RESPONSE_RECEIVED = "llm.response.received"
-
-    # === События сервисов ===
-    SERVICE_REGISTERED = "service.registered"
-    SERVICE_INITIALIZED = "service.initialized"
-    SERVICE_SHUTDOWN = "service.shutdown"
-    SERVICE_ERROR = "service.error"
+    SESSION_STEP = "session.step"
 
     # === События ошибок ===
     RETRY_ATTEMPT = "retry.attempt"
@@ -151,6 +209,9 @@ class EventType(Enum):
     OPTIMIZATION_CYCLE_STARTED = "optimization.cycle.started"
     OPTIMIZATION_CYCLE_COMPLETED = "optimization.cycle.completed"
     OPTIMIZATION_FAILED = "optimization.failed"
+    VERSION_PROMOTED = "version.promoted"
+    VERSION_REJECTED = "version.rejected"
+    VERSION_CREATED = "version.created"
 
     # === События самообучения (Self-Improvement) ===
     SELF_IMPROVEMENT_STARTED = "self_improvement.started"
@@ -163,36 +224,21 @@ class EventType(Enum):
     SELF_IMPROVEMENT_COMPLETED = "self_improvement.completed"
     SELF_IMPROVEMENT_FAILED = "self_improvement.failed"
 
-    # === События версий ===
-    VERSION_PROMOTED = "version.promoted"
-    VERSION_REJECTED = "version.rejected"
-    VERSION_CREATED = "version.created"
-
     # === События универсального логирования ===
     EXECUTION_STARTED = "execution.started"
     EXECUTION_COMPLETED = "execution.completed"
     EXECUTION_FAILED = "execution.failed"
-    COMPONENT_INITIALIZED = "component.initialized"
-    COMPONENT_SHUTDOWN = "component.shutdown"
 
-    # === События логирования ===
+    # === События логирования (стандартные уровни) ===
     LOG_INFO = "log.info"
     LOG_DEBUG = "log.debug"
     LOG_WARNING = "log.warning"
     LOG_ERROR = "log.error"
-
-    # === Пользовательские сообщения (вывод в терминал) ===
-    USER_MESSAGE = "user.message"
-    USER_PROGRESS = "user.progress"
-    USER_RESULT = "user.result"
-
-    # === События агента для вывода пользователю ===
-    AGENT_THINKING = "agent.thinking"
-    TOOL_CALL = "tool.call"
-    TOOL_RESULT = "tool.result"
-
-    # === События сессии ===
-    SESSION_STEP = "session.step"
+    INFO = "info"
+    DEBUG = "debug"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
 
     # === Telemetry события ===
     WORKER_CREATED = "worker.created"
@@ -202,6 +248,90 @@ class EventType(Enum):
     WORKER_CLOSED = "worker.closed"
     SUBSCRIBER_FAILED = "subscriber.failed"
     QUEUE_OVERFLOW = "queue.overflow"
+
+    @property
+    def is_loggable(self) -> bool:
+        """
+        Определяет, должно ли событие записываться в логи.
+        
+        RETURNS:
+        - bool: True для событий, которые должны логироваться
+        
+        ПРАВИЛА:
+        - Все USER_*, AGENT_*, TOOL_*, LLM_*, STEP_*, PLAN_* события логируемые
+        - Системные telemetry события (WORKER_*, QUEUE_*, SUBSCRIBER_*) не логируются по умолчанию
+        """
+        # Telemetry события не логируются по умолчанию
+        telemetry_prefixes = ("worker.", "subscriber.", "queue.")
+        if any(self.value.startswith(prefix) for prefix in telemetry_prefixes):
+            return False
+        
+        # Все остальные события логируемые
+        return True
+
+    @property
+    def is_user_facing(self) -> bool:
+        """
+        Определяет, должно ли событие выводиться пользователю в UI/терминал.
+        
+        RETURNS:
+        - bool: True для пользовательских событий
+        """
+        user_facing_prefixes = (
+            "user.",
+            "agent.thinking",
+            "agent.decision",
+            "tool.call",
+            "tool.result",
+            "step.",
+            "plan.",
+        )
+        return any(self.value.startswith(prefix) for prefix in user_facing_prefixes)
+
+    @classmethod
+    def from_log_event_type(cls, name: str) -> "EventType":
+        """
+        Обратная совместимость: конвертация имени LogEventType в EventType.
+        
+        ARGS:
+        - name: Имя типа события (например, "USER_PROGRESS")
+        
+        RETURNS:
+        - EventType: Соответствующий тип события
+        
+        DEPRECATED: Используйте напрямую EventType.NAME
+        """
+        # Прямое соответствие имен
+        mapping = {
+            "USER_PROGRESS": cls.USER_PROGRESS,
+            "USER_RESULT": cls.USER_RESULT,
+            "USER_MESSAGE": cls.USER_MESSAGE,
+            "USER_QUESTION": cls.USER_QUESTION,
+            "AGENT_START": cls.AGENT_START,
+            "AGENT_STOP": cls.AGENT_STOP,
+            "AGENT_THINKING": cls.AGENT_THINKING,
+            "AGENT_DECISION": cls.AGENT_DECISION,
+            "PLAN_CREATED": cls.PLAN_CREATED,
+            "PLAN_UPDATED": cls.PLAN_UPDATED,
+            "STEP_STARTED": cls.STEP_STARTED,
+            "STEP_COMPLETED": cls.STEP_COMPLETED,
+            "STEP_TIMEOUT": cls.STEP_TIMEOUT,
+            "STEP_ERROR": cls.STEP_ERROR,
+            "TOOL_CALL": cls.TOOL_CALL,
+            "TOOL_RESULT": cls.TOOL_RESULT,
+            "TOOL_ERROR": cls.TOOL_ERROR,
+            "LLM_CALL": cls.LLM_CALL,
+            "LLM_RESPONSE": cls.LLM_RESPONSE,
+            "LLM_ERROR": cls.LLM_ERROR,
+            "SYSTEM_INIT": cls.SYSTEM_INIT,
+            "SYSTEM_ERROR": cls.SYSTEM_ERROR,
+            "INFO": cls.INFO,
+            "DEBUG": cls.DEBUG,
+            "WARNING": cls.WARNING,
+            "ERROR": cls.ERROR,
+            "CRITICAL": cls.CRITICAL,
+        }
+        return mapping.get(name, cls.USER_MESSAGE)
 
 
 class EventDomain(Enum):
@@ -222,13 +352,28 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.AGENT_STARTED: EventDomain.AGENT,
     EventType.AGENT_COMPLETED: EventDomain.AGENT,
     EventType.AGENT_FAILED: EventDomain.AGENT,
+    EventType.AGENT_START: EventDomain.AGENT,
+    EventType.AGENT_STOP: EventDomain.AGENT,
+    EventType.AGENT_THINKING: EventDomain.AGENT,
+    EventType.AGENT_DECISION: EventDomain.AGENT,
     EventType.CAPABILITY_SELECTED: EventDomain.AGENT,
     EventType.SKILL_EXECUTED: EventDomain.AGENT,
     EventType.ACTION_PERFORMED: EventDomain.AGENT,
     EventType.STEP_REGISTERED: EventDomain.AGENT,
+    EventType.STEP_STARTED: EventDomain.AGENT,
+    EventType.STEP_COMPLETED: EventDomain.AGENT,
+    EventType.STEP_TIMEOUT: EventDomain.AGENT,
+    EventType.STEP_ERROR: EventDomain.AGENT,
+    EventType.STEP_FALLBACK_TRIGGERED: EventDomain.AGENT,
+    EventType.STEP_FALLBACK_SUCCESS: EventDomain.AGENT,
+    EventType.STEP_FALLBACK_FAILED: EventDomain.AGENT,
+    EventType.STEP_EXHAUSTED: EventDomain.AGENT,
     EventType.CONTEXT_ITEM_ADDED: EventDomain.AGENT,
     EventType.PLAN_CREATED: EventDomain.AGENT,
     EventType.PLAN_UPDATED: EventDomain.AGENT,
+    EventType.TOOL_CALL: EventDomain.AGENT,
+    EventType.TOOL_RESULT: EventDomain.AGENT,
+    EventType.TOOL_ERROR: EventDomain.AGENT,
     # Benchmark domain
     EventType.BENCHMARK_STARTED: EventDomain.BENCHMARK,
     EventType.BENCHMARK_COMPLETED: EventDomain.BENCHMARK,
@@ -237,6 +382,8 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.SYSTEM_INITIALIZED: EventDomain.INFRASTRUCTURE,
     EventType.SYSTEM_SHUTDOWN: EventDomain.INFRASTRUCTURE,
     EventType.SYSTEM_ERROR: EventDomain.INFRASTRUCTURE,
+    EventType.SYSTEM_INIT: EventDomain.INFRASTRUCTURE,
+    EventType.SYSTEM_READY: EventDomain.INFRASTRUCTURE,
     EventType.PROVIDER_REGISTERED: EventDomain.INFRASTRUCTURE,
     EventType.PROVIDER_UNREGISTERED: EventDomain.INFRASTRUCTURE,
     EventType.LLM_CALL_STARTED: EventDomain.INFRASTRUCTURE,
@@ -244,12 +391,27 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.LLM_CALL_FAILED: EventDomain.INFRASTRUCTURE,
     EventType.LLM_PROMPT_GENERATED: EventDomain.INFRASTRUCTURE,
     EventType.LLM_RESPONSE_RECEIVED: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_CALL: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_CALL_REQUEST: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_CALL_RESPONSE: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_CALL_START: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_CALL_END: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_RESPONSE: EventDomain.INFRASTRUCTURE,
+    EventType.LLM_ERROR: EventDomain.INFRASTRUCTURE,
     EventType.SERVICE_REGISTERED: EventDomain.INFRASTRUCTURE,
     EventType.SERVICE_INITIALIZED: EventDomain.INFRASTRUCTURE,
     EventType.SERVICE_SHUTDOWN: EventDomain.INFRASTRUCTURE,
     EventType.SERVICE_ERROR: EventDomain.INFRASTRUCTURE,
     EventType.COMPONENT_INITIALIZED: EventDomain.INFRASTRUCTURE,
     EventType.COMPONENT_SHUTDOWN: EventDomain.INFRASTRUCTURE,
+    # Session domain (INFRASTRUCTURE)
+    EventType.SESSION_CREATED: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_STARTED: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_ANSWER: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_COMPLETED: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_FAILED: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_CLOSED: EventDomain.INFRASTRUCTURE,
+    EventType.SESSION_STEP: EventDomain.INFRASTRUCTURE,
     # Optimization domain
     EventType.OPTIMIZATION_CYCLE_STARTED: EventDomain.OPTIMIZATION,
     EventType.OPTIMIZATION_CYCLE_COMPLETED: EventDomain.OPTIMIZATION,
@@ -274,6 +436,9 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.EXECUTION_STARTED: EventDomain.COMMON,
     EventType.EXECUTION_COMPLETED: EventDomain.COMMON,
     EventType.EXECUTION_FAILED: EventDomain.COMMON,
+    EventType.DB_QUERY: EventDomain.COMMON,
+    EventType.DB_RESULT: EventDomain.COMMON,
+    EventType.DB_ERROR: EventDomain.COMMON,
 }
 
 

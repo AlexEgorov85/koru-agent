@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure.logging.session import LoggingSession
@@ -134,7 +134,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             logger.info("Загрузка vLLM модели: %s | Путь: %s", 
                        self.model_name, 
                        self.config_obj.model_path or self.config_obj.model_name,
-                       extra={"event_type": LogEventType.LLM_CALL})
+                       extra={"event_type": EventType.LLM_CALL})
 
             model_path = self.config_obj.model_path or self.config_obj.model_name
             model_path = self._resolve_model_path(model_path)
@@ -144,7 +144,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                         self.config_obj.gpu_memory_utilization,
                         self.config_obj.max_num_seqs,
                         self.config_obj.dtype,
-                        extra={"event_type": LogEventType.LLM_CALL})
+                        extra={"event_type": EventType.LLM_CALL})
 
             self.llm = LLM(
                 model=model_path,
@@ -162,19 +162,19 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             self.last_health_check = time.time()
 
             logger.info("✅ vLLM модель успешно загружена: %s", self.model_name,
-                       extra={"event_type": LogEventType.LLM_RESPONSE})
+                       extra={"event_type": EventType.LLM_RESPONSE})
 
             return True
 
         except ImportError as e:
             self.health_status = LLMHealthStatus.UNHEALTHY
             logger.error("❌ vLLM не установлен: %s | Требуется: pip install vllm", str(e),
-                        extra={"event_type": LogEventType.LLM_ERROR})
+                        extra={"event_type": EventType.LLM_ERROR})
             return False
         except Exception as e:
             self.health_status = LLMHealthStatus.UNHEALTHY
             logger.error("❌ Ошибка инициализации vLLM провайдера: %s", str(e),
-                        extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
+                        extra={"event_type": EventType.LLM_ERROR}, exc_info=True)
             return False
 
     async def shutdown(self) -> None:
@@ -182,12 +182,12 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         logger = self._get_logger()
         try:
             logger.info("Завершение работы vLLM провайдера: %s", self.model_name,
-                       extra={"event_type": LogEventType.LLM_RESPONSE})
+                       extra={"event_type": EventType.LLM_RESPONSE})
             self.llm = None
             self.is_initialized = False
         except Exception as e:
             logger.error("Ошибка при завершении vLLM провайдера: %s", str(e),
-                        extra={"event_type": LogEventType.LLM_ERROR})
+                        extra={"event_type": EventType.LLM_ERROR})
 
     async def health_check(self) -> Dict[str, Any]:
         """Проверка здоровья vLLM провайдера."""
@@ -195,7 +195,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         try:
             if not self.is_initialized or not self.llm:
                 logger.warning("vLLM health check: провайдер не инициализирован",
-                             extra={"event_type": LogEventType.WARNING})
+                             extra={"event_type": EventType.WARNING})
                 return {
                     "status": LLMHealthStatus.UNHEALTHY.value,
                     "error": "Not initialized",
@@ -206,7 +206,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             start_time = time.time()
 
             logger.debug("Выполнение health check для vLLM: %s", self.model_name,
-                        extra={"event_type": LogEventType.LLM_CALL})
+                        extra={"event_type": EventType.LLM_CALL})
 
             result = await self.llm.generate(
                 "ОК",
@@ -216,7 +216,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             response_time = time.time() - start_time
 
             logger.info("✅ vLLM health check: OK | Время ответа: %.3fс", response_time,
-                       extra={"event_type": LogEventType.LLM_RESPONSE})
+                       extra={"event_type": EventType.LLM_RESPONSE})
 
             return {
                 "status": LLMHealthStatus.HEALTHY.value,
@@ -229,7 +229,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         except Exception as e:
             logger.error("❌ vLLM health check failed: %s", str(e),
-                        extra={"event_type": LogEventType.LLM_ERROR})
+                        extra={"event_type": EventType.LLM_ERROR})
             return {
                 "status": LLMHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -248,7 +248,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         if not self.is_initialized or not self.llm:
             logger.warning("vLLM не инициализирован, выполняется автоматическая инициализация",
-                          extra={"event_type": LogEventType.WARNING})
+                          extra={"event_type": EventType.WARNING})
             await self.initialize()
 
         start_time = time.time()
@@ -289,13 +289,13 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         logger.info("📝 vLLM вызов | Модель: %s | Промт: %d симв. | Max tokens: %d | Temperature: %s",
                     self.model_name, len(prompt), max_tokens, request.temperature,
-                    extra={"event_type": LogEventType.LLM_CALL})
+                    extra={"event_type": EventType.LLM_CALL})
 
         logger.debug("Промпт vLLM (%d симв.): %s", len(prompt), prompt,
-                    extra={"event_type": LogEventType.LLM_CALL})
+                    extra={"event_type": EventType.LLM_CALL})
 
         logger.debug("=== ПРОМПТ LLM (ПОЛНЫЙ, RAW) ===\n%s\n=== КОНЕЦ ПРОМПТА ===", prompt,
-                    extra={"event_type": LogEventType.DEBUG})
+                    extra={"event_type": EventType.DEBUG})
 
         structured_outputs = None
         if hasattr(request, 'structured_output') and request.structured_output:
@@ -327,12 +327,12 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             generation_time = time.time() - start_time
 
             logger.debug("=== СЫРОЙ ОТВЕТ LLM (RAW) ===\n%s\n=== КОНЕЦ СЫРОГО ОТВЕТА ===", generated_text,
-                        extra={"event_type": LogEventType.DEBUG})
+                        extra={"event_type": EventType.DEBUG})
 
             if hasattr(request, 'structured_output') and request.structured_output:
                 if not generated_text or not generated_text.strip():
                     logger.warning("⚠️ vLLM вернул пустой ответ для structured output",
-                                  extra={"event_type": LogEventType.WARNING})
+                                  extra={"event_type": EventType.WARNING})
                     return LLMResponse(
                         parsed_content=None,
                         raw_response=RawLLMResponse(
@@ -364,7 +364,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                     content_length = len(json_content)
                     logger.info("✅ vLLM structured output | Модель: %s | JSON: %d симв. | Токенов: %s | Время: %.2fс",
                                self.model_name, content_length, tokens_used, generation_time,
-                               extra={"event_type": LogEventType.LLM_RESPONSE})
+                               extra={"event_type": EventType.LLM_RESPONSE})
 
                     return LLMResponse(
                         parsed_content=None,
@@ -384,7 +384,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                     )
                 except (json.JSONDecodeError, Exception) as err:
                     logger.error("❌ Ошибка парсинга JSON vLLM: %s", str(err),
-                                extra={"event_type": LogEventType.LLM_ERROR})
+                                extra={"event_type": EventType.LLM_ERROR})
                     return LLMResponse(
                         parsed_content=None,
                         raw_response=RawLLMResponse(
@@ -421,10 +421,10 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             content_length = len(generated_text) if generated_text else 0
             logger.info("✅ vLLM ответ | Модель: %s | Ответ: %d симв. | Токенов: %s | Время: %.2fс | Причина: %s",
                        self.model_name, content_length, tokens_used, generation_time, finish_reason,
-                       extra={"event_type": LogEventType.LLM_RESPONSE})
+                       extra={"event_type": EventType.LLM_RESPONSE})
 
             logger.debug("Ответ vLLM: %s", generated_text,
-                        extra={"event_type": LogEventType.LLM_RESPONSE})
+                        extra={"event_type": EventType.LLM_RESPONSE})
 
             return LLMResponse(
                 content=generated_text,
@@ -438,7 +438,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
             self._update_metrics(time.time() - start_time, success=False)
             logger.error("❌ vLLM ошибка | Модель: %s | %s: %s | Время: %.2fс",
                         self.model_name, type(e).__name__, str(e), time.time() - start_time,
-                        extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
+                        extra={"event_type": EventType.LLM_ERROR}, exc_info=True)
             return LLMResponse(
                 content="",
                 model=self.model_name,

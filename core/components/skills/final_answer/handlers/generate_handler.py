@@ -80,7 +80,7 @@ class GenerateFinalAnswerHandler(SkillHandler):
                 try:
                     result_data = output_schema(**result_dict)
                 except Exception as e:
-                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=LogEventType.WARNING)
+                    self._log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict", event_type=EventType.WARNING)
                     result_data = result_dict
             else:
                 result_data = result_dict
@@ -94,7 +94,7 @@ class GenerateFinalAnswerHandler(SkillHandler):
             )
 
         except Exception as e:
-            self._log_error(f"Ошибка генерации финального ответа: {str(e)}", event_type=LogEventType.ERROR)
+            self._log_error(f"Ошибка генерации финального ответа: {str(e)}", event_type=EventType.ERROR)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка генерации: {str(e)}"
@@ -142,8 +142,8 @@ class GenerateFinalAnswerHandler(SkillHandler):
                     content = str(item)
                     observations.append(content)
             
-            from core.infrastructure.logging.event_types import LogEventType
-            self._log_info(f"Собрано контекста: observations={len(observations)}, thoughts={len(thoughts)}, actions={len(actions)}", event_type=LogEventType.DEBUG)
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            self._log_info(f"Собрано контекста: observations={len(observations)}, thoughts={len(thoughts)}, actions={len(actions)}", event_type=EventType.DEBUG)
 
         return observations, thoughts, actions
 

@@ -9,7 +9,7 @@ from core.application_context.base_system_context import BaseSystemContext
 from core.models.sql_schemas import SQLGenerationInput, SQLQueryInput, SQLQueryOutput
 from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
@@ -78,13 +78,13 @@ class SQLQueryService(Service):
                 executor=self.executor
             )
             if not await self.error_analyzer.initialize():
-                log.error("SQLErrorAnalyzer не инициализирован", extra={"event_type": LogEventType.ERROR})
+                log.error("SQLErrorAnalyzer не инициализирован", extra={"event_type": EventType.ERROR})
                 return False
 
-            log.info("SQLQueryService успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
+            log.info("SQLQueryService успешно инициализирован", extra={"event_type": EventType.SYSTEM_READY})
             return True
         except Exception as e:
-            log.error(f"Ошибка инициализации SQLQueryService: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
+            log.error(f"Ошибка инициализации SQLQueryService: {e}", exc_info=True, extra={"event_type": EventType.ERROR})
             return False
 
     def _execute_impl(

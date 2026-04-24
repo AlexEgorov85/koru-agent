@@ -28,7 +28,7 @@ from typing import Type, Any, Optional, TYPE_CHECKING
 import logging
 
 from core.components.component import Component
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure_context.infrastructure_context import InfrastructureContext
@@ -53,7 +53,7 @@ class ComponentFactory:
 
     def _log_error(self, message: str):
         """Ошибка."""
-        self._logger.error(f"[ComponentFactory] {message}", extra={"event_type": LogEventType.SYSTEM_ERROR})
+        self._logger.error(f"[ComponentFactory] {message}", extra={"event_type": EventType.SYSTEM_ERROR})
 
     def _get_providers(self) -> dict:
         """

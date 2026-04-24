@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from core.components.benchmarks.benchmark_models import PromptVersion, MutationType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure.logging.session import LoggingSession
@@ -98,7 +98,7 @@ class VersionManager:
                 self._get_logger().warning(
                     f"Версия {version.id} не имеет parent_id, "
                     f"но существуют другие версии",
-                    extra={"event_type": LogEventType.WARNING}
+                    extra={"event_type": EventType.WARNING}
                 )
 
         # Получение или создание реестра
@@ -110,7 +110,7 @@ class VersionManager:
         self._get_logger().info(
             f"Зарегистрирована версия {version.id} "
             f"для {version.capability}",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -134,7 +134,7 @@ class VersionManager:
         if version_id not in registry.versions:
             self._get_logger().error(
                 f"Версия {version_id} не найдена для {capability}",
-                extra={"event_type": LogEventType.ERROR}
+                extra={"event_type": EventType.ERROR}
             )
             return False
 
@@ -152,7 +152,7 @@ class VersionManager:
 
         self._get_logger().info(
             f"Версия {version_id} продвинута в active для {capability}",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -177,7 +177,7 @@ class VersionManager:
         if version_id not in registry.versions:
             self._get_logger().error(
                 f"Версия {version_id} не найдена для {capability}",
-                extra={"event_type": LogEventType.ERROR}
+                extra={"event_type": EventType.ERROR}
             )
             return False
 
@@ -187,7 +187,7 @@ class VersionManager:
         if version.status == 'active':
             self._get_logger().warning(
                 f"Нельзя отклонить active версию {version_id}",
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
             return False
 
@@ -198,7 +198,7 @@ class VersionManager:
 
         self._get_logger().info(
             f"Версия {version_id} отклонена: {reason}",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         # Публикация события
@@ -302,7 +302,7 @@ class VersionManager:
         if target_version_id not in registry.versions:
             self._get_logger().error(
                 f"Версия {target_version_id} не найдена для {capability}",
-                extra={"event_type": LogEventType.ERROR}
+                extra={"event_type": EventType.ERROR}
             )
             return False
 
@@ -312,7 +312,7 @@ class VersionManager:
         if target.status == 'rejected':
             self._get_logger().warning(
                 f"Нельзя откатиться к rejected версии {target_version_id}",
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
             return False
 

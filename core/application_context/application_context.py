@@ -22,7 +22,7 @@ from core.components.component_factory import ComponentFactory
 from core.application_context.base_system_context import BaseSystemContext
 from core.config.component_config import ComponentConfig
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.enums.common_enums import ComponentType, ResourceType
 from core.components.services.registry.component_registry import ComponentRegistry
 
@@ -164,7 +164,7 @@ class ApplicationContext(BaseSystemContext):
     async def initialize(self) -> bool:
         """Жизненный цикл инициализации: репозиторий → компоненты → инициализация."""
         if self._initialized:
-            self.log.warning("ApplicationContext уже инициализирован", extra={"event_type": LogEventType.WARNING})
+            self.log.warning("ApplicationContext уже инициализирован", extra={"event_type": EventType.WARNING})
             return True
 
         if not self.lifecycle_manager:
@@ -172,7 +172,7 @@ class ApplicationContext(BaseSystemContext):
         if not self.lifecycle_manager:
             raise RuntimeError("InfrastructureContext.lifecycle_manager не инициализирован")
 
-        self.log.info(f"Начало инициализации ApplicationContext {self.id}", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info(f"Начало инициализации ApplicationContext {self.id}", extra={"event_type": EventType.SYSTEM_INIT})
 
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
@@ -183,14 +183,14 @@ class ApplicationContext(BaseSystemContext):
         self.log.info(
             "Ресурсы загружены через ResourceLoader (профиль=%s)",
             self.profile,
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         executor = ActionExecutor(self)
 
         try:
             from core.infrastructure.providers.llm.llm_orchestrator import LLMOrchestrator
-            self.log.info("Создание LLMOrchestrator...", extra={"event_type": LogEventType.SYSTEM_INIT})
+            self.log.info("Создание LLMOrchestrator...", extra={"event_type": EventType.SYSTEM_INIT})
             self.llm_orchestrator = LLMOrchestrator(
                 event_bus=self.infrastructure_context.event_bus,
                 cleanup_interval=600.0,
@@ -198,7 +198,7 @@ class ApplicationContext(BaseSystemContext):
                 log_session=self.infrastructure_context.log_session,
                 executor=executor  # ✅ Передаём executor
             )
-            self.log.info("Вызов llm_orchestrator.initialize()...", extra={"event_type": LogEventType.SYSTEM_INIT})
+            self.log.info("Вызов llm_orchestrator.initialize()...", extra={"event_type": EventType.SYSTEM_INIT})
             init_success = await self.llm_orchestrator.initialize()
             if not init_success:
                 from core.errors.exceptions import ComponentInitializationError
@@ -206,9 +206,9 @@ class ApplicationContext(BaseSystemContext):
                     "LLMOrchestrator вернул False при инициализации. Проверьте логи.",
                     component="llm_orchestrator"
                 )
-            self.log.info("LLMOrchestrator инициализирован успешно!", extra={"event_type": LogEventType.SYSTEM_READY})
+            self.log.info("LLMOrchestrator инициализирован успешно!", extra={"event_type": EventType.SYSTEM_READY})
         except Exception as e:
-            self.log.error(f"Ошибка инициализации LLMOrchestrator: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
+            self.log.error(f"Ошибка инициализации LLMOrchestrator: {e}", exc_info=True, extra={"event_type": EventType.ERROR})
             from core.errors.exceptions import ComponentInitializationError
             raise ComponentInitializationError(
                 f"Не удалось инициализировать LLMOrchestrator: {e}. "
@@ -216,37 +216,37 @@ class ApplicationContext(BaseSystemContext):
                 component="llm_orchestrator"
             )
 
-        self.log.info("Начало создания компонентов...", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info("Начало создания компонентов...", extra={"event_type": EventType.SYSTEM_INIT})
 
         component_configs = self._resolve_component_configs()
 
-        self.log.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}", extra={"event_type": EventType.SYSTEM_INIT})
         
         components_created = 0
         for comp_type, configs in component_configs.items():
             if not configs:
                 continue
 
-            self.log.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}", extra={"event_type": LogEventType.SYSTEM_INIT})
+            self.log.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}", extra={"event_type": EventType.SYSTEM_INIT})
             for name, enriched_config in configs.items():
-                self.log.info(f"Создание компонента {comp_type.value}.{name}...", extra={"event_type": LogEventType.SYSTEM_INIT})
+                self.log.info(f"Создание компонента {comp_type.value}.{name}...", extra={"event_type": EventType.SYSTEM_INIT})
                 try:
                     component = await self._create_component(comp_type, name, enriched_config, executor)
-                    self.log.info(f"Регистрация компонента {comp_type.value}.{name}...", extra={"event_type": LogEventType.SYSTEM_INIT})
+                    self.log.info(f"Регистрация компонента {comp_type.value}.{name}...", extra={"event_type": EventType.SYSTEM_INIT})
 
                     # Регистрируем в реестре компонентов
                     self.components.register(comp_type, name, component)
 
-                    self.log.info(f"Компонент {comp_type.value}.{name} создан и зарегистрирован", extra={"event_type": LogEventType.SYSTEM_INIT})
+                    self.log.info(f"Компонент {comp_type.value}.{name} создан и зарегистрирован", extra={"event_type": EventType.SYSTEM_INIT})
                     components_created += 1
                 except Exception as e:
-                    self.log.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
+                    self.log.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True, extra={"event_type": EventType.ERROR})
 
-        self.log.info(f"Создано {components_created} компонентов", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info(f"Создано {components_created} компонентов", extra={"event_type": EventType.SYSTEM_INIT})
 
         success = await self._initialize_components_with_dependencies()
         if not success:
-            self.log.error("Ошибка инициализации компонентов с учетом зависимостей", extra={"event_type": LogEventType.ERROR})
+            self.log.error("Ошибка инициализации компонентов с учетом зависимостей", extra={"event_type": EventType.ERROR})
             return False
 
         # РЕГИСТРАЦИЯ всех компонентов в lifecycle_manager для отображения в UI
@@ -255,20 +255,20 @@ class ApplicationContext(BaseSystemContext):
         try:
             verify_ok = await self._verify_readiness()
         except Exception as e:
-            self.log.error(f"_verify_readiness EXCEPTION: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
+            self.log.error(f"_verify_readiness EXCEPTION: {e}", exc_info=True, extra={"event_type": EventType.ERROR})
             return False
 
         if not verify_ok:
-            self.log.warning("_verify_readiness вернул False", extra={"event_type": LogEventType.WARNING})
+            self.log.warning("_verify_readiness вернул False", extra={"event_type": EventType.WARNING})
             return False
 
         await self.lifecycle_manager.initialize_all()
         self._initialized = True
         self.log.info(
             f"ApplicationContext инициализирован (profile={self.profile})",
-            extra={"event_type": LogEventType.USER_RESULT}
+            extra={"event_type": EventType.USER_RESULT}
         )
-        self.log.info(f"ApplicationContext {self.id} успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info(f"ApplicationContext {self.id} успешно инициализирован", extra={"event_type": EventType.SYSTEM_INIT})
         return True
 
     async def _initialize_components_with_dependencies(self) -> bool:
@@ -281,7 +281,7 @@ class ApplicationContext(BaseSystemContext):
 
         DEPENDENCIES не используются для порядка — все вызовы через executor.
         """
-        self.log.info("=== НАЧАЛО _initialize_components_with_dependencies ===", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info("=== НАЧАЛО _initialize_components_with_dependencies ===", extra={"event_type": EventType.SYSTEM_INIT})
 
         all_components = self.components.all_components()
         component_map = {comp.name: comp for comp in all_components}
@@ -305,21 +305,21 @@ class ApplicationContext(BaseSystemContext):
                 if hasattr(component, 'initialize') and callable(component.initialize):
                     if await component.initialize():
                         initialized_components.add(component.name)
-                        self.log.info(f"Компонент инициализирован: {component.name}", extra={"event_type": LogEventType.SYSTEM_INIT})
+                        self.log.info(f"Компонент инициализирован: {component.name}", extra={"event_type": EventType.SYSTEM_INIT})
                     else:
-                        self.log.error(f"Компонент {component.name} не смог инициализироваться", extra={"event_type": LogEventType.ERROR})
+                        self.log.error(f"Компонент {component.name} не смог инициализироваться", extra={"event_type": EventType.ERROR})
                         return False
                 else:
                     initialized_components.add(component.name)
-                    self.log.info(f"Компонент {component.name} инициализирован (нет initialize метода)", extra={"event_type": LogEventType.SYSTEM_INIT})
+                    self.log.info(f"Компонент {component.name} инициализирован (нет initialize метода)", extra={"event_type": EventType.SYSTEM_INIT})
             except Exception as e:
-                self.log.error(f"Ошибка при инициализации компонента {component.name}: {e}", exc_info=True, extra={"event_type": LogEventType.ERROR})
+                self.log.error(f"Ошибка при инициализации компонента {component.name}: {e}", exc_info=True, extra={"event_type": EventType.ERROR})
                 return False
 
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
-            self.log.error(f"Не все компоненты были инициализированы: {uninitialized}", extra={"event_type": LogEventType.ERROR})
+            self.log.error(f"Не все компоненты были инициализированы: {uninitialized}", extra={"event_type": EventType.ERROR})
             return False
 
         return True
@@ -333,7 +333,7 @@ class ApplicationContext(BaseSystemContext):
         с соответствующим ResourceType.
         """
         if not self.lifecycle_manager:
-            self.log.warning("LifecycleManager недоступен, регистрация компонентов пропущена", extra={"event_type": LogEventType.WARNING})
+            self.log.warning("LifecycleManager недоступен, регистрация компонентов пропущена", extra={"event_type": EventType.WARNING})
             return
 
         # Маппинг ComponentType -> ResourceType
@@ -379,7 +379,7 @@ class ApplicationContext(BaseSystemContext):
 
                     self.log.info(
                         f"Зарегистрирован в LifecycleManager: {comp_type.value}.{component_name}",
-                        extra={"event_type": LogEventType.SYSTEM_INIT}
+                        extra={"event_type": EventType.SYSTEM_INIT}
                     )
                 except ValueError as e:
                     # Компонент уже зарегистрирован - это нормально
@@ -387,24 +387,24 @@ class ApplicationContext(BaseSystemContext):
                         comp_name = component.name if hasattr(component, 'name') else 'unknown'
                         self.log.warning(
                             f"Компонент {comp_type.value}.{comp_name} уже зарегистрирован",
-                            extra={"event_type": LogEventType.WARNING}
+                            extra={"event_type": EventType.WARNING}
                         )
                     else:
                         comp_name = component.name if hasattr(component, 'name') else 'unknown'
                         self.log.error(
                             f"Ошибка регистрации {comp_type.value}.{comp_name}: {e}",
-                            extra={"event_type": LogEventType.ERROR}
+                            extra={"event_type": EventType.ERROR}
                         )
                 except Exception as e:
                     comp_name = component.name if hasattr(component, 'name') else 'unknown'
                     self.log.error(
                         f"Ошибка регистрации {comp_type.value}.{comp_name}: {e}",
-                        extra={"event_type": LogEventType.ERROR}
+                        extra={"event_type": EventType.ERROR}
                     )
 
         self.log.info(
             f"В LifecycleManager зарегистрировано {registered_count} компонентов",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
     async def _verify_readiness(self) -> bool:
@@ -414,19 +414,19 @@ class ApplicationContext(BaseSystemContext):
             for name in names:
                 component = self.components.get(comp_type, name)
                 if component is None:
-                    self.log.error(f"Компонент {comp_type.value}.{name} не найден", extra={"event_type": LogEventType.ERROR})
+                    self.log.error(f"Компонент {comp_type.value}.{name} не найден", extra={"event_type": EventType.ERROR})
                     return False
                 if hasattr(component, 'is_initialized') and callable(component.is_initialized):
                     if not component.is_initialized():
-                        self.log.error(f"Компонент {comp_type.value}.{name} не инициализирован", extra={"event_type": LogEventType.ERROR})
+                        self.log.error(f"Компонент {comp_type.value}.{name} не инициализирован", extra={"event_type": EventType.ERROR})
                         return False
                 elif hasattr(component, '_initialized'):
                     if not component._initialized:
-                        self.log.error(f"Компонент {comp_type.value}.{name} не инициализирован", extra={"event_type": LogEventType.ERROR})
+                        self.log.error(f"Компонент {comp_type.value}.{name} не инициализирован", extra={"event_type": EventType.ERROR})
                         return False
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
-                        self.log.error(f"Компонент {component.name} не готов к работе", extra={"event_type": LogEventType.ERROR})
+                        self.log.error(f"Компонент {component.name} не готов к работе", extra={"event_type": EventType.ERROR})
                         return False
         return True
 
@@ -501,7 +501,7 @@ class ApplicationContext(BaseSystemContext):
         self.log.info(
             f"Health check: {health_report['overall_status']}, "
             f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} healthy",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
         return health_report
 
@@ -599,7 +599,7 @@ class ApplicationContext(BaseSystemContext):
                         self.log.warning(
                             f"Промпт '{capability}' не найден в конфигурации (версия не указана). "
                             f"Возвращаем пустую строку.",
-                            extra={"event_type": LogEventType.WARNING}
+                            extra={"event_type": EventType.WARNING}
                         )
                         return ""
 
@@ -612,7 +612,7 @@ class ApplicationContext(BaseSystemContext):
                     self.log.error(
                         f"Ошибка получения промпта '{capability}@{version}': {e}. "
                         f"Возвращаем пустую строку.",
-                        extra={"event_type": LogEventType.ERROR}
+                        extra={"event_type": EventType.ERROR}
                     )
         return ""
 
@@ -673,7 +673,7 @@ class ApplicationContext(BaseSystemContext):
                 raise ValueError(f"Версия {capability}@{version} не существует")
 
         self._prompt_overrides[capability] = version
-        self.log.info(f"Установлен оверрайд: {capability}@{version} для песочницы", extra={"event_type": LogEventType.SYSTEM_INIT})
+        self.log.info(f"Установлен оверрайд: {capability}@{version} для песочницы", extra={"event_type": EventType.SYSTEM_INIT})
 
     async def clone_with_prompt_content_override(
         self,
@@ -816,14 +816,14 @@ class ApplicationContext(BaseSystemContext):
 
     async def shutdown(self):
         """Корректное завершение работы ApplicationContext."""
-        self.log.info("Завершение работы ApplicationContext...", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+        self.log.info("Завершение работы ApplicationContext...", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
         if self.llm_orchestrator:
             try:
                 await self.llm_orchestrator.shutdown()
-                self.log.info("LLMOrchestrator завершён", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                self.log.info("LLMOrchestrator завершён", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
             except Exception as e:
-                self.log.error(f"Ошибка при завершении LLMOrchestrator: {e}", extra={"event_type": LogEventType.ERROR})
+                self.log.error(f"Ошибка при завершении LLMOrchestrator: {e}", extra={"event_type": EventType.ERROR})
             self.llm_orchestrator = None
 
         # DataRepository удалён, ресурсы в ResourceLoader
@@ -833,8 +833,8 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self, 'lifecycle_manager') and self.lifecycle_manager:
             try:
                 await self.lifecycle_manager.clear_resources()
-                self.log.info("LifecycleManager очищен", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                self.log.info("LifecycleManager очищен", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
             except Exception as e:
-                self.log.error(f"Ошибка при очистке LifecycleManager: {e}", extra={"event_type": LogEventType.ERROR})
+                self.log.error(f"Ошибка при очистке LifecycleManager: {e}", extra={"event_type": EventType.ERROR})
 
-        self.log.info("ApplicationContext завершён", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+        self.log.info("ApplicationContext завершён", extra={"event_type": EventType.SYSTEM_SHUTDOWN})

@@ -21,7 +21,7 @@ from core.components.benchmarks.benchmark_models import (
     FailureAnalysis,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure.logging.session import LoggingSession
@@ -110,7 +110,7 @@ class PromptGenerator:
         """
         self._get_logger().info(
             f"Генерация кандидатов на основе {parent.id}",
-            extra={"event_type": LogEventType.TOOL_CALL}
+            extra={"event_type": EventType.TOOL_CALL}
         )
 
         candidates = []
@@ -133,7 +133,7 @@ class PromptGenerator:
 
         self._get_logger().info(
             f"Сгенерировано {len(candidates)} кандидатов",
-            extra={"event_type": LogEventType.TOOL_CALL}
+            extra={"event_type": EventType.TOOL_CALL}
         )
 
         return candidates[:self.config.max_candidates]
@@ -224,7 +224,7 @@ class PromptGenerator:
         except Exception as e:
             self._get_logger().error(
                 f"Ошибка генерации кандидата: {e}",
-                extra={"event_type": LogEventType.ERROR}
+                extra={"event_type": EventType.ERROR}
             )
             return None
 
@@ -533,7 +533,7 @@ class PromptGenerator:
         """
         self._get_logger().info(
             f"Генерация улучшений на основе {len(root_causes)} root causes",
-            extra={"event_type": LogEventType.TOOL_CALL}
+            extra={"event_type": EventType.TOOL_CALL}
         )
 
         candidates = []
@@ -581,7 +581,7 @@ class PromptGenerator:
 
         self._get_logger().info(
             f"Сгенерировано {len(candidates)} улучшенных кандидатов",
-            extra={"event_type": LogEventType.TOOL_CALL}
+            extra={"event_type": EventType.TOOL_CALL}
         )
 
         return candidates[:self.config.max_candidates]

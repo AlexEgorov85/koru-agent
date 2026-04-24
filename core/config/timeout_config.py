@@ -161,6 +161,71 @@ class TimeoutConfig(BaseModel):
     # МЕТОДЫ
     # ========================================================================
     
+    def resolve_for(self, component: str, action: str) -> float:
+        """
+        Единая точка резолвинга таймаутов для компонента и действия.
+        
+        ПАРАМЕТРЫ:
+        - component: имя компонента (например, 'llm', 'db', 'vector', 'action')
+        - action: имя действия (например, 'generate_structured', 'query', 'search')
+        
+        ВОЗВРАЩАЕТ:
+        - float: таймаут в секундах
+        
+        ПРИМЕРЫ:
+        - resolve_for('llm', 'generate_structured') -> llm_attempt_timeout
+        - resolve_for('llm', 'generate') -> llm_attempt_timeout * 0.5
+        - resolve_for('db', 'query') -> db_query_timeout
+        - resolve_for('action', 'default') -> action_default_timeout
+        """
+        # LLM действия
+        if component == 'llm':
+            if action == 'generate_structured':
+                return self.llm_attempt_timeout
+            elif action == 'generate':
+                return self.llm_attempt_timeout * 0.5
+            elif action == 'classify':
+                return self.llm_attempt_timeout * 0.3
+            else:
+                return self.llm_attempt_timeout
+        
+        # Database действия
+        elif component == 'db':
+            if action == 'query':
+                return self.db_query_timeout
+            elif action == 'command':
+                return self.db_command_timeout
+            else:
+                return self.db_connection_timeout
+        
+        # Vector Search действия
+        elif component == 'vector':
+            if action == 'search':
+                return self.vector_search_timeout
+            elif action == 'indexing':
+                return self.vector_indexing_timeout
+            else:
+                return self.vector_search_timeout
+        
+        # Action Executor действия
+        elif component == 'action':
+            if action == 'context':
+                return self.action_context_timeout
+            elif action == 'validation':
+                return self.action_validation_timeout
+            else:
+                return self.action_default_timeout
+        
+        # Agent действия
+        elif component == 'agent':
+            if action == 'step':
+                return self.agent_step_timeout
+            else:
+                return self.agent_total_timeout
+        
+        # Fallback: action_default_timeout
+        return self.action_default_timeout
+    
     @classmethod
     def for_local_llm(cls) -> 'TimeoutConfig':
         """

@@ -2,7 +2,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.components.skills.handlers.base_handler import SkillHandler
@@ -114,7 +114,7 @@ class VectorSearchHandler(SkillHandler):
                 results = data_dict.get('results', []) or data_dict.get('data', [])
                 return results if isinstance(results, list) else []
 
-        self._log_warning(f"Векторный поиск не вернул результатов: {result.error if hasattr(result, 'error') else 'unknown error'}", event_type=LogEventType.WARNING)
+        self._log_warning(f"Векторный поиск не вернул результатов: {result.error if hasattr(result, 'error') else 'unknown error'}", event_type=EventType.WARNING)
         return []
 
     async def _format_results(

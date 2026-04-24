@@ -15,7 +15,7 @@ JsonParsingService — единый сервис для парсинка JSON о
 АРХИТЕКТУРА:
 - Сервис обнаруживается автоматически через ComponentDiscovery
 - Вызывается через ActionExecutor: json_parsing.parse_to_model
-- Все шаги парсинга логируются с LogEventType
+- Все шаги парсинга логируются с EventType
 """
 import json
 import re
@@ -24,7 +24,7 @@ from pydantic import ValidationError, create_model
 
 from core.components.services.service import Service
 from core.config.component_config import ComponentConfig
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from .types import JsonParseResult, JsonParseStatus
 from . import robust_extractor
@@ -91,7 +91,7 @@ class JsonParsingService(Service):
         else:
             self._log_error(
                 f"Неизвестное действие: {capability}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             raise ValueError(f"Неизвестное действие: {capability}")
 
@@ -158,17 +158,17 @@ class JsonParsingService(Service):
         # Логирование входа
         self._log_info(
             f"📥 [JsonParsing.extract_json] Начало: входной текст {len(content)} симв.",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         self._log_debug(
             f"🔵 [JsonParsing.extract_json] Полный входной текст:\n{content}",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
 
         if not content:
             self._log_warning(
                 "⚠️ [JsonParsing.extract_json] Входной текст пустой",
-                event_type=LogEventType.WARNING
+                event_type=EventType.WARNING
             )
             return JsonParseResult(
                 status=JsonParseStatus.EXTRACT_ERROR,
@@ -181,7 +181,7 @@ class JsonParsingService(Service):
         # Шаг 1: Ищем markdown блоки с json
         self._log_debug(
             f"[JsonParsing.extract_json] input={len(content)} chars",
-            event_type=LogEventType.DEBUG
+            event_type=EventType.DEBUG
         )
 
         markdown_json_pattern = r'```json\s*(.*?)\s*```'
@@ -191,7 +191,7 @@ class JsonParsingService(Service):
             if json_content.startswith('{') or json_content.startswith('['):
                 self._log_info(
                     f"[JsonParsing] extracted from ```json block: {len(json_content)} chars",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 return JsonParseResult(
                     status=JsonParseStatus.SUCCESS,
@@ -212,7 +212,7 @@ class JsonParsingService(Service):
             if json_content.startswith('{') or json_content.startswith('['):
                 self._log_info(
                     f"[JsonParsing] extracted from ``` block: {len(json_content)} chars",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 return JsonParseResult(
                     status=JsonParseStatus.SUCCESS,
@@ -231,7 +231,7 @@ class JsonParsingService(Service):
         if json_content:
             self._log_info(
                 f"[JsonParsing] extracted via robust_extract: {len(json_content)} chars",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             return JsonParseResult(
                 status=JsonParseStatus.SUCCESS,
@@ -245,7 +245,7 @@ class JsonParsingService(Service):
         # Ничего не нашли
         self._log_debug(
             f"[JsonParsing.extract_json] JSON not found in {len(content)} chars",
-            event_type=LogEventType.WARNING
+            event_type=EventType.WARNING
         )
         return JsonParseResult(
             status=JsonParseStatus.EXTRACT_ERROR,
@@ -272,17 +272,17 @@ class JsonParsingService(Service):
         # Логирование входа
         self._log_info(
             f"📥 [JsonParsing.parse_json] Начало: входная строка {len(raw)} симв.",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         self._log_debug(
             f"🔵 [JsonParsing.parse_json] Полный входной текст:\n{raw}",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
 
         if not raw:
             self._log_warning(
                 "⚠️ [JsonParsing.parse_json] Входная строка пустая",
-                event_type=LogEventType.WARNING
+                event_type=EventType.WARNING
             )
             return JsonParseResult(
                 status=JsonParseStatus.PARSE_ERROR,
@@ -302,22 +302,22 @@ class JsonParsingService(Service):
                 keys_info = list(parsed_data.keys())
                 self._log_info(
                     f"✅ [JsonParsing.parse_json] JSON распарсен успешно: {len(raw)} симв., ключи={keys_info}",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
             elif isinstance(parsed_data, list):
                 self._log_info(
                     f"✅ [JsonParsing.parse_json] JSON массив распарсен: {len(raw)} симв., элементов={len(parsed_data)}",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
             else:
                 self._log_info(
                     f"✅ [JsonParsing.parse_json] JSON распарсен: {len(raw)} симв., тип={type(parsed_data).__name__}",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
 
             self._log_debug(
                 f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             return JsonParseResult(
@@ -335,7 +335,7 @@ class JsonParsingService(Service):
             # Цикл исправлений: извлечение, запятые, скобки, мусор
             self._log_debug(
                 f"⚠️ [JsonParsing.parse_json] Ошибка парсинга, попытка исправления: {type(e).__name__}: {e}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             
             fixed_raw = raw
@@ -368,7 +368,7 @@ class JsonParsingService(Service):
             if fixes_applied:
                 self._log_info(
                     f"🔧 [JsonParsing.parse_json] Применены исправления: {', '.join(fixes_applied)}",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 try:
                     parsed_data = json.loads(fixed_raw)
@@ -378,22 +378,22 @@ class JsonParsingService(Service):
                         keys_info = list(parsed_data.keys())
                         self._log_info(
                             f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., ключи={keys_info}",
-                            event_type=LogEventType.INFO
+                            event_type=EventType.INFO
                         )
                     elif isinstance(parsed_data, list):
                         self._log_info(
                             f"✅ [JsonParsing.parse_json] JSON массив распарсен после исправления: {len(fixed_raw)} симв., элементов={len(parsed_data)}",
-                            event_type=LogEventType.INFO
+                            event_type=EventType.INFO
                         )
                     else:
                         self._log_info(
                             f"✅ [JsonParsing.parse_json] JSON распарсен после исправления: {len(fixed_raw)} симв., тип={type(parsed_data).__name__}",
-                            event_type=LogEventType.INFO
+                            event_type=EventType.INFO
                         )
 
                     self._log_debug(
                         f"🟢 [JsonParsing.parse_json] Распарсенные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
-                        event_type=LogEventType.INFO
+                        event_type=EventType.INFO
                     )
 
                     return JsonParseResult(
@@ -410,17 +410,17 @@ class JsonParsingService(Service):
                 except json.JSONDecodeError:
                     self._log_debug(
                         f"❌ [JsonParsing.parse_json] Исправления не помогли",
-                        event_type=LogEventType.WARNING
+                        event_type=EventType.WARNING
                     )
             
             # Если исправления не помогли
             self._log_error(
                 f"❌ [JsonParsing.parse_json] Ошибка парсинга JSON: {type(e).__name__}: {e}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             self._log_debug(
                 f"🔴 [JsonParsing.parse_json] Невалидный JSON:\n{raw}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             return JsonParseResult(
                 status=JsonParseStatus.PARSE_ERROR,
@@ -460,16 +460,16 @@ class JsonParsingService(Service):
         # Логирование входа
         self._log_info(
             f"📥 [JsonParsing.parse_to_model] Начало: вход {len(raw_response)} симв., модель={model_name}, схема={bool(schema_def)}",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         self._log_debug(
             f"🔵 [JsonParsing.parse_to_model] Полный входной текст:\n{raw_response}",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         if schema_def:
             self._log_debug(
                 f"🔵 [JsonParsing.parse_to_model] Схема модели:\n{json.dumps(schema_def, indent=2, ensure_ascii=False)}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
         steps.append(f"Вход: {len(raw_response)} симв., модель={model_name}, схема={bool(schema_def)}")
 
@@ -479,7 +479,7 @@ class JsonParsingService(Service):
         if extract_result["status"] != JsonParseStatus.SUCCESS:
             self._log_error(
                 f"❌ [JsonParsing.parse_to_model] Не удалось извлечь JSON: {extract_result.get('error_message')}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             return JsonParseResult(
                 status=JsonParseStatus.EXTRACT_ERROR,
@@ -494,7 +494,7 @@ class JsonParsingService(Service):
         # Шаг 2: Парсинг JSON
         self._log_debug(
             f"📥 [JsonParsing.parse_to_model] Парсинг JSON: {len(extracted_json)} симв.",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         steps.append(f"Парсинг JSON: {len(extracted_json)} симв.")
 
@@ -504,7 +504,7 @@ class JsonParsingService(Service):
         if parse_result["status"] != JsonParseStatus.SUCCESS:
             self._log_error(
                 f"❌ [JsonParsing.parse_to_model] Не удалось распарсить JSON: {parse_result.get('error_message')}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             return JsonParseResult(
                 status=JsonParseStatus.PARSE_ERROR,
@@ -522,7 +522,7 @@ class JsonParsingService(Service):
         if not schema_def:
             self._log_debug(
                 f"⚠️ [JsonParsing.parse_to_model] Схема не указана, возвращаем сырые данные",
-                event_type=LogEventType.WARNING
+                event_type=EventType.WARNING
             )
             steps.append("Схема не указана, возвращаем сырые данные")
             return JsonParseResult(
@@ -535,7 +535,7 @@ class JsonParsingService(Service):
 
         self._log_debug(
             f"📥 [JsonParsing.parse_to_model] Создание модели {model_name} из схемы",
-            event_type=LogEventType.INFO
+            event_type=EventType.INFO
         )
         steps.append(f"Создание модели {model_name} из схемы")
 
@@ -548,37 +548,37 @@ class JsonParsingService(Service):
                 DynamicModel = self._model_cache[cache_key]
                 self._log_debug(
                     f"📦 [JsonParsing.parse_to_model] Модель {model_name} взята из кэша",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 steps.append(f"Модель {model_name} взята из кэша")
             else:
                 self._log_debug(
                     f"🔨 [JsonParsing.parse_to_model] Создание модели {model_name} из схемы...",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 DynamicModel = self._create_model_from_schema(model_name, schema_def, defs)
                 self._model_cache[cache_key] = DynamicModel
                 self._log_debug(
                     f"✅ [JsonParsing.parse_to_model] Модель {model_name} создана",
-                    event_type=LogEventType.INFO
+                    event_type=EventType.INFO
                 )
                 steps.append(f"Модель {model_name} создана из схемы")
 
             # Шаг 4: Валидация и создание модели
             self._log_debug(
                 f"🔍 [JsonParsing.parse_to_model] Валидация данных и создание модели...",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             pydantic_instance = DynamicModel(**parsed_data)
             steps.append(f"Модель {model_name} валидирована успешно")
 
             self._log_info(
                 f"✅ [JsonParsing.parse_to_model] Модель {model_name} создана и валидирована успешно",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
             self._log_debug(
                 f"🟢 [JsonParsing.parse_to_model] Данные модели:\n{json.dumps(pydantic_instance.model_dump(), indent=2, ensure_ascii=False)}",
-                event_type=LogEventType.INFO
+                event_type=EventType.INFO
             )
 
             return JsonParseResult(
@@ -606,11 +606,11 @@ class JsonParsingService(Service):
 
             self._log_error(
                 f"❌ [JsonParsing.parse_to_model] Ошибка валидации Pydantic: {error_summary}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             self._log_debug(
                 f"🔴 [JsonParsing.parse_to_model] Невалидные данные:\n{json.dumps(parsed_data, indent=2, ensure_ascii=False)}",
-                event_type=LogEventType.ERROR
+                event_type=EventType.ERROR
             )
             steps.append(f"Ошибка валидации: {error_summary}")
 
@@ -628,7 +628,7 @@ class JsonParsingService(Service):
         except Exception as e:
             self._log_error(
                 f"❌ [JsonParsing.parse_to_model] Ошибка создания модели: {e}",
-                event_type=LogEventType.ERROR,
+                event_type=EventType.ERROR,
                 exc_info=True
             )
             steps.append(f"Ошибка создания модели: {str(e)}")

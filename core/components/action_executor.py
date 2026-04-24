@@ -17,7 +17,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from core.components.services.validation_service import ValidationService
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
 
@@ -105,11 +105,11 @@ class ActionExecutor:
         # Детальное логирование запуска действия
         self._log_info(
             f"⚙️ [Executor.execute_action] Запуск действия: {action_name}",
-            event_type=LogEventType.TOOL_CALL
+            event_type=EventType.TOOL_CALL
         )
         self._log_debug(
             f"🔵 [Executor.execute_action] Параметры: {parameters}",
-            event_type=LogEventType.TOOL_CALL
+            event_type=EventType.TOOL_CALL
         )
 
         try:
@@ -131,7 +131,7 @@ class ActionExecutor:
             if not target_component:
                 self._log_error(
                     f"❌ [Executor.execute_action] Компонент для действия '{action_name}' не найден",
-                    event_type=LogEventType.TOOL_ERROR
+                    event_type=EventType.TOOL_ERROR
                 )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
@@ -140,7 +140,7 @@ class ActionExecutor:
 
             self._log_debug(
                 f"📦 [Executor.execute_action] Компонент найден: {target_component.name} (тип={component_type})",
-                event_type=LogEventType.TOOL_CALL
+                event_type=EventType.TOOL_CALL
             )
 
             # 5. Проверяем, что компонент инициализирован
@@ -165,16 +165,16 @@ class ActionExecutor:
             if result.status == ExecutionStatus.COMPLETED:
                 self._log_info(
                     f"✅ [Executor.execute_action] Действие {action_name} выполнено успешно",
-                    event_type=LogEventType.TOOL_RESULT
+                    event_type=EventType.TOOL_RESULT
                 )
                 self._log_debug(
                     f"🟢 [Executor.execute_action] Результат {action_name}: {str(result.data) if result.data else 'None'}",
-                    event_type=LogEventType.TOOL_RESULT
+                    event_type=EventType.TOOL_RESULT
                 )
             else:
                 self._log_error(
                     f"❌ [Executor.execute_action] Действие {action_name} завершилось с ошибкой: {result.error}",
-                    event_type=LogEventType.TOOL_ERROR
+                    event_type=EventType.TOOL_ERROR
                 )
 
             return result
@@ -182,7 +182,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка выполнения действия '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -303,7 +303,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка выполнения действия контекста '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -751,7 +751,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка валидации '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -923,7 +923,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка LLM действия '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -1182,7 +1182,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка выполнения сервиса '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -1221,7 +1221,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка выполнения инструмента '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(
@@ -1260,7 +1260,7 @@ class ActionExecutor:
         except Exception as e:
             _module_logger.error(
                 f"Ошибка выполнения компонента '{action_name}': {e}",
-                extra={"event_type": LogEventType.ERROR},
+                extra={"event_type": EventType.ERROR},
                 exc_info=True
             )
             return ExecutionResult(

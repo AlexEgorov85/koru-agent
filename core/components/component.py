@@ -8,11 +8,11 @@
 - Изолированные кэши для каждого экземпляра
 - Взаимодействие ТОЛЬКО через ActionExecutor
 - Поддержка внедрения зависимостей (DI) через интерфейсы
-- Единое логирование через стандартный logging с LogEventType
+- Единое логирование через стандартный logging с EventType
 
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin для управления состояниями
-- ComponentLogger: логирование через LoggingSession + LogEventType
+- ComponentLogger: логирование через LoggingSession + EventType
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 
 ПРЕИМУЩЕСТВА ПЕРЕД СТАРЫМ ПОДХОДОМ:
@@ -20,7 +20,7 @@
 - Единая точка изменений для всех компонентов
 - Консистентное логирование с автоматическим префиксом
 - Прозрачная архитектура без глубокого наследования
-- Логирование через стандартный logging + LogEventType
+- Логирование через стандартный logging + EventType
 """
 import asyncio
 import logging
@@ -32,7 +32,7 @@ from pydantic import BaseModel
 
 from core.components.action_executor import ExecutionContext
 from core.config.component_config import ComponentConfig
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.components.lifecycle import ComponentLifecycle
@@ -51,7 +51,7 @@ class ComponentLogger:
     - Логгер создаётся через LoggingSession.get_component_logger()
     - Файловый хендлер: components.log
     - Консольный хендлер: с EventTypeFilter
-    - Все записи содержат extra={"event_type": LogEventType.XXX}
+    - Все записи содержат extra={"event_type": EventType.XXX}
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class ComponentLogger:
         """Добавляет префикс компонента к сообщению."""
         return f"{self._log_prefix} {message}"
 
-    def _log_info(self, message: str, event_type: LogEventType = LogEventType.INFO, **extra_data):
+    def _log_info(self, message: str, event_type: EventType = EventType.INFO, **extra_data):
         """
         Логирование уровня INFO.
         
@@ -102,7 +102,7 @@ class ComponentLogger:
             extra={"event_type": event_type, **extra_data}
         )
 
-    def _log_debug(self, message: str, event_type: LogEventType = LogEventType.DEBUG, **extra_data):
+    def _log_debug(self, message: str, event_type: EventType = EventType.DEBUG, **extra_data):
         """
         Логирование уровня DEBUG.
         
@@ -117,7 +117,7 @@ class ComponentLogger:
             extra={"event_type": event_type, **extra_data}
         )
 
-    def _log_warning(self, message: str, event_type: LogEventType = LogEventType.WARNING, **extra_data):
+    def _log_warning(self, message: str, event_type: EventType = EventType.WARNING, **extra_data):
         """
         Логирование уровня WARNING.
         
@@ -132,7 +132,7 @@ class ComponentLogger:
             extra={"event_type": event_type, **extra_data}
         )
 
-    def _log_error(self, message: str, event_type: LogEventType = LogEventType.ERROR, exc_info: bool = False, **extra_data):
+    def _log_error(self, message: str, event_type: EventType = EventType.ERROR, exc_info: bool = False, **extra_data):
         """
         Логирование уровня ERROR.
 
@@ -161,12 +161,12 @@ class ComponentLogger:
         """
         formatted_message = self._format_log_message(message)
         event_type_map = {
-            'info': LogEventType.INFO,
-            'debug': LogEventType.DEBUG,
-            'warning': LogEventType.WARNING,
-            'error': LogEventType.ERROR,
+            'info': EventType.INFO,
+            'debug': EventType.DEBUG,
+            'warning': EventType.WARNING,
+            'error': EventType.ERROR,
         }
-        event_type = event_type_map.get(level, LogEventType.INFO)
+        event_type = event_type_map.get(level, EventType.INFO)
         extra = {"event_type": event_type, **extra_data}
 
         if level == 'error' and exception:
@@ -380,25 +380,25 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
 
         # Проверка: нельзя инициализировать повторно
         if self._state == ComponentStatus.READY:
-            self._log_warning(f"Компонент уже инициализирован", event_type=LogEventType.SYSTEM_INIT)
+            self._log_warning(f"Компонент уже инициализирован", event_type=EventType.SYSTEM_INIT)
             return True
 
         # Переход в состояние INITIALIZING
         await self._transition_to(ComponentStatus.INITIALIZING)
 
         # Лог о начале инициализации
-        self._log_info("Начало инициализации", event_type=LogEventType.SYSTEM_INIT)
+        self._log_info("Начало инициализации", event_type=EventType.SYSTEM_INIT)
 
         try:
             # === ЭТАП 1: Предзагрузка ресурсов ===
             if not await self._preload_resources():
-                self._log_error("Предзагрузка ресурсов не удалась", event_type=LogEventType.SYSTEM_ERROR)
+                self._log_error("Предзагрузка ресурсов не удалась", event_type=EventType.SYSTEM_ERROR)
                 await self._transition_to(ComponentStatus.FAILED)
                 return False
 
             # === ЭТАП 2: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
-                self._log_error("Валидация загруженных ресурсов не пройдена", event_type=LogEventType.SYSTEM_ERROR)
+                self._log_error("Валидация загруженных ресурсов не пройдена", event_type=EventType.SYSTEM_ERROR)
                 await self._transition_to(ComponentStatus.FAILED)
                 return False
 
@@ -408,7 +408,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
                 f"Ресурсы: промпты={len(self.prompts)}, "
                 f"input_contracts={len(self.input_contracts)}, "
                 f"output_contracts={len(self.output_contracts)}",
-                event_type=LogEventType.SYSTEM_READY
+                event_type=EventType.SYSTEM_READY
             )
 
             # Переход в состояние READY
@@ -418,7 +418,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             return True
 
         except Exception as e:
-            self._log_error(f"Ошибка инициализации: {e}", event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
+            self._log_error(f"Ошибка инициализации: {e}", event_type=EventType.SYSTEM_ERROR, exc_info=True)
             await self._transition_to(ComponentStatus.FAILED)
             return False
     
@@ -451,7 +451,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             return True
         
         except Exception as e:
-            self._log_error(f"Ошибка предзагрузки ресурсов: {e}", event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
+            self._log_error(f"Ошибка предзагрузки ресурсов: {e}", event_type=EventType.SYSTEM_ERROR, exc_info=True)
             return False
     
     async def _validate_loaded_resources(self) -> bool:
@@ -525,7 +525,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         # Логирование ошибок
         if errors:
             for error in errors:
-                self._log_error(error, event_type=LogEventType.SYSTEM_ERROR)
+                self._log_error(error, event_type=EventType.SYSTEM_ERROR)
             return False
         
         return True
@@ -560,7 +560,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         # Этап 1: Проверка готовности
         if not self.is_ready:
             error_msg = f"Компонент не готов к выполнению (state={self._state.value})"
-            self._log_error(error_msg, event_type=LogEventType.SYSTEM_ERROR)
+            self._log_error(error_msg, event_type=EventType.SYSTEM_ERROR)
             return ExecutionResult(
                 success=False,
                 error=error_msg,
@@ -596,7 +596,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             execution_time_ms = (time.time() - start_time) * 1000
             error_msg = f"Ошибка выполнения: {e}"
 
-            self._log_error(error_msg, event_type=LogEventType.SYSTEM_ERROR, exc_info=True)
+            self._log_error(error_msg, event_type=EventType.SYSTEM_ERROR, exc_info=True)
 
             await self._publish_metrics(
                 capability=capability,
@@ -685,7 +685,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         # Если event_type передан в extra_data — используем его, иначе дефолтный
         event_type = extra_data.get(
             'event_type',
-            LogEventType.TOOL_CALL if success else LogEventType.TOOL_ERROR
+            EventType.TOOL_CALL if success else EventType.TOOL_ERROR
         )
         
         capability_name = capability.name if capability else extra_data.get('capability_name', 'unknown')
@@ -699,7 +699,7 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
     async def shutdown(self):
         """Завершение работы компонента."""
         await self._transition_to(ComponentStatus.SHUTDOWN)
-        self._log_info("Компонент завершил работу", event_type=LogEventType.SYSTEM_SHUTDOWN)
+        self._log_info("Компонент завершил работу", event_type=EventType.SYSTEM_SHUTDOWN)
 
     async def restart(self) -> bool:
         """Перезапуск компонента."""

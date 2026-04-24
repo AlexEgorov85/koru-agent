@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from core.application_context.application_context import ApplicationContext
 import re
 import logging
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class SQLErrorAnalyzer:
     
     async def initialize(self) -> bool:
         """Инициализация анализатора ошибок"""
-        log.info("SQLErrorAnalyzer успешно инициализирован", extra={"event_type": LogEventType.SYSTEM_READY})
+        log.info("SQLErrorAnalyzer успешно инициализирован", extra={"event_type": EventType.SYSTEM_READY})
         return True
 
     async def execute(self, input_data: Any) -> Any:
@@ -81,7 +81,7 @@ class SQLErrorAnalyzer:
 
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""
-        log.info("Завершение работы SQLErrorAnalyzer", extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+        log.info("Завершение работы SQLErrorAnalyzer", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
     
     async def analyze(self, error: ExecutionError) -> Dict[str, Any]:
         """

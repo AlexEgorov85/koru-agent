@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class CapabilityRegistry:
 
         _logger.info(
             "CapabilityRegistry создан",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
     async def initialize(self):
@@ -30,7 +30,7 @@ class CapabilityRegistry:
         if not self.capabilities_dir.exists():
             _logger.warning(
                 f"Директория контрактов не существует: {self.capabilities_dir}",
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
             return
 
@@ -68,7 +68,7 @@ class CapabilityRegistry:
                     except Exception as e:
                         _logger.warning(
                             f"Ошибка чтения входного контракта для {capability_name}: {str(e)}",
-                            extra={"event_type": LogEventType.WARNING}
+                            extra={"event_type": EventType.WARNING}
                         )
 
                 if output_contract_path.exists():
@@ -86,7 +86,7 @@ class CapabilityRegistry:
                     except Exception as e:
                         _logger.warning(
                             f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}",
-                            extra={"event_type": LogEventType.WARNING}
+                            extra={"event_type": EventType.WARNING}
                         )
 
                 # Также проверим поддиректории с версиями
@@ -114,7 +114,7 @@ class CapabilityRegistry:
                             except Exception as e:
                                 _logger.warning(
                                     f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}",
-                                    extra={"event_type": LogEventType.WARNING}
+                                    extra={"event_type": EventType.WARNING}
                                 )
 
                         if version_output_contract.exists():
@@ -131,7 +131,7 @@ class CapabilityRegistry:
                             except Exception as e:
                                 _logger.warning(
                                     f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}",
-                                    extra={"event_type": LogEventType.WARNING}
+                                    extra={"event_type": EventType.WARNING}
                                 )
 
                 self._capabilities[capability_name] = capability_meta
@@ -167,5 +167,5 @@ class CapabilityRegistry:
         """Завершение работы реестра."""
         _logger.info(
             "Реестр возможностей завершает работу",
-            extra={"event_type": LogEventType.SYSTEM_SHUTDOWN}
+            extra={"event_type": EventType.SYSTEM_SHUTDOWN}
         )

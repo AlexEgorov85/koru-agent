@@ -19,7 +19,7 @@ from typing import Dict, Any, Optional
 
 from typing import Protocol, Any
 
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class ProviderHealthStatus:
@@ -139,7 +139,7 @@ class BaseProvider(IProvider):
         self.is_initialized = True
         self._set_healthy_status()
         self.log.info("Провайдер %s инициализирован", self.name,
-                      extra={"event_type": LogEventType.SYSTEM_INIT})
+                      extra={"event_type": EventType.SYSTEM_INIT})
         return True
 
     async def shutdown(self) -> None:
@@ -147,7 +147,7 @@ class BaseProvider(IProvider):
         self.is_initialized = False
         self.health_status = ProviderHealthStatus.UNKNOWN
         self.log.info("Провайдер %s завершил работу", self.name,
-                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
+                      extra={"event_type": EventType.SYSTEM_SHUTDOWN})
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -176,7 +176,7 @@ class BaseProvider(IProvider):
             return await self.initialize()
         except Exception as e:
             self.log.error("Ошибка перезапуска провайдера: %s", str(e),
-                           extra={"event_type": LogEventType.SYSTEM_ERROR})
+                           extra={"event_type": EventType.SYSTEM_ERROR})
             return False
 
     def restart_with_module_reload(self):
@@ -190,7 +190,7 @@ class BaseProvider(IProvider):
         from core.utils.module_reloader import safe_reload_component_with_module_reload
         self.log.warning("Выполняется перезапуск с перезагрузкой модуля для провайдера %s",
                          self.__class__.__name__,
-                         extra={"event_type": LogEventType.WARNING})
+                         extra={"event_type": EventType.WARNING})
         return safe_reload_component_with_module_reload(self)
 
     def _update_metrics(self, response_time: float, success: bool = True) -> None:

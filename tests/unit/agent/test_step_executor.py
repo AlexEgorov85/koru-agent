@@ -249,7 +249,7 @@ steps:
         
         config = AgentConfig.from_yaml(str(yaml_file))
         
-        assert config.max_steps == 20
+        # max_steps теперь берётся из AppConfig.agent_defaults, а не из AgentConfig
         assert len(config.steps) == 1
         assert "step1" in config.steps
         assert config.steps["step1"].capability == "test.capability"

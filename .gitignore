@@ -1,43 +1,12 @@
-```
-# Python
+```gitignore
+# Python compiled files
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# IDE
-.vscode/
-.idea/
-
-# Environment
-.env
-.env.local
-.env.*
-.venv/
-venv/
-ENV/
-
-# Logs
+# Logs and session data
 *.log
+data/logs/
 
-# OS
-.DS_Store
-Thumbs.db
+# Test cache files
+.pytest_cache/
 ```

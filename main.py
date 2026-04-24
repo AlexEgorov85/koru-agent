@@ -1,6 +1,7 @@
 """
 Точка входа в систему агентов.
 """
+import argparse
 import asyncio
 import logging
 import os
@@ -23,11 +24,11 @@ if os.path.isfile(_env_path):
 
 from core.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
-from core.config.app_config import AppConfig
+from core.config.app_config import AppConfig, AgentDefaults
 from core.config import get_config
 from core.errors.error_handler import ErrorContext, ErrorSeverity, get_error_handler
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 logger = logging.getLogger("main")
 from core.application_context.application_context import ApplicationContext
@@ -52,9 +53,11 @@ os.environ["TQDM_DISABLE"] = "1"
 # КОНФИГУРАЦИЯ
 # ============================================================================
 
-GOAL = "Сколько проверок было проведено в 2024?"# "Сколько проверок было проведено в 2025 и 2026 годах?" # Какие отклонения связаны с документами
-MAX_STEPS = 10
-TEMPERATURE = 0.3
+
+# Константы удалены - теперь используется AppConfig.agent_defaults
+# Для переопределения используйте env vars: AGENT_MAX_STEPS, AGENT_TEMPERATURE
+# или передавайте параметры через argparse
+
 
 
 async def run_agent(
@@ -257,18 +260,58 @@ async def run_agent(
         infrastructure_context.log_session.shutdown()
 
 
+def parse_args():
+    """Парсинг аргументов командной строки."""
+    parser = argparse.ArgumentParser(description="Agent v5 - система автономных агентов")
+    
+    # Цель агента (обязательный аргумент или из env)
+    parser.add_argument(
+        "--goal", "-g",
+        type=str,
+        default=os.environ.get("AGENT_GOAL", "Сколько проверок было проведено в 2024?"),
+        help="Цель агента (default: из env AGENT_GOAL или hardcoded)"
+    )
+    
+    # Параметры агента (из CLI, env или defaults)
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=int(os.environ.get("AGENT_MAX_STEPS", 10)),
+        help="Максимальное количество шагов (default: 10 или env AGENT_MAX_STEPS)"
+    )
+    
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=float(os.environ.get("AGENT_TEMPERATURE", 0.7)),
+        help="Температура LLM (default: 0.7 или env AGENT_TEMPERATURE)"
+    )
+    
+    parser.add_argument(
+        "--profile",
+        type=str,
+        choices=["dev", "prod", "sandbox"],
+        default=os.environ.get("AGENT_PROFILE", "prod"),
+        help="Профиль запуска (default: prod или env AGENT_PROFILE)"
+    )
+    
+    return parser.parse_args()
+
+
 async def main_async(dialogue_history=None) -> tuple:
     """Точка входа (async версия).
     
     ВОЗВРАЩАЕТ:
     - tuple: (exit_code, dialogue_history)
     """
+    args = parse_args()
+    
     try:
         result = await run_agent(
-            goal=GOAL,
-            max_steps=MAX_STEPS,
-            temperature=TEMPERATURE,
-            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
+            goal=args.goal,
+            max_steps=args.max_steps,
+            temperature=args.temperature,
+            dialogue_history=dialogue_history
         )
 
         event_bus = get_event_bus_from_result(result)
@@ -351,7 +394,7 @@ async def main_async(dialogue_history=None) -> tuple:
         error_context = ErrorContext(
             component="main",
             operation="main",
-            metadata={"goal": GOAL}
+            metadata={"goal": args.goal}
         )
         await error_handler.handle(
             e,

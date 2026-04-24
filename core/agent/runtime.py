@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 
 from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.application_context.application_context import ApplicationContext
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.component_status import ComponentStatus
@@ -120,7 +120,7 @@ class AgentRuntime:
         self.log = log_session.create_agent_logger(agent_id)
         self.log.info(
             f"Агент {agent_id} запущен, цель: {goal[:50]}...",
-            extra={"event_type": LogEventType.AGENT_START},
+            extra={"event_type": EventType.AGENT_START},
         )
 
     def _sync_dialogue_history_back(self):
@@ -253,7 +253,7 @@ class AgentRuntime:
         # Начало сессии
         self.log.info(
             f"Запуск агента: {self.goal}...",
-            extra={"event_type": LogEventType.AGENT_START},
+            extra={"event_type": EventType.AGENT_START},
         )
 
         self.session_context.record_action(
@@ -277,7 +277,7 @@ class AgentRuntime:
         available_caps = await self._get_available_capabilities()
         self.log.info(
             f"📦 Доступно capability: {len(available_caps)}",
-            extra={"event_type": LogEventType.SYSTEM_INIT},
+            extra={"event_type": EventType.SYSTEM_INIT},
         )
 
         # Цикл выполнения
@@ -309,7 +309,7 @@ class AgentRuntime:
 
             self.log.info(
                 f"📍 ШАГ {step + 1}/{self.max_steps}",
-                extra={"event_type": LogEventType.STEP_STARTED},
+                extra={"event_type": EventType.STEP_STARTED},
             )
             
             # Проверка условий остановки по метрикам
@@ -317,7 +317,7 @@ class AgentRuntime:
             if should_stop:
                 self.log.warning(
                     f"🛑 Остановка: {stop_reason}",
-                    extra={"event_type": LogEventType.AGENT_STOP}
+                    extra={"event_type": EventType.AGENT_STOP}
                 )
                 await event_bus.publish(
                     EventType.DEBUG,
@@ -329,13 +329,13 @@ class AgentRuntime:
             
             self.log.info(
                 "🤔 Анализирую запрос и выбираю следующее действие...",
-                extra={"event_type": LogEventType.AGENT_THINKING},
+                extra={"event_type": EventType.AGENT_THINKING},
             )
 
             # Pattern решает
             self.log.info(
                 "🧠 Pattern.decide()...",
-                extra={"event_type": LogEventType.AGENT_DECISION},
+                extra={"event_type": EventType.AGENT_DECISION},
             )
             decision = await pattern.decide(
                 session_context=self.session_context,
@@ -347,7 +347,7 @@ class AgentRuntime:
                 + (f", reasoning: {decision.reasoning}" if decision.reasoning else "")
             )
             self.log.info(
-                decision_msg, extra={"event_type": LogEventType.AGENT_DECISION}
+                decision_msg, extra={"event_type": EventType.AGENT_DECISION}
             )
 
             # Pattern решил FINISH?
@@ -355,7 +355,7 @@ class AgentRuntime:
                 self.log.info(
                     f"Завершение: {decision.reasoning if decision.reasoning else 'готов'}. "
                     f"Запускаю final_answer.generate...",
-                    extra={"event_type": LogEventType.AGENT_STOP},
+                    extra={"event_type": EventType.AGENT_STOP},
                 )
                 try:
                     # Проверяем есть ли конфигурация для final_answer.generate
@@ -430,7 +430,7 @@ class AgentRuntime:
             if decision.type == DecisionType.FAIL:
                 self.log.error(
                     f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
-                    extra={"event_type": LogEventType.AGENT_STOP},
+                    extra={"event_type": EventType.AGENT_STOP},
                 )
                 # Сохраняем диалог даже при ошибке
                 self.session_context.commit_turn(
@@ -490,18 +490,18 @@ class AgentRuntime:
                     )
                     self.log.warning(
                         f"⛔ Policy заблокировал действие {decision.action}: {policy_reason}",
-                        extra={"event_type": LogEventType.WARNING},
+                        extra={"event_type": EventType.WARNING},
                     )
                     executed_steps += 1
                     continue
 
                 self.log.info(
                     f"⚙️ Запускаю {decision.action} с параметрами: {decision.parameters or {}}",
-                    extra={"event_type": LogEventType.TOOL_CALL},
+                    extra={"event_type": EventType.TOOL_CALL},
                 )
                 self.log.info(
                     f"⚙️ Executor.execute({decision.action})...",
-                    extra={"event_type": LogEventType.TOOL_CALL},
+                    extra={"event_type": EventType.TOOL_CALL},
                 )
 
                 # Публикуем детали выбран capability
@@ -517,10 +517,10 @@ class AgentRuntime:
                     agent_id=self.agent_id,
                 )
 
-                # Логируем для UI (через LogEventType — читается из файла)
+                # Логируем для UI (читается из файла)
                 self.log.info(
                     f"🎯 Capability: {decision.action} | {decision.reasoning or ''}",
-                    extra={"event_type": LogEventType.AGENT_DECISION},
+                    extra={"event_type": EventType.AGENT_DECISION},
                 )
 
                 try:
@@ -561,18 +561,18 @@ class AgentRuntime:
                     if result.status == ExecutionStatus.FAILED:
                         self.log.error(
                             f"❌ Действие {decision.action} завершилось с ошибкой: {result.error or 'неизвестная'}",
-                            extra={"event_type": LogEventType.TOOL_ERROR},
+                            extra={"event_type": EventType.TOOL_ERROR},
                         )
                     else:
                         self.log.info(
                             f"✅ Действие {decision.action} выполнено",
-                            extra={"event_type": LogEventType.TOOL_RESULT},
+                            extra={"event_type": EventType.TOOL_RESULT},
                         )
                 except Exception as e:
                     # SafeExecutor не должен выбрасывать, но на всякий случай
                     self.log.error(
                         f"❌ Исключение при выполнении {decision.action}: {e}",
-                        extra={"event_type": LogEventType.TOOL_ERROR},
+                        extra={"event_type": EventType.TOOL_ERROR},
                         exc_info=True,
                     )
                     result = ExecutionResult.failure(str(e))
@@ -591,16 +591,16 @@ class AgentRuntime:
                     agent_id=self.agent_id,
                 )
 
-                # Логируем для UI (через LogEventType — читается из файла)
+                # Логируем для UI (читается из файла)
                 if result.status == ExecutionStatus.FAILED:
                     self.log.info(
                         f"❌ {decision.action} → FAILED: {result.error or 'неизвестная'}",
-                        extra={"event_type": LogEventType.TOOL_ERROR},
+                        extra={"event_type": EventType.TOOL_ERROR},
                     )
                 else:
                     self.log.info(
                         f"✅ {decision.action} → {result.status.value}",
-                        extra={"event_type": LogEventType.TOOL_RESULT},
+                        extra={"event_type": EventType.TOOL_RESULT},
                     )
 
                 # Сохранение данных результата в data_context
@@ -661,12 +661,12 @@ class AgentRuntime:
                     items_count_after = self.session_context.data_context.count()
                     self.log.info(
                         f"📝 Сохранена ошибка: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
-                        extra={"event_type": LogEventType.STEP_COMPLETED},
+                        extra={"event_type": EventType.STEP_COMPLETED},
                     )
                 elif result.data in (None, {}, [], ""):
                     self.log.info(
                         f"⚠️ {decision.action} → ПУСТОЙ РЕЗУЛЬТАТ",
-                        extra={"event_type": LogEventType.TOOL_RESULT},
+                        extra={"event_type": EventType.TOOL_RESULT},
                     )
                     self._record_empty_result(decision.action, decision.parameters)
                     await self._run_sql_diagnostic(decision, result)
@@ -723,13 +723,13 @@ class AgentRuntime:
                     items_count_after = self.session_context.data_context.count()
                     self.log.debug(
                         f"📝 Сохранено observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
-                        extra={"event_type": LogEventType.STEP_COMPLETED},
+                        extra={"event_type": EventType.STEP_COMPLETED},
                     )
                     # Логируем наблюдение в формате промта (INFO)
                     if quick_content:
                         self.log.info(
                             f"[OBSERVATION] step={executed_steps + 1} | capability={decision.action}\n{quick_content}",
-                            extra={"event_type": LogEventType.STEP_COMPLETED},
+                            extra={"event_type": EventType.STEP_COMPLETED},
                         )
 
                 # Запись шага только после выполнения ACT
@@ -742,7 +742,7 @@ class AgentRuntime:
                 # Observer анализирует результат
                 self.log.info(
                     f"👁️ Observer.analyze({decision.action})...",
-                    extra={"event_type": LogEventType.INFO}
+                    extra={"event_type": EventType.INFO}
                 )
                 
                 observation = await self.observer.analyze(
@@ -775,14 +775,14 @@ class AgentRuntime:
                 # Логируем результат наблюдения
                 self.log.info(
                     f"📊 Observation: status={status}, quality={observation.get('data_quality', {})}",
-                    extra={"event_type": LogEventType.INFO}
+                    extra={"event_type": EventType.INFO}
                 )
                 
                 # Проверяем рекомендации Observer для следующего шага
                 if observation.get("requires_additional_action") and status in ["empty", "error"]:
                     self.log.warning(
                         f"⚠️ Observer рекомендует сменить стратегию: {observation.get('next_step_suggestion', '')}",
-                        extra={"event_type": LogEventType.INFO}
+                        extra={"event_type": EventType.INFO}
                     )
 
                 # Данные хранятся ТОЛЬКО в data_context (observation_item_ids)
@@ -1101,7 +1101,7 @@ class AgentRuntime:
         )
         self.log.info(
             f"📊 Записан пустой результат: {action_name}, tables={tables}, filters={list(filters.keys())}",
-            extra={"event_type": LogEventType.INFO},
+            extra={"event_type": EventType.INFO},
         )
 
     async def _run_sql_diagnostic(
@@ -1143,12 +1143,12 @@ class AgentRuntime:
                 )
                 self.log.info(
                     f"🔍 Диагностика нашла исправления: {corrected_list}",
-                    extra={"event_type": LogEventType.INFO},
+                    extra={"event_type": EventType.INFO},
                 )
 
             self.log.info(
                 f"🔍 SQL диагностика: {hints_text}",
-                extra={"event_type": LogEventType.INFO},
+                extra={"event_type": EventType.INFO},
             )
 
         except Exception as e:

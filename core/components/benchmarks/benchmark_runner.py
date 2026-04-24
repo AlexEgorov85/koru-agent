@@ -21,7 +21,7 @@ from core.components.benchmarks.benchmark_models import (
 )
 from core.components.benchmarks.check_result_validator import CheckResultValidator
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.logging.event_types import LogEventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 if TYPE_CHECKING:
     from core.infrastructure.logging.session import LoggingSession
@@ -116,7 +116,7 @@ class BenchmarkRunner:
         self._get_logger().info(
             "Запуск бенчмарка для версии %s (%d сценариев)",
             version.id, len(scenarios),
-            extra={"event_type": LogEventType.SYSTEM_INIT}
+            extra={"event_type": EventType.SYSTEM_INIT}
         )
 
         results = []
@@ -130,7 +130,7 @@ class BenchmarkRunner:
         if variance > 0.05:
             self._get_logger().warning(
                 "Высокая вариативность результатов: %.3f", variance,
-                extra={"event_type": LogEventType.WARNING}
+                extra={"event_type": EventType.WARNING}
             )
 
         return results
@@ -193,7 +193,7 @@ class BenchmarkRunner:
 
             self._get_logger().error(
                 "Ошибка выполнения сценария %s: %s", scenario.id, e,
-                extra={"event_type": LogEventType.SYSTEM_ERROR}
+                extra={"event_type": EventType.SYSTEM_ERROR}
             )
 
             return BenchmarkRunResult(
