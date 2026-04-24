@@ -819,25 +819,6 @@ class InfrastructureContext:
         self.log.info("Начало завершения работы InfrastructureContext",
                       extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
 
-        # Сохранение Vector Search индексов
-        if self._faiss_providers and self.config.vector_search:
-            self.log.info("Сохранение Vector Search индексов...",
-                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
-            from pathlib import Path
-            for source, provider in self._faiss_providers.items():
-                try:
-                    index_file = self.config.vector_search.indexes.get(source, f"{source}_index.faiss")
-                    index_path = Path(self.config.vector_search.storage.base_path) / index_file
-                    index_path.parent.mkdir(parents=True, exist_ok=True)
-                    await provider.save(str(index_path))
-                    self.log.info("💾 Сохранён индекс %s: %s",
-                                  source, index_path,
-                                  extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
-                except Exception as e:
-                    self.log.error("Ошибка сохранения индекса %s: %s",
-                                   source, str(e),
-                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
-
         # Завершение Vector Search провайдеров
         for source, provider in self._faiss_providers.items():
             try:
