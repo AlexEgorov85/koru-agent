@@ -9,7 +9,58 @@
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal, Dict, Optional, List
+from typing import Literal, Dict, Optional, List, Any
+
+
+# ===========================================================================
+# КОНФИГУРАЦИЯ ИСТОЧНИКОВ ДАННЫХ
+# ===========================================================================
+
+SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
+    "authors": {
+        "schema": "Lib",
+        "table": "authors",
+        "select_cols": "id, first_name, last_name, birth_date",
+        "text_fields": ["first_name", "last_name"],
+        "metadata_fields": ["id", "first_name", "last_name", "birth_date"],
+        "pk_column": "id",
+        "where_clause": "WHERE last_name IS NOT NULL",
+        "order_by": "ORDER BY last_name, first_name"
+    },
+    "audits": {
+        "schema": "oarb",
+        "table": "audits",
+        "select_cols": "id, title, audit_type, planned_date, actual_date, status, auditee_entity",
+        "text_fields": ["title", "auditee_entity", "audit_type"],
+        "metadata_fields": ["id", "title", "audit_type", "status", "auditee_entity"],
+        "pk_column": "id",
+        "where_clause": "WHERE title IS NOT NULL",
+        "order_by": "ORDER BY id"
+    },
+    "violations": {
+        "schema": "oarb",
+        "table": "violations",
+        "select_cols": """v.id, v.violation_code, v.description, v.recommendation,
+                          v.severity, v.status, v.responsible, v.deadline, v.audit_id,
+                          a.title as audit_title, a.status as audit_status""",
+        "text_fields": ["description", "violation_code", "audit_title"],
+        "metadata_fields": ["id", "violation_code", "description", "severity", "status", "responsible", "deadline", "audit_id", "audit_title", "audit_status"],
+        "pk_column": "id",
+        "where_clause": "WHERE v.description IS NOT NULL",
+        "order_by": "ORDER BY v.id",
+        "join_clause": "JOIN oarb.audits a ON v.audit_id = a.id"
+    },
+    "books": {
+        "schema": "Lib",
+        "table": "books",
+        "select_cols": "id, title, isbn, publication_date, author_id",
+        "text_fields": ["title"],
+        "metadata_fields": ["id", "title", "isbn", "publication_date", "author_id"],
+        "pk_column": "id",
+        "where_clause": "WHERE title IS NOT NULL",
+        "order_by": "ORDER BY title"
+    }
+}
 
 
 class FAISSConfig(BaseModel):
