@@ -276,6 +276,25 @@ class SafeExecutor:
         """
         return self.failure_memory
     
+    async def execute(
+        self,
+        capability_name: str,
+        parameters: dict,
+        context: ExecutionContext
+    ) -> ExecutionResult:
+        """
+        Выполнить capability без сложной retry-логики (базовое выполнение).
+        
+        ПАРАМЕТРЫ:
+        - capability_name: имя capability
+        - parameters: параметры
+        - context: контекст выполнения
+        
+        ВОЗВРАЩАЕТ:
+        - ExecutionResult: результат выполнения
+        """
+        return await self._execute_capability(capability_name, parameters, context)
+    
     async def _execute_capability(
         self,
         capability_name: str,

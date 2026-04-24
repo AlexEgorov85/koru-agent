@@ -43,6 +43,7 @@ class AgentMetrics:
     # Метрики Observer (Фаза 1)
     observer_llm_calls: int = 0
     observer_skips: int = 0
+    total_tokens_used: int = 0
 
     def _hash_action(self, action_name: str, parameters: Dict[str, Any]) -> str:
         """Создаёт хеш действия учитывая имя и параметры."""
@@ -258,7 +259,8 @@ class AgentMetrics:
             # Метрики Observer (Фаза 1)
             "observer_llm_calls": self.observer_llm_calls,
             "observer_skips": self.observer_skips,
-            "observer_skip_rate": round(observer_skip_rate, 3)
+            "observer_skip_rate": round(observer_skip_rate, 3),
+            "total_tokens_used": self.total_tokens_used,
         }
     
     def record_observer_call(self, used_llm: bool):
@@ -285,3 +287,7 @@ class AgentMetrics:
         if total == 0:
             return 0.0
         return self.observer_skips / total
+
+    def add_tokens(self, count: int):
+        """Добавление использованных токенов."""
+        self.total_tokens_used += count

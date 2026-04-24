@@ -70,14 +70,17 @@ class AgentRuntime:
         self.agent_id = agent_id
         self.agent_config = agent_config
 
-        # Компоненты
+        log_session = application_context.infrastructure_context.log_session
+        self.log = log_session.create_agent_logger(agent_id)
+        
+        event_bus = application_context.infrastructure_context.event_bus
+        
         self.executor = ActionExecutor(application_context)
         self.failure_memory = FailureMemory()
-        self.policy = AgentPolicy()  # ← Обновлённая политика с проверками
-        self.metrics = AgentMetrics()  # ← Метрики агента
-        self.observer = Observer(application_context)  # ← Observer для анализа результатов
+        self.policy = AgentPolicy()
+        self.metrics = AgentMetrics()
+        self.observer = Observer(application_context)
         
-        # Fallback strategy (импортируем здесь чтобы избежать circular import)
         from core.agent.behaviors.services import FallbackStrategyService
         self.fallback_strategy = FallbackStrategyService()
 
@@ -89,11 +92,7 @@ class AgentRuntime:
             max_delay=self.policy.retry_max_delay,
         )
         
-        # Выделенный сервис observation-сигналов (SRP: runtime только оркестрирует).
         self.observation_signal_service = ObservationSignalService()
-        
-        # Step orchestrators для делегирования ответственности (Фаза 2)
-        event_bus = application_context.infrastructure_context.event_bus
         
         self.decision_phase = DecisionPhase(
             log=self.log,
@@ -164,13 +163,6 @@ class AgentRuntime:
         if dialogue_history is not None:
             self.session_context.copy_dialogue_from(dialogue_history)
 
-        # Логгер агента (1 сессия = 1 файл)
-        log_session = application_context.infrastructure_context.log_session
-        self.log = log_session.create_agent_logger(agent_id)
-        
-        # Передаём логгер в error_recovery_phase
-        self.error_recovery_phase.log = self.log
-        
         self.log.info(
             f"Агент {agent_id} запущен, цель: {goal[:50]}...",
             extra={"event_type": EventType.AGENT_START},
