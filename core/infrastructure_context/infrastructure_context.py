@@ -122,24 +122,29 @@ class InfrastructureContext:
         """
         # Проверка повторной инициализации
         if self.lifecycle_manager and self.lifecycle_manager.is_ready:
-            self.log.warning("InfrastructureContext уже инициализирован",
-                             extra={"event_type": EventType.WARNING})
+            import logging
+            logging.getLogger(__name__).warning("InfrastructureContext уже инициализирован")
             return True
 
         # Проверка на предыдущую ошибку
         if self.lifecycle_manager and self.lifecycle_manager.state == ComponentStatus.FAILED:
-            self.log.error("InfrastructureContext в состоянии FAILED",
-                           extra={"event_type": EventType.SYSTEM_ERROR})
+            import logging
+            logging.getLogger(__name__).error("InfrastructureContext в состоянии FAILED")
             return False
 
         # === ЭТАП 1: Логирование и EventBus ===
+        # Guard на случай если initialize() вызывается повторно при dead context
+        import logging as _logging
+        _init_logger = _logging.getLogger(__name__)
+        
+        if not self.log:
+            # Инициализируем log вручную если ещё не готов
+            self.log_session.setup_context_loggers()
+            self.log = self.log_session.infra_logger
+        
         self.log.info("=== ЭТАП 1: Логирование и EventBus ===",
                       extra={"event_type": EventType.SYSTEM_INIT})
-        _init_logger = logging.getLogger(__name__)
         _init_logger.info("🚀 Инициализация инфраструктурного контекста...")
-
-        self.log_session.setup_context_loggers()
-        self.log = self.log_session.infra_logger
         self.log.info("🚀 Инициализация инфраструктуры...",
                       extra={"event_type": EventType.SYSTEM_INIT})
 

@@ -155,6 +155,10 @@ class AgentDefaults(BaseSettings):
     enable_context_window_management: bool = Field(default=True, description="Управление контекстом")
     enable_benchmark: bool = Field(default=False, description="Бенчмарки")
     profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
+    observer_trigger_mode: Literal["always", "on_error", "on_empty"] = Field(
+        default="always",
+        description="Режим вызова LLM в Observer: always=on_error=on_empty"
+    )
     
     @field_validator('max_steps')
     @classmethod
@@ -164,7 +168,7 @@ class AgentDefaults(BaseSettings):
         return v
     
     def __repr__(self) -> str:
-        return f"AgentDefaults(max_steps={self.max_steps}, temperature={self.temperature}, profile={self.profile!r})"
+        return f"AgentDefaults(max_steps={self.max_steps}, temperature={self.temperature}, profile={self.profile!r}, observer_trigger_mode={self.observer_trigger_mode!r})"
 
 
 class AgentSettings(BaseSettings):
@@ -504,6 +508,11 @@ class AppConfig(BaseSettings):
                 if yaml_config and 'vector_search' in yaml_config:
                     from core.config.vector_config import VectorSearchConfig
                     vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
+                
+                # Загружаем agent_defaults из YAML (переопределяет env vars)
+                agent_defaults_dict = {}
+                if yaml_config and 'agent_defaults' in yaml_config:
+                    agent_defaults_dict = yaml_config['agent_defaults']
             except Exception:
                 pass
         
@@ -661,7 +670,10 @@ class AppConfig(BaseSettings):
 
         # Дополняем tool_configs из discovery данными (vector_search и т.д.)
         # component_prefixes уже содержит все компоненты из discovery
-
+        
+        # Создаем AgentDefaults из YAML (переопопределяет env vars)
+        agent_defaults = AgentDefaults(**agent_defaults_dict) if agent_defaults_dict else AgentDefaults()
+        
         return cls(
             config_id=f"app_config_{profile}_discovery",
             profile=profile,
@@ -676,12 +688,7 @@ class AppConfig(BaseSettings):
             behavior_configs=behavior_configs,
             side_effects_enabled=(profile == "prod"),
             detailed_metrics=False,
-            max_steps=10,
-            max_retries=3,
-            # llm_timeout_seconds удалено (теперь используется config.timeouts),
-            temperature=0.7,
-            enable_self_reflection=True,
-            enable_context_window_management=True,
+            agent_defaults=agent_defaults,
             llm_providers=llm_providers,
             db_providers=db_providers,
             vector_search=vector_search_config,

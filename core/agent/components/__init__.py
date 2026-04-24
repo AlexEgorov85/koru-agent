@@ -8,13 +8,8 @@
 - agent_metrics: метрики агента
 
 NOTE: ActionExecutor и ExecutionContext перенесены в core.components.action_executor
-
-USAGE:
-```python
-from core.agent.components import Observer, SafeExecutor
-from core.components import ActionExecutor, ExecutionContext
-```
 """
+
 from core.components.action_executor import ActionExecutor, ExecutionContext
 
 from .observer import Observer
@@ -22,7 +17,6 @@ from .safe_executor import SafeExecutor
 from .policy import AgentPolicy, RetryPolicy
 from .agent_metrics import AgentMetrics
 from .sql_recovery import SQLRecoveryAnalyzer
-from .observation_signal import ObservationSignalService
 
 __all__ = [
     'ActionExecutor',
@@ -33,5 +27,4 @@ __all__ = [
     'RetryPolicy',
     'AgentMetrics',
     'SQLRecoveryAnalyzer',
-    'ObservationSignalService',
 ]

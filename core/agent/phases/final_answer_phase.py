@@ -62,57 +62,44 @@ class FinalAnswerPhase:
         )
         
         try:
-            # Get final_answer component from pattern or create
-            from core.components.component_factory import ComponentFactory
-            from core.config.component_config import ComponentConfig
-            
-            behavior_configs = getattr(session_context, '_behavior_configs', {})
-            component_config = behavior_configs.get("final_answer")
-            
-            if not component_config:
-                component_config = ComponentConfig(
-                    name="final_answer", variant_id="default"
-                )
-            
-            factory = ComponentFactory(
-                infrastructure_context=session_context._infrastructure_context
-                if hasattr(session_context, '_infrastructure_context')
-                else None
-            )
-            
-            # Try to get final_answer from application_context
+            # Get application_context и executor
             app_ctx = getattr(session_context, '_application_context', None)
             if app_ctx:
-                from core.agent.behaviors.evaluation.final_answer import FinalAnswerGenerator
-                
-                final_answer = await factory.create_and_initialize(
-                    component_class=FinalAnswerGenerator,
-                    name="final_answer",
-                    application_context=app_ctx,
-                    component_config=component_config,
-                )
-                
-                # Generate final answer
-                result = await final_answer.generate(
-                    session_context=session_context,
-                    goal=goal,
-                )
-                
-                if result:
-                    # Commit dialogue
-                    session_context.commit_turn(
-                        user_query=goal,
-                        assistant_response=result.get("answer", "") if isinstance(result, dict) else str(result),
-                        tools_used=[],
-                    )
-                    sync_dialogue_callback()
+                executor = getattr(app_ctx, 'executor', None)
+                if executor:
+                    # Вызов final_answer.generate через executor
+                    execution_context = type('ExecutionContext', (), {
+                        'session_context': session_context,
+                        'goal': goal,
+                        'decision_reasoning': decision_reasoning,
+                    })()
                     
-                    return ExecutionResult.success(
-                        data=result if isinstance(result, dict) else {"answer": str(result)}
+                    result = await executor.execute_action(
+                        action_name="final_answer.generate",
+                        parameters={
+                            "goal": goal,
+                            "format_type": "structured",
+                            "include_steps": True,
+                            "include_evidence": True,
+                            "decision_reasoning": decision_reasoning,
+                        },
+                        context=execution_context,
                     )
+                    
+                    if result and result.status.value == "success":
+                        data = result.data if hasattr(result, 'data') else result
+                        session_context.commit_turn(
+                            user_query=goal,
+                            assistant_response=data.get("answer", "") if isinstance(data, dict) else str(data),
+                            tools_used=["final_answer.generate"],
+                        )
+                        sync_dialogue_callback()
+                        
+                        return ExecutionResult.success(data=data)
                     
         except Exception as e:
-            self.log.error(f"Ошибка генерации финального ответа: {e}", exc_info=True)
+            if self.log:
+                self.log.error(f"Ошибка генерации финального ответа: {e}", exc_info=True)
         
         return None
     
@@ -194,7 +181,11 @@ class FinalAnswerPhase:
                     )
                     
         except Exception as e:
-            self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
+            if self.log:
+                self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
+            else:
+                import logging
+                logging.getLogger(__name__).error(f"Не удалось сгенерировать fallback-ответ: {e}")
         
         # Ultimate fallback
         fallback_msg = f"Не удалось достичь цели за {executed_steps} шагов."

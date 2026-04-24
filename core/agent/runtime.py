@@ -20,7 +20,7 @@ from core.models.enums.component_status import ComponentStatus
 from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.errors.failure_memory import FailureMemory
-from core.agent.components.observation_signal import ObservationSignalService
+
 from core.agent.components.policy import RetryPolicy, AgentPolicy, PolicyViolationError
 from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.behaviors.base import Decision, DecisionType
@@ -34,7 +34,7 @@ from core.config.agent_config import AgentConfig
 from core.agent.phases.decision_phase import DecisionPhase
 from core.agent.phases.policy_check_phase import PolicyCheckPhase
 from core.agent.phases.execution_phase import ExecutionPhase
-from core.agent.phases.observer_phase import ObserverPhase
+from core.agent.phases.observation_phase import ObservationPhase
 from core.agent.phases.context_update_phase import ContextUpdatePhase
 from core.agent.phases.final_answer_phase import FinalAnswerPhase
 from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
@@ -79,7 +79,13 @@ class AgentRuntime:
         self.failure_memory = FailureMemory()
         self.policy = AgentPolicy()
         self.metrics = AgentMetrics()
-        self.observer = Observer(application_context)
+        
+        observer_trigger_mode = "always"
+        if application_context and hasattr(application_context, 'config'):
+            app_cfg = application_context.config
+            if hasattr(app_cfg, 'agent_defaults') and hasattr(app_cfg.agent_defaults, 'observer_trigger_mode'):
+                observer_trigger_mode = app_cfg.agent_defaults.observer_trigger_mode
+        self.observer = Observer(application_context, trigger_mode=observer_trigger_mode)
         
         from core.agent.behaviors.services import FallbackStrategyService
         self.fallback_strategy = FallbackStrategyService()
@@ -91,8 +97,6 @@ class AgentRuntime:
             base_delay=self.policy.retry_base_delay,
             max_delay=self.policy.retry_max_delay,
         )
-        
-        self.observation_signal_service = ObservationSignalService()
         
         self.decision_phase = DecisionPhase(
             log=self.log,
@@ -112,7 +116,7 @@ class AgentRuntime:
             agent_config=agent_config,
         )
         
-        self.observer_phase = ObserverPhase(
+        self.observation_phase = ObservationPhase(
             observer=self.observer,
             metrics=self.metrics,
             policy=self.policy,
@@ -449,31 +453,15 @@ class AgentRuntime:
                 )
 
                 # ============================================
-                # OBSERVER + METRICS (Фаза 1) - ДЕЛЕГИРОВАНО STEP
+                # OBSERVATION PHASE (единая точка истинности)
                 # ============================================
                 
-                observation = await self.observer_phase.analyze(
+                observation = await self.observation_phase.analyze(
+                    result=result,
                     decision_action=decision.action,
                     decision_parameters=decision.parameters or {},
-                    result_data=result.data if hasattr(result, 'data') else result,
-                    error_msg=result.error if result.status == ExecutionStatus.FAILED else None,
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                    step_number=executed_steps + 1,
-                )
-
-                # Запись шага в agent_state - ДЕЛЕГИРОВАНО STEP
-                self.context_update_phase.update_agent_state(
                     session_context=self.session_context,
-                    executed_steps=executed_steps,
-                    decision_action=decision.action,
-                    decision_parameters=decision.parameters or {},
-                    result_status=result.status,
-                    observation_signal=self.observation_signal_service.build_signal(
-                        result=result,
-                        action_name=decision.action,
-                        parameters=decision.parameters or {},
-                    ),
+                    step_number=executed_steps + 1,
                 )
 
                 # Публикация событий

@@ -28,6 +28,17 @@ agent:
   max_retries: 1
   temperature: 0.0
 
+agent_defaults:
+  max_steps: 5
+  max_retries: 1
+  temperature: 0.0
+  timeout_seconds: 60.0
+  enable_self_reflection: false
+  enable_context_window_management: true
+  enable_benchmark: false
+  profile: test
+  observer_trigger_mode: on_error
+
 # Настройки безопасности для тестов
 security:
   secrets_path: null

@@ -6,6 +6,16 @@ agent:
   max_retries: 3
   max_steps: 10
   temperature: 0.2
+agent_defaults:
+  max_steps: 10
+  max_retries: 3
+  temperature: 0.2
+  timeout_seconds: 300.0
+  enable_self_reflection: true
+  enable_context_window_management: true
+  enable_benchmark: false
+  profile: dev
+  observer_trigger_mode: on_error
 data_dir: data
 db_providers:
   default_db:
