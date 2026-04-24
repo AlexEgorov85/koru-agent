@@ -65,6 +65,7 @@ vector_search:
     authors: authors_index.faiss
     audits: audits_index.faiss
     violations: violations_index.faiss
+    books: books_index.faiss
   storage:
     base_path: data/vector
 version: 5.40.2
