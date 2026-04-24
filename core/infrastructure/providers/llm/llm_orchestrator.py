@@ -1337,7 +1337,19 @@ class LLMOrchestrator:
             # Вызываем провайдер напрямую — он сам управляет потоком
             result = await provider._generate_impl(request)
 
-            # Успешное завершение
+            # === ВАЛИДАЦИЯ ОТВЕТА ===
+            validation_result = self._validate_response(result, call_id)
+            if not validation_result["valid"]:
+                retry_reason = validation_result["reason"]
+                self._logger.warning(
+                    f"⚠️ Валидация НЕ пройдена | call_id={call_id} | "
+                    f"reason={retry_reason}",
+                    extra={"event_type": EventType.LLM_ERROR}
+                )
+                # Здесь можно добавить retry логику
+                # Пока просто возвращаем как есть ( caller сам решит что делать )
+            
+            # === УСПЕШНОЕ ЗАВЕРШЕНИЕ ===
             async with self._lock:
                 record = self._pending_calls[call_id]
                 record.status = CallStatus.COMPLETED
@@ -1405,21 +1417,42 @@ class LLMOrchestrator:
         self._logger.warning(
             f"⏰ LLM TIMEOUT | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
-            f"step={record.step_number} | phase={record.phase} | "
-            f"elapsed={elapsed:.2f}s | timeout={timeout}s | "
-            f"prompt_len={len(record.request.prompt)}",
+            f"elapsed={elapsed:.2f}s | timeout={timeout:.2f}s",
             extra={"event_type": EventType.LLM_ERROR}
         )
 
-        # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
-        await self._publish_response_event(
-            record,
-            None,
-            elapsed,
-            success=False,
-            error_type="timeout",
-            error_message=f"LLM timeout после {elapsed:.2f}с (лимит: {timeout}с)"
-        )
+    def _validate_response(self, result: LLMResponse, call_id: str) -> Dict[str, Any]:
+        """
+        Валидация ответа LLM перед возвратом.
+        
+        Returns:
+            Dict с ключами: valid (bool), reason (str)
+        """
+        reasons = []
+        
+        # 1. Проверка на пустой контент
+        if not result.content or not result.content.strip():
+            reasons.append("empty_content")
+        
+        # 2. Проверка finish_reason
+        if result.finish_reason == "empty":
+            reasons.append("finish_reason_empty")
+        elif result.finish_reason == "error":
+            reasons.append("finish_reason_error")
+        elif result.finish_reason == "length":
+            reasons.append("finish_reason_length")  # Может быть OK, но предупреждаем
+        
+        # 3. Проверка metadata на наличие ошибок
+        if result.metadata and "error" in result.metadata:
+            reasons.append(f"metadata_error: {result.metadata.get('error')}")
+        
+        # 4. Проверка слишком короткого ответа (для structured output)
+        if result.content and len(result.content) < 5:
+            reasons.append("too_short_content")
+        
+        is_valid = len(reasons) == 0
+        
+        return {"valid": is_valid, "reason": "; ".join(reasons)}
 
     async def _log_call_error(self, record: CallRecord, error: Exception, elapsed: float) -> None:
         """Логирование ошибки вызова."""

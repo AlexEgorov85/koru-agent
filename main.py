@@ -84,7 +84,9 @@ async def run_agent(
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
     
-    print(f"📝 Логи: {config.log_dir}", flush=True)
+    # Получаем реальную директорию логов
+    log_dir_path = infrastructure_context.log_session.logs_dir_path
+    print(f"📝 Логи: {log_dir_path}", flush=True)
 
     session_id = str(infrastructure_context.id)
 

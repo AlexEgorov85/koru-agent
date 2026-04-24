@@ -376,6 +376,8 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             is_executor_thread = current_thread.name.startswith('llm_worker') or \
                                  current_thread.name.startswith('llm_orchestrator')
 
+            self._get_logger().info("🔵 [LLM] Thread check: name=%s, is_executor_thread=%s", current_thread.name, is_executor_thread, extra={"event_type": EventType.LLM_CALL})
+
             # Логируем полный промпт перед вызовом
             full_prompt_for_log = prompt
             if system_prompt:
@@ -389,9 +391,11 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 response = _call_llm_sync()
             else:
                 # Не в потоке - используем run_in_executor (без таймаута)
+                self._get_logger().info("🔵 [LLM] Starting run_in_executor...", extra={"event_type": EventType.LLM_CALL})
                 response = await asyncio.get_event_loop().run_in_executor(
                     self._executor, _call_llm_sync
                 )
+                self._get_logger().info("🔵 [LLM] run_in_executor completed!", extra={"event_type": EventType.LLM_CALL})
 
             # Обрабатываем результат
             choices = response.get('choices', [])

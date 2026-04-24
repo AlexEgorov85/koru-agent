@@ -1,27 +1,63 @@
-```
-# Python
+```gitignore
+# Python cache files
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+*.pyc
+*.pyo
+*.pyd
 
-# Vector index files
-data/vector/*.faiss
-data/vector/*_metadata.json
+# Test cache and coverage
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# IDE specific
+.vscode/
+.idea/
+
+# Qwen
+.qwen/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data directories
+data/logs/
+data/metrics/
+data/vector/
+
+# Models
+models/embedding/
+
+# Scripts
+run_ui.bat
+scripts/debug/
+
+# Test files
+test_component.ipynb
+
+# Local data
+core/data/
+
+# Dependencies and builds
+venv/
+.venv/
+pip-wheel-metadata/
+.wheelhouse/
+.mypy_cache/
+__pypackages__/
 ```

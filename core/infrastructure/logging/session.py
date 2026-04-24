@@ -134,12 +134,20 @@ class LoggingSession:
         self.run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.base_dir = self.config.logs_dir / self.run_timestamp
         self.agents_dir = self.base_dir / "agents"
-
+        
         self.infra_logger: Optional[logging.Logger] = None
         self.app_logger: Optional[logging.Logger] = None
         self.llm_calls_logger: Optional[logging.Logger] = None
         self._agent_loggers: Dict[str, logging.Logger] = {}
         self._handlers_setup = False
+
+    @property
+    def logs_dir_path(self) -> Path:
+        return self.base_dir
+    
+    @property  
+    def timestamp(self) -> str:
+        return self.run_timestamp
 
     def setup_context_loggers(self) -> None:
         """
