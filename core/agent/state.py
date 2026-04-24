@@ -17,28 +17,74 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class AgentState:
-    """Состояние выполнения агентного цикла."""
+    """Состояние выполнения агентного цикла.
+    
+    ИНКАПСУЛЯЦИЯ:
+    - Все поля состояния приватные (с подчеркиванием)
+    - Доступ только через методы
+    - Изменение состояния только через register_step_outcome()
+    """
 
-    step_number: int = 0
-    history: List[Dict[str, Any]] = field(default_factory=list)
+    _step_number: int = field(default=0, repr=False)
+    _history: List[Dict[str, Any]] = field(default_factory=list, repr=False)
+    _errors: List[str] = field(default_factory=list, repr=False)
 
-    # История ошибок (человеко-читаемые маркеры для промпта/логики)
-    errors: List[str] = field(default_factory=list)
+    # TOTAL метрики (приватные)
+    _total_empty_results: int = field(default=0, repr=False)
 
-    # TOTAL метрики
-    total_empty_results: int = 0
+    # CONSECUTIVE метрики (приватные)
+    _consecutive_empty_results: int = field(default=0, repr=False)
+    _consecutive_repeated_actions: int = field(default=0, repr=False)
 
-    # CONSECUTIVE метрики (для policy/stop решений)
-    consecutive_empty_results: int = 0
-    consecutive_repeated_actions: int = 0
-
-    # Поля обратной совместимости (используются в текущих местах кода/промптов)
-    empty_results_count: int = 0
-    repeated_actions_count: int = 0
-
-    last_action: Optional[str] = None
-    last_action_signature: Optional[str] = None
-    last_observation: Optional[Dict[str, Any]] = None
+    _last_action: Optional[str] = field(default=None, repr=False)
+    _last_action_signature: Optional[str] = field(default=None, repr=False)
+    _last_observation: Optional[Dict[str, Any]] = field(default=None, repr=False)
+    _last_corrected_params: Optional[Dict[str, Any]] = field(default=None, repr=False)
+    
+    # Публичные свойства только для чтения
+    @property
+    def step_number(self) -> int:
+        return self._step_number
+    
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        return list(self._history)  # Возвращаем копию
+    
+    @property
+    def errors(self) -> List[str]:
+        return list(self._errors)  # Возвращаем копию
+    
+    @property
+    def total_empty_results(self) -> int:
+        return self._total_empty_results
+    
+    @property
+    def consecutive_empty_results(self) -> int:
+        return self._consecutive_empty_results
+    
+    @property
+    def consecutive_repeated_actions(self) -> int:
+        return self._consecutive_repeated_actions
+    
+    @property
+    def last_action(self) -> Optional[str]:
+        return self._last_action
+    
+    @property
+    def last_action_signature(self) -> Optional[str]:
+        return self._last_action_signature
+    
+    @property
+    def last_observation(self) -> Optional[Dict[str, Any]]:
+        return self._last_observation
+    
+    @property
+    def last_corrected_params(self) -> Optional[Dict[str, Any]]:
+        return self._last_corrected_params
+    
+    @last_corrected_params.setter
+    def last_corrected_params(self, value: Optional[Dict[str, Any]]):
+        self._last_corrected_params = value
 
     def add_step(
         self,
@@ -56,26 +102,23 @@ class AgentState:
         - Это снижает ложные блокировки, когда один и тот же инструмент
           вызывается с разными входными параметрами.
         """
-        self.step_number += 1
+        self._step_number += 1
         action_signature = self.build_action_signature(
             action_name=action_name, parameters=parameters
         )
 
-        if self.last_action_signature == action_signature:
-            self.consecutive_repeated_actions += 1
+        if self._last_action_signature == action_signature:
+            self._consecutive_repeated_actions += 1
         else:
-            self.consecutive_repeated_actions = 0
+            self._consecutive_repeated_actions = 0
 
-        self.last_action = action_name
-        self.last_action_signature = action_signature
-        self.last_observation = observation
+        self._last_action = action_name
+        self._last_action_signature = action_signature
+        self._last_observation = observation
 
-        # Поле совместимости для уже существующей логики.
-        self.repeated_actions_count = self.consecutive_repeated_actions
-
-        self.history.append(
+        self._history.append(
             {
-                "step": self.step_number,
+                "step": self._step_number,
                 "action": action_name,
                 "action_signature": action_signature,
                 "status": status,
@@ -89,27 +132,55 @@ class AgentState:
         if observation is None:
             return
 
-        self.last_observation = observation
+        self._last_observation = observation
 
         obs_status = str(observation.get("status", "")).lower()
         if obs_status == "empty":
-            self.total_empty_results += 1
-            self.consecutive_empty_results += 1
-            self.empty_results_count = self.consecutive_empty_results
+            self._total_empty_results += 1
+            self._consecutive_empty_results += 1
         elif obs_status == "error":
-            self.errors.append(
+            self._errors.append(
                 f"OBSERVATION:{observation.get('insight', 'unknown_error')}"
             )
-            self.consecutive_empty_results = 0
-            self.empty_results_count = self.consecutive_empty_results
+            self._consecutive_empty_results = 0
         else:
             # Любой непустой и неошибочный ответ разрывает streak пустых результатов.
-            self.consecutive_empty_results = 0
-            self.empty_results_count = self.consecutive_empty_results
+            self._consecutive_empty_results = 0
 
         quality = str(observation.get("quality", "")).lower()
         if quality == "useless":
-            self.errors.append("OBSERVATION:USELESS_RESULT")
+            self._errors.append("OBSERVATION:USELESS_RESULT")
+
+    def register_step_outcome(
+        self,
+        action_name: str,
+        status: str,
+        parameters: Optional[Dict[str, Any]] = None,
+        observation: Optional[Dict[str, Any]] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """
+        Единый метод для регистрации исхода шага.
+        
+        ИНКАПСУЛЯЦИЯ:
+        - Все изменения состояния проходят только через этот метод
+        - Вызывается после каждого шага выполнения
+        """
+        # Добавляем шаг в историю
+        self.add_step(
+            action_name=action_name,
+            status=status,
+            parameters=parameters,
+            observation=observation,
+        )
+        
+        # Регистрируем observation если есть
+        if observation:
+            self.register_observation(observation)
+        
+        # Регистрируем ошибку если есть
+        if error_message:
+            self._errors.append(f"EXECUTION:{error_message}")
 
     def get_recent_actions(self, limit: int = 3) -> List[str]:
         """Получить последние действия по истории шагов."""

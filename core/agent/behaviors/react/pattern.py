@@ -101,10 +101,10 @@ class ReActPattern(BaseBehaviorPattern):
             "available_capabilities": available_capabilities,
             "state_errors": agent_state.errors[-3:] if agent_state else [],
             "empty_results_count": (
-                agent_state.empty_results_count if agent_state else 0
+                agent_state.total_empty_results if agent_state else 0
             ),
             "repeated_actions_count": (
-                agent_state.repeated_actions_count if agent_state else 0
+                agent_state.consecutive_repeated_actions if agent_state else 0
             ),
             "last_observation": agent_state.last_observation if agent_state else None,
         }
@@ -117,10 +117,12 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> Decision:
         """Генерация решения через LLM."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
+        from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
         
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
+        try:
             # Логируем входные параметры
             self._log_debug(
                 f"📥 [ReAct.decide] Входные параметры: "
@@ -287,8 +289,11 @@ class ReActPattern(BaseBehaviorPattern):
             )
             if not is_reflection_valid:
                 if hasattr(session_context, "agent_state"):
-                    session_context.agent_state.errors.append(
-                        f"REFLECTION:{reflection_reason}"
+                    session_context.agent_state.register_step_outcome(
+                        action_name="reflection",
+                        status="failed",
+                        observation={"status": "error", "insight": reflection_reason},
+                        error_message=f"REFLECTION:{reflection_reason}"
                     )
                 event_bus = getattr(
                     getattr(self.application_context, "infrastructure_context", None),
@@ -306,10 +311,10 @@ class ReActPattern(BaseBehaviorPattern):
                         session_id=session_context.session_id,
                         agent_id=getattr(session_context, "agent_id", None),
                     )
-                self._log_warning(
-                    f"⛔ Reflection gate заблокировал шаг: {reflection_reason}",
-                    event_type=EventType.WARNING,
-                )
+                    self._log_warning(
+                        f"⛔ Reflection gate заблокировал шаг: {reflection_reason}",
+                        event_type=EventType.WARNING,
+                    )
                 return self.fallback_strategy.create_error(
                     f"reflection_blocked:{reflection_reason}", available_capabilities
                 )

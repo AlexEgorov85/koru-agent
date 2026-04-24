@@ -22,7 +22,7 @@ from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.errors.failure_memory import FailureMemory
 from core.agent.components.observation_signal import ObservationSignalService
-from core.agent.components.policy import RetryPolicy, AgentPolicy
+from core.agent.components.policy import RetryPolicy, AgentPolicy, PolicyViolationError
 from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.behaviors.base import Decision, DecisionType
 from core.utils.observation_formatter import (
@@ -31,7 +31,6 @@ from core.utils.observation_formatter import (
 )
 from core.components.skills.utils.observation_policy import ObservationPolicy
 from core.agent.components.observer import Observer
-from core.agent.components.step_executor import StepExecutor
 from core.config.agent_config import AgentConfig
 
 
@@ -96,17 +95,6 @@ class AgentRuntime:
             session_id=str(uuid.uuid4()), agent_id=self.agent_id
         )
         self.session_context.set_goal(goal)
-
-        # Инициализируем step_executor с правильным session_id (после создания session_context)
-        event_bus = self.application_context.infrastructure_context.event_bus
-        log_session = self.application_context.infrastructure_context.log_session
-        self.step_executor = StepExecutor(
-            safe_executor=self.safe_executor,
-            event_bus=event_bus,
-            session_id=self.session_context.session_id,
-            agent_id=self.agent_id,
-            log_session=log_session
-        )
 
         # Сохраняем ссылку на глобальную историю для обратной записи
         self._shared_dialogue_history = dialogue_history
@@ -284,15 +272,23 @@ class AgentRuntime:
         executed_steps = 0
         for step in range(self.max_steps):
             agent_state = self.session_context.agent_state
-            if (
-                agent_state.consecutive_repeated_actions >= 3
-                or agent_state.consecutive_empty_results >= 3
-            ):
-                stop_reason = (
-                    f"repeated_actions={agent_state.consecutive_repeated_actions}, "
-                    f"empty_results={agent_state.consecutive_empty_results}"
+            
+            # Проверка условий остановки через Policy (Fail-Fast)
+            try:
+                self.policy.evaluate(
+                    action_name="loop_check",
+                    metrics=self.metrics,
+                    state_data={
+                        "consecutive_repeated_actions": agent_state.consecutive_repeated_actions,
+                        "consecutive_empty_results": agent_state.consecutive_empty_results,
+                    }
                 )
-                agent_state.errors.append(f"STOP:{stop_reason}")
+            except PolicyViolationError as e:
+                stop_reason = f"Policy violation: {', '.join(e.verdict.violations)}"
+                self.log.warning(
+                    f"🛑 Остановка по policy: {stop_reason}",
+                    extra={"event_type": EventType.AGENT_STOP}
+                )
                 await event_bus.publish(
                     EventType.SESSION_FAILED,
                     {"reason": stop_reason, "step": step + 1},
@@ -305,7 +301,7 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return ExecutionResult.failure(f"Stopped by policy: {stop_reason}")
+                return ExecutionResult.failure(stop_reason)
 
             self.log.info(
                 f"📍 ШАГ {step + 1}/{self.max_steps}",
@@ -367,7 +363,7 @@ class AgentRuntime:
                                 break
                     
                     if step_config:
-                        final_result = await self.step_executor.execute_with_config(
+                        final_result = await self.safe_executor.execute_with_config(
                             step_config=step_config,
                             parameters={
                                 "format_type": "structured",
@@ -422,7 +418,7 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return decision.result or ExecutionResult.success(
+                return decision.data or ExecutionResult.success(
                     data=decision.reasoning
                 )
 
@@ -443,14 +439,31 @@ class AgentRuntime:
 
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
-                policy_allowed, policy_reason = self.policy.check_step(
-                    decision.action or "",
-                    decision.parameters or {},
-                    self.session_context.agent_state,
-                )
-                if not policy_allowed:
-                    policy_msg = f"POLICY_BLOCKED: {policy_reason}. Действие отклонено. Смени инструмент или параметры."
-                    self.session_context.agent_state.errors.append(policy_msg)
+                # Policy проверка через evaluate() с Fail-Fast
+                try:
+                    self.policy.evaluate(
+                        action_name=decision.action or "",
+                        metrics=self.metrics,
+                        state_data={
+                            "consecutive_repeated_actions": self.session_context.agent_state.consecutive_repeated_actions,
+                            "consecutive_empty_results": self.session_context.agent_state.consecutive_empty_results,
+                        },
+                        parameters=decision.parameters or {}
+                    )
+                except PolicyViolationError as e:
+                    policy_msg = f"POLICY_BLOCKED: {', '.join(e.verdict.violations)}. Действие отклонено. Смени инструмент или параметры."
+                    self.log.warning(
+                        f"⛔ Policy заблокировал действие {decision.action}: {policy_msg}",
+                        extra={"event_type": EventType.WARNING},
+                    )
+                    # Регистрируем заблокированное действие через единый метод
+                    self.session_context.agent_state.register_step_outcome(
+                        action_name=decision.action or "unknown",
+                        status="blocked",
+                        parameters=decision.parameters or {},
+                        observation={"status": "blocked", "reason": policy_msg},
+                        error_message=policy_msg
+                    )
                     # Добавляем заблокированное действие в step_context чтобы оно попало в историю
                     self.session_context.register_step(
                         step_number=step + 1,
@@ -458,39 +471,28 @@ class AgentRuntime:
                         skill_name="",
                         action_item_id=None,
                         observation_item_ids=[],
-                        summary=f"Action blocked by policy: {policy_reason}",
+                        summary=f"Action blocked by policy: {policy_msg}",
                         status=ExecutionStatus.FAILED,
                         parameters=decision.parameters or {},
-                    )
-                    # Также добавляем в agent_state.history чтобы оно учитывалось при проверке повторов
-                    self.session_context.agent_state.add_step(
-                        action_name=decision.action or "unknown",
-                        status="blocked",
-                        parameters=decision.parameters or {},
-                        observation={"status": "blocked", "reason": policy_reason},
                     )
                     self.session_context.record_action(
                         action_data={
                             "action": decision.action,
                             "parameters": decision.parameters,
                             "status": "blocked",
-                            "reason": policy_reason,
+                            "reason": policy_msg,
                         },
                         step_number=step + 1,
                     )
                     await event_bus.publish(
                         EventType.ERROR_OCCURRED,
                         {
-                            "reason": policy_reason,
+                            "reason": policy_msg,
                             "action": decision.action,
                             "step": step + 1,
                         },
                         session_id=self.session_context.session_id,
                         agent_id=self.agent_id,
-                    )
-                    self.log.warning(
-                        f"⛔ Policy заблокировал действие {decision.action}: {policy_reason}",
-                        extra={"event_type": EventType.WARNING},
                     )
                     executed_steps += 1
                     continue
@@ -524,7 +526,7 @@ class AgentRuntime:
                 )
 
                 try:
-                    # Используем StepExecutor если есть конфигурация шага
+                    # Используем execute_with_config если есть конфигурация шага
                     step_config = None
                     if self.agent_config and hasattr(self.agent_config, 'steps'):
                         # Ищем шаг по capability name
@@ -534,8 +536,8 @@ class AgentRuntime:
                                 break
                     
                     if step_config:
-                        # Выполняем через StepExecutor с конфигурацией
-                        result = await self.step_executor.execute_with_config(
+                        # Выполняем через SafeExecutor с конфигурацией
+                        result = await self.safe_executor.execute_with_config(
                             step_config=step_config,
                             parameters=decision.parameters or {},
                             context=ExecutionContext(
@@ -896,7 +898,7 @@ class AgentRuntime:
                             break
                 
                 if step_config:
-                    final_result = await self.step_executor.execute_with_config(
+                    final_result = await self.safe_executor.execute_with_config(
                         step_config=step_config,
                         parameters={
                             "format_type": "structured",
@@ -1130,7 +1132,8 @@ class AgentRuntime:
             )
 
             hints_text = "; ".join(diag_result.get("hints", []))
-            self.session_context.agent_state.errors.append(
+            # Используем приватное поле для добавления ошибки (инкапсуляция)
+            self.session_context.agent_state._errors.append(
                 f"SQL_DIAGNOSTIC: {hints_text}"
             )
 

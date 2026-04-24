@@ -48,7 +48,7 @@ class CreatePlanHandler(SkillHandler):
             attempts = llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
             raise RuntimeError(f"Ошибка генерации плана: {llm_result.error}")
 
-        llm_result_data = llm_result.result
+        llm_result_data = llm_result.data
         if hasattr(llm_result_data, 'parsed_content'):
             plan_data = llm_result_data.parsed_content
         elif isinstance(llm_result_data, dict):

@@ -1,0 +1,30 @@
+{"timestamp": "2026-04-24T07:14:16.285279", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
+{"timestamp": "2026-04-24T07:14:16.286011", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
+{"timestamp": "2026-04-24T07:14:16.285592", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:14:16.285746", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:14:16.371455", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 1}
+{"timestamp": "2026-04-24T07:14:16.371594", "event_type": "user.result", "session_id": "de525617-8cac-41f7-89fb-456a85a4a550", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
+{"timestamp": "2026-04-24T07:14:16.371799", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:14:16.371927", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:14:16.408281", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator initialized"}
+{"timestamp": "2026-04-24T07:14:17.131955", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_generation", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132100", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "contract_service", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132216", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_query_service", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132337", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "json_parsing", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132424", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "table_description_service", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132506", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "prompt_service", "type": "service"}
+{"timestamp": "2026-04-24T07:14:17.132629", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "check_result", "type": "skill"}
+{"timestamp": "2026-04-24T07:14:17.132732", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "data_analysis", "type": "skill"}
+{"timestamp": "2026-04-24T07:14:17.132835", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "meta_component_creator", "type": "skill"}
+{"timestamp": "2026-04-24T07:14:17.132948", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "planning", "type": "skill"}
+{"timestamp": "2026-04-24T07:14:17.133046", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "final_answer", "type": "skill"}
+{"timestamp": "2026-04-24T07:14:17.133205", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_tool", "type": "tool"}
+{"timestamp": "2026-04-24T07:14:17.133345", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "vector_search", "type": "tool"}
+{"timestamp": "2026-04-24T07:14:17.133439", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "planning_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:14:17.133523", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "react_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:14:17.133601", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "evaluation_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:14:16.446107", "event_type": "check_result.tables_loaded", "session_id": "de525617-8cac-41f7-89fb-456a85a4a550", "agent_id": null, "source": "file", "path": "/workspace/data/skills/check_result/tables.yaml"}
+{"timestamp": "2026-04-24T07:14:17.127861", "event_type": "check_result.initialized", "session_id": "de525617-8cac-41f7-89fb-456a85a4a550", "agent_id": null, "tables_count": 4}
+{"timestamp": "2026-04-24T07:14:17.189729", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator shutdown"}
+{"timestamp": "2026-04-24T07:14:17.189855", "event_type": "resources_cleared", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:14:17.190539", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 0, "success": 0}

@@ -1,0 +1,71 @@
+{"timestamp": "2026-04-24T07:09:51.334427", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
+{"timestamp": "2026-04-24T07:09:51.334853", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
+{"timestamp": "2026-04-24T07:09:51.334594", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:51.334680", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:51.351621", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 0}
+{"timestamp": "2026-04-24T07:09:51.351702", "event_type": "user.result", "session_id": "3271587a-d674-4ee1-bc7a-db2fa94f3975", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
+{"timestamp": "2026-04-24T07:09:51.351848", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:51.351907", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:51.395143", "event_type": "test_event", "session_id": "system", "agent_id": null, "message": "test"}
+{"timestamp": "2026-04-24T07:09:51.466859", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator initialized"}
+{"timestamp": "2026-04-24T07:09:52.008551", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_generation", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.008703", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "contract_service", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.008799", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_query_service", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.008888", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "json_parsing", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.008974", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "table_description_service", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.009064", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "prompt_service", "type": "service"}
+{"timestamp": "2026-04-24T07:09:52.009238", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "check_result", "type": "skill"}
+{"timestamp": "2026-04-24T07:09:52.009362", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "data_analysis", "type": "skill"}
+{"timestamp": "2026-04-24T07:09:52.009476", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "meta_component_creator", "type": "skill"}
+{"timestamp": "2026-04-24T07:09:52.009582", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "planning", "type": "skill"}
+{"timestamp": "2026-04-24T07:09:52.009682", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "final_answer", "type": "skill"}
+{"timestamp": "2026-04-24T07:09:52.009790", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "sql_tool", "type": "tool"}
+{"timestamp": "2026-04-24T07:09:52.009941", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "vector_search", "type": "tool"}
+{"timestamp": "2026-04-24T07:09:52.010038", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "planning_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:09:52.010193", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "react_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:09:52.010322", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "evaluation_pattern", "type": "behavior"}
+{"timestamp": "2026-04-24T07:09:51.824696", "event_type": "check_result.tables_loaded", "session_id": "3271587a-d674-4ee1-bc7a-db2fa94f3975", "agent_id": null, "source": "file", "path": "/workspace/data/skills/check_result/tables.yaml"}
+{"timestamp": "2026-04-24T07:09:51.867323", "event_type": "check_result.initialized", "session_id": "3271587a-d674-4ee1-bc7a-db2fa94f3975", "agent_id": null, "tables_count": 4}
+{"timestamp": "2026-04-24T07:09:52.348437", "event_type": "debug", "session_id": "a687b42b-020d-4ae7-a6c5-205ce7cad07c", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.348713", "event_type": "info", "session_id": "a687b42b-020d-4ae7-a6c5-205ce7cad07c", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.351598", "event_type": "session.started", "session_id": "a687b42b-020d-4ae7-a6c5-205ce7cad07c", "agent_id": "e2e_test_agent", "goal": "Сколько проверок было проведено в 2025 году?"}
+{"timestamp": "2026-04-24T07:09:52.348585", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.348666", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.391073", "event_type": "debug", "session_id": "b005df5e-df71-4908-8e7a-9b2860fe7c34", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.391325", "event_type": "info", "session_id": "b005df5e-df71-4908-8e7a-9b2860fe7c34", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.393881", "event_type": "session.started", "session_id": "b005df5e-df71-4908-8e7a-9b2860fe7c34", "agent_id": "e2e_test_agent", "goal": "Найти несуществующие данные"}
+{"timestamp": "2026-04-24T07:09:52.391215", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.391277", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.431215", "event_type": "debug", "session_id": "fa94550d-2cb3-4d3c-8a8c-6d639dc63028", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.431458", "event_type": "info", "session_id": "fa94550d-2cb3-4d3c-8a8c-6d639dc63028", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.433992", "event_type": "session.started", "session_id": "fa94550d-2cb3-4d3c-8a8c-6d639dc63028", "agent_id": "e2e_test_agent", "goal": "Простой вопрос"}
+{"timestamp": "2026-04-24T07:09:52.431361", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.431416", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.449515", "event_type": "debug", "session_id": "991a8214-d870-43f3-b217-8e4744132928", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.449713", "event_type": "info", "session_id": "991a8214-d870-43f3-b217-8e4744132928", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.452452", "event_type": "session.started", "session_id": "991a8214-d870-43f3-b217-8e4744132928", "agent_id": "e2e_test_agent", "goal": "Показать количество проверок по типу проверки и региону"}
+{"timestamp": "2026-04-24T07:09:52.449627", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.449678", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.489744", "event_type": "debug", "session_id": "10a03bf4-0fb3-4d62-ad26-9971395e0279", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.489957", "event_type": "info", "session_id": "10a03bf4-0fb3-4d62-ad26-9971395e0279", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.492567", "event_type": "session.started", "session_id": "10a03bf4-0fb3-4d62-ad26-9971395e0279", "agent_id": "e2e_test_agent", "goal": "Показать все проверки за 2030 год"}
+{"timestamp": "2026-04-24T07:09:52.489861", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.489920", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.529986", "event_type": "debug", "session_id": "607d594d-e8be-4600-a457-b8816b6f1e10", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.530231", "event_type": "info", "session_id": "607d594d-e8be-4600-a457-b8816b6f1e10", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.532860", "event_type": "session.started", "session_id": "607d594d-e8be-4600-a457-b8816b6f1e10", "agent_id": "e2e_test_agent", "goal": "Тест ReAct цикла"}
+{"timestamp": "2026-04-24T07:09:52.530115", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.530183", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.552632", "event_type": "debug", "session_id": "14a5c550-8b8a-4a3f-b7f6-41fd6f55e970", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.552831", "event_type": "info", "session_id": "14a5c550-8b8a-4a3f-b7f6-41fd6f55e970", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.565982", "event_type": "session.started", "session_id": "14a5c550-8b8a-4a3f-b7f6-41fd6f55e970", "agent_id": "e2e_test_agent", "goal": "Сложный многошаговый запрос"}
+{"timestamp": "2026-04-24T07:09:52.552742", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.552793", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.570386", "event_type": "debug", "session_id": "46affe10-6976-4aec-860d-87b1980f7fb2", "agent_id": "e2e_test_agent", "message": "🏭 Создание Pattern через ComponentFactory..."}
+{"timestamp": "2026-04-24T07:09:52.570590", "event_type": "info", "session_id": "46affe10-6976-4aec-860d-87b1980f7fb2", "agent_id": "e2e_test_agent", "message": "✅ Получен component_config из application_context"}
+{"timestamp": "2026-04-24T07:09:52.573017", "event_type": "session.started", "session_id": "46affe10-6976-4aec-860d-87b1980f7fb2", "agent_id": "e2e_test_agent", "goal": "Запрос с восстановлением"}
+{"timestamp": "2026-04-24T07:09:52.570493", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-24T07:09:52.570545", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.587690", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator shutdown"}
+{"timestamp": "2026-04-24T07:09:52.587791", "event_type": "resources_cleared", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-24T07:09:52.588624", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 0, "success": 0}
