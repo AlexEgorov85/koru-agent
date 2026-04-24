@@ -1,4 +1,3 @@
-```gitignore
 # Python compiled files
 __pycache__/
 *.pyc
@@ -32,6 +31,7 @@ htmlcov/
 
 # Logs
 *.log
+data/logs/
 
 # OS generated files
 .DS_Store
@@ -50,4 +50,14 @@ Thumbs.db
 
 # Coverage reports
 coverage/
-```
+
+# Project specific
+.ipynb_checkpoints/
+.qwen/
+data/metrics/
+data/vector/
+models/
+core/data/
+run_ui.bat
+scripts/debug/
+test_component.ipynb

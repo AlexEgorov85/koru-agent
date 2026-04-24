@@ -16,6 +16,7 @@ from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.application_context.application_context import ApplicationContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.models.enums.common_enums import ComponentType
 from core.models.enums.component_status import ComponentStatus
 from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
@@ -149,6 +150,7 @@ class AgentRuntime:
             agent_config=agent_config,
             log=self.log,
             event_bus=event_bus,
+            executor=self.executor,
         )
 
         self._pattern = None
@@ -239,7 +241,6 @@ class AgentRuntime:
         if self._pattern is not None:
             return
 
-        from core.models.enums.component_type import ComponentType
         components = self.application_context.components
         
         pattern = components.get(ComponentType.BEHAVIOR, "react_pattern")

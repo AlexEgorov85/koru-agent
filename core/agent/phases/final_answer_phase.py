@@ -94,7 +94,7 @@ class FinalAnswerPhase:
                     final_answer_text = data.get("final_answer") or data.get("answer", "")
                 else:
                     final_answer_text = str(data)
-                    
+                
                 session_context.commit_turn(
                     user_query=goal,
                     assistant_response=final_answer_text,
