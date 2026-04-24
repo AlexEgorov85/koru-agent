@@ -361,6 +361,14 @@ class FinalAnswerSkill(Skill):
                                 observations.append(str(content_dict))
                         else:
                             observations.append(str(item_content))
+                    elif item_type == "ERROR_LOG":
+                        # Ошибки также включаем в observation для финального ответа
+                        if isinstance(item_content, dict):
+                            error_msg = item_content.get("error", "Неизвестная ошибка")
+                            capability = item_content.get("capability", "unknown")
+                            observations.append(f"❌ Ошибка в {capability}: {error_msg}")
+                        else:
+                            observations.append(f"❌ Ошибка: {item_content}")
                     elif item_type in ["THOUGHT", "DECISION"]:
                         thoughts.append(item_content if isinstance(item_content, str) else str(item_content))
                     elif item_type == "ACTION":
