@@ -12,7 +12,9 @@
 
 import logging
 from typing import Any, Dict, List, Optional
+from datetime import datetime
 
+from core.agent.state import ObservationAnalysis
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
@@ -86,6 +88,42 @@ class ContextUpdatePhase:
         )
         
         return observation_item_ids
+    
+    def save_observation_analysis(
+        self,
+        session_context: Any,
+        observation_data: Dict[str, Any],
+        action_name: str,
+        step_number: int,
+    ) -> None:
+        """
+        Сохранить результат анализа наблюдения в историю AgentState.
+        
+        АРХИТЕКТУРА:
+        - Шаг 2.1 плана рефакторинга
+        - Использует явный ContextItemType.OBSERVATION_ANALYSIS
+        - Не дублирует логику форматирования
+        
+        Args:
+            session_context: Session context
+            observation_data: Данные наблюдения (status, quality, insight, hint)
+            action_name: Название действия
+            step_number: Номер шага
+        """
+        # Создаём типизированный ObservationAnalysis
+        analysis = ObservationAnalysis(
+            status=observation_data.get('status', 'unknown'),
+            quality=observation_data.get('quality', {}),
+            insight=observation_data.get('insight', ''),
+            hint=observation_data.get('hint', ''),
+            rule_based=observation_data.get('_rule_based', False),
+            timestamp=datetime.utcnow().isoformat(),
+            action_name=action_name,
+            step_number=step_number,
+        )
+        
+        # Сохраняем в историю с автосдвигом старых записей
+        session_context.agent_state.push_observation(analysis)
     
     def update_agent_state(
         self,

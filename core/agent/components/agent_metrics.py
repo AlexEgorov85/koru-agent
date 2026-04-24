@@ -25,7 +25,6 @@ class AgentMetrics:
     - errors: список ошибок (тип + описание)
     - empty_results_count: счётчик пустых результатов
     - repeated_actions_count: счётчик повторяющихся действий
-    - last_observation: последнее наблюдение от Observer
     - recent_actions: последние N действий для детектирования повторов
     - action_hashes: хеши действий с параметрами для точного детектирования повторов
     - observer_llm_calls: количество вызовов LLM в Observer
@@ -35,12 +34,11 @@ class AgentMetrics:
     errors: List[Dict[str, Any]] = field(default_factory=list)
     empty_results_count: int = 0
     repeated_actions_count: int = 0
-    last_observation: Optional[Dict[str, Any]] = None
     recent_actions: List[str] = field(default_factory=list)
     max_recent_actions: int = 10
     action_hashes: List[str] = field(default_factory=list)
     
-    # Метрики Observer (Фаза 1)
+    # Метрики Observer
     observer_llm_calls: int = 0
     observer_skips: int = 0
     total_tokens_used: int = 0
@@ -130,34 +128,6 @@ class AgentMetrics:
             "timestamp": datetime.now().isoformat()
         })
     
-    def update_observation(self, observation: Dict[str, Any]):
-        """
-        Обновление последнего наблюдения.
-        
-        ПАРАМЕТРЫ:
-        - observation: данные наблюдения от Observer
-        """
-        self.last_observation = observation
-        
-        # Обновляем метрики на основе наблюдения
-        status = observation.get("status")
-        quality = observation.get("quality") or observation.get("data_quality", {})
-        
-        if status == "empty":
-            self.empty_results_count += 1
-        
-        if status == "error":
-            error_msg = observation.get("errors", ["Unknown error"])[0] if observation.get("errors") else "Unknown error"
-            self.add_error("OBSERVATION", error_msg)
-        
-        # Проверка качества
-        if isinstance(quality, dict):
-            completeness = quality.get("completeness", 1.0)
-            if completeness < 0.3:
-                self.add_error("OBSERVATION", f"Low quality result (completeness={completeness})")
-        elif isinstance(quality, str) and quality in ["low", "useless"]:
-            self.add_error("OBSERVATION", f"Low quality result (quality={quality})")
-    
     def check_repeated_action(
         self,
         action_name: str,
@@ -243,12 +213,6 @@ class AgentMetrics:
     
     def to_dict(self) -> Dict[str, Any]:
         """Конвертация в словарь для prompt."""
-        observer_skip_rate = (
-            self.observer_skips / (self.observer_llm_calls + self.observer_skips)
-            if (self.observer_llm_calls + self.observer_skips) > 0
-            else 0.0
-        )
-        
         return {
             "step_number": self.step_number,
             "total_errors": len(self.errors),
@@ -256,10 +220,8 @@ class AgentMetrics:
             "repeated_actions_count": self.repeated_actions_count,
             "recent_actions": self.get_recent_actions(5),
             "last_errors": self.get_errors_summary(3),
-            # Метрики Observer (Фаза 1)
             "observer_llm_calls": self.observer_llm_calls,
             "observer_skips": self.observer_skips,
-            "observer_skip_rate": round(observer_skip_rate, 3),
             "total_tokens_used": self.total_tokens_used,
         }
     
@@ -275,19 +237,6 @@ class AgentMetrics:
         else:
             self.observer_skips += 1
     
-    @property
-    def observer_skip_rate(self) -> float:
-        """
-        Получить процент пропущенных LLM-вызовов.
-        
-        ВОЗВРАЩАЕТ:
-        - float: доля rule-based наблюдений (0.0-1.0)
-        """
-        total = self.observer_llm_calls + self.observer_skips
-        if total == 0:
-            return 0.0
-        return self.observer_skips / total
-
     def add_tokens(self, count: int):
         """Добавление использованных токенов."""
         self.total_tokens_used += count

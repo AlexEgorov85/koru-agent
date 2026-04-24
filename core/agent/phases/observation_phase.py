@@ -4,11 +4,14 @@
 АРХИТЕКТУРА:
 - observation_phase.analyze() — единая точка входа
 - Внутри: _should_call_llm() → _run_analysis() → _register_result()
+- Возвращает строго типизированный ObservationResult (Pydantic) - Шаг 2.3
 """
 
 import logging
 from typing import Any, Dict, Optional
+from datetime import datetime
 
+from core.agent.state import ObservationAnalysis
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 
@@ -41,7 +44,7 @@ class ObservationPhase:
         decision_parameters: Dict[str, Any],
         session_context: Any,
         step_number: int,
-    ) -> Dict[str, Any]:
+    ) -> ObservationAnalysis:
         """
         Унифицированный анализ результата.
         
@@ -53,7 +56,7 @@ class ObservationPhase:
             step_number: Номер шага
             
         Returns:
-            observation dict с полями: status, quality, insight, hint
+            ObservationAnalysis: типизированный результат анализа (Шаг 2.3)
         """
         session_id = session_context.session_id if session_context else "unknown"
         
@@ -61,12 +64,24 @@ class ObservationPhase:
         should_call_llm = self._should_call_llm(result)
         
         # Выполняем анализ
-        observation = await self._run_analysis(
+        observation_dict = await self._run_analysis(
             result=result,
             action=decision_action,
             parameters=decision_parameters,
             force_llm=should_call_llm,
             session_id=session_id,
+            step_number=step_number,
+        )
+        
+        # Конвертируем в типизированный ObservationAnalysis (Шаг 2.3)
+        observation = ObservationAnalysis(
+            status=observation_dict.get('status', 'unknown'),
+            quality=observation_dict.get('quality', {}) or {},
+            insight=observation_dict.get('insight', observation_dict.get('observation', '')),
+            hint=observation_dict.get('hint', observation_dict.get('next_step_suggestion', '')),
+            rule_based=observation_dict.get('_rule_based', False),
+            timestamp=datetime.utcnow().isoformat(),
+            action_name=decision_action,
             step_number=step_number,
         )
         
@@ -80,8 +95,8 @@ class ObservationPhase:
         
         # Логируем
         self.log.info(
-            f"📊 Observation: status={observation.get('status')}, "
-            f"quality={observation.get('data_quality', {})}",
+            f"📊 Observation: status={observation.status}, "
+            f"quality={observation.quality}",
             extra={"event_type": EventType.INFO},
         )
         
@@ -145,7 +160,7 @@ class ObservationPhase:
     
     def _register_result(
         self,
-        observation: Dict[str, Any],
+        observation: ObservationAnalysis,
         action: str,
         result: ExecutionResult,
         session_context: Any,
@@ -156,23 +171,25 @@ class ObservationPhase:
         
         agent_state = session_context.agent_state
         
+        # Сохраняем в историю наблюдений (Шаг 2.2)
+        agent_state.push_observation(observation)
+        
         # agent_state.add_step() + register_observation()
-        obs_status = str(observation.get('status', 'unknown')).lower()
+        obs_status = str(observation.status).lower()
         agent_state.add_step(
             action_name=action,
             status=result.status.value,
             parameters={},
-            observation=observation,
+            observation=observation.model_dump(),
         )
-        agent_state.register_observation(observation)
+        agent_state.register_observation(observation.model_dump())
         
         # Metrics
         self.metrics.add_step(
             action_name=action,
             status=obs_status,
-            error=observation.get('errors', [None])[0] if observation.get('errors') else None,
+            error=None,  # ObservationAnalysis не содержит errors напрямую
         )
-        self.metrics.update_observation(observation)
         
         # Event
         self.event_bus.publish(
@@ -180,8 +197,8 @@ class ObservationPhase:
             {
                 "event": "OBSERVATION",
                 "status": obs_status,
-                "quality": observation.get('data_quality'),
-                "rule_based": observation.get('_rule_based', False),
+                "quality": observation.quality,
+                "rule_based": observation.rule_based,
                 "observer_skip_rate": self.metrics.observer_skip_rate,
             },
             session_id=session_context.session_id,

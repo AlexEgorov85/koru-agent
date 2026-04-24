@@ -231,12 +231,15 @@ class Observer:
                 f"⚡ [Observer.analyze] Skip LLM (trigger_mode={self.trigger_mode}): action={action_name}",
                 event_type=EventType.INFO
             )
-            return self._rule_based_observation(
+            observation = self._rule_based_observation(
                 action_name=action_name,
                 parameters=parameters,
                 result=result,
                 error=error
             )
+            # Явно записываем метрику rule-based анализа
+            # Вызывающий код (ObservationPhase) должен записать metrics.record_observer_call(used_llm=False)
+            return observation
         
         try:
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
