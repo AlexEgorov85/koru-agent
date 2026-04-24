@@ -391,19 +391,8 @@ class AgentRuntime:
                     step_number=step + 1,
                 )
 
-                # Сохранение данных результата и регистрация шага - ДЕЛЕГИРОВАНО STEP
-                observation_item_ids = await self.context_update_phase.save_and_register(
-                    result=result,
-                    decision_action=decision.action,
-                    decision_parameters=decision.parameters or {},
-                    session_context=self.session_context,
-                    executed_steps=executed_steps,
-                    decision_reasoning=decision.reasoning,
-                    error_recovery_handler=self.error_recovery_phase,
-                )
-
                 # ============================================
-                # OBSERVATION PHASE (единая точка истинности)
+                # OBSERVATION PHASE (единая точка истинности) - СНАЧАЛА
                 # ============================================
                 
                 observation = await self.observation_phase.analyze(
@@ -412,6 +401,18 @@ class AgentRuntime:
                     decision_parameters=decision.parameters or {},
                     session_context=self.session_context,
                     step_number=executed_steps + 1,
+                )
+
+                # Сохранение данных результата и регистрация шага - ПОТОМ
+                observation_item_ids = await self.context_update_phase.save_and_register(
+                    result=result,
+                    observation=observation,
+                    decision_action=decision.action,
+                    decision_parameters=decision.parameters or {},
+                    session_context=self.session_context,
+                    executed_steps=executed_steps,
+                    decision_reasoning=decision.reasoning,
+                    error_recovery_handler=self.error_recovery_phase,
                 )
 
                 # Публикация событий

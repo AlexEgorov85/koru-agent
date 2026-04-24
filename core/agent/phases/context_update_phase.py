@@ -29,21 +29,20 @@ class ContextUpdatePhase:
         log: logging.Logger,
         event_bus: Any,
         error_recovery_handler: Optional[Any] = None,
-        observation_signal_service: Optional[Any] = None,
     ):
         self.log = log
         self.event_bus = event_bus
         self.error_recovery_handler = error_recovery_handler
-        self.observation_signal_service = observation_signal_service
     
     async def save_and_register(
         self,
         result: ExecutionResult,
-        decision_action: str,
-        decision_parameters: Dict[str, Any],
-        session_context: Any,
-        executed_steps: int,
-        decision_reasoning: Optional[str],
+        observation: Optional[Any] = None,
+        decision_action: str = "",
+        decision_parameters: Dict[str, Any] = {},
+        session_context: Any = None,
+        executed_steps: int = 0,
+        decision_reasoning: Optional[str] = None,
         error_recovery_handler: Optional[Any] = None,
     ) -> List[str]:
         """
@@ -51,6 +50,7 @@ class ContextUpdatePhase:
         
         Args:
             result: ExecutionResult from executor
+            observation: ObservationAnalysis from ObservationPhase
             decision_action: Action name
             decision_parameters: Action parameters
             session_context: Session context
@@ -87,6 +87,7 @@ class ContextUpdatePhase:
             observation_item_ids=observation_item_ids,
             result_status=result.status,
             decision_parameters=decision_parameters,
+            observation=observation,
         )
         
         return observation_item_ids
@@ -369,6 +370,7 @@ class ContextUpdatePhase:
         observation_item_ids: List[str],
         result_status: ExecutionStatus,
         decision_parameters: Dict[str, Any],
+        observation: Optional[Any] = None,
     ) -> None:
         """
         Register step in session context and update agent state.
@@ -381,7 +383,19 @@ class ContextUpdatePhase:
             observation_item_ids: IDs of observation items
             result_status: Execution status
             decision_parameters: Action parameters
+            observation: ObservationAnalysis from ObservationPhase
         """
+        # Build observation signal from passed observation or create minimal
+        if observation:
+            observation_signal = observation.model_dump()
+        else:
+            observation_signal = {
+                "status": result_status.value if hasattr(result_status, 'value') else str(result_status),
+                "quality": {},
+                "insight": "",
+                "hint": "",
+            }
+        
         # Register step (data stored in data_context, step contains only references)
         session_context.register_step(
             step_number=executed_steps,
@@ -394,21 +408,10 @@ class ContextUpdatePhase:
             parameters=decision_parameters or {},
         )
         
-        # Build and add observation signal
-        from core.agent.components.observation_signal import ObservationSignalService
-        
-        observation_signal_service = ObservationSignalService()
-        result = ExecutionResult(status=result_status)  # Minimal result for signal
-        
-        observation_signal = observation_signal_service.build_signal(
-            result=result,
-            action_name=decision_action,
-            parameters=decision_parameters or {},
-        )
-        
+        # Update agent state with observation
         session_context.agent_state.add_step(
             action_name=decision_action or "unknown",
-            status=result_status.value,
+            status=result_status.value if hasattr(result_status, 'value') else str(result_status),
             parameters=decision_parameters or {},
             observation=observation_signal,
         )
