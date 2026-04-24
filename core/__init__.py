@@ -9,9 +9,15 @@ from .infrastructure.event_bus.unified_event_bus import (
     get_event_bus
 )
 
+# Версия проекта
+from .version import __version__, get_version, get_version_info
+
 __all__ = [
     'EventBus',  # Теперь это UnifiedEventBus
     'EventType',
     'Event',
-    'get_event_bus'
+    'get_event_bus',
+    '__version__',
+    'get_version',
+    'get_version_info',
 ]
