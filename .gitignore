@@ -1,50 +1,8 @@
 ```
-# Python compiled files
-*.pyc
-__pycache__/
-
-# Test cache files
-*.pyc
-*.pyo
-*.pyd
-
-# Logs
+# Log files
 *.log
+data/logs/
 
-# Environment variables
-.env
-.env.local
-.env.*
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.tmp
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-
-# MyPy cache
-.mypy_cache/
-
-# Pytest cache
-.pytest_cache/
-
-# Original rule preserved
-*.log
+# Session files
+*.jsonl
 ```
