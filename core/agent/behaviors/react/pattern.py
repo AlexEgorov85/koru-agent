@@ -118,6 +118,9 @@ class ReActPattern(BaseBehaviorPattern):
         """Генерация решения через LLM."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+        
+        try:
+            from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
         try:
             # Логируем входные параметры

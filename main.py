@@ -83,10 +83,10 @@ async def run_agent(
     print("🚀 Agent v5.41.8 | Создание инфраструктурного контекста...", flush=True)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
+    
+    print(f"📝 Логи: {config.log_dir}", flush=True)
 
     session_id = str(infrastructure_context.id)
-
-    session_info = infrastructure_context.session_handler.get_session_info()
 
     error_handler = get_error_handler()
 
