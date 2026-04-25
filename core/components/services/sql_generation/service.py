@@ -13,7 +13,7 @@ class SQLGenerationServiceOutput:
     def __init__(self, data: Dict[str, Any]):
         self.data = data
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
-from core.components.services.sql_generation.correction import SQLCorrectionService
+from core.components.services.sql_generation.correction import SQLCorrectionEngine
 from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
 
@@ -81,6 +81,9 @@ class SQLGenerationService(Service):
                 self.application_context,
                 executor=self.executor
             )
+            if not await self.correction_engine.initialize():
+                self._log_error("SQLCorrectionEngine не инициализирован")
+                return False
 
             return True
         except Exception as e:
@@ -581,7 +584,7 @@ class SQLGenerationService(Service):
         """Публикация события коррекции"""
         if hasattr(self, '_event_bus') and self._event_bus is not None:
             await self._publish_with_context(
-                event_type=f"sql_correction.{event_type}",
+                event_type=f"sql_generation.correction.{event_type}",
                 data={
                     "attempt": attempt,
                     "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
@@ -591,7 +594,7 @@ class SQLGenerationService(Service):
         elif hasattr(self, '_application_context') and self._application_context:
             infra = self._application_context.get_infrastructure_context()
             await infra.event_bus.publish(
-                event_type=f"sql_correction.{event_type}",
+                event_type=f"sql_generation.correction.{event_type}",
                 data={
                     "attempt": attempt,
                     "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",

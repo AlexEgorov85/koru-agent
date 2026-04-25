@@ -1,4 +1,4 @@
-capability: sql_correction
+capability: sql_generation.correct_query
 component_type: service
 description: >
   Выходной контракт сервиса коррекции SQL-запросов.
