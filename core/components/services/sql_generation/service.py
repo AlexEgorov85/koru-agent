@@ -553,13 +553,17 @@ class SQLGenerationService(Service):
 
     async def _publish_generation_event(self, event_type: str, data: Any, input_data: Dict[str, Any], safety_score: float = 0.0):
         """Публикация события генерации через EventBus"""
+        # Поддержка как dict, так и объектов с атрибутами
+        user_question = input_data.get("natural_language_query") if isinstance(input_data, dict) else input_data.natural_language_query
+        table_schema = input_data.get("table_schema") if isinstance(input_data, dict) else input_data.table_schema
+        
         # Используем внедрённый event_bus из BaseComponent
         if hasattr(self, '_event_bus') and self._event_bus is not None:
             await self._publish_with_context(
                 event_type=f"sql_generation.{event_type}",
                 data={
-                    "user_question": input_data.natural_language_query,
-                    "table_schema": input_data.table_schema if input_data.table_schema else "",
+                    "user_question": user_question,
+                    "table_schema": table_schema if table_schema else "",
                     "result": str(data),
                     "safety_score": safety_score
                 }
@@ -570,14 +574,14 @@ class SQLGenerationService(Service):
             await infra.event_bus.publish(
                 event_type=f"sql_generation.{event_type}",
                 data={
-                    "user_question": input_data.natural_language_query,
-                    "table_schema": input_data.table_schema if input_data.table_schema else "",
+                    "user_question": user_question,
+                    "table_schema": table_schema if table_schema else "",
                     "result": str(data),
                     "safety_score": safety_score,
                     "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
                 },
                 source="SQLGenerationService",
-                correlation_id=f"sql_gen_{hash(input_data.natural_language_query)}"
+                correlation_id=f"sql_gen_{hash(user_question)}"
             )
 
     async def _publish_correction_event(self, event_type: str, data: Any, attempt: int, error_analysis: Any):
