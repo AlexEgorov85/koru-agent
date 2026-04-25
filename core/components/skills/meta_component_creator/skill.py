@@ -23,15 +23,28 @@ from core.components.skills.meta_component_creator.dynamic_loader import (
     DeploymentManifest,
     TYPE_DIRECTORIES,
 )
-from core.components.skills.meta_component_creator.contracts.meta_component import (
-    VALID_COMPONENT_TYPES,
-    TYPE_SUFFIXES,
-)
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+
+
+VALID_COMPONENT_TYPES = ["skill", "tool", "service", "behavior"]
+
+TYPE_SUFFIXES = {
+    "skill": "Skill",
+    "tool": "Tool",
+    "service": "Service",
+    "behavior": "Pattern",
+}
+
+TYPE_FILE_NAMES = {
+    "skill": "skill.py",
+    "tool": None,
+    "service": "service.py",
+    "behavior": "pattern.py",
+}
 
 
 class MetaComponentCreator(Skill):

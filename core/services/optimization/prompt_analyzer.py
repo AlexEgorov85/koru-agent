@@ -650,7 +650,6 @@ class SessionPromptAnalyzer:
                 orchestrator = getattr(infra, 'llm_orchestrator', None)
                 if orchestrator:
                     response = await orchestrator.generate(
-                        prompt=prompt,
                         prompt="Вы эксперт по оптимизации промптов. Верните ТОЛЬКО YAML-текст для добавления в файл промпта.",
                         temperature=0.3,
                         max_tokens=500

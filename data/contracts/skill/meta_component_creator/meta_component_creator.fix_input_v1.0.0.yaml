@@ -1,22 +1,27 @@
 capability: meta_component_creator.fix
 component_type: skill
-description: Входной контракт для исправления существующего навыка
+description: Входной контракт для исправления компонента
 direction: input
 schema_data:
   type: object
   properties:
-    skill_name:
+    component_name:
       type: string
-      description: Имя существующего навыка для исправления
+      description: Имя существующего компонента
+    component_type:
+      type: string
+      enum:
+        - skill
+        - tool
+        - service
+        - behavior
+      description: "Тип компонента: 'skill', 'tool', 'service', 'behavior'"
+      default: skill
     issue_description:
       type: string
       description: Описание проблемы или желаемого улучшения
-    dry_run:
-      type: boolean
-      description: Если True — только генерация исправления без записи
-      default: true
   required:
-    - skill_name
+    - component_name
     - issue_description
   additionalProperties: false
 status: active

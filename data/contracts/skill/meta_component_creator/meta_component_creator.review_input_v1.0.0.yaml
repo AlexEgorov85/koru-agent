@@ -1,13 +1,22 @@
 capability: meta_component_creator.review
 component_type: skill
-description: Входной контракт для код-ревью навыка
+description: Входной контракт для код-ревью компонента
 direction: input
 schema_data:
   type: object
   properties:
-    skill_name:
+    component_name:
       type: string
-      description: Имя навыка для код-ревью
+      description: Имя компонента для код-ревью
+    component_type:
+      type: string
+      enum:
+        - skill
+        - tool
+        - service
+        - behavior
+      description: "Тип компонента: 'skill', 'tool', 'service', 'behavior'"
+      default: skill
     review_focus:
       type: array
       items:
@@ -17,13 +26,10 @@ schema_data:
           - architecture
           - style
           - performance
-      description: Фокус ревью
-      default:
-        - security
-        - architecture
-        - style
+      description: "Фокус ревью: ['security', 'architecture', 'style', 'performance']"
+      nullable: true
   required:
-    - skill_name
+    - component_name
   additionalProperties: false
 status: active
 version: v1.0.0

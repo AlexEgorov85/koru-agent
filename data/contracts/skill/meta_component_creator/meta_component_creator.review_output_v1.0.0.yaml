@@ -1,56 +1,66 @@
 capability: meta_component_creator.review
 component_type: skill
-description: Выходной контракт для код-ревью навыка
+description: Выходной контракт для код-ревью компонента
 direction: output
 schema_data:
   type: object
   properties:
-    success:
+    component_name:
+      type: string
+      description: Имя просмотренного компонента
+    component_type:
+      type: string
+      description: Тип компонента
+    overall_score:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Общая оценка качества кода (0-100)
+    findings:
+      type: array
+      items:
+        $ref: "#/definitions/ReviewFinding"
+      default: []
+    summary:
+      type: string
+      description: Общее резюме ревью
+      default: ""
+    passed:
       type: boolean
-      description: Успешно ли выполнена операция
-    skill_name:
-      type: string
-      description: Имя просмотренного навыка
-    review:
-      type: object
-      description: Результат ревью
-      properties:
-        overall_score:
-          type: integer
-          minimum: 0
-          maximum: 100
-          description: Общая оценка качества кода
-        findings:
-          type: array
-          items:
-            type: object
-            properties:
-              category:
-                type: string
-              severity:
-                type: string
-              file:
-                type: string
-              description:
-                type: string
-              suggestion:
-                type: string
-        summary:
-          type: string
-          description: Общее резюме ревью
-        passed:
-          type: boolean
-          description: Прошёл ли навык ревью
-    message:
-      type: string
-      description: Информационное сообщение
-    error:
-      type: string
-      description: Текст ошибки
+      description: Прошёл ли компонент ревью
+      default: false
   required:
-    - success
-    - skill_name
-    - message
-  additionalProperties: false
+    - component_name
+    - component_type
+    - overall_score
+  definitions:
+    ReviewFinding:
+      type: object
+      properties:
+        category:
+          type: string
+          description: "Категория: 'security', 'architecture', 'style', 'performance', 'bug'"
+        severity:
+          type: string
+          description: "Серьёзность: 'critical', 'high', 'medium', 'low'"
+        file:
+          type: string
+          description: Файл, в котором найдена проблема
+        line_hint:
+          type: string
+          description: Подсказка о расположении
+          nullable: true
+        description:
+          type: string
+          description: Описание проблемы
+        suggestion:
+          type: string
+          description: Рекомендация по исправлению
+      required:
+        - category
+        - severity
+        - file
+        - description
+        - suggestion
 status: active
 version: v1.0.0
