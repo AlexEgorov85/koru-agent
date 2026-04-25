@@ -240,3 +240,11 @@ class AgentMetrics:
     def add_tokens(self, count: int):
         """Добавление использованных токенов."""
         self.total_tokens_used += count
+
+    @property
+    def observer_skip_rate(self) -> float:
+        """Процент пропущенных LLM-вызовов от общего числа наблюдений."""
+        total = self.observer_llm_calls + self.observer_skips
+        if total == 0:
+            return 0.0
+        return self.observer_skips / total

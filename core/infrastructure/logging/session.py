@@ -65,15 +65,16 @@ class _LogFileFormatter(logging.Formatter):
     def __init__(self):
         super().__init__(
             fmt="%(asctime)s | %(levelname)-8s | %(event_type)-20s | %(component)-30s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S,%f",
+            datefmt="%Y-%m-%d %H:%M:%S.%f",
         )
 
     def formatTime(self, record, datefmt=None):
-        """Форматирование времени с миллисекундами."""
+        """Форматирование времени с миллисекундами (кроссплатформенно)."""
         dt = datetime.fromtimestamp(record.created)
+        milliseconds = dt.microsecond // 1000
         if datefmt:
-            # Убираем последние 3 цифры микросекунд (оставляем миллисекунды)
-            return dt.strftime(datefmt)[:-3]
+            date_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+            return f"{date_str}.{milliseconds:03d}"
         return dt.isoformat(timespec="milliseconds")
 
     def format(self, record):
@@ -356,10 +357,23 @@ class LoggingSession:
         logger.propagate = False
 
         handler = logging.FileHandler(path, encoding="utf-8")
-        handler.setFormatter(logging.Formatter(
-            fmt="%(asctime)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S,%f",
-        ))
+        handler.setFormatter(_LogFileFormatter())
+        logger.addHandler(handler)
+        return logger
+
+    def _setup_narrative_logger(
+        self,
+        name: str,
+        path: Path
+    ) -> logging.Logger:
+        """Создаёт narrative-логгер (высокоуровневый, человекочитаемый)."""
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.INFO)
+        logger.handlers.clear()
+        logger.propagate = False
+
+        handler = logging.FileHandler(path, encoding="utf-8")
+        handler.setFormatter(_LogFileFormatter())
         logger.addHandler(handler)
         return logger
 
@@ -385,8 +399,6 @@ class LoggingSession:
             "%(message)s"
         ))
 
-        # Добавляем фильтр по типам событий если настроен
-        # (фильтрация работает через handlers.py::EventTypeFilter)
         allowed_events = getattr(
             self.config.console,
             "allowed_terminal_events",
