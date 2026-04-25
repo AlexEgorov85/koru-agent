@@ -86,7 +86,7 @@ class ObservationPhase:
         )
         
         # Регистрируем в agent_state и metrics
-        self._register_result(
+        await self._register_result(
             observation=observation,
             action=decision_action,
             result=result,
@@ -158,7 +158,7 @@ class ObservationPhase:
         
         return observation
     
-    def _register_result(
+    async def _register_result(
         self,
         observation: ObservationAnalysis,
         action: str,
@@ -192,7 +192,7 @@ class ObservationPhase:
         )
         
         # Event
-        self.event_bus.publish(
+        await self.event_bus.publish(
             EventType.DEBUG,
             {
                 "event": "OBSERVATION",
