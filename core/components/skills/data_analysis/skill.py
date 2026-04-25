@@ -117,8 +117,8 @@ class DataAnalysisSkill(Skill):
             if app_ctx is None and hasattr(execution_context, 'session_context'):
                 app_ctx = getattr(execution_context.session_context, 'application_context', None)
 
-            if app_ctx and hasattr(app_ctx, 'infrastructure_context'):
-                infra = app_ctx.infrastructure_context
+            if app_ctx and hasattr(app_ctx, 'get_infrastructure_context'):
+                infra = app_ctx.get_infrastructure_context()
                 if hasattr(infra, 'resource_registry') and infra.resource_registry:
                     from core.models.enums.common_enums import ResourceType
                     default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
@@ -516,7 +516,7 @@ class DataAnalysisSkill(Skill):
     ) -> Dict[str, Any]:
         """Анализ чанка с retry логикой."""
         last_error = None
-        for attempt in range(self.RETRY_MAX_ATTEMPTS):
+        for attempt in range(self.RETRY_MAX_ATTEMPTS):  # ARCHITECTURE: Retry logic для transient ошибок LLM
             try:
                 result = await self._analyze_chunk(chunk, question, execution_context)
                 if result.get("content"):
@@ -687,7 +687,7 @@ class DataAnalysisSkill(Skill):
     ) -> Dict[str, Any]:
         """Слияние батча с retry логикой."""
         last_error = None
-        for attempt in range(self.RETRY_MAX_ATTEMPTS):
+        for attempt in range(self.RETRY_MAX_ATTEMPTS):  # ARCHITECTURE: Retry logic для transient ошибок LLM
             try:
                 result = await self._merge_batch(batch, question, execution_context)
                 if result.get("content"):

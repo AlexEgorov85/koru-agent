@@ -178,18 +178,19 @@ class Service(Component):
         """
         Безопасное получение зависимости по имени.
         Сначала ищем в локальном кэше, затем в registry компонентов.
+        
+        ARCHITECTURE: Используем механизм зависимостей вместо прямого доступа к components.get_component()
         """
         # Сначала ищем в локальном кэше
         if name in self._dependencies:
             return self._dependencies[name]
         
-        # Затем ищем в registry компонентов
+        # Затем ищем в registry компонентов через executor
+        # Это предпочтительный способ - не требует импорта ComponentType
         if self._application_context and hasattr(self._application_context, 'components'):
-            from core.models.enums.common_enums import ComponentType
-            dependency = self._application_context.components.get_component(
-                ComponentType.SERVICE,
-                name
-            )
+            # Используем метод get_service() из ApplicationContext для поиска сервиса по имени
+            # Это абстрагирует нас от прямого доступа к компонентам и ComponentType
+            dependency = self._application_context.get_service(name)
             if dependency:
                 self._dependencies[name] = dependency
                 return dependency

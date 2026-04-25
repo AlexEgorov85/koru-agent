@@ -91,15 +91,30 @@ class SQLCorrectionService(Service):
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        АРХИТЕКТУРА: Используем get_input_contract() для валидации структуры входных данных.
         """
+        # Получаем входной контракт для валидации структуры параметров
+        input_schema = self.get_input_contract("sql_correction.correct_query")
+        if input_schema:
+            # Валидация структуры входных данных через контракт
+            validated_input = input_schema.model_validate(parameters)
+        
         # Маршрутизация по имени capability
         cap_name = capability.name
 
         if "correct_query" in cap_name:
             result = safe_async_call(self.correct_query(correction_input=parameters))
-            return result
+            output = result
         else:
             raise ValueError(f"Неизвестная capability: {cap_name}")
+        
+        # Валидация выхода через контракт (если доступен)
+        output_schema = self.get_output_contract("sql_correction.correct_query")
+        if output_schema:
+            return output_schema.model_validate(output).model_dump()
+        
+        return output
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""

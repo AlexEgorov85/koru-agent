@@ -75,7 +75,7 @@ class GenerateScriptHandler(SkillHandler):
         last_error = None
         sql_query = None
 
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(1, max_attempts + 1):  # ARCHITECTURE: Retry logic для коррекции SQL запросов
             try:
                 # Генерация SQL (с учетом предыдущих ошибок и подсказок)
                 error_context = None

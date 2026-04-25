@@ -265,7 +265,9 @@ class DynamicComponentLoader:
         from core.config.component_config import ComponentConfig
 
         app_ctx = self.application_context
-        infra = app_ctx.infrastructure_context
+        
+        # Получаем InfrastructureContext через метод приложения
+        infra = app_ctx.get_infrastructure_context()
 
         factory = ComponentFactory(infra)
 

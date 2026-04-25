@@ -139,13 +139,32 @@ class ContractService(Service):
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        АРХИТЕКТУРА: Используем get_input_contract() для валидации структуры входных данных.
         """
+        # Получаем входной контракт для валидации структуры параметров
+        input_schema = self.get_input_contract("contract.service.get_contract")
+        if input_schema:
+            # Валидация структуры входных данных через контракт
+            validated_input = input_schema.model_validate(parameters)
+            direction = validated_input.direction
+        else:
+            # Fallback: если контракт не найден, используем значение по умолчанию
+            direction = parameters.get("direction", "input")
+        
         # Получение контракта по capability
-        direction = parameters.get("direction", "input")
         contract = self.get_contract(capability.name, direction)
 
-        return {
+        # Возвращаем результат, соответствующий выходному контракту
+        result = {
             "capability": capability.name,
             "direction": direction,
             "schema": contract
         }
+        
+        # Валидация выхода через контракт (если доступен)
+        output_schema = self.get_output_contract("contract.service.get_contract")
+        if output_schema:
+            return output_schema.model_validate(result).model_dump()
+        
+        return result

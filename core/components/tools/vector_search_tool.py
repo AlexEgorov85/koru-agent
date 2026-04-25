@@ -108,7 +108,7 @@ class VectorSearchTool(Tool):
         по source в _get_faiss_for_source().
         """
         if self._embedding_provider is None:
-            infra = self.application_context.infrastructure_context
+            infra = self.application_context.get_infrastructure_context()
             self._embedding_provider = infra.get_embedding_provider()
 
             if not self._embedding_provider:
@@ -139,7 +139,7 @@ class VectorSearchTool(Tool):
         - FAISS провайдер для данного источника
         """
         if source not in self._faiss_providers:
-            infra = self.application_context.infrastructure_context
+            infra = self.application_context.get_infrastructure_context()
             faiss = infra.get_faiss_provider(source)
 
             if not faiss:
@@ -358,7 +358,9 @@ class VectorSearchTool(Tool):
         
         book_id = int(document_id.replace("book_", ""))
         
-        data_dir = Path(self.application_context.infrastructure_context.config.data_dir)
+        # ARCHITECTURE: Используем метод get_infrastructure_context() вместо прямого доступа
+        infra = self.application_context.get_infrastructure_context()
+        data_dir = Path(infra.config.data_dir)
         metadata_path = data_dir / "vector" / "books_index_metadata.json"
         
         chapters_dict: Dict[int, List[str]] = {}

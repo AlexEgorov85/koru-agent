@@ -6,8 +6,14 @@
 - Навыки (PlanningSkill, DataAnalysisSkill, ...)
 - Инструменты (BaseTool подклассы)
 - Паттерны поведения (ReActPattern, ...)
+
+ARCHITECTURE: ComponentType используется только внутри registry для организации хранения.
+Внешние компоненты должны использовать методы ApplicationContext (get_service, get_skill, etc.)
+вместо прямого доступа к registry с ComponentType.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+# ARCHITECTURE: ComponentType импортируется только для внутренней организации registry
+# Внешний код должен использовать методы ApplicationContext вместо прямого доступа
 from core.models.enums.common_enums import ComponentType
 
 
