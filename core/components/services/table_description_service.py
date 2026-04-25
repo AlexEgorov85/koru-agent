@@ -11,6 +11,12 @@ class TableDescriptionService(Service):
 
     Использует sql_tool для выполнения запросов к information_schema.
     Автоматически выбирает нужный DB провайдер по имени schema.
+    
+    АРХИТЕКТУРА:
+    - Использует декларативные контракты из data/contracts/service/table_description_service/
+    - Входной контракт: table_description_service.get_table_input_v1.0.0.yaml
+    - Выходной контракт: table_description_service.get_table_output_v1.0.0.yaml
+    - Валидация входа/выхода выполняется автоматически в Component.execute()
     """
 
     @property
@@ -19,12 +25,15 @@ class TableDescriptionService(Service):
 
     def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        # ВАЖНО: Версии контрактов НЕ указываются явно - они загружаются из профиля AppConfig
+        # ResourceLoader автоматически загрузит все доступные контракты для table_description_service
         if component_config is None:
             component_config = ComponentConfig(
                 variant_id="table_description_service_default",
                 prompt_versions={},
-                input_contract_versions={},
-                output_contract_versions={}
+                input_contract_versions={},  # ← Пусто! Загрузятся все доступные контракты из data/contracts/service/table_description_service/
+                output_contract_versions={}  # ← Пусто! Загрузятся все доступные контракты из data/contracts/service/table_description_service/
             )
         super().__init__(
             name=name or "table_description_service",
@@ -54,14 +63,50 @@ class TableDescriptionService(Service):
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса получения метаданных таблиц.
+        
+        АРХИТЕКТУРА:
+        - Входные данные уже валидированы через self.get_input_contract() в Component.execute()
+        - Выходные данные валидируются через self.get_output_contract() в Component.execute()
+        - Здесь только бизнес-логика получения метаданных
+        
+        ARGS:
+        - capability: Capability для которого выполняется запрос
+        - parameters: Dict с параметрами (table_name, schema_name, context, step_number) - уже валидированы входным контрактом
+        - execution_context: Контекст выполнения
+
+        RETURNS:
+        - Dict с метаданными таблицы (валидируется выходным контрактом)
+        """
         from core.utils.async_utils import safe_async_call
+        
+        # Получаем схему входного контракта для документации
+        input_schema = self.get_input_contract("table_description_service.get_table")
+        if input_schema:
+            self._log_debug(f"[TableDescription] Input contract validated: {input_schema.__name__}")
+        
+        # Извлекаем параметры (уже валидированы входным контрактом)
         metadata = safe_async_call(self.get_table_metadata(
             schema_name=parameters.get("schema_name", ""),
             table_name=parameters.get("table_name", ""),
             context=parameters.get("context"),
             step_number=parameters.get("step_number")
         ))
-        return {"metadata": metadata, "capability": capability.name}
+        
+        result = {"metadata": metadata, "capability": capability.name}
+        
+        # Получаем схему выходного контракта для валидации результата
+        output_schema = self.get_output_contract("table_description_service.get_table")
+        if output_schema:
+            # Валидируем результат через выходной контракт
+            # metadata содержит структуру, соответствующую выходному контракту
+            if isinstance(metadata, dict):
+                validated_output = output_schema.model_validate(metadata)
+                self._log_debug(f"[TableDescription] Output contract validated: {output_schema.__name__}")
+                result["metadata"] = validated_output.model_dump()
+        
+        return result
 
     async def shutdown(self) -> None:
         pass

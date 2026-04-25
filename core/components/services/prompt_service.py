@@ -224,7 +224,22 @@ class PromptService(Service):
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        АРХИТЕКТУРА: Используем get_input_contract() для валидации структуры входных данных.
         """
+        # Получаем входной контракт для валидации структуры параметров
+        input_schema = self.get_input_contract("prompt_service.get_prompt")
+        if input_schema:
+            # Валидация структуры входных данных через контракт
+            validated_input = input_schema.model_validate(parameters)
+        
         # Получение промпта по capability
         prompt_content = self.get_prompt(capability.name)
-        return {"prompt": prompt_content, "capability": capability.name}
+        result = {"prompt": prompt_content, "capability": capability.name}
+        
+        # Валидация выхода через контракт (если доступен)
+        output_schema = self.get_output_contract("prompt_service.get_prompt")
+        if output_schema:
+            return output_schema.model_validate(result).model_dump()
+        
+        return result

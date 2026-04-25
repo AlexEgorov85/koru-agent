@@ -1,25 +1,9 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 from pydantic import BaseModel, Field
 from core.components.services.service import Service
 from core.application_context.application_context import ApplicationContext
 import re
 import sqlparse
-
-
-class SQLValidatorServiceInput:
-    """Входные данные для SQLValidatorService"""
-    def __init__(self, sql_query: str, parameters: Dict[str, Any] = None):
-        self.sql_query = sql_query
-        self.parameters = parameters or {}
-
-
-class SQLValidatorServiceOutput:
-    """Выходные данные для SQLValidatorService"""
-    def __init__(self, is_valid: bool, validation_errors: List[str] = None, sanitized_query: str = "", parameters: Dict[str, Any] = None):
-        self.is_valid = is_valid
-        self.validation_errors = validation_errors or []
-        self.sanitized_query = sanitized_query
-        self.parameters = parameters or {}
 
 
 class ValidatedSQL(BaseModel):
@@ -40,6 +24,12 @@ class SQLValidatorService(Service):
     - Проверка на потенциальные SQL-инъекции
     - Проверка разрешенных операций (например, только SELECT)
     - Санитизация и параметризация запросов
+    
+    АРХИТЕКТУРА:
+    - Использует декларативные контракты из data/contracts/service/sql_validator_service/
+    - Входной контракт: sql_validator_service.validate_input_v1.0.0.yaml
+    - Выходной контракт: sql_validator_service.validate_output_v1.0.0.yaml
+    - Валидация входа/выхода выполняется автоматически в Component.execute()
     """
     
     @property
@@ -49,12 +39,14 @@ class SQLValidatorService(Service):
     def __init__(self, application_context: ApplicationContext, name: str = "sql_validator_service", component_config=None, executor=None, allowed_operations: List[str] = None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
+        # ВАЖНО: Версии контрактов НЕ указываются явно - они загружаются из профиля AppConfig
+        # ResourceLoader автоматически загрузит все доступные контракты для sql_validator_service
         if component_config is None:
             component_config = ComponentConfig(
                 variant_id="sql_validator_service_default",
                 prompt_versions={},
-                input_contract_versions={},
-                output_contract_versions={}
+                input_contract_versions={},  # ← Пусто! Загрузятся все доступные контракты из data/contracts/service/sql_validator_service/
+                output_contract_versions={}  # ← Пусто! Загрузятся все доступные контракты из data/contracts/service/sql_validator_service/
             )
         super().__init__(
             name=name,
@@ -94,16 +86,50 @@ class SQLValidatorService(Service):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
-    ) -> 'ValidatedSQL':
+    ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики сервиса валидации SQL (СИНХРОННАЯ).
 
-        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
-        Здесь только бизнес-логика.
+        АРХИТЕКТУРА:
+        - Входные данные уже валидированы через self.get_input_contract() в Component.execute()
+        - Выходные данные валидируются через self.get_output_contract() в Component.execute()
+        - Здесь только бизнес-логика валидации SQL
+        
+        ARGS:
+        - capability: Capability для которого выполняется валидация
+        - parameters:Dict с параметрами (sql, parameters) - уже валидированы входным контрактом
+        - execution_context: Контекст выполнения
+
+        RETURNS:
+        - Dict с результатом валидации (валидируется выходным контрактом)
         """
-        # Валидация SQL-запроса (синхронный вызов)
+        # Получаем схему входного контракта для документации
+        input_schema = self.get_input_contract("sql_validator_service.validate")
+        if input_schema:
+            # Входные данные уже валидированы в Component.execute(), но можем использовать схему для документации
+            self._log_debug(f"[SQLValidator] Input contract validated: {input_schema.__name__}")
+        
+        # Выполняем валидацию SQL-запроса (синхронный вызов)
         result = self.validate_query(parameters.get("sql", ""), parameters.get("parameters"))
-        return result
+        
+        # Преобразуем результат ValidatedSQL в dict для совместимости с выходным контрактом
+        output_data = {
+            "sql": result.sql,
+            "parameters": result.parameters,
+            "is_valid": result.is_valid,
+            "validation_errors": result.validation_errors,
+            "safety_score": result.safety_score
+        }
+        
+        # Получаем схему выходного контракта для валидации результата
+        output_schema = self.get_output_contract("sql_validator_service.validate")
+        if output_schema:
+            # Валидируем результат через выходной контракт
+            validated_output = output_schema.model_validate(output_data)
+            self._log_debug(f"[SQLValidator] Output contract validated: {output_schema.__name__}")
+            return validated_output.model_dump()
+        
+        return output_data
 
     async def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> 'ValidatedSQL':
         """

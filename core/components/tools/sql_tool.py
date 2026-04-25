@@ -79,7 +79,7 @@ class SQLTool(Tool):
         Предпочитает провайдер по умолчанию (is_default=True).
         """
         try:
-            infra_ctx = self.application_context.infrastructure_context
+            infra_ctx = self.application_context.get_infrastructure_context()
             # Сначала ищем провайдер по умолчанию
             default_db = infra_ctx.resource_registry.get_default_resource(ResourceType.DATABASE)
             if default_db and default_db.instance:

@@ -202,7 +202,11 @@ class ResourceLoader:
         """
         Возвращает ресурсы, запрошенные компонентом.
 
-        Выбирает промпты и контракты на основе версий, указанных в ComponentConfig.
+        АРХИТЕКТУРА:
+        - Если в config указаны версии (prompt_versions/input_contract_versions/output_contract_versions) - загружаются только они
+        - Если версии НЕ указаны (пустые словари) - автоматически загружаются ВСЕ доступные ресурсы для компонента
+          по префиксу имени (например, для 'sql_validator_service' загрузятся все контракты из 
+          data/contracts/service/sql_validator_service/)
 
         ARGS:
         - component_name: Имя компонента (для логирования)
@@ -218,38 +222,76 @@ class ResourceLoader:
         input_contracts: Dict[str, Contract] = {}
         output_contracts: Dict[str, Contract] = {}
 
+        # Флаг для автоматической загрузки всех ресурсов
+        auto_load_prompts = len(config.prompt_versions) == 0
+        auto_load_input_contracts = len(config.input_contract_versions) == 0
+        auto_load_output_contracts = len(config.output_contract_versions) == 0
+
         # Промпты
-        for cap, ver in config.prompt_versions.items():
-            prompt = self.get_prompt(cap, ver)
-            if prompt:
-                prompts[cap] = prompt
-            else:
-                self.logger.warning(
-                    f"Промпт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": EventType.WARNING}
-                )
+        if not auto_load_prompts:
+            # Загружаем только указанные версии
+            for cap, ver in config.prompt_versions.items():
+                prompt = self.get_prompt(cap, ver)
+                if prompt:
+                    prompts[cap] = prompt
+                else:
+                    self.logger.warning(
+                        f"Промпт '{cap}@{ver}' не найден для компонента '{component_name}'",
+                        extra={"event_type": EventType.WARNING}
+                    )
+        else:
+            # Автоматическая загрузка всех промптов по префиксу component_name
+            for (cap, ver), prompt in self._prompts.items():
+                if cap.startswith(component_name):
+                    prompts[cap] = prompt
+            self.logger.debug(
+                f"Автоматически загружено {len(prompts)} промптов для '{component_name}'",
+                extra={"event_type": EventType.DEBUG}
+            )
 
         # Input контракты
-        for cap, ver in config.input_contract_versions.items():
-            contract = self.get_contract(cap, ver, "input")
-            if contract:
-                input_contracts[cap] = contract
-            else:
-                self.logger.warning(
-                    f"Входной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": EventType.WARNING}
-                )
+        if not auto_load_input_contracts:
+            # Загружаем только указанные версии
+            for cap, ver in config.input_contract_versions.items():
+                contract = self.get_contract(cap, ver, "input")
+                if contract:
+                    input_contracts[cap] = contract
+                else:
+                    self.logger.warning(
+                        f"Входной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
+                        extra={"event_type": EventType.WARNING}
+                    )
+        else:
+            # Автоматическая загрузка всех input контрактов по префиксу component_name
+            for (cap, ver, direction), contract in self._contracts.items():
+                if direction == "input" and cap.startswith(component_name):
+                    input_contracts[cap] = contract
+            self.logger.debug(
+                f"Автоматически загружено {len(input_contracts)} input контрактов для '{component_name}'",
+                extra={"event_type": EventType.DEBUG}
+            )
 
         # Output контракты
-        for cap, ver in config.output_contract_versions.items():
-            contract = self.get_contract(cap, ver, "output")
-            if contract:
-                output_contracts[cap] = contract
-            else:
-                self.logger.warning(
-                    f"Выходной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
-                    extra={"event_type": EventType.WARNING}
-                )
+        if not auto_load_output_contracts:
+            # Загружаем только указанные версии
+            for cap, ver in config.output_contract_versions.items():
+                contract = self.get_contract(cap, ver, "output")
+                if contract:
+                    output_contracts[cap] = contract
+                else:
+                    self.logger.warning(
+                        f"Выходной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
+                        extra={"event_type": EventType.WARNING}
+                    )
+        else:
+            # Автоматическая загрузка всех output контрактов по префиксу component_name
+            for (cap, ver, direction), contract in self._contracts.items():
+                if direction == "output" and cap.startswith(component_name):
+                    output_contracts[cap] = contract
+            self.logger.debug(
+                f"Автоматически загружено {len(output_contracts)} output контрактов для '{component_name}'",
+                extra={"event_type": EventType.DEBUG}
+            )
 
         return {
             "prompts": prompts,

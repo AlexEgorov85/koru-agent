@@ -1,63 +1,55 @@
-```gitignore
-# Python cache files
+```
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Test cache and coverage
-.pytest_cache/
-.coverage
-coverage/
-htmlcov/
+# Dependencies
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*
+requirements.txt.bak
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
 
 # Logs
 *.log
 
-# Environment files
-.env
-.env.local
-*.env.*
-
-# Temporary files
-*.tmp
-*.swp
-*.swo
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
 
 # IDE specific
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Qwen
-.qwen/
+# OS specific
+.DS_Store
+Thumbs.db
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Data directories
-data/logs/
-data/metrics/
-data/vector/
-
-# Models
-models/embedding/
-
-# Scripts
-run_ui.bat
-scripts/debug/
-
-# Test files
-test_component.ipynb
-
-# Local data
-core/data/
-
-# Dependencies and builds
-venv/
-.venv/
-pip-wheel-metadata/
-.wheelhouse/
+# Testing
+.pytest_cache/
 .mypy_cache/
-__pypackages__/
+.hypothesis/
+
+# Compiled extensions
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Temporary files
+*.tmp
+*~
 ```

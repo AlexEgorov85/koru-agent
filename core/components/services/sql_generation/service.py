@@ -108,18 +108,33 @@ class SQLGenerationService(Service):
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        АРХИТЕКТУРА: Используем get_input_contract() для валидации структуры входных данных.
         """
+        # Получаем входной контракт для валидации структуры параметров
+        input_schema = self.get_input_contract("sql_generation.generate")
+        if input_schema:
+            # Валидация структуры входных данных через контракт
+            validated_input = input_schema.model_validate(parameters)
+        
         # Маршрутизация по имени capability
         cap_name = capability.name
 
         if "execute_with_auto_correction" in cap_name:
             # Генерация с автокоррекцией (вызов из sql_query_service)
             result = safe_async_call(self.execute_with_auto_correction(input_data=parameters))
-            return {"success": result.success, "sql": result.get("sql", "") if hasattr(result, 'sql') else None, "error": result.error}
+            output = {"success": result.success, "sql": result.get("sql", "") if hasattr(result, 'sql') else None, "error": result.error}
         else:
             # Обычная генерация SQL
             result = safe_async_call(self.generate_query(input_data=parameters))
-            return result
+            output = result
+        
+        # Валидация выхода через контракт (если доступен)
+        output_schema = self.get_output_contract("sql_generation.generate")
+        if output_schema:
+            return output_schema.model_validate(output).model_dump()
+        
+        return output
 
     async def restart(self) -> bool:
         """
@@ -450,7 +465,7 @@ class SQLGenerationService(Service):
         """
         last_error = None
 
-        for attempt in range(max_correction_attempts):
+        for attempt in range(max_correction_attempts):  # ARCHITECTURE: Retry logic для коррекции SQL запросов
             try:
                 result = await self.generate_query(
                     natural_language_query=natural_language_query,
@@ -548,7 +563,8 @@ class SQLGenerationService(Service):
             )
         # Fallback на infrastructure_context для обратной совместимости
         elif hasattr(self, '_application_context') and self._application_context:
-            await self._application_context.infrastructure_context.event_bus.publish(
+            infra = self._application_context.get_infrastructure_context()
+            await infra.event_bus.publish(
                 event_type=f"sql_generation.{event_type}",
                 data={
                     "user_question": input_data.natural_language_query,
@@ -573,7 +589,8 @@ class SQLGenerationService(Service):
                 }
             )
         elif hasattr(self, '_application_context') and self._application_context:
-            await self._application_context.infrastructure_context.event_bus.publish(
+            infra = self._application_context.get_infrastructure_context()
+            await infra.event_bus.publish(
                 event_type=f"sql_correction.{event_type}",
                 data={
                     "attempt": attempt,
@@ -600,7 +617,8 @@ class SQLGenerationService(Service):
             )
         # Fallback на infrastructure_context для обратной совместимости
         elif hasattr(self, '_application_context') and self._application_context:
-            await self._application_context.infrastructure_context.event_bus.publish(
+            infra = self._application_context.get_infrastructure_context()
+            await infra.event_bus.publish(
                 event_type=f"sql_execution.{event_type}",
                 data={
                     "attempt": attempt,

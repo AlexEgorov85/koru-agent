@@ -512,6 +512,10 @@ class ApplicationContext(BaseSystemContext):
         """Получение сервиса по имени."""
         return self.components.get(ComponentType.SERVICE, name)
 
+    def get_infrastructure_context(self) -> InfrastructureContext:
+        """Получение InfrastructureContext (только для чтения)."""
+        return self.infrastructure_context
+
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
         """Валидация версий в зависимости от профиля и prompt_loading_config.
 

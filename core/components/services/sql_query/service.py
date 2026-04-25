@@ -100,7 +100,15 @@ class SQLQueryService(Service):
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        АРХИТЕКТУРА: Используем get_input_contract() для валидации структуры входных данных.
         """
+        # Получаем входной контракт для валидации структуры параметров
+        input_schema = self.get_input_contract("sql_query_service.execute_query")
+        if input_schema:
+            # Валидация структуры входных данных через контракт
+            validated_input = input_schema.model_validate(parameters)
+        
         # Режим 1: Готовый SQL-запрос (выполнение напрямую)
         if parameters.get("sql_query"):
             result = safe_async_call(self.execute_query(
@@ -108,16 +116,23 @@ class SQLQueryService(Service):
                 parameters=parameters.get("parameters"),
                 max_rows=parameters.get("max_rows", 50)
             ))
-            return {"query_result": result, "capability": capability.name}
+            output = {"query_result": result, "capability": capability.name}
+        else:
+            # Режим 2: Генерация SQL из вопроса пользователя (через LLM)
+            result = safe_async_call(self.execute_query_from_user_request(
+                user_question=parameters.get("user_question", ""),
+                tables=parameters.get("tables", []),
+                max_rows=parameters.get("max_rows", 50),
+                execution_context=execution_context
+            ))
+            output = {"query_result": result, "capability": capability.name}
         
-        # Режим 2: Генерация SQL из вопроса пользователя (через LLM)
-        result = safe_async_call(self.execute_query_from_user_request(
-            user_question=parameters.get("user_question", ""),
-            tables=parameters.get("tables", []),
-            max_rows=parameters.get("max_rows", 50),
-            execution_context=execution_context
-        ))
-        return {"query_result": result, "capability": capability.name}
+        # Валидация выхода через контракт (если доступен)
+        output_schema = self.get_output_contract("sql_query_service.execute_query")
+        if output_schema:
+            return output_schema.model_validate(output).model_dump()
+        
+        return output
 
     async def execute_query(
         self,
@@ -225,9 +240,8 @@ class SQLQueryService(Service):
             # === ЭТАП 3: Выполнение запроса через db_provider ===
             db_provider = None
             if hasattr(self, 'application_context') and self.application_context:
-                if hasattr(self.application_context, 'infrastructure_context'):
-                    infra = self.application_context.infrastructure_context
-                    db_provider = infra.resource_registry.get_resource("default_db").instance if infra.resource_registry else None
+                infra = self.application_context.get_infrastructure_context()
+                db_provider = infra.resource_registry.get_resource("default_db").instance if infra.resource_registry else None
             
             await self._publish_with_context(
                 event_type="sql_query.db_provider_found",
