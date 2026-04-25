@@ -1,5 +1,7 @@
 ```
 # Python
+```gitignore
+# Python cache files
 __pycache__/
 *.pyc
 *.pyo
@@ -31,12 +33,26 @@ target/
 *.tmp
 *.swp
 
+# Test cache and coverage
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Logs
+*.log
+
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editors
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# IDE specific
 .vscode/
 .idea/
 
@@ -48,4 +64,36 @@ htmlcov/
 # System files
 .DS_Store
 Thumbs.db
+# Qwen
+.qwen/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data directories
+data/logs/
+data/metrics/
+data/vector/
+
+# Models
+models/embedding/
+
+# Scripts
+run_ui.bat
+scripts/debug/
+
+# Test files
+test_component.ipynb
+
+# Local data
+core/data/
+
+# Dependencies and builds
+venv/
+.venv/
+pip-wheel-metadata/
+.wheelhouse/
+.mypy_cache/
+__pypackages__/
 ```
