@@ -19,7 +19,33 @@ schema_data:
     findings:
       type: array
       items:
-        $ref: "#/definitions/ReviewFinding"
+        type: object
+        properties:
+          category:
+            type: string
+            description: "Категория: 'security', 'architecture', 'style', 'performance', 'bug'"
+          severity:
+            type: string
+            description: "Серьёзность: 'critical', 'high', 'medium', 'low'"
+          file:
+            type: string
+            description: Файл, в котором найдена проблема
+          line_hint:
+            type: string
+            description: Подсказка о расположении
+            nullable: true
+          description:
+            type: string
+            description: Описание проблемы
+          suggestion:
+            type: string
+            description: Рекомендация по исправлению
+        required:
+          - category
+          - severity
+          - file
+          - description
+          - suggestion
       default: []
     summary:
       type: string
@@ -33,34 +59,5 @@ schema_data:
     - component_name
     - component_type
     - overall_score
-  definitions:
-    ReviewFinding:
-      type: object
-      properties:
-        category:
-          type: string
-          description: "Категория: 'security', 'architecture', 'style', 'performance', 'bug'"
-        severity:
-          type: string
-          description: "Серьёзность: 'critical', 'high', 'medium', 'low'"
-        file:
-          type: string
-          description: Файл, в котором найдена проблема
-        line_hint:
-          type: string
-          description: Подсказка о расположении
-          nullable: true
-        description:
-          type: string
-          description: Описание проблемы
-        suggestion:
-          type: string
-          description: Рекомендация по исправлению
-      required:
-        - category
-        - severity
-        - file
-        - description
-        - suggestion
 status: active
 version: v1.0.0
