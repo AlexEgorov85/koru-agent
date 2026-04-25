@@ -70,8 +70,8 @@ class FinalAnswerPhase:
             
             execution_context = ExecutionContext(
                 session_context=session_context,
-                goal=goal,
-                decision_reasoning=decision_reasoning,
+                session_id=session_id,
+                agent_id=agent_id,
             )
             
             result = await self.executor.execute_action(
@@ -144,8 +144,8 @@ class FinalAnswerPhase:
             
             execution_context = ExecutionContext(
                 session_context=session_context,
-                goal=goal,
-                decision_reasoning="Fallback after step limit reached",
+                session_id=session_id,
+                agent_id=agent_id,
             )
             
             result = await self.executor.execute_action(
