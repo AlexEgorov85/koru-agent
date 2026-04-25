@@ -1,40 +1,35 @@
 capability: meta_component_creator.fix
 component_type: skill
-description: Выходной контракт для исправления навыка
+description: Выходной контракт для исправления компонента
 direction: output
 schema_data:
   type: object
   properties:
-    success:
+    component_name:
+      type: string
+      description: Имя исправляемого компонента
+    component_type:
+      type: string
+      description: Тип компонента
+    patched_files:
+      type: object
+      description: Исправленные файлы (filename -> content)
+      additionalProperties:
+        type: string
+    is_valid:
       type: boolean
-      description: Успешно ли выполнена операция
-    skill_name:
-      type: string
-      description: Имя исправляемого навыка
-    validation:
-      type: object
-      description: Результат валидации исправленных файлов
-    deployment:
-      type: object
-      description: Результат записи файлов
-    change_summary:
-      type: string
-      description: Краткое описание внесённых изменений
-    files_written:
+      default: false
+    validation_errors:
       type: array
       items:
         type: string
-      description: Список записанных файлов
-    message:
+      default: []
+    change_summary:
       type: string
-      description: Информационное сообщение
-    error:
-      type: string
-      description: Текст ошибки
+      description: Краткое описание внесённых изменений
+      default: ""
   required:
-    - success
-    - skill_name
-    - message
-  additionalProperties: false
+    - component_name
+    - component_type
 status: active
 version: v1.0.0

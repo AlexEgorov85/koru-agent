@@ -1,0 +1,14 @@
+{"timestamp": "2026-04-25T12:10:27.514425", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
+{"timestamp": "2026-04-25T12:10:27.515016", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
+{"timestamp": "2026-04-25T12:10:27.514658", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:10:27.514764", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:10:27.533040", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 0}
+{"timestamp": "2026-04-25T12:10:27.533186", "event_type": "user.result", "session_id": "a5d680f6-0683-4933-8cc4-0422b89e4300", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
+{"timestamp": "2026-04-25T12:10:27.533367", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:10:27.533439", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:10:27.558638", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator initialized"}
+{"timestamp": "2026-04-25T12:10:27.791082", "event_type": "check_result.tables_loaded", "session_id": "a5d680f6-0683-4933-8cc4-0422b89e4300", "agent_id": null, "source": "file", "path": "/workspace/data/skills/check_result/tables.yaml"}
+{"timestamp": "2026-04-25T12:10:27.832307", "event_type": "check_result.initialized", "session_id": "a5d680f6-0683-4933-8cc4-0422b89e4300", "agent_id": null, "tables_count": 4}
+{"timestamp": "2026-04-25T12:10:28.034406", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator shutdown"}
+{"timestamp": "2026-04-25T12:10:28.034519", "event_type": "resources_cleared", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:10:28.035206", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 0, "success": 0}

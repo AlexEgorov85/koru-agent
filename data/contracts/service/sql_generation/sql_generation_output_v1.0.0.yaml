@@ -2,16 +2,46 @@ capability: sql_generation
 component_type: service
 description: >
   Выходной контракт сервиса генерации SQL-запросов.
-  Возвращает сгенерированный SQL с метаданными.
+  Возвращает сгенерированный SQL с метаданными и самоанализом.
 direction: output
 schema_data:
   type: object
   properties:
-    sql:
+    analysis_understanding:
       type: string
-      description: >
-        Сгенерированный SQL-запрос.
-        Параметризованный (с плейсхолдерами).
+      description: "1. Понимание запроса: Какие сущности, условия и связи упоминаются пользователем?"
+    analysis_schema:
+      type: string
+      description: "2. Анализ схемы: Какие таблицы и колонки требуются?"
+    analysis_strategy:
+      type: string
+      description: "3. Выбор стратегии: Будет ли это простой SELECT, агрегация, подзапрос или CTE?"
+    analysis_validation:
+      type: string
+      description: "4. Валидация параметров: Все ли условия учтены?"
+    analysis_security:
+      type: string
+      description: "5. Безопасность: Соответствует ли запрос политике SELECT-ONLY?"
+    analysis_optimization:
+      type: string
+      description: "6. Оптимизация: Можно ли улучшить производительность?"
+    generated_sql:
+      type: string
+      description: Сгенерированный SQL-запрос. ТОЛЬКО код, без markdown.
+    confidence_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: "7. Оценка уверенности (0.0-1.0)"
+    potential_issues:
+      type: array
+      items:
+        type: string
+      description: "8. Потенциальные проблемы"
+      default: []
+    final_check:
+      type: string
+      description: "9. Финальная проверка: соответствует ли SQL запросу?"
     parameters:
       type: object
       description: >
@@ -42,6 +72,7 @@ schema_data:
         Уникальный идентификатор генерации.
         Используется для отслеживания и коррекции.
   required:
-    - sql
+    - generated_sql
+    - confidence_score
 status: active
 version: v1.0.0

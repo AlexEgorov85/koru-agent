@@ -1,0 +1,47 @@
+{"timestamp": "2026-04-25T12:09:25.150769", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_llm", "type": "llm"}
+{"timestamp": "2026-04-25T12:09:25.151821", "event_type": "resource_registered", "session_id": "system", "agent_id": null, "name": "default_db", "type": "database"}
+{"timestamp": "2026-04-25T12:09:25.151287", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.151415", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.159256", "event_type": "lifecycle_initialized", "session_id": "system", "agent_id": null, "total": 2, "success": 0}
+{"timestamp": "2026-04-25T12:09:25.159391", "event_type": "user.result", "session_id": "1352355a-5afb-40f2-8f48-099e6c26a4bb", "agent_id": null, "message": "InfrastructureContext initialized", "icon": "[OK]"}
+{"timestamp": "2026-04-25T12:09:25.159561", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.159631", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.214905", "event_type": "test_event", "session_id": "system", "agent_id": null, "message": "test"}
+{"timestamp": "2026-04-25T12:09:25.255924", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator initialized"}
+{"timestamp": "2026-04-25T12:09:25.678053", "event_type": "check_result.tables_loaded", "session_id": "1352355a-5afb-40f2-8f48-099e6c26a4bb", "agent_id": null, "source": "file", "path": "/workspace/data/skills/check_result/tables.yaml"}
+{"timestamp": "2026-04-25T12:09:25.720355", "event_type": "check_result.initialized", "session_id": "1352355a-5afb-40f2-8f48-099e6c26a4bb", "agent_id": null, "tables_count": 4}
+{"timestamp": "2026-04-25T12:09:25.777021", "event_type": "session.started", "session_id": "f6d61bef-1e14-416c-a6e8-421134beb75b", "agent_id": "e2e_test_agent", "goal": "Сколько проверок было проведено в 2025 году?"}
+{"timestamp": "2026-04-25T12:09:25.778262", "event_type": "capability.selected", "session_id": "f6d61bef-1e14-416c-a6e8-421134beb75b", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.777170", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.777236", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.794028", "event_type": "session.started", "session_id": "1bb6a7cb-e889-4c04-aeb1-98cf52832ad4", "agent_id": "e2e_test_agent", "goal": "Найти несуществующие данные"}
+{"timestamp": "2026-04-25T12:09:25.795651", "event_type": "capability.selected", "session_id": "1bb6a7cb-e889-4c04-aeb1-98cf52832ad4", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.794176", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.794236", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.800233", "event_type": "session.started", "session_id": "38ef17db-ba80-4425-a3e3-47fd078f030e", "agent_id": "e2e_test_agent", "goal": "Простой вопрос"}
+{"timestamp": "2026-04-25T12:09:25.811092", "event_type": "capability.selected", "session_id": "38ef17db-ba80-4425-a3e3-47fd078f030e", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.800357", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.800412", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.815207", "event_type": "session.started", "session_id": "41d51c7f-be4f-4a41-ad92-69faa913a1c2", "agent_id": "e2e_test_agent", "goal": "Показать количество проверок по типу проверки и региону"}
+{"timestamp": "2026-04-25T12:09:25.816268", "event_type": "capability.selected", "session_id": "41d51c7f-be4f-4a41-ad92-69faa913a1c2", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.815337", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.815394", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.831121", "event_type": "session.started", "session_id": "d2794ca3-ddec-4b57-8b5c-75793c42351e", "agent_id": "e2e_test_agent", "goal": "Показать все проверки за 2030 год"}
+{"timestamp": "2026-04-25T12:09:25.832316", "event_type": "capability.selected", "session_id": "d2794ca3-ddec-4b57-8b5c-75793c42351e", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.831314", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.831383", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.837510", "event_type": "session.started", "session_id": "28e7bebc-e983-4743-858c-d43ebc3b1e6b", "agent_id": "e2e_test_agent", "goal": "Тест ReAct цикла"}
+{"timestamp": "2026-04-25T12:09:25.838544", "event_type": "capability.selected", "session_id": "28e7bebc-e983-4743-858c-d43ebc3b1e6b", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.837645", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.837703", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.856683", "event_type": "session.started", "session_id": "16d1795a-c138-4f00-aa33-ef56c2cdca37", "agent_id": "e2e_test_agent", "goal": "Сложный многошаговый запрос"}
+{"timestamp": "2026-04-25T12:09:25.857774", "event_type": "capability.selected", "session_id": "16d1795a-c138-4f00-aa33-ef56c2cdca37", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.856819", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.856883", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.872162", "event_type": "session.started", "session_id": "081824ff-abef-485e-a9d0-e918ddf9ba7b", "agent_id": "e2e_test_agent", "goal": "Запрос с восстановлением"}
+{"timestamp": "2026-04-25T12:09:25.873296", "event_type": "capability.selected", "session_id": "081824ff-abef-485e-a9d0-e918ddf9ba7b", "agent_id": "e2e_test_agent", "capability": null, "pattern": "fail", "reasoning": "Ошибка при генерации решения: prompts_not_loaded", "step": 1}
+{"timestamp": "2026-04-25T12:09:25.872336", "event_type": "worker.created", "session_id": "system", "agent_id": null, "queue_size": 0}
+{"timestamp": "2026-04-25T12:09:25.872399", "event_type": "session.created", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.875422", "event_type": "debug", "session_id": "system", "agent_id": null, "message": "LLMOrchestrator shutdown"}
+{"timestamp": "2026-04-25T12:09:25.875512", "event_type": "resources_cleared", "session_id": "system", "agent_id": null}
+{"timestamp": "2026-04-25T12:09:25.876291", "event_type": "lifecycle_shutdown", "session_id": "system", "agent_id": null, "total": 0, "success": 0}

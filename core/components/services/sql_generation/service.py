@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
 from core.components.services.service import Service
 from abc import ABC
 from core.utils.async_utils import safe_async_call
@@ -15,30 +14,8 @@ class SQLGenerationServiceOutput:
         self.data = data
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 from core.components.services.sql_generation.correction import SQLCorrectionEngine
-from core.models.sql_schemas import (
-    SQLCorrectionInput, SQLGenerationInput, SQLGenerationOutput,
-)
 from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
-
-
-class SQLGenerationResult(BaseModel):
-    """Результат генерации с метаданными для анализа ошибок и самоанализом"""
-    sql: str = ""
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    reasoning: str = ""
-    tables_used: List[str] = Field(default_factory=list)
-    safety_score: float = 0.0
-    generation_id: str = ""
-    analysis_understanding: str = ""
-    analysis_schema: str = ""
-    analysis_strategy: str = ""
-    analysis_validation: str = ""
-    analysis_security: str = ""
-    analysis_optimization: str = ""
-    confidence_score: float = 0.0
-    potential_issues: List[str] = Field(default_factory=list)
-    final_check: str = ""
 
 class SQLGenerationService(Service):
     """
@@ -137,13 +114,12 @@ class SQLGenerationService(Service):
 
         if "execute_with_auto_correction" in cap_name:
             # Генерация с автокоррекцией (вызов из sql_query_service)
-            input_data = SQLGenerationInput(**parameters)
-            result = safe_async_call(self.execute_with_auto_correction(input_data=input_data))
-            return {"success": result.success, "sql": result.sql if hasattr(result, 'sql') else None, "error": result.error}
+            result = safe_async_call(self.execute_with_auto_correction(input_data=parameters))
+            return {"success": result.success, "sql": result.get("sql", "") if hasattr(result, 'sql') else None, "error": result.error}
         else:
             # Обычная генерация SQL
-            result = safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
-            return result.model_dump()
+            result = safe_async_call(self.generate_query(input_data=parameters))
+            return result
 
     async def restart(self) -> bool:
         """
@@ -169,7 +145,7 @@ class SQLGenerationService(Service):
 
     async def execute_with_auto_correction(
         self,
-        input_data: SQLGenerationInput,
+        input_data: Dict[str, Any],
         context: Optional[Any] = None
     ) -> 'DBQueryResult':
         """
@@ -183,7 +159,7 @@ class SQLGenerationService(Service):
             # Генерируем SQL
             result = await self.generate_query(input_data=input_data, context=context)
 
-            if not result.sql:
+            if not result.get('sql'):
                 return DBQueryResult(
                     success=False,
                     rows=[],
@@ -217,10 +193,10 @@ class SQLGenerationService(Service):
         available_scripts: str = None,
         available_tables: str = None,
         hints: str = None,
-        input_data: SQLGenerationInput = None,
+        input_data: Dict[str, Any] = None,
         context: Optional[Any] = None,
         **kwargs
-    ) -> SQLGenerationResult:
+    ) -> Dict[str, Any]:
         """
         Генерация безопасного параметризованного SQL-запроса.
 
@@ -236,11 +212,11 @@ class SQLGenerationService(Service):
         """
         # Поддержка обоих способов вызова: через параметры или через input_data
         if input_data is not None:
-            natural_language_query = input_data.natural_language_query
-            table_schema = input_data.table_schema
-            available_scripts = available_scripts or getattr(input_data, 'available_scripts', None)
-            available_tables = available_tables or getattr(input_data, 'available_tables', '')
-            hints = hints or getattr(input_data, 'hints', None)
+            natural_language_query = input_data.get('natural_language_query')
+            table_schema = input_data.get('table_schema')
+            available_scripts = available_scripts or input_data.get('available_scripts')
+            available_tables = available_tables or input_data.get('available_tables', '')
+            hints = hints or input_data.get('hints')
         elif natural_language_query is None or table_schema is None:
             raise ValueError("generate_query requires either natural_language_query and table_schema, or input_data")
 
@@ -285,6 +261,8 @@ class SQLGenerationService(Service):
             output = None  # Будет заполнен structured output или fallback
 
             try:
+                # Получаем схему из YAML контракта
+                output_contract = self.get_output_contract("sql_generation.generate_query")
                 llm_result = await self.executor.execute_action(
                     action_name="llm.generate_structured",
                     parameters={
@@ -297,7 +275,7 @@ class SQLGenerationService(Service):
                         "max_tokens": 3000,
                         "structured_output": {
                             "output_model": "SQLGenerationOutput",
-                            "schema_def": SQLGenerationOutput.model_json_schema(),
+                            "schema_def": output_contract,
                             "max_retries": 3,
                             "strict_mode": False
                         }
@@ -419,31 +397,31 @@ class SQLGenerationService(Service):
             log.info(f"SQL confidence_score={confidence_score}, potential_issues={len(potential_issues)}", extra={"event_type": EventType.LLM_RESPONSE})
 
             # 5. Формирование результата
-            result = SQLGenerationResult(
-                sql=validated.sql,
-                parameters=validated.parameters,
-                reasoning=analysis_strategy,
-                tables_used=[],
-                safety_score=validated.safety_score,
-                generation_id=f"gen_{hash(natural_language_query)}",
-                analysis_understanding=analysis_understanding,
-                analysis_schema=analysis_schema,
-                analysis_strategy=analysis_strategy,
-                analysis_validation=analysis_validation,
-                analysis_security=analysis_security,
-                analysis_optimization=analysis_optimization,
-                confidence_score=confidence_score,
-                potential_issues=potential_issues,
-                final_check=final_check
+            result = {
+                "sql": validated.sql,
+                "parameters": validated.parameters,
+                "reasoning": analysis_strategy,
+                "tables_used": [],
+                "safety_score": validated.safety_score,
+                "generation_id": f"gen_{hash(natural_language_query)}",
+                "analysis_understanding": analysis_understanding,
+                "analysis_schema": analysis_schema,
+                "analysis_strategy": analysis_strategy,
+                "analysis_validation": analysis_validation,
+                "analysis_security": analysis_security,
+                "analysis_optimization": analysis_optimization,
+                "confidence_score": confidence_score,
+                "potential_issues": potential_issues,
+                "final_check": final_check
             )
 
             # Создаём временный объект для публикации события
-            temp_input = SQLGenerationInput(natural_language_query=natural_language_query, table_schema=table_schema)
-            await self._publish_generation_event("generation_success", result.sql, temp_input, result.safety_score)
+            temp_input = {"natural_language_query": natural_language_query, "table_schema": table_schema}
+            await self._publish_generation_event("generation_success", result.get("sql", ""), temp_input, result.get("safety_score", 0.0))
             return result
 
         except Exception as e:
-            temp_input = SQLGenerationInput(natural_language_query=natural_language_query, table_schema=table_schema)
+            temp_input = {"natural_language_query": natural_language_query, "table_schema": table_schema}
             await self._publish_generation_event("generation_failed", str(e), temp_input)
             # ❌ УДАЛЕНО: ValueError без контекста
             # ✅ ТЕПЕРЬ: Выбрасываем SQLValidationError
@@ -458,10 +436,10 @@ class SQLGenerationService(Service):
         self,
         natural_language_query: str = None,
         table_schema: str = None,
-        input_data: SQLGenerationInput = None,
+        input_data: Dict[str, Any] = None,
         context: Optional[Any] = None,
         max_correction_attempts: int = 3
-    ) -> SQLGenerationResult:
+    ) -> Dict[str, Any]:
         """
         Генерация SQL с авто-коррекцией при ошибках.
 
@@ -555,7 +533,7 @@ class SQLGenerationService(Service):
 
         return {"tables": metadata_list}
 
-    async def _publish_generation_event(self, event_type: str, data: Any, input_data: SQLGenerationInput, safety_score: float = 0.0):
+    async def _publish_generation_event(self, event_type: str, data: Any, input_data: Dict[str, Any], safety_score: float = 0.0):
         """Публикация события генерации через EventBus"""
         # Используем внедрённый event_bus из BaseComponent
         if hasattr(self, '_event_bus') and self._event_bus is not None:
