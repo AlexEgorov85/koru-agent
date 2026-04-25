@@ -1,4 +1,4 @@
-capability: sql_validator_service.validate_query.system
+capability: sql_validator_service.validate_query
 version: v1.0.0
 status: active
 component_type: service
@@ -6,6 +6,7 @@ prompt_type: system
 description: >
   Системный промпт для сервиса валидации SQL-запросов.
   Инструкции для проверки безопасности и корректности SQL.
+variables: []
 content: |
   Вы - эксперт по валидации SQL-запросов. Ваша задача:
   
