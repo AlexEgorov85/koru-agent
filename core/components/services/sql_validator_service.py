@@ -9,9 +9,17 @@ from core.components.services.service import Service
 class SQLValidatorService(Service):
     """Сервис валидации SQL-запросов."""
 
+    @property
+    def description(self) -> str:
+        return "Сервис валидации SQL-запросов на безопасность и корректность"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._initialized = False
+
+    async def _custom_initialize(self) -> bool:
+        """Специфичная инициализация сервиса."""
+        return True
 
     async def initialize(self) -> bool:
         """Инициализация сервиса."""
@@ -137,6 +145,40 @@ class SQLValidatorService(Service):
             result["warnings"].append("Возможная ошибка: несбалансированные скобки")
             result["safety_score"] = max(0.0, result["safety_score"] - 0.2)
         
+        return result
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: Optional['ExecutionContext']
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса валидации SQL (СИНХРОННАЯ).
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Маршрутизация по имени capability
+        cap_name = capability.name
+
+        if "validate_input" in cap_name:
+            result = await self.validate_input(
+                natural_language_query=parameters.get("natural_language_query", ""),
+                table_schema=parameters.get("table_schema")
+            )
+        elif "validate_sql" in cap_name:
+            result = await self.validate_sql(
+                sql=parameters.get("sql", ""),
+                allowed_operations=parameters.get("allowed_operations")
+            )
+        else:
+            # По умолчанию - общая валидация
+            result = await self.validate_input(
+                natural_language_query=parameters.get("natural_language_query", ""),
+                table_schema=parameters.get("table_schema")
+            )
+
         return result
 
     async def shutdown(self):
