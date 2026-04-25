@@ -1,80 +1,160 @@
 from typing import Dict, Any, Optional
-from core.application_context.application_context import ApplicationContext
-from core.models.sql_schemas import SQLCorrectionInput, SQLCorrectionOutput
+from core.components.services.service import Service
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
+from core.application_context.application_context import ApplicationContext
 import logging
 from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 
 
-class SQLCorrectionEngine:
+class SQLCorrectionService(Service):
     """
-    Движок коррекции SQL-запросов на основе анализа ошибок.
+    Сервис коррекции SQL-запросов на основе анализа ошибок.
 
     ФУНКЦИОНАЛЬНОСТЬ:
     1. Применение стратегий коррекции в зависимости от типа ошибки
     2. Генерация исправленного запроса с сохранением логики
     3. Проверка корректности исправленного запроса
     4. Оценка уверенности в исправлении
+    
+    АРХИТЕКТУРА:
+    - Контракты загружаются через ResourceLoader в ComponentFactory
+    - Контракты передаются через ComponentConfig.resolved_input/output_contracts
+    - Компонент получает готовые Contract объекты с pydantic_schema
     """
 
-    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
-        """
-        Инициализация движка коррекции.
+    @property
+    def description(self) -> str:
+        return "Сервис коррекции SQL-запросов на основе анализа ошибок"
 
-        ПАРАМЕТРЫ:
-        - application_context: ApplicationContext
-        - component_config: ComponentConfig (не используется, для совместимости)
-        - executor: ActionExecutor (не используется, для совместимости)
-        """
-        self.application_context = application_context
-        self.executor = executor
-        self.error_analyzer = SQLErrorAnalyzer(
-            application_context,
-            executor=executor
+    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_correction", component_config=None, executor=None):
+        from core.config.component_config import ComponentConfig
+        # NO FALLBACK: ComponentConfig должен быть передан извне
+        if component_config is None:
+            raise ValueError(
+                f"SQLCorrectionService требует component_config! "
+                f"Проверьте что компонент инициализируется через ComponentFactory"
+            )
+
+        super().__init__(
+            name=name,
+            component_config=component_config,
+            executor=executor,
+            application_context=application_context
         )
 
-    async def initialize(self) -> bool:
-        """Инициализация движка коррекции"""
-        await self.error_analyzer.initialize()
-        log.info("SQLCorrectionEngine успешно инициализирован", extra={"event_type": EventType.SYSTEM_READY})
-        return True
+        self.error_analyzer = None
+        
+        # Конфигурация безопасности
+        self.max_correction_attempts = 3
+        self.allowed_operations = ["SELECT", "WITH"]
+
+    async def _custom_initialize(self) -> bool:
+        """Инициализация внутреннего состояния"""
+        try:
+            # Инициализация анализатора ошибок
+            self.error_analyzer = SQLErrorAnalyzer(
+                self.application_context,
+                executor=self.executor
+            )
+            if not await self.error_analyzer.initialize():
+                await self._publish_with_context(
+                    event_type="sql_correction.init_failed",
+                    data={"component": "SQLErrorAnalyzer"},
+                    source="sql_correction"
+                )
+                return False
+
+            return True
+        except Exception as e:
+            self._log_error(f"Ошибка инициализации SQLCorrectionService: {str(e)}")
+            return False
+
+    async def _load_service_prompts(self):
+        """Загрузка промптов, специфичных для сервиса коррекции SQL"""
+        # Промпты уже загружены в базовом классе через ComponentConfig
+        pass
+
+    def get_required_prompt_names(self):
+        """Возвращает список имен промптов, необходимых для сервиса"""
+        return ["sql_correction.correct_query"]
+
+    def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса коррекции SQL (СИНХРОННАЯ).
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Маршрутизация по имени capability
+        cap_name = capability.name
+
+        if "correct_query" in cap_name:
+            result = safe_async_call(self.correct_query(correction_input=parameters))
+            return result
+        else:
+            raise ValueError(f"Неизвестная capability: {cap_name}")
 
     async def shutdown(self) -> None:
-        """Завершение работы движка коррекции"""
-        await self.error_analyzer.shutdown()
-        log.info("Завершение работы SQLCorrectionEngine", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
-    
-    async def correct_query(self, correction_input: SQLCorrectionInput) -> SQLCorrectionOutput:
+        """Завершение работы сервиса"""
+        if self.error_analyzer:
+            await self.error_analyzer.shutdown()
+        self._log_info("Завершение работы SQLCorrectionService", extra={"event_type": EventType.SYSTEM_SHUTDOWN})
+
+    async def correct_query(self, correction_input: Dict[str, Any]) -> Dict[str, Any]:
         """
         Коррекция SQL-запроса на основе ошибки и анализа.
         
+        ПАРАМЕТРЫ:
+        - correction_input: Словарь с полями original_query, error_type, error_message, suggested_fix
+        
         ВОЗВРАЩАЕТ:
-        - Исправленный SQL-запрос
-        - Обоснование исправления
-        - Таблицы, использованные в исправленном запросе
-        - Уверенность в корректности исправления
+        - Словарь с полями corrected_sql, reasoning, tables_used, confidence
         """
+        # Валидация входных данных через контракт (автоматически в BaseComponent.execute())
+        # Получаем входной контракт из кэша компонента
+        input_contract = self.get_input_contract("sql_correction.correct_query")
+        if input_contract:
+            # Валидация через pydantic_schema контракта
+            try:
+                input_contract.model_validate(correction_input)
+            except Exception as e:
+                raise ValueError(f"Invalid input for SQLCorrection: {e}")
+        
         # Определение стратегии коррекции на основе типа ошибки
         corrected_sql = self._apply_correction_strategy(
-            correction_input.original_query,
-            correction_input.error_type,
-            correction_input.error_message,
-            correction_input.suggested_fix
+            correction_input.get("original_query"),
+            correction_input.get("error_type"),
+            correction_input.get("error_message"),
+            correction_input.get("suggested_fix")
         )
         
         # Создание вывода с обоснованием
-        output = SQLCorrectionOutput(
-            corrected_sql=corrected_sql,
-            reasoning=self._generate_reasoning(
-                correction_input.error_type,
-                correction_input.error_message,
+        output = {
+            "corrected_sql": corrected_sql,
+            "reasoning": self._generate_reasoning(
+                correction_input.get("error_type"),
+                correction_input.get("error_message"),
                 corrected_sql
             ),
-            tables_used=await self._extract_tables_from_query(corrected_sql),
-            confidence=self._calculate_correction_confidence(correction_input.error_type)
-        )
+            "tables_used": await self._extract_tables_from_query(corrected_sql),
+            "confidence": self._calculate_correction_confidence(correction_input.get("error_type"))
+        }
+        
+        # Валидация выходных данных через контракт (автоматически в BaseComponent.execute())
+        # Получаем выходной контракт из кэша компонента
+        output_contract = self.get_output_contract("sql_correction.correct_query")
+        if output_contract:
+            try:
+                output_contract.model_validate(output)
+            except Exception as e:
+                self._log_warning(f"Output validation failed: {e}", extra={"event_type": EventType.WARNING})
         
         return output
     

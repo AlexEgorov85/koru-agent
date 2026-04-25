@@ -1,0 +1,39 @@
+capability: sql_correction
+component_type: service
+description: >
+  Выходной контракт сервиса коррекции SQL-запросов.
+  Возвращает исправленный SQL-запрос с обоснованием и метаданными.
+direction: output
+schema_data:
+  type: object
+  properties:
+    corrected_sql:
+      type: string
+      description: >
+        Исправленный SQL-запрос.
+    reasoning:
+      type: string
+      description: >
+        Обоснование внесённых изменений.
+        Почему было применено именно такое исправление.
+    tables_used:
+      type: array
+      description: >
+        Список таблиц, использованных в исправленном запросе.
+        Пример: ["Lib.books", "Lib.authors"]
+      items:
+        type: string
+      default: []
+    confidence:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: >
+        Уверенность в корректности исправления (0.0–1.0).
+        1.0 — полностью уверен, 0.0 — не уверен.
+  required:
+    - corrected_sql
+    - reasoning
+    - confidence
+status: active
+version: v1.0.0
