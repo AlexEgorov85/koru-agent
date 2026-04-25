@@ -2,11 +2,11 @@
 SQL Validator Service - Валидация SQL-запросов перед выполнением.
 """
 from typing import Dict, Any, Optional, List
-from core.components.base_component import BaseComponent
-from core.models.component_meta import ComponentType
+
+from core.components.services.service import Service
 
 
-class SQLValidatorService(BaseComponent):
+class SQLValidatorService(Service):
     """Сервис валидации SQL-запросов."""
 
     def __init__(self, **kwargs):
