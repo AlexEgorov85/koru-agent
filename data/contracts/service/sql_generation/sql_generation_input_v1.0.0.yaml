@@ -35,6 +35,18 @@ schema_data:
       description: >
         Имя подключения к БД (опционально).
         Если не указано — используется подключение по умолчанию.
+    available_scripts:
+      type: string
+      description: >
+        Доступные скрипты для генерации SQL (опционально).
+    available_tables:
+      type: string
+      description: >
+        Доступные таблицы для генерации SQL (опционально).
+    hints:
+      type: string
+      description: >
+        Подсказки для генерации SQL (опционально).
   required:
     - natural_language_query
     - table_schema

@@ -121,6 +121,20 @@ class ExecutionResult:
         """
         return self.data is None or self.data == {}
 
+    @property
+    def technical_success(self) -> bool:
+        """
+        Алиас для проверки успешности выполнения.
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если status != FAILED
+
+        ПРИМЕР:
+        if result.technical_success:
+            # Обработка успешного результата
+        """
+        return self.status != ExecutionStatus.FAILED
+
 
 @dataclass
 class ExecutionContextSnapshot:

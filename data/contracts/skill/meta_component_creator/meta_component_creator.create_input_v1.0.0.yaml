@@ -15,7 +15,7 @@ schema_data:
         - tool
         - service
         - behavior
-      description: Тип компонента
+      description: "Тип компонента: 'skill', 'tool', 'service', 'behavior'"
       default: skill
     capabilities:
       type: array
@@ -44,5 +44,70 @@ schema_data:
   required:
     - description
   additionalProperties: false
+  definitions:
+    GeneratedPythonFile:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: Имя файла, например 'skill.py' или 'my_tool.py'
+        content:
+          type: string
+          description: Содержимое файла
+        file_type:
+          type: string
+          description: "Тип файла: 'main', 'handler', 'helper', 'input_output'"
+          default: main
+      required:
+        - filename
+        - content
+    GeneratedYamlFile:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: "Имя файла, например 'create.user_v1.0.0.yaml'"
+        content:
+          type: string
+          description: Содержимое YAML
+        file_category:
+          type: string
+          description: "Категория: 'prompt' или 'contract'"
+          default: prompt
+        direction:
+          type: string
+          description: "Для контрактов: 'input' или 'output'"
+          nullable: true
+      required:
+        - filename
+        - content
+    ReviewFinding:
+      type: object
+      properties:
+        category:
+          type: string
+          description: "Категория: 'security', 'architecture', 'style', 'performance', 'bug'"
+        severity:
+          type: string
+          description: "Серьёзность: 'critical', 'high', 'medium', 'low'"
+        file:
+          type: string
+          description: Файл, в котором найдена проблема
+        line_hint:
+          type: string
+          description: Подсказка о расположении
+          nullable: true
+        description:
+          type: string
+          description: Описание проблемы
+        suggestion:
+          type: string
+          description: Рекомендация по исправлению
+      required:
+        - category
+        - severity
+        - file
+        - description
+        - suggestion
 status: active
 version: v1.0.0

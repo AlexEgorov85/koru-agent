@@ -5,65 +5,74 @@ direction: output
 schema_data:
   type: object
   properties:
-    success:
-      type: boolean
-      description: Успешно ли выполнена операция
     component_name:
       type: string
       description: Уникальное имя компонента (snake_case)
     component_type:
       type: string
-      description: Тип компонента (skill/tool/service/behavior)
+      description: "Тип: 'skill', 'tool', 'service', 'behavior'"
     class_name:
       type: string
       description: Имя класса (PascalCase + суффикс типа)
-    validation:
-      type: object
-      description: Результат валидации артефактов
-      properties:
-        is_valid:
-          type: boolean
-        error_count:
-          type: integer
-        warning_count:
-          type: integer
-        errors:
-          type: array
-          items:
-            type: object
-    deployment:
-      type: object
-      description: Результат записи файлов
-      properties:
-        success:
-          type: boolean
-        written_files:
-          type: array
-          items:
-            type: string
-        errors:
-          type: array
-          items:
-            type: string
-    files_written:
+    python_files:
+      type: array
+      description: Сгенерированные Python-файлы
+      items:
+        $ref: "#/definitions/GeneratedPythonFile"
+    yaml_files:
+      type: array
+      description: Сгенерированные YAML-файлы (промпты и контракты)
+      items:
+        $ref: "#/definitions/GeneratedYamlFile"
+    is_valid:
+      type: boolean
+      description: Результат валидации
+      default: false
+    validation_errors:
       type: array
       items:
         type: string
-      description: Список записанных файлов
-    register_after:
-      type: boolean
-      description: Требуется ли регистрация в контексте
-    message:
-      type: string
-      description: Информационное сообщение для оператора
-    error:
-      type: string
-      description: Текст ошибки (если success=False)
+      default: []
   required:
-    - success
     - component_name
     - component_type
-    - message
-  additionalProperties: false
+    - class_name
+  definitions:
+    GeneratedPythonFile:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: "Имя файла, например 'skill.py' или 'my_tool.py'"
+        content:
+          type: string
+          description: Содержимое файла
+        file_type:
+          type: string
+          description: "Тип файла: 'main', 'handler', 'helper', 'input_output'"
+          default: main
+      required:
+        - filename
+        - content
+    GeneratedYamlFile:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: "Имя файла, например 'create.user_v1.0.0.yaml'"
+        content:
+          type: string
+          description: Содержимое YAML
+        file_category:
+          type: string
+          description: "Категория: 'prompt' или 'contract'"
+          default: prompt
+        direction:
+          type: string
+          description: "Для контрактов: 'input' или 'output'"
+          nullable: true
+      required:
+        - filename
+        - content
 status: active
 version: v1.0.0
