@@ -13,7 +13,7 @@ class SQLGenerationServiceOutput:
     def __init__(self, data: Dict[str, Any]):
         self.data = data
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
-from core.components.services.sql_generation.correction import SQLCorrectionEngine
+from core.components.services.sql_generation.correction import SQLCorrectionService
 from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
 
@@ -413,7 +413,7 @@ class SQLGenerationService(Service):
                 "confidence_score": confidence_score,
                 "potential_issues": potential_issues,
                 "final_check": final_check
-            )
+            }
 
             # Создаём временный объект для публикации события
             temp_input = {"natural_language_query": natural_language_query, "table_schema": table_schema}
