@@ -1,15 +1,13 @@
 import time
 import logging
 from typing import Dict, Any, List, Optional
-from core.models.data.capability import Capability
+from core.application_context.application_context import ApplicationContext
 from core.components.services.service import Service
+from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.data.capability import Capability
 from core.models.types.db_types import DBQueryResult
 from core.components.services.sql_generation.error_analyzer import SQLErrorAnalyzer
-from core.application_context.base_system_context import BaseSystemContext
-from core.models.sql_schemas import SQLGenerationInput, SQLQueryInput, SQLQueryOutput
-from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
-from core.infrastructure.event_bus.unified_event_bus import EventType
 
 log = logging.getLogger(__name__)
 

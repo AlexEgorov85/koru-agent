@@ -34,6 +34,9 @@ class ViolationType(Enum):
     DIRECT_LLM_CALL = "DIRECT_LLM_CALL"
     RETRY_LOGIC = "RETRY_LOGIC"
     RANDOM_USAGE = "RANDOM_USAGE"
+    PARAMETERS_GET_IN_EXECUTE = "PARAMETERS_GET_IN_EXECUTE"
+    CUSTOM_INPUT_OUTPUT_CLASSES = "CUSTOM_INPUT_OUTPUT_CLASSES"
+    NO_CONTRACT_USAGE = "NO_CONTRACT_USAGE"
 
 
 @dataclass
@@ -71,6 +74,15 @@ FORBIDDEN_PATTERNS = {
         "import random",
         "from random",
         "random.",
+    ],
+    ViolationType.PARAMETERS_GET_IN_EXECUTE: [
+        "parameters.get(",
+    ],
+    ViolationType.CUSTOM_INPUT_OUTPUT_CLASSES: [
+        "class SQLValidatorServiceInput",
+        "class SQLValidatorServiceOutput",
+        "ServiceInput:",
+        "ServiceOutput:",
     ],
 }
 
@@ -260,20 +272,42 @@ def print_violations_report(results: Dict[str, List[Violation]]) -> None:
 
 def main():
     """Основная функция"""
-    # Определяем директорию проекта
+    import argparse
+    parser = argparse.ArgumentParser(description="Проверка архитектуры компонентов")
+    parser.add_argument("--skills", action="store_true", help="Проверить только навыки")
+    parser.add_argument("--services", action="store_true", help="Проверить только сервисы")
+    parser.add_argument("--tools", action="store_true", help="Проверить только инструменты")
+    parser.add_argument("--all", action="store_true", help="Проверить все компоненты")
+    parser.add_argument("--quiet", action="store_true", help="Не выводить предупреждения")
+    args = parser.parse_args()
+
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
 
-    skills_dir = project_root / "core" / "components" / "skills"
+    dirs_to_check = []
+    if args.all or (not args.skills and not args.services and not args.tools):
+        dirs_to_check = [
+            project_root / "core" / "components" / "skills",
+            project_root / "core" / "components" / "services",
+            project_root / "core" / "components" / "tools",
+        ]
+    else:
+        if args.skills:
+            dirs_to_check.append(project_root / "core" / "components" / "skills")
+        if args.services:
+            dirs_to_check.append(project_root / "core" / "components" / "services")
+        if args.tools:
+            dirs_to_check.append(project_root / "core" / "components" / "tools")
 
-    print("[CHECK] Проверка архитектуры навыков...")
-    print(f"[CHECK] Директория навыков: {skills_dir}")
+    all_results = {}
+    for check_dir in dirs_to_check:
+        if not args.quiet:
+            print(f"\n[CHECK] Проверка: {check_dir.name}")
+        results = check_skills_directory(check_dir)
+        all_results.update(results)
 
-    results = check_skills_directory(skills_dir)
-    print_violations_report(results)
-
-    # Возвращаем код ошибки если есть нарушения
-    sys.exit(1 if results else 0)
+    print_violations_report(all_results)
+    sys.exit(1 if all_results else 0)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ SQL Generation Service - генерация и коррекция SQL запро
 """
 from .service import SQLGenerationService
 from .error_analyzer import SQLErrorAnalyzer, ExecutionError
-from .correction import SQLCorrectionEngine
+from .correction import SQLCorrectionService as SQLCorrectionEngine
 
 __all__ = [
     "SQLGenerationService",

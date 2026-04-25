@@ -656,6 +656,19 @@ class ActionExecutor:
         else:
             # Неявный формат — ищем компонент по имени во всех реестрах
             component_name = parts[0]
+            
+            # Нормализация имени: sql_query_service -> sql_query
+            if component_name.endswith('_service'):
+                normalized = component_name[:-8]  # убираем '_service'
+            elif component_name.endswith('_tool'):
+                normalized = component_name[:-5]
+            elif component_name.endswith('_skill'):
+                normalized = component_name[:-6]
+            elif component_name.endswith('_behavior'):
+                normalized = component_name[:-9]
+            else:
+                normalized = component_name
+            
             component_type = None
 
         # Определяем тип компонента
@@ -674,10 +687,16 @@ class ActionExecutor:
                 return component, component_type
 
         # Ищем во всех реестрах (для неявного формата или если не найдено)
+        # Пробуем оба варианта: оригинальное имя и нормализованное
+        names_to_try = [component_name]
+        if normalized != component_name:
+            names_to_try.append(normalized)
+        
         for type_name, comp_type in comp_type_map.items():
-            component = self.application_context.components.get(comp_type, component_name)
-            if component:
-                return component, type_name
+            for name in names_to_try:
+                component = self.application_context.components.get(comp_type, name)
+                if component:
+                    return component, type_name
 
         # Отладка: логируем доступные сервисы
         skills = self.application_context.components.all_of_type(ComponentType.SKILL)
@@ -1157,6 +1176,15 @@ class ActionExecutor:
         # "sql_query_service.execute" -> "execute" или полное имя для маршрутизации
         parts = action_name.split('.')
         method_name = parts[-1] if parts else "execute"
+
+        # Алиасы для соответствия старым тестам и новым методам
+        alias_map = {
+            "execute": "execute_query",
+            "validate": "validate_query",
+            "parse_json": "parse_json",
+            "get_table": "get_table",
+        }
+        method_name = alias_map.get(method_name, method_name)
 
         # Проверяем, есть ли такой метод
         if not hasattr(service, method_name):
