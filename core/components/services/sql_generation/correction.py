@@ -4,6 +4,7 @@ from core.components.services.sql_generation.error_analyzer import SQLErrorAnaly
 from core.application_context.application_context import ApplicationContext
 import logging
 from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.utils.async_utils import safe_async_call
 
 log = logging.getLogger(__name__)
 
