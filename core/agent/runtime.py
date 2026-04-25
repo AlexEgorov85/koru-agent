@@ -460,7 +460,7 @@ class AgentRuntime:
 
                 # Высокоуровневый лог: наблюдение
                 if self.narrative_log and observation:
-                    obs_text = observation[:200] + "..." if len(observation) > 200 else observation
+                    obs_text = observation.insight[:200] + "..." if len(observation.insight) > 200 else observation.insight
                     self.narrative_log.info(
                         f"Наблюдение: {obs_text}"
                     )
