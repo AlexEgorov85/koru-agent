@@ -47,14 +47,20 @@ async def _init_infrastructure(profile: str = "dev", data_dir: str = "data"):
     
     infra = DummyInfra()
 
-    # Выбор провайдера на основе модели
+    # Выбор провайдера на основе модели или явного пути
     model_name = vs_config.embedding.model_name
-    if "Giga-Embeddings" in model_name or "giga" in model_name.lower():
+    emb_cfg = vs_config.embedding
+    local_path = emb_cfg.local_model_path
+
+    if "qwen3" in model_name.lower() or local_path:
+        from core.infrastructure.providers.embedding.qwen3_embedding_provider import Qwen3EmbeddingProvider
+        embedding = Qwen3EmbeddingProvider(emb_cfg)
+    elif "Giga-Embeddings" in model_name or "giga" in model_name.lower():
         from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
-        embedding = GigaEmbeddingsProvider(vs_config.embedding)
+        embedding = GigaEmbeddingsProvider(emb_cfg)
     else:
         from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-        embedding_config = EmbeddingConfig(model_name=vs_config.embedding.model_name, dimension=vs_config.embedding.dimension)
+        embedding_config = EmbeddingConfig(model_name=model_name, dimension=vs_config.embedding.dimension)
         embedding = SentenceTransformersProvider(embedding_config)
     
     await embedding.initialize()

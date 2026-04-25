@@ -406,16 +406,21 @@ class InfrastructureContext:
         # Инициализация Embedding провайдера
         try:
             model_name = vs_config.embedding.model_name
-            if "Giga-Embeddings" in model_name or "giga" in model_name.lower():
+            emb_cfg = vs_config.embedding
+
+            if "qwen3" in model_name.lower() or emb_cfg.local_model_path:
+                from core.infrastructure.providers.embedding.qwen3_embedding_provider import Qwen3EmbeddingProvider
+                self._embedding_provider = Qwen3EmbeddingProvider(emb_cfg)
+            elif "Giga-Embeddings" in model_name or "giga" in model_name.lower():
                 from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
-                self._embedding_provider = GigaEmbeddingsProvider(vs_config.embedding)
+                self._embedding_provider = GigaEmbeddingsProvider(emb_cfg)
             else:
                 from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-                self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
+                self._embedding_provider = SentenceTransformersProvider(emb_cfg)
             
             await self._embedding_provider.initialize()
-            self.log.info("[OK] Embedding initialized: %s",
-                          vs_config.embedding.model_name,
+            self.log.info("[OK] Embedding initialized: %s", 
+                          emb_cfg.local_model_path or model_name,
                           extra={"event_type": EventType.SYSTEM_INIT})
         except Exception as e:
             self.log.error("Ошибка инициализации Embedding провайдера: %s",

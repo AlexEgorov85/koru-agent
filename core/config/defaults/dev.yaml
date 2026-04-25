@@ -37,7 +37,7 @@ llm_providers:
     fallback_providers: []
     model_name: qwen/qwen3.6-plus:free
     parameters:
-      api_key: "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"
+      api_key: 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
       temperature: 0.2
       max_tokens: 4096
       timeout_seconds: 120.0
@@ -63,10 +63,13 @@ vector_search:
     chunk_size: 500
     min_chunk_size: 50
   embedding:
-    dimension: 2048
-    model_name: C:/Users/Алексей/Documents/WORK/llm_models/Giga-Embeddings-instruct
-    instruction: "Дан вопрос, необходимо найти абзац текста с ответом"
+    model_name: qwen3-embedding-0.6b
+    local_model_path: C:/Users/Алексей/Documents/WORK/llm_models/qwen3-embedding-0.6b
+    dimension: 1024
+    instruction: Дан вопрос, необходимо найти абзац текста с ответом
     use_instruction: true
+    max_length: 8192
+    device: cuda
   enabled: true
   faiss:
     index_type: Flat
