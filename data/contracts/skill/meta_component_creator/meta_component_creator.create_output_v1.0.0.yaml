@@ -18,12 +18,44 @@ schema_data:
       type: array
       description: Сгенерированные Python-файлы
       items:
-        $ref: "#/definitions/GeneratedPythonFile"
+        type: object
+        properties:
+          filename:
+            type: string
+            description: "Имя файла, например 'skill.py' или 'my_tool.py'"
+          content:
+            type: string
+            description: Содержимое файла
+          file_type:
+            type: string
+            description: "Тип файла: 'main', 'handler', 'helper', 'input_output'"
+            default: main
+        required:
+          - filename
+          - content
     yaml_files:
       type: array
       description: Сгенерированные YAML-файлы (промпты и контракты)
       items:
-        $ref: "#/definitions/GeneratedYamlFile"
+        type: object
+        properties:
+          filename:
+            type: string
+            description: "Имя файла, например 'create.user_v1.0.0.yaml'"
+          content:
+            type: string
+            description: Содержимое YAML
+          file_category:
+            type: string
+            description: "Категория: 'prompt' или 'contract'"
+            default: prompt
+          direction:
+            type: string
+            description: "Для контрактов: 'input' или 'output'"
+            nullable: true
+        required:
+          - filename
+          - content
     is_valid:
       type: boolean
       description: Результат валидации
@@ -37,42 +69,5 @@ schema_data:
     - component_name
     - component_type
     - class_name
-  definitions:
-    GeneratedPythonFile:
-      type: object
-      properties:
-        filename:
-          type: string
-          description: "Имя файла, например 'skill.py' или 'my_tool.py'"
-        content:
-          type: string
-          description: Содержимое файла
-        file_type:
-          type: string
-          description: "Тип файла: 'main', 'handler', 'helper', 'input_output'"
-          default: main
-      required:
-        - filename
-        - content
-    GeneratedYamlFile:
-      type: object
-      properties:
-        filename:
-          type: string
-          description: "Имя файла, например 'create.user_v1.0.0.yaml'"
-        content:
-          type: string
-          description: Содержимое YAML
-        file_category:
-          type: string
-          description: "Категория: 'prompt' или 'contract'"
-          default: prompt
-        direction:
-          type: string
-          description: "Для контрактов: 'input' или 'output'"
-          nullable: true
-      required:
-        - filename
-        - content
 status: active
 version: v1.0.0
