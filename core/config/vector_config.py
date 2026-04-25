@@ -99,6 +99,7 @@ class EmbeddingConfig(BaseModel):
         max_length: Максимальная длина токенов
         instruction: Инструкция для query (Instruct: {task}\nQuery: {query})
         use_instruction: Использовать инструкцию для запросов
+        local_model_path: Путь к локальной папке с моделью (переопределяет model_name)
     """
     model_name: str = "all-MiniLM-L6-v2"
     dimension: int = 384
@@ -107,6 +108,10 @@ class EmbeddingConfig(BaseModel):
     max_length: int = 512
     instruction: Optional[str] = "Дан вопрос, необходимо найти абзац текста с ответом"
     use_instruction: bool = True
+    local_model_path: Optional[str] = Field(
+        default=None, 
+        description="Путь к локальной папке с моделью (переопределяет model_name)"
+    )
 
 
 class ChunkingConfig(BaseModel):
