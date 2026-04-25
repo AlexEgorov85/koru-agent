@@ -24,12 +24,12 @@ class SQLValidatorService(Service):
     async def initialize(self) -> bool:
         """Инициализация сервиса."""
         try:
-            self.log.info("Инициализация SQLValidatorService...")
+            self._log_sync("info", "Инициализация SQLValidatorService...")
             self._initialized = True
-            self.log.info("SQLValidatorService успешно инициализирован")
+            self._log_sync("info", "SQLValidatorService успешно инициализирован")
             return True
         except Exception as e:
-            self.log.error(f"Ошибка инициализации SQLValidatorService: {e}", exc_info=True)
+            self._log_sync("error", f"Ошибка инициализации SQLValidatorService: {e}", exception=e)
             return False
 
     def is_initialized(self) -> bool:
@@ -183,5 +183,5 @@ class SQLValidatorService(Service):
 
     async def shutdown(self):
         """Закрытие сервиса."""
-        self.log.info("Закрытие SQLValidatorService...")
+        self._log_sync("info", "Закрытие SQLValidatorService...")
         self._initialized = False
