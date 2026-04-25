@@ -1,0 +1,24 @@
+capability: sql_validator_service.validate_query
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: >
+  Входной контракт метода validate_query сервиса валидации SQL-запросов.
+  Проверяет безопасность и корректность сгенерированного SQL.
+schema_data:
+  type: object
+  properties:
+    sql_query:
+      type: string
+      description: >
+        SQL-запрос для валидации.
+        Проверяется на безопасность и синтаксическую корректность.
+    parameters:
+      type: object
+      description: >
+        Словарь параметров запроса для проверки.
+        Пример: {"1": "Иванов", "2": 100}
+      additionalProperties: true
+  required:
+    - sql_query

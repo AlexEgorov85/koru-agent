@@ -172,6 +172,25 @@ class SQLValidatorService(Service):
                 sql=parameters.get("sql", ""),
                 allowed_operations=parameters.get("allowed_operations")
             )
+        elif "validate_query" in cap_name:
+            # Метод validate_query для валидации сгенерированного SQL
+            sql = parameters.get("sql_query", "")
+            params = parameters.get("parameters", {})
+            
+            # Выполняем валидацию SQL
+            validation_result = await self.validate_sql(
+                sql=sql,
+                allowed_operations=["SELECT", "INSERT", "UPDATE", "DELETE"]
+            )
+            
+            # Формируем результат в формате ValidatedSQL
+            result = {
+                "is_valid": validation_result["is_valid"],
+                "sql": sql,
+                "parameters": params,
+                "validation_errors": validation_result["errors"],
+                "safety_score": validation_result["safety_score"]
+            }
         else:
             # По умолчанию - общая валидация
             result = await self.validate_input(
