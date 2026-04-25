@@ -1,8 +1,92 @@
-```
-# Python compiled files
-*.pyc
+```gitignore
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+.venv/
+.env/
+.ENV/
+.venv.bak/
+env.bak/
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+*.c
+*.h
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Testing
+.coverage
+coverage/
+htmlcov/
+.nyc_output/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
 
 # Logs
 *.log
+*.tmp
+
+# Environment specific
+.env
+.env.local
+*.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+.Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# PyTest
+.pytest_cache/
+
+# Coverage
+.coverage*
+htmlcov/
+.coverage
 ```
