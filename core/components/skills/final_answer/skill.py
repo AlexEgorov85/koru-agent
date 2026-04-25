@@ -186,16 +186,59 @@ class FinalAnswerSkill(Skill):
         ВОЗВРАЩАЕТ:
         - ExecutionResult: результат генерации
         """
+        # Извлечение параметров
+        if hasattr(parameters, 'goal'):
+            # Pydantic модель — используем getattr()
+            goal_from_params = getattr(parameters, 'goal', None)
+            decision_reasoning = getattr(parameters, 'decision_reasoning', None)
+            is_fallback = getattr(parameters, 'is_fallback', False)
+            executed_steps = getattr(parameters, 'executed_steps', 0)
+            include_steps = getattr(parameters, 'include_steps', True)
+            include_evidence = getattr(parameters, 'include_evidence', True)
+            format_type = getattr(parameters, 'format_type', 'detailed')
+            confidence_threshold = getattr(parameters, 'confidence_threshold', 0.7)
+            max_sources = getattr(parameters, 'max_sources', 10)
+        elif isinstance(parameters, dict):
+            # dict — используем .get()
+            goal_from_params = parameters.get("goal", None)
+            decision_reasoning = parameters.get("decision_reasoning", None)
+            is_fallback = parameters.get("is_fallback", False)
+            executed_steps = parameters.get("executed_steps", 0)
+            include_steps = parameters.get("include_steps", True)
+            include_evidence = parameters.get("include_evidence", True)
+            format_type = parameters.get("format_type", "detailed")
+            confidence_threshold = parameters.get("confidence_threshold", 0.7)
+            max_sources = parameters.get("max_sources", 10)
+        else:
+            # Fallback
+            goal_from_params = None
+            decision_reasoning = None
+            is_fallback = False
+            executed_steps = 0
+            include_steps = True
+            include_evidence = True
+            format_type = "detailed"
+            confidence_threshold = 0.7
+            max_sources = 10
+        
         # Извлечение цели с защитой
         from core.session_context.session_context import SessionContext
         raw_context = context.session_context if hasattr(context, 'session_context') else context
         if isinstance(raw_context, SessionContext):
             session_context = raw_context
         elif hasattr(raw_context, 'session_context'):
+            # Вложенный ExecutionContext - извлекаем дальше
             session_context = getattr(raw_context, 'session_context', raw_context)
         else:
             session_context = raw_context
-        goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
+        
+        # Приоритет: goal из parameters (если передан), иначе из session_context
+        if goal_from_params:
+            goal = goal_from_params
+            self._log_debug(f"[DEBUG final_answer] goal взят из parameters: {goal[:50]}...", event_type=EventType.DEBUG)
+        else:
+            goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
+            self._log_debug(f"[DEBUG final_answer] goal взят из session_context: {goal[:50]}...", event_type=EventType.DEBUG)
 
         # Получаем историю диалога из session_context (если доступна)
         dialogue_history_str = ""
@@ -206,29 +249,8 @@ class FinalAnswerSkill(Skill):
                     f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов",
                     event_type=EventType.DEBUG
                 )
-        # Обработка параметров (могут быть Pydantic моделью или dict)
-        from pydantic import BaseModel
-        if isinstance(parameters, BaseModel):
-            # Pydantic модель — используем атрибуты
-            include_steps = getattr(parameters, 'include_steps', True)
-            include_evidence = getattr(parameters, 'include_evidence', True)
-            format_type = getattr(parameters, 'format_type', 'detailed')
-            confidence_threshold = getattr(parameters, 'confidence_threshold', 0.7)
-            max_sources = getattr(parameters, 'max_sources', 10)
-        elif isinstance(parameters, dict):
-            # dict — используем .get()
-            include_steps = parameters.get("include_steps", True)
-            include_evidence = parameters.get("include_evidence", True)
-            format_type = parameters.get("format_type", "detailed")
-            confidence_threshold = parameters.get("confidence_threshold", 0.7)
-            max_sources = parameters.get("max_sources", 10)
-        else:
-            # Fallback
-            include_steps = True
-            include_evidence = True
-            format_type = "detailed"
-            confidence_threshold = 0.7
-            max_sources = 10
+        # Параметры уже извлечены выше (goal_from_params, decision_reasoning, is_fallback, executed_steps, etc.)
+        # Обработка параметров (могут быть Pydantic моделью или dict) больше не нужна
 
         # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR
         observations = []
@@ -517,12 +539,15 @@ class FinalAnswerSkill(Skill):
         prompt_template = prompt_obj.content
         prompt_vars = {
             "goal": goal,
+            "decision_reasoning": decision_reasoning if decision_reasoning else "",
             "dialogue_history": dialogue_history_str,
             "observations": observations_str,
             "steps_taken": steps_str,
             "format_type": format_type_str,
             "include_steps": include_steps_str,
-            "include_evidence": include_evidence_str
+            "include_evidence": include_evidence_str,
+            "is_fallback": str(is_fallback).lower(),
+            "executed_steps": str(executed_steps)
         }
         
         try:

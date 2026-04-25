@@ -5,6 +5,21 @@ direction: input
 schema_data:
   type: object
   properties:
+    goal:
+      type: string
+      description: Оригинальная цель запроса пользователя
+    decision_reasoning:
+      type: string
+      description: Обоснование решения о завершении работы (reasoning from FINISH decision)
+    is_fallback:
+      type: boolean
+      default: false
+      description: Флаг fallback-режима при достижении лимита шагов
+    executed_steps:
+      type: integer
+      minimum: 0
+      default: 0
+      description: Количество выполненных шагов (для fallback-режима)
     include_steps:
       type: boolean
       default: true
