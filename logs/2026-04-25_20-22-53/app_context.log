@@ -1,0 +1,155 @@
+2026-04-25 20:22:54.013 | INFO     | system.init          | app.context                    | Начало инициализации ApplicationContext 8c55e3f5-5a5b-45e5-8b4f-50d21d7207bd
+2026-04-25 20:22:54.013 | INFO     | system.init          | app.context                    | Ресурсы загружены через ResourceLoader (профиль=prod)
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Создание LLMOrchestrator...
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Вызов llm_orchestrator.initialize()...
+2026-04-25 20:22:54.032 | INFO     | system.ready         | app.context                    | LLMOrchestrator инициализирован успешно!
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Начало создания компонентов...
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Конфигурации компонентов: [('service', ['contract_service', 'sql_validator_service', 'sql_generation', 'sql_query_service', 'json_parsing', 'table_description_service', 'prompt_service']), ('skill', ['check_result', 'final_answer', 'data_analysis', 'meta_component_creator', 'planning']), ('tool', ['sql_tool', 'vector_search']), ('behavior', ['react_pattern', 'planning_pattern', 'evaluation_pattern'])]
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Обработка типа компонента service: ['contract_service', 'sql_validator_service', 'sql_generation', 'sql_query_service', 'json_parsing', 'table_description_service', 'prompt_service']
+2026-04-25 20:22:54.032 | INFO     | system.init          | app.context                    | Создание компонента service.contract_service...
+2026-04-25 20:22:54.213 | INFO     | system.init          | app.context                    | Регистрация компонента service.contract_service...
+2026-04-25 20:22:54.213 | INFO     | system.init          | app.context                    | Компонент service.contract_service создан и зарегистрирован
+2026-04-25 20:22:54.213 | INFO     | system.init          | app.context                    | Создание компонента service.sql_validator_service...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Регистрация компонента service.sql_validator_service...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Компонент service.sql_validator_service создан и зарегистрирован
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Создание компонента service.sql_generation...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Регистрация компонента service.sql_generation...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Компонент service.sql_generation создан и зарегистрирован
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Создание компонента service.sql_query_service...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Регистрация компонента service.sql_query_service...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Компонент service.sql_query_service создан и зарегистрирован
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Создание компонента service.json_parsing...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Регистрация компонента service.json_parsing...
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Компонент service.json_parsing создан и зарегистрирован
+2026-04-25 20:22:54.214 | INFO     | system.init          | app.context                    | Создание компонента service.table_description_service...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Регистрация компонента service.table_description_service...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Компонент service.table_description_service создан и зарегистрирован
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Создание компонента service.prompt_service...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Регистрация компонента service.prompt_service...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Компонент service.prompt_service создан и зарегистрирован
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Обработка типа компонента skill: ['check_result', 'final_answer', 'data_analysis', 'meta_component_creator', 'planning']
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Создание компонента skill.check_result...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Регистрация компонента skill.check_result...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Компонент skill.check_result создан и зарегистрирован
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Создание компонента skill.final_answer...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Регистрация компонента skill.final_answer...
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Компонент skill.final_answer создан и зарегистрирован
+2026-04-25 20:22:54.215 | INFO     | system.init          | app.context                    | Создание компонента skill.data_analysis...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Регистрация компонента skill.data_analysis...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Компонент skill.data_analysis создан и зарегистрирован
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Создание компонента skill.meta_component_creator...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Регистрация компонента skill.meta_component_creator...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Компонент skill.meta_component_creator создан и зарегистрирован
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Создание компонента skill.planning...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Регистрация компонента skill.planning...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Компонент skill.planning создан и зарегистрирован
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Обработка типа компонента tool: ['sql_tool', 'vector_search']
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Создание компонента tool.sql_tool...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Регистрация компонента tool.sql_tool...
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Компонент tool.sql_tool создан и зарегистрирован
+2026-04-25 20:22:54.216 | INFO     | system.init          | app.context                    | Создание компонента tool.vector_search...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Регистрация компонента tool.vector_search...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Компонент tool.vector_search создан и зарегистрирован
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Обработка типа компонента behavior: ['react_pattern', 'planning_pattern', 'evaluation_pattern']
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Создание компонента behavior.react_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Регистрация компонента behavior.react_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Компонент behavior.react_pattern создан и зарегистрирован
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Создание компонента behavior.planning_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Регистрация компонента behavior.planning_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Компонент behavior.planning_pattern создан и зарегистрирован
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Создание компонента behavior.evaluation_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Регистрация компонента behavior.evaluation_pattern...
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Компонент behavior.evaluation_pattern создан и зарегистрирован
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | Создано 17 компонентов
+2026-04-25 20:22:54.217 | INFO     | system.init          | app.context                    | === НАЧАЛО _initialize_components_with_dependencies ===
+2026-04-25 20:22:54.217 | INFO     | -                    | tool.sql_tool                  | [Tool:sql_tool] Начало инициализации
+2026-04-25 20:22:54.219 | INFO     | -                    | tool.sql_tool                  | [Tool:sql_tool] Компонент полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.219 | INFO     | system.init          | app.context                    | Компонент инициализирован: sql_tool
+2026-04-25 20:22:54.219 | INFO     | -                    | tool.vector_search             | [Tool:vector_search] Начало инициализации
+2026-04-25 20:22:54.233 | INFO     | -                    | tool.vector_search             | [Tool:vector_search] Компонент полностью инициализирован. Ресурсы: промпты=0, input_contracts=4, output_contracts=4
+2026-04-25 20:22:54.233 | INFO     | system.init          | app.context                    | Компонент инициализирован: vector_search
+2026-04-25 20:22:54.233 | INFO     | -                    | service.contract_service       | [Service:contract_service] ContractService инициализирован: загружено 2 контрактов
+2026-04-25 20:22:54.234 | INFO     | system.init          | app.context                    | Компонент инициализирован: contract_service
+2026-04-25 20:22:54.234 | INFO     | -                    | service.json_parsing           | [Service:json_parsing] Начало инициализации сервиса
+2026-04-25 20:22:54.234 | INFO     | -                    | service.json_parsing           | [Service:json_parsing] Начало инициализации
+2026-04-25 20:22:54.236 | INFO     | -                    | service.json_parsing           | [Service:json_parsing] Компонент полностью инициализирован. Ресурсы: промпты=0, input_contracts=3, output_contracts=3
+2026-04-25 20:22:54.236 | INFO     | -                    | service.json_parsing           | [Service:json_parsing] JsonParsingService инициализирован
+2026-04-25 20:22:54.236 | INFO     | system.init          | app.context                    | Компонент инициализирован: json_parsing
+2026-04-25 20:22:54.236 | INFO     | -                    | service.prompt_service         | [Service:prompt_service] PromptService инициализирован: загружено 0 промптов
+2026-04-25 20:22:54.237 | INFO     | system.init          | app.context                    | Компонент инициализирован: prompt_service
+2026-04-25 20:22:54.237 | INFO     | -                    | service.sql_generation         | [Service:sql_generation] Начало инициализации сервиса
+2026-04-25 20:22:54.237 | INFO     | -                    | service.sql_generation         | [Service:sql_generation] Начало инициализации
+2026-04-25 20:22:54.251 | INFO     | -                    | service.sql_generation         | [Service:sql_generation] Компонент полностью инициализирован. Ресурсы: промпты=2, input_contracts=3, output_contracts=3
+2026-04-25 20:22:54.251 | INFO     | system.init          | app.context                    | Компонент инициализирован: sql_generation
+2026-04-25 20:22:54.251 | INFO     | -                    | service.sql_query_service      | [Service:sql_query_service] Начало инициализации сервиса
+2026-04-25 20:22:54.251 | INFO     | -                    | service.sql_query_service      | [Service:sql_query_service] Начало инициализации
+2026-04-25 20:22:54.252 | INFO     | -                    | service.sql_query_service      | [Service:sql_query_service] Компонент полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.253 | INFO     | system.init          | app.context                    | Компонент инициализирован: sql_query_service
+2026-04-25 20:22:54.253 | INFO     | system.init          | app.context                    | Компонент инициализирован: sql_validator_service
+2026-04-25 20:22:54.253 | INFO     | -                    | service.table_description_service | [Service:table_description_service] Начало инициализации сервиса
+2026-04-25 20:22:54.253 | INFO     | -                    | service.table_description_service | [Service:table_description_service] Начало инициализации
+2026-04-25 20:22:54.255 | INFO     | -                    | service.table_description_service | [Service:table_description_service] Компонент полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.255 | INFO     | system.init          | app.context                    | Компонент инициализирован: table_description_service
+2026-04-25 20:22:54.255 | INFO     | -                    | skill.check_result             | [Skill:check_result] Начало инициализации
+2026-04-25 20:22:54.330 | INFO     | -                    | skill.check_result             | [Skill:check_result] Компонент полностью инициализирован. Ресурсы: промпты=3, input_contracts=3, output_contracts=3
+2026-04-25 20:22:54.350 | INFO     | system.init          | app.context                    | Компонент инициализирован: check_result
+2026-04-25 20:22:54.350 | INFO     | -                    | skill.data_analysis            | [Skill:data_analysis] Начало инициализации
+2026-04-25 20:22:54.351 | INFO     | -                    | skill.data_analysis            | [Skill:data_analysis] Компонент полностью инициализирован. Ресурсы: промпты=6, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.351 | INFO     | system.init          | app.context                    | Компонент инициализирован: data_analysis
+2026-04-25 20:22:54.351 | INFO     | -                    | skill.final_answer             | [Skill:final_answer] Начало инициализации
+2026-04-25 20:22:54.353 | INFO     | -                    | skill.final_answer             | [Skill:final_answer] Компонент полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.354 | INFO     | system.init          | app.context                    | Компонент инициализирован: final_answer
+2026-04-25 20:22:54.354 | INFO     | -                    | skill.meta_component_creator   | [Skill:meta_component_creator] Начало инициализации
+2026-04-25 20:22:54.372 | INFO     | -                    | skill.meta_component_creator   | [Skill:meta_component_creator] Компонент полностью инициализирован. Ресурсы: промпты=6, input_contracts=3, output_contracts=3
+2026-04-25 20:22:54.372 | INFO     | system.init          | app.context                    | Компонент инициализирован: meta_component_creator
+2026-04-25 20:22:54.372 | INFO     | -                    | skill.planning                 | [Skill:planning] Начало инициализации
+2026-04-25 20:22:54.394 | INFO     | -                    | skill.planning                 | [Skill:planning] Компонент полностью инициализирован. Ресурсы: промпты=8, input_contracts=7, output_contracts=7
+2026-04-25 20:22:54.394 | INFO     | system.init          | app.context                    | Компонент инициализирован: planning
+2026-04-25 20:22:54.394 | INFO     | -                    | behavior.evaluation_pattern    | [Behavior:evaluation_pattern] Начало инициализации
+2026-04-25 20:22:54.395 | INFO     | -                    | behavior.evaluation_pattern    | [Behavior:evaluation_pattern] Компонент полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+2026-04-25 20:22:54.395 | INFO     | system.init          | app.context                    | Компонент инициализирован: evaluation_pattern
+2026-04-25 20:22:54.395 | INFO     | -                    | behavior.planning_pattern      | [Behavior:planning_pattern] Начало инициализации
+2026-04-25 20:22:54.410 | INFO     | -                    | behavior.planning_pattern      | [Behavior:planning_pattern] Компонент полностью инициализирован. Ресурсы: промпты=6, input_contracts=3, output_contracts=3
+2026-04-25 20:22:54.410 | INFO     | system.init          | app.context                    | Компонент инициализирован: planning_pattern
+2026-04-25 20:22:54.410 | INFO     | -                    | behavior.react_pattern         | [Behavior:react_pattern] Начало инициализации
+2026-04-25 20:22:54.416 | INFO     | -                    | behavior.react_pattern         | [Behavior:react_pattern] Компонент полностью инициализирован. Ресурсы: промпты=8, input_contracts=4, output_contracts=4
+2026-04-25 20:22:54.416 | DEBUG    | -                    | behavior.react_pattern         | [Behavior:react_pattern] input_contracts keys: ['behavior.react.observe', 'behavior.react.act', 'behavior.react', 'behavior.react.think']
+2026-04-25 20:22:54.417 | DEBUG    | -                    | behavior.react_pattern         | [Behavior:react_pattern] Total schemas registered: 4
+2026-04-25 20:22:54.417 | INFO     | system.init          | app.context                    | Компонент инициализирован: react_pattern
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.contract_service
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.sql_validator_service
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.sql_generation
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.sql_query_service
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.json_parsing
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.table_description_service
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: service.prompt_service
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: skill.check_result
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: skill.final_answer
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: skill.data_analysis
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: skill.meta_component_creator
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: skill.planning
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: tool.sql_tool
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: tool.vector_search
+2026-04-25 20:22:54.418 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: behavior.react_pattern
+2026-04-25 20:22:54.428 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: behavior.planning_pattern
+2026-04-25 20:22:54.429 | INFO     | system.init          | app.context                    | Зарегистрирован в LifecycleManager: behavior.evaluation_pattern
+2026-04-25 20:22:54.429 | INFO     | system.init          | app.context                    | В LifecycleManager зарегистрировано 17 компонентов
+2026-04-25 20:22:54.429 | INFO     | user.result          | app.context                    | ApplicationContext инициализирован (profile=prod)
+2026-04-25 20:22:54.429 | INFO     | system.init          | app.context                    | ApplicationContext 8c55e3f5-5a5b-45e5-8b4f-50d21d7207bd успешно инициализирован
+2026-04-25 20:22:54.429 | INFO     | system.init          | app.context                    | Создан агент с ID 8c55e3f5-5a5b-45e5-8b4f-50d21d7207bd. Версии: из конфигурации
+2026-04-25 20:22:54.430 | DEBUG    | -                    | behavior.react_pattern         | [Behavior:react_pattern] 📥 [ReAct.decide] Входные параметры: session_id=d5d2ef46-9857-4f79-a57a-ead0e087ba05, goal=Сколько проверок было проведено в 2024?, caps=3
+2026-04-25 20:22:54.430 | DEBUG    | -                    | behavior.react_pattern         | [Behavior:react_pattern] 📋 [ReAct.decide] Промпты загружены: system=2276 симв., user=225 симв.
+2026-04-25 20:22:54.433 | DEBUG    | -                    | behavior.react_pattern         | [Behavior:react_pattern] [ReAct.decide] prompt loaded: system=2276 chars, user=2169 chars, schema_keys=['$defs', 'additionalProperties', 'properties', 'required', 'title', 'type']
+2026-04-25 20:22:54.433 | INFO     | -                    | behavior.react_pattern         | [Behavior:react_pattern] 🔮 LLM вызов (temperature=0.3, max_tokens=2000, structured_output)
+2026-04-25 20:22:54.449 | ERROR    | -                    | behavior.react_pattern         | [Behavior:react_pattern] ❌ Исключение при LLM вызове: StructuredOutputError: Не удалось получить валидный структурированный ответ после 3 попыток
+Traceback (most recent call last):
+  File "/workspace/core/agent/behaviors/react/pattern.py", line 223, in generate_decision
+    result = await orchestrator.execute_structured(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/core/infrastructure/providers/llm/llm_orchestrator.py", line 626, in execute_structured
+    raise StructuredOutputError(
+core.errors.exceptions.StructuredOutputError: Не удалось получить валидный структурированный ответ после 3 попыток
+2026-04-25 20:22:54.451 | INFO     | system.shutdown      | app.context                    | Завершение работы ApplicationContext...
+2026-04-25 20:22:54.451 | INFO     | system.shutdown      | app.context                    | LLMOrchestrator завершён
+2026-04-25 20:22:54.451 | INFO     | system.shutdown      | app.context                    | LifecycleManager очищен
+2026-04-25 20:22:54.451 | INFO     | system.shutdown      | app.context                    | ApplicationContext завершён

@@ -1,9 +1,3 @@
-```
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Session data
-data/logs/sessions/
-```
+# Examples and test contracts
+data/contracts/test/
+data/contracts/examples/

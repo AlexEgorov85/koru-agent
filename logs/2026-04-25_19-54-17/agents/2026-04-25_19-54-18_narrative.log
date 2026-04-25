@@ -1,0 +1,4 @@
+2026-04-25 19:54:18.453 | INFO     | -                    | agent.narrative.agent_001      | Запущен агент с целью: Сколько проверок было проведено в 2024?
+2026-04-25 19:54:18.453 | INFO     | -                    | agent.narrative.agent_001      | Шаг 1/10: начало...
+2026-04-25 19:54:18.474 | INFO     | -                    | agent.narrative.agent_001      | Принято решение: ошибка — llm_error: llm_exception:StructuredOutputError:Не удалось получить валидный структурированный ответ после 3 попыток
+2026-04-25 19:54:18.474 | INFO     | -                    | agent.narrative.agent_001      | Ошибка: llm_error: llm_exception:StructuredOutputError:Не удалось получить валидный структурированный ответ после 3 попыток

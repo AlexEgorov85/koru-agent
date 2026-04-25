@@ -1,0 +1,32 @@
+capability: sql_validator_service.validate_query
+version: v1.0.0
+status: active
+component_type: service
+direction: output
+description: >
+  Выходной контракт метода validate_query сервиса валидации SQL-запросов.
+  Содержит результат валидации и оценку безопасности.
+schema_data:
+  type: object
+  properties:
+    is_valid:
+      type: boolean
+      description: Флаг успешной валидации
+    sql:
+      type: string
+      description: Валидированный SQL-запрос
+    parameters:
+      type: object
+      description: Параметры запроса
+      additionalProperties: true
+    validation_errors:
+      type: array
+      items:
+        type: string
+      description: Список ошибок валидации
+    safety_score:
+      type: number
+      description: Оценка безопасности (0.0 - 1.0)
+  required:
+    - is_valid
+    - sql
