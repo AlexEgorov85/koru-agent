@@ -74,6 +74,7 @@ class AgentRuntime:
 
         log_session = application_context.infrastructure_context.log_session
         self.log = log_session.create_agent_logger(agent_id)
+        self.narrative_log = log_session.get_agent_narrative_logger(agent_id)
         
         event_bus = application_context.infrastructure_context.event_bus
         
@@ -247,6 +248,12 @@ class AgentRuntime:
             extra={"event_type": EventType.AGENT_START},
         )
 
+        # Высокоуровневый лог
+        if self.narrative_log:
+            self.narrative_log.info(
+                f"Запущен агент с целью: {self.goal}"
+            )
+
         self.session_context.record_action(
             {"step": 0, "action": "initialization", "goal": self.goal}, step_number=0
         )
@@ -275,6 +282,12 @@ class AgentRuntime:
         executed_steps = 0
         for step in range(self.max_steps):
             agent_state = self.session_context.agent_state
+
+            # Высокоуровневый лог: начало шага
+            if self.narrative_log:
+                self.narrative_log.info(
+                    f"Шаг {step + 1}/{self.max_steps}: начало..."
+                )
             
             # Проверка условий остановки через Policy (Fail-Fast) - ДЕЛЕГИРОВАНО STEP
             should_stop, stop_reason = self.policy_check_phase.check_loop_conditions(
@@ -300,7 +313,10 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return ExecutionResult.failure(f"Stopped: {stop_reason}")
+                result = ExecutionResult.failure(f"Stopped: {stop_reason}")
+                if self.narrative_log:
+                    self.narrative_log.info(f"Агент остановлен: {stop_reason}")
+                return result
             
             # Pattern решает - ДЕЛЕГИРОВАНО STEP
             decision = await self.decision_phase.execute(
@@ -309,6 +325,24 @@ class AgentRuntime:
                 available_capabilities=available_caps,
                 step_number=step + 1,
             )
+
+            # Высокоуровневый лог: принято решение
+            if self.narrative_log:
+                if decision.type == DecisionType.ACT:
+                    params_str = ", ".join(
+                        f"{k}={v}" for k, v in (decision.parameters or {}).items()
+                    )
+                    self.narrative_log.info(
+                        f"Принято решение: {decision.action}({params_str}) — {decision.reasoning}"
+                    )
+                elif decision.type == DecisionType.FINISH:
+                    self.narrative_log.info(
+                        f"Принято решение: завершить — {decision.reasoning}"
+                    )
+                elif decision.type == DecisionType.FAIL:
+                    self.narrative_log.info(
+                        f"Принято решение: ошибка — {decision.error}"
+                    )
 
             # Pattern решил FINISH? - ДЕЛЕГИРОВАНО STEP
             if decision.type == DecisionType.FINISH:
@@ -320,8 +354,16 @@ class AgentRuntime:
                     decision_reasoning=decision.reasoning,
                     sync_dialogue_callback=self._sync_dialogue_history_back,
                 )
-                
+
+                # Высокоуровневый лог: финальный ответ
+                if self.narrative_log:
+                    self.narrative_log.info("Генерация финального ответа...")
+
                 if final_result:
+                    # Высокоуровневый лог: финальный ответ получен
+                    if self.narrative_log:
+                        answer_text = str(final_result.data)[:150] + "..." if final_result.data and len(str(final_result.data)) > 150 else str(final_result.data)
+                        self.narrative_log.info(f"Финальный ответ: {answer_text}")
                     return final_result
                 
                 # Fallback если генерация не удалась
@@ -331,9 +373,12 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return decision.data or ExecutionResult.success(
+                result = decision.data or ExecutionResult.success(
                     data=decision.reasoning
                 )
+                if self.narrative_log:
+                    self.narrative_log.info("Агент завершён успешно")
+                return result
 
             # Pattern решил FAIL?
             if decision.type == DecisionType.FAIL:
@@ -348,7 +393,10 @@ class AgentRuntime:
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
-                return ExecutionResult.failure(decision.error or "Unknown error")
+                result = ExecutionResult.failure(decision.error or "Unknown error")
+                if self.narrative_log:
+                    self.narrative_log.info(f"Ошибка: {decision.error or 'Неизвестная ошибка'}")
+                return result
 
             # Pattern решил ACT? - ДЕЛЕГИРОВАНО STEP
             if decision.type == DecisionType.ACT:
@@ -391,6 +439,13 @@ class AgentRuntime:
                     step_number=step + 1,
                 )
 
+                # Высокоуровневый лог: выполнение завершено
+                if self.narrative_log:
+                    status_str = "успех" if result.status.value == "completed" else result.status.value
+                    self.narrative_log.info(
+                        f"Результат: {decision.action} — {status_str}"
+                    )
+
                 # ============================================
                 # OBSERVATION PHASE (единая точка истинности) - СНАЧАЛА
                 # ============================================
@@ -402,6 +457,13 @@ class AgentRuntime:
                     session_context=self.session_context,
                     step_number=executed_steps + 1,
                 )
+
+                # Высокоуровневый лог: наблюдение
+                if self.narrative_log and observation:
+                    obs_text = observation[:200] + "..." if len(observation) > 200 else observation
+                    self.narrative_log.info(
+                        f"Наблюдение: {obs_text}"
+                    )
 
                 # Сохранение данных результата и регистрация шага - ПОТОМ
                 observation_item_ids = await self.context_update_phase.save_and_register(
@@ -498,7 +560,10 @@ class AgentRuntime:
             tools_used=[]
         )
         self._sync_dialogue_history_back()
-        return ExecutionResult.failure(fallback_msg)
+        result = ExecutionResult.failure(fallback_msg)
+        if self.narrative_log:
+            self.narrative_log.info(f"Агент завершён с ошибкой: {fallback_msg}")
+        return result
 
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""

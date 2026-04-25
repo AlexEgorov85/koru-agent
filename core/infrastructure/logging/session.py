@@ -139,6 +139,7 @@ class LoggingSession:
         self.app_logger: Optional[logging.Logger] = None
         self.llm_calls_logger: Optional[logging.Logger] = None
         self._agent_loggers: Dict[str, logging.Logger] = {}
+        self._agent_narrative_loggers: Dict[str, logging.Logger] = {}
         self._handlers_setup = False
 
     @property
@@ -265,6 +266,12 @@ class LoggingSession:
         # Добавляем консольный хендлер с фильтрацией для агента
         self._add_console_handler(logger)
         self._agent_loggers[agent_id] = logger
+
+        # Narrative logger для высокоуровневого лога
+        narrative_log_path = self.agents_dir / f"{ts}_narrative.log"
+        narrative_logger = self._setup_narrative_logger(f"agent.narrative.{agent_id}", narrative_log_path)
+        self._agent_narrative_loggers[agent_id] = narrative_logger
+
         return logger
 
     def get_last_agent_log_path(self) -> Optional[Path]:
@@ -305,7 +312,12 @@ class LoggingSession:
             for handler in logger.handlers:
                 handler.close()
 
+        for logger in self._agent_narrative_loggers.values():
+            for handler in logger.handlers:
+                handler.close()
+
         self._agent_loggers.clear()
+        self._agent_narrative_loggers.clear()
 
     def _setup_file_logger(
         self,
@@ -331,6 +343,29 @@ class LoggingSession:
         handler.setFormatter(_LogFileFormatter())
         logger.addHandler(handler)
         return logger
+
+    def _setup_narrative_logger(
+        self,
+        name: str,
+        path: Path
+    ) -> logging.Logger:
+        """Создаёт narrative-логгер (высокоуровневый, человекочитаемый)."""
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.INFO)
+        logger.handlers.clear()
+        logger.propagate = False
+
+        handler = logging.FileHandler(path, encoding="utf-8")
+        handler.setFormatter(logging.Formatter(
+            fmt="%(asctime)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S,%f",
+        ))
+        logger.addHandler(handler)
+        return logger
+
+    def get_agent_narrative_logger(self, agent_id: str) -> Optional[logging.Logger]:
+        """Получить narrative-логгер агента."""
+        return self._agent_narrative_loggers.get(agent_id)
 
     def _setup_console_handler(self) -> None:
         """
