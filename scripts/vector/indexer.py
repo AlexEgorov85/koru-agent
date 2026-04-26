@@ -233,8 +233,21 @@ async def index_source(source: str, embedding, faiss_provider, vs_config, db_con
                 content=search_text,
             )
             
+            # ✅ КРИТИЧЕСКИ ВАЖНО: model_dump() возвращает словарь с данными, а не список ключей
+            meta_dict = meta.model_dump()
+            
+            # Отладочный вывод первой записи для проверки
+            if len(vectors) == 0:
+                logger.info(f"💡 Пример метаданных (первая запись):")
+                sample_keys = list(meta_dict.keys())[:5]
+                logger.info(f"   Ключи: {sample_keys}")
+                # Проверяем, что значения не пустые
+                first_val = meta_dict.get('row', {})
+                if isinstance(first_val, dict) and first_val:
+                    logger.info(f"   Пример данных в row: {list(first_val.values())[:3]}")
+            
             vectors.append(vector)
-            metadata_list.append(meta.model_dump())
+            metadata_list.append(meta_dict)
             processed += 1
             
             # Прогресс каждые 100 строк
