@@ -75,7 +75,7 @@ class CheckResultSkill(Skill):
                 }
                 for c in caps
             ],
-            "scripts": self.get_scripts_description()
+            "scripts": self.get_scripts_description(include_sql_examples=False)
         }
 
     def _get_capability_params(self, capability_name: str) -> Dict[str, Any]:
@@ -251,11 +251,14 @@ class CheckResultSkill(Skill):
         """Получение конфигурации таблиц (для использования в handlers)"""
         return self._tables_config
 
-    def get_scripts_description(self) -> str:
+    def get_scripts_description(self, include_sql_examples: bool = True) -> str:
         """Получение структурированного описания скриптов для LLM.
 
+        ARGS:
+        - include_sql_examples: включать ли примеры SQL-запросов (по умолчанию True для generate_script, False для ReAct)
+
         RETURNS:
-        - str: форматированное описание скриптов с параметрами и полями таблиц
+        - str: форматированное описание скриптов с параметрами, полями таблиц и примерами SQL (опционально)
         """
         import re
         from .handlers.execute_script_handler import SCRIPTS_REGISTRY
@@ -269,10 +272,13 @@ class CheckResultSkill(Skill):
             short_desc = getattr(script_def, 'description', '') or ''
             parameters = getattr(script_def, 'parameters', {}) or {}
             sql_template = getattr(script_def, 'sql_template', '') or ''
+            long_desc = getattr(script_def, 'long_description', '') or ''
 
             lines.append(f"\n**`{name}`**")
             if short_desc:
                 lines.append(f"Description: {short_desc}")
+            if long_desc:
+                lines.append(f"Details: {long_desc}")
 
             tables_in_sql = re.findall(
                 r'(?:FROM|JOIN)\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)',
@@ -342,11 +348,24 @@ class CheckResultSkill(Skill):
                         else:
                             lines.append(f"  - {pname} ({p_type}, {required})")
 
+            # Добавляем пример SQL шаблона для few-shot обучения (только если включено)
+            if include_sql_examples and sql_template:
+                # Очищаем шаблон от лишних пробелов и Jinja2-подобных конструкций для читаемости
+                sql_clean = re.sub(r'\s+', ' ', sql_template).strip()
+                sql_clean = re.sub(r'\{%.*?%\}', '', sql_clean)  # Удаляем {% if %}...{% endif %}
+                sql_clean = re.sub(r'\s+', ' ', sql_clean).strip()
+                lines.append("Example SQL:")
+                lines.append(f"```sql\n{sql_clean}\n```")
+
         return "\n".join(lines)
 
-    def get_scripts_info(self) -> str:
-        """Алиас для get_scripts_description() - для совместимости с generate_script_handler."""
-        return self.get_scripts_description()
+    def get_scripts_info(self, include_sql_examples: bool = True) -> str:
+        """Алиас для get_scripts_description() - для совместимости с generate_script_handler.
+        
+        ARGS:
+        - include_sql_examples: включать ли примеры SQL-запросов (по умолчанию True для генерации SQL)
+        """
+        return self.get_scripts_description(include_sql_examples=include_sql_examples)
 
     def _get_event_type_for_success(self) -> str:
         return "skill.check_result.executed"

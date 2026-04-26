@@ -720,19 +720,19 @@ class PromptBuilderService:
                                         props, schema.get("required", [])
                                     )
 
-                # Для execute_script добавляем детализацию скриптов
+                # Для execute_script добавляем детализацию скриптов (без примеров SQL для ReAct)
                 if "execute_script" in cap_name:
                     lines.append(f"\n#### {cap_name}")
                     lines.append(f"{cap_desc}")
 
-                    # Детализация скриптов
+                    # Детализация скриптов (include_sql_examples=False для ReAct pattern)
                     for component in application_context.components.all_of_type(
                         ComponentType.SKILL
                     ):
                         if hasattr(component, "name") and component.name == skill_name:
                             if hasattr(component, "get_scripts_description"):
                                 try:
-                                    scripts_desc = component.get_scripts_description()
+                                    scripts_desc = component.get_scripts_description(include_sql_examples=False)
                                     if scripts_desc:
                                         lines.append(scripts_desc)
                                 except Exception:

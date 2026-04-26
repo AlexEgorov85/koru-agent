@@ -38,10 +38,14 @@ class GenerateScriptHandler(SkillHandler):
         """Получение конфигурации таблиц (использует centralized метод)"""
         return await self._get_tables_config()
 
-    def _get_scripts_info(self) -> str:
-        """Получение списка доступных скриптов"""
+    def _get_scripts_info(self, include_sql_examples: bool = True) -> str:
+        """Получение списка доступных скриптов.
+        
+        ARGS:
+        - include_sql_examples: включать ли примеры SQL-запросов (по умолчанию True для генерации SQL)
+        """
         if hasattr(self.skill, 'get_scripts_info'):
-            result = self.skill.get_scripts_info()
+            result = self.skill.get_scripts_info(include_sql_examples=include_sql_examples)
             return result
         return ""
 
