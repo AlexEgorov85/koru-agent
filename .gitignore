@@ -1,3 +1,4 @@
-# Examples and test contracts
-data/contracts/test/
-data/contracts/examples/
+```
+__pycache__/
+*.pyc
+```
