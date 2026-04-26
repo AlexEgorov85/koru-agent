@@ -3,10 +3,13 @@ FAISS провайдер для векторного поиска.
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     import faiss
@@ -204,13 +207,31 @@ class FAISSProvider(IFAISSProvider):
         # Сохраняем индекс
         faiss.write_index(self.index, path)
         
-        # Сохраняем метаданные
+        # Сохраняем метаданные - гарантируем корректную сериализацию
         metadata_path = path.replace(".faiss", "_metadata.json")
+        
+        # Конвертируем ключи в строки для JSON и проверяем данные
+        serializable_metadata = {str(k): v for k, v in self.metadata.items()}
+        
+        # Отладочный вывод первой записи
+        if serializable_metadata:
+            first_key = next(iter(serializable_metadata))
+            first_value = serializable_metadata[first_key]
+            logger.info(f"💾 Пример сохраняемых метаданных (ключ={first_key}): {type(first_value).__name__}")
+            if isinstance(first_value, dict):
+                sample_keys = list(first_value.keys())[:5]
+                logger.info(f"   Ключи в метаданных: {sample_keys}...")
+                # Проверка: не попали ли туда только имена полей
+                if sample_keys and all(isinstance(k, str) and not first_value[k] for k in sample_keys if k in first_value):
+                    logger.warning("⚠️ Возможно, в метаданных только пустые значения!")
+        
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump({
-                "metadata": self.metadata,
+                "metadata": serializable_metadata,
                 "id_counter": self.id_counter
-            }, f, ensure_ascii=False, indent=2)
+            }, f, ensure_ascii=False, indent=2, default=str)
+        
+        logger.info(f"💾 Метаданные сохранены в: {metadata_path}")
     
     async def load(self, path: str):
         """Загрузка индекса с диска."""
