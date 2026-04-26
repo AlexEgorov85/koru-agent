@@ -368,14 +368,14 @@ class TestFinalAnswerWithMockLLM:
         from core.application_context.application_context import ApplicationContext
         
         app_config = AppConfig.from_discovery(
-            profile="test",
+            profile="dev",
             data_dir=infrastructure_with_mock_llm.config.data_dir
         )
         
         ctx = ApplicationContext(
             infrastructure_context=infrastructure_with_mock_llm,
             config=app_config,
-            profile="test"
+            profile="dev"
         )
         await ctx.initialize()
         
@@ -387,29 +387,23 @@ class TestFinalAnswerWithMockLLM:
         self, app_context
     ):
         """Интеграционный тест final_answer.generate с MockLLM"""
-        from core.components.skills.final_answer.skill import FinalAnswerSkill
-        from core.config.component_config import ComponentConfig
-        from core.agent.components.action_executor import ActionExecutor
-        from core.agent.components.action_executor import ExecutionContext
+        from core.components.action_executor import ActionExecutor
+        from core.components.action_executor import ExecutionContext
         from core.session_context.session_context import SessionContext
+        from core.application_context.application_context import ComponentType
         
-        # Создаём skill с реальным executor
-        config = ComponentConfig(variant_id="test_final_answer")
+        # Получаем skill из app_context (с правильно загруженными ресурсами)
+        skill = app_context.components.get(ComponentType.SKILL, "final_answer")
+        assert skill is not None, "final_answer skill not found in app_context"
+        
         executor = ActionExecutor(application_context=app_context)
         
-        skill = FinalAnswerSkill(
-            name="final_answer",
-            component_config=config,
-            executor=executor
-        )
-        
-        await skill.initialize()
-        
-        # Создаём session_context
+        # Создаём session_context с данными
         session_context = SessionContext(
-            session_id="test-session-final-answer",
-            goal="Тестовая цель для интеграционного теста"
+            session_id="test-session-final-answer"
         )
+        session_context.set_goal("Тестовая цель для интеграционного теста")
+        session_context.record_observation("Тестовое наблюдение", source="test")
         
         exec_context = ExecutionContext(
             session_context=session_context,

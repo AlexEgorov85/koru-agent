@@ -10,15 +10,24 @@
 - Никаких Pydantic-моделей в коде — только YAML-контракты
 """
 import asyncio
+import json
+import re
 import time
+from datetime import date, datetime
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
-from core.session_context.base_session_context import BaseSessionContext
-from core.components.skills.skill import Skill
+from pydantic import BaseModel
+
+from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
+from core.components.action_executor import ExecutionContext
+from core.components.skills.utils.observation_formatter import ObservationFormatter
 from core.config.component_config import ComponentConfig
+from core.errors.exceptions import SkillExecutionError
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult
+from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.session_context.base_session_context import BaseSessionContext
+from core.session_context.session_context import SessionContext
+from core.components.skills.skill import Skill
 from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
@@ -137,7 +146,6 @@ class FinalAnswerSkill(Skill):
         # Извлечение контекста сессии с защитой от неправильных типов
         raw_session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
         # Проверяем что это действительно SessionContext
-        from core.session_context.session_context import SessionContext
         if isinstance(raw_session_context, SessionContext):
             session_context = raw_session_context
         elif hasattr(raw_session_context, 'session_context'):
@@ -222,7 +230,6 @@ class FinalAnswerSkill(Skill):
             max_sources = 10
         
         # Извлечение цели с защитой
-        from core.session_context.session_context import SessionContext
         raw_context = context.session_context if hasattr(context, 'session_context') else context
         if isinstance(raw_context, SessionContext):
             session_context = raw_context
@@ -259,24 +266,20 @@ class FinalAnswerSkill(Skill):
 
         # Получаем все items из контекста через executor
         try:
-            from core.models.data.execution import ExecutionStatus
-            import json
-            from datetime import date, datetime
-
-            def serialize_for_prompt(obj):
+            def serialize_for_prompt_step(obj):
                 """Сериализация объекта для промпта — datetime → строки."""
                 if isinstance(obj, (date, datetime)):
                     return obj.isoformat()
                 elif isinstance(obj, dict):
-                    return {k: serialize_for_prompt(v) for k, v in obj.items()}
+                    return {k: serialize_for_prompt_step(v) for k, v in obj.items()}
                 elif isinstance(obj, (list, tuple)):
-                    return [serialize_for_prompt(item) for item in obj]
+                    return [serialize_for_prompt_step(item) for item in obj]
                 elif hasattr(obj, 'model_dump'):
-                    return serialize_for_prompt(obj.model_dump())
+                    return serialize_for_prompt_step(obj.model_dump())
                 elif hasattr(obj, 'dict'):
-                    return serialize_for_prompt(obj.dict())
+                    return serialize_for_prompt_step(obj.dict())
                 elif hasattr(obj, '__dict__'):
-                    return serialize_for_prompt(obj.__dict__)
+                    return serialize_for_prompt_step(obj.__dict__)
                 else:
                     return obj
 
@@ -298,13 +301,11 @@ class FinalAnswerSkill(Skill):
             )
 
             # DEBUG: check what's in execution_context
-            from core.agent.components.action_executor import ExecutionContext as ExecCtx
-            from core.session_context.session_context import SessionContext as SessCtx
             sc = getattr(execution_context, 'session_context', None)
             debug_msg = f"[DEBUG final_answer] session_context type: {type(sc).__name__ if sc else 'None'}"
             if sc is None:
                 debug_msg += " - IS NONE"
-            elif isinstance(sc, ExecCtx):
+            elif isinstance(sc, ExecutionContext):
                 debug_msg += " - IS NESTED ExecutionContext!"
             self._log_debug(debug_msg, event_type=EventType.DEBUG)
             if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
@@ -349,7 +350,6 @@ class FinalAnswerSkill(Skill):
                             if "data" in item_content:
                                 rows = item_content.get("data", [])
                                 if rows:
-                                    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
                                     # Форматируем в Markdown таблицу
                                     md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
                                     if md_table:
@@ -359,24 +359,22 @@ class FinalAnswerSkill(Skill):
                                 observations.append(f"answer: {item_content.get('answer', 'n/a')}")
                             # Проверяем новый формат observation
                             elif "type" in item_content and item_content.get("type") in ("raw_data", "summary"):
-                                from core.components.skills.utils.observation_formatter import ObservationFormatter
                                 obs_type = item_content.get("type")
                                 if obs_type == "raw_data" and "data" in item_content:
                                     rows = item_content["data"]
-                                    from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
                                     md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
                                     if md_table:
                                         observations.append(f"📊 raw_data ({len(rows)} строк):\n{md_table}")
                                 else:
                                     observations.append(ObservationFormatter.render_for_prompt(item_content))
                             else:
-                                serialized = serialize_for_prompt(item_content)
+                                serialized = serialize_for_prompt_step(item_content)
                                 if isinstance(serialized, dict):
                                     observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
                                 else:
                                     observations.append(str(serialized))
                         elif hasattr(item_content, 'model_dump'):
-                            content_dict = serialize_for_prompt(item_content)
+                            content_dict = serialize_for_prompt_step(item_content)
                             if isinstance(content_dict, dict):
                                 observations.append(json.dumps(content_dict, ensure_ascii=False, indent=1))
                             else:
@@ -406,24 +404,20 @@ class FinalAnswerSkill(Skill):
         # Получаем шаги выполнения через executor
         steps_taken = []
         try:
-            from core.models.data.execution import ExecutionStatus
-            import json
-            from datetime import date, datetime
-            
-            def serialize_for_prompt(obj):
+            def serialize_for_prompt_step_step(obj):
                 """Сериализация объекта для промпта — datetime → строки."""
                 if isinstance(obj, (date, datetime)):
                     return obj.isoformat()
                 elif isinstance(obj, dict):
-                    return {k: serialize_for_prompt(v) for k, v in obj.items()}
+                    return {k: serialize_for_prompt_step_step(v) for k, v in obj.items()}
                 elif isinstance(obj, (list, tuple)):
-                    return [serialize_for_prompt(item) for item in obj]
+                    return [serialize_for_prompt_step_step(item) for item in obj]
                 elif hasattr(obj, 'model_dump'):
-                    return serialize_for_prompt(obj.model_dump())
+                    return serialize_for_prompt_step_step(obj.model_dump())
                 elif hasattr(obj, 'dict'):
-                    return serialize_for_prompt(obj.dict())
+                    return serialize_for_prompt_step_step(obj.dict())
                 elif hasattr(obj, '__dict__'):
-                    return serialize_for_prompt(obj.__dict__)
+                    return serialize_for_prompt_step_step(obj.__dict__)
                 else:
                     return obj
 
@@ -450,12 +444,12 @@ class FinalAnswerSkill(Skill):
                             "action": capability,
                             "summary": summary,
                             "status": status.value if hasattr(status, 'value') else str(status),
-                            "result": serialize_for_prompt(result_data) if result_data else ""
+                            "result": serialize_for_prompt_step(result_data) if result_data else ""
                         }
 
                         # Добавляем параметры если есть
                         if parameters:
-                            step_entry["parameters"] = serialize_for_prompt(parameters)
+                            step_entry["parameters"] = serialize_for_prompt_step(parameters)
 
                         steps_taken.append(step_entry)
                     else:
@@ -470,12 +464,12 @@ class FinalAnswerSkill(Skill):
                             "action": capability,
                             "summary": summary,
                             "status": status.value if hasattr(status, 'value') else str(status),
-                            "result": serialize_for_prompt(result_data) if result_data else ""
+                            "result": serialize_for_prompt_step(result_data) if result_data else ""
                         }
 
                         # Добавляем параметры если есть
                         if parameters:
-                            step_entry["parameters"] = serialize_for_prompt(parameters)
+                            step_entry["parameters"] = serialize_for_prompt_step(parameters)
 
                         steps_taken.append(step_entry)
         except Exception as e:
@@ -514,7 +508,6 @@ class FinalAnswerSkill(Skill):
                 event_type=EventType.WARNING
             )
         if not prompt_obj:
-            from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/skill/final_answer/",
                 component="final_answer"
@@ -530,7 +523,6 @@ class FinalAnswerSkill(Skill):
         # Рендеринг промпта с переменными
         prompt_obj = self.get_prompt(capability_name)
         if not prompt_obj or not hasattr(prompt_obj, 'content'):
-            from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/skill/final_answer/",
                 component="final_answer"
@@ -553,7 +545,6 @@ class FinalAnswerSkill(Skill):
         try:
             rendered_prompt = self._render_prompt(prompt_template, prompt_vars)
         except Exception as e:
-            from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Ошибка рендеринга промпта {capability_name}: {e}",
                 component="final_answer"
@@ -576,11 +567,14 @@ class FinalAnswerSkill(Skill):
                         event_type=EventType.INFO
                     )
             else:
-                import json
+                try:
+                    schema_json = json.dumps(output_schema, ensure_ascii=False, indent=2) if output_schema else '{}'
+                except (TypeError, ValueError):
+                    schema_json = '{}'
                 system_prompt = (
                     "Ты — интеллектуальный ассистент. Верни ответ СТРОГО в формате JSON согласно схеме ниже.\n"
                     "Никакого текста до или после JSON.\n"
-                    f"Ожидаемая схема: {json.dumps(output_schema, ensure_ascii=False, indent=2) if output_schema else '{}'}"
+                    f"Ожидаемая схема: {schema_json}"
                 )
                 self._log_warning(
                         f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ FALLBACK системный промпт! "
@@ -605,15 +599,22 @@ class FinalAnswerSkill(Skill):
                     },
                     "temperature": 0.1,  # Низкая температура для точности
                     "max_tokens": 1500,
-                    # Таймауты из централизованной конфигурации
-                    "total_timeout": execution_context.config.timeouts.resolve_for('llm', 'generate_structured'),
-                    "attempt_timeout": execution_context.config.timeouts.resolve_for('llm', 'generate'),
+                    # Таймауты из централизованной конфигурации инфраструктуры
+                    "total_timeout": (
+                        self.application_context.infrastructure_context.config.timeouts.resolve_for('llm', 'generate_structured')
+                        if self.application_context and hasattr(self.application_context, 'infrastructure_context') and self.application_context.infrastructure_context
+                        else 300.0
+                    ),
+                    "attempt_timeout": (
+                        self.application_context.infrastructure_context.config.timeouts.resolve_for('llm', 'generate')
+                        if self.application_context and hasattr(self.application_context, 'infrastructure_context') and self.application_context.infrastructure_context
+                        else 60.0
+                    ),
                 },
                 context=execution_context
             )
 
             # Проверка на ошибку
-            from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
                 self._log_error(f"LLM structured output ошибка: {error_msg}", event_type=EventType.ERROR)
@@ -642,7 +643,6 @@ class FinalAnswerSkill(Skill):
                 )
 
             # Формирование финального результата через динамическую Pydantic модель из контракта
-            from pydantic import BaseModel
             output_schema = self.get_output_contract("final_answer.generate")
             
             if isinstance(parsed_response, BaseModel):
@@ -720,7 +720,6 @@ class FinalAnswerSkill(Skill):
             self._log_error(f"Ошибка вызова LLM: {str(e)}", event_type=EventType.ERROR)
             # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
-            from core.errors.exceptions import SkillExecutionError
             raise SkillExecutionError(
                 f"Не удалось сгенерировать финальный ответ: {str(e)}. "
                 f"Проверьте что LLM провайдер доступен и промпт загружен.",
@@ -780,7 +779,6 @@ class FinalAnswerSkill(Skill):
 
         СТАНДАРТ: {key} (одинарные скобки) — единообразно с base_behavior_pattern.
         """
-        import re
         result = prompt
         for key, value in variables.items():
             placeholder = "{" + key + "}"

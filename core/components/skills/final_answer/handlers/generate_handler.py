@@ -1,9 +1,13 @@
 from typing import Dict, Any
 from datetime import date, datetime
+
+from pydantic import BaseModel
+
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.session_context.base_session_context import BaseSessionContext
 from core.components.skills.handlers.base_handler import SkillHandler
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class GenerateFinalAnswerHandler(SkillHandler):
@@ -75,7 +79,6 @@ class GenerateFinalAnswerHandler(SkillHandler):
             }
             
             output_schema = self.get_output_schema()
-            from pydantic import BaseModel
             if output_schema and output_schema != BaseModel:
                 try:
                     result_data = output_schema(**result_dict)
@@ -101,7 +104,6 @@ class GenerateFinalAnswerHandler(SkillHandler):
             )
 
     def _extract_param(self, params: Dict[str, Any], key: str, default: Any) -> Any:
-        from pydantic import BaseModel
         if isinstance(params, BaseModel):
             return getattr(params, key, default)
         return params.get(key, default) if isinstance(params, dict) else default
@@ -142,7 +144,6 @@ class GenerateFinalAnswerHandler(SkillHandler):
                     content = str(item)
                     observations.append(content)
             
-            from core.infrastructure.event_bus.unified_event_bus import EventType
             self._log_info(f"Собрано контекста: observations={len(observations)}, thoughts={len(thoughts)}, actions={len(actions)}", event_type=EventType.DEBUG)
 
         return observations, thoughts, actions
