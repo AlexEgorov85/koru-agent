@@ -95,7 +95,11 @@ class FAISSProvider(IFAISSProvider):
         self.index.add(vectors_array)
         
         # Сохраняем метаданные
+        
         for i, meta in enumerate(metadata):
+            print("start_id", start_id)
+            print("i", i)
+            print("meta", meta)
             vector_id = start_id + i
             self.metadata[vector_id] = meta
         
@@ -204,11 +208,23 @@ class FAISSProvider(IFAISSProvider):
         # Сохраняем индекс
         faiss.write_index(self.index, path)
         
+        # Сериализация метаданных с обработкой дат
+        def serialize_value(v):
+            from datetime import date, datetime
+            if isinstance(v, (date, datetime)):
+                return v.isoformat()
+            return v
+        
+        serialized_metadata = {
+            k: [serialize_value(item) for item in v] 
+            for k, v in self.metadata.items()
+        }
+        
         # Сохраняем метаданные
         metadata_path = path.replace(".faiss", "_metadata.json")
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump({
-                "metadata": self.metadata,
+                "metadata": serialized_metadata,
                 "id_counter": self.id_counter
             }, f, ensure_ascii=False, indent=2)
     
@@ -218,12 +234,29 @@ class FAISSProvider(IFAISSProvider):
         # Загружаем индекс
         self.index = faiss.read_index(path)
         
+        # Десериализация метаданных с обработкой дат
+        def deserialize_value(v):
+            from datetime import date, datetime
+            if isinstance(v, str):
+                for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
+                    try:
+                        return datetime.strptime(v, fmt).date()
+                    except ValueError:
+                        try:
+                            return datetime.strptime(v, fmt)
+                        except ValueError:
+                            pass
+            return v
+        
         # Загружаем метаданные
         metadata_path = path.replace(".faiss", "_metadata.json")
         if os.path.exists(metadata_path):
             with open(metadata_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self.metadata = {int(k): v for k, v in data["metadata"].items()}
+                self.metadata = {
+                    int(k): [deserialize_value(item) for item in v] 
+                    for k, v in data["metadata"].items()
+                }
                 self.id_counter = data.get("id_counter", 0)
     
     async def count(self) -> int:

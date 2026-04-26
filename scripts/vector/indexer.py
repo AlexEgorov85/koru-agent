@@ -94,10 +94,10 @@ async def _init_infrastructure(profile: str = "dev", data_dir: str = "data"):
     return infra, embedding, faiss_provider, vs_config
 
 
-def _get_db_conn(vs_config):
+def _get_db_conn(config):
     """Получение подключения к БД."""
     import psycopg2
-    db_config = vs_config.db_providers.get("default_db")
+    db_config = config.db_providers.get("default_db")
     if not db_config:
         raise ValueError("DB provider 'default_db' not found in config")
     
@@ -300,7 +300,7 @@ async def run_indexer(skill: Optional[str] = None, sources: Optional[List[str]] 
         logger.info(f"✅ Embedding провайдер инициализирован: {model_name}")
 
         # Подключение к БД
-        db_conn = _get_db_conn(vs_config)
+        db_conn = _get_db_conn(config)
         logger.info(f"🔌 Подключение к БД установлено")
 
         # Определение целевых источников
@@ -395,7 +395,8 @@ async def async_main():
 
     # Для всех остальных команд нужна инфраструктура
     infra, embedding, faiss_provider, vs_config = await _init_infrastructure(profile="dev")
-    conn = _get_db_conn(vs_config)
+    config = get_config(profile="dev")
+    conn = _get_db_conn(config)
 
     try:
         if args.command == "all":

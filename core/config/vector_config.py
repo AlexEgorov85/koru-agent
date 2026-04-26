@@ -39,7 +39,7 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "violations": {
         "schema": "oarb",
-        "table": "violations",
+        "table": "violations v",
         "select_cols": """v.id, v.violation_code, v.description, v.recommendation,
                           v.severity, v.status, v.responsible, v.deadline, v.audit_id,
                           a.title as audit_title, a.status as audit_status""",
