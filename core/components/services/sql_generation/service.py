@@ -383,9 +383,20 @@ class SQLGenerationService(Service):
 
             validated = await self._validate_sql_safely(generated_sql, {})
 
-            # Проверяем что запрос валиден
-            if not validated.is_valid or not validated.sql:
-                error_msg = "; ".join(validated.validation_errors) if hasattr(validated, 'validation_errors') else "Validation failed"
+            # Проверяем что запрос валиден (поддерживаем dict и объект)
+            if isinstance(validated, dict):
+                is_valid = validated.get('is_valid', False)
+                sql = validated.get('sql', '')
+                validation_errors = validated.get('validation_errors', [])
+            else:
+                is_valid = getattr(validated, 'is_valid', False)
+                sql = getattr(validated, 'sql', '')
+                validation_errors = getattr(validated, 'validation_errors', [])
+
+            if not is_valid or not sql:
+                error_msg = "; ".join(validation_errors) if validation_errors else "Validation failed"
+                if 'sql' not in sql.lower():  # Если SQL пустой
+                    error_msg = "SQL-запрос не сгенерирован"
                 raise RuntimeError(f"SQL validation failed: {error_msg}")
 
             # Извлекаем поля самоанализа из результата
@@ -416,11 +427,11 @@ class SQLGenerationService(Service):
 
             # 5. Формирование результата
             result = {
-                "sql": validated.sql,
-                "parameters": validated.parameters,
+                "sql": sql,
+                "parameters": validated.get('parameters', {}) if isinstance(validated, dict) else getattr(validated, 'parameters', {}),
                 "reasoning": analysis_strategy,
                 "tables_used": [],
-                "safety_score": validated.safety_score,
+                "safety_score": validated.get('safety_score', 0.0) if isinstance(validated, dict) else getattr(validated, 'safety_score', 0.0),
                 "generation_id": f"gen_{hash(natural_language_query)}",
                 "analysis_understanding": analysis_understanding,
                 "analysis_schema": analysis_schema,
@@ -667,15 +678,16 @@ class SQLGenerationService(Service):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="sql_validator_service.validate_query",
+            action_name="sql_validator_service.validate_sql",
             parameters={
-                "sql_query": sql,
-                "parameters": parameters
+                "sql": sql,
+                "allowed_operations": self.allowed_operations
             },
             context=exec_context
         )
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
+            self._log_debug(f"SQL validation result: {result.data}")
             return result.data
 
         # Fallback при ошибке валидации

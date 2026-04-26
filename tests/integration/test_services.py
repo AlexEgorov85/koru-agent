@@ -379,10 +379,10 @@ class TestSqlValidatorServiceIntegration:
     @pytest.mark.asyncio
     async def test_sql_validator_validate_query_works(self, executor, session):
         result = await executor.execute_action(
-            action_name="sql_validator_service.validate_query",
+            action_name="sql_validator_service.validate_sql",
             parameters={
-                "sql_query": "SELECT 1",
-                "parameters": {}
+                "sql": "SELECT 1",
+                "allowed_operations": ["SELECT"]
             },
             context=session
         )
