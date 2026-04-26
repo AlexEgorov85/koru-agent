@@ -203,10 +203,10 @@ class SQLQueryService(Service):
 
             exec_context = ExecutionContext()
             validation_result_exec = await self.executor.execute_action(
-                action_name="sql_validator_service.validate_query",
+                action_name="sql_validator_service.validate_sql",
                 parameters={
-                    "sql_query": sql_query,
-                    "parameters": params_for_validation
+                    "sql": sql_query,
+                    "allowed_operations": self.allowed_operations
                 },
                 context=exec_context
             )

@@ -667,10 +667,10 @@ class SQLGenerationService(Service):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="sql_validator_service.validate_query",
+            action_name="sql_validator_service.validate_sql",
             parameters={
-                "sql_query": sql,
-                "parameters": parameters
+                "sql": sql,
+                "allowed_operations": self.allowed_operations
             },
             context=exec_context
         )
