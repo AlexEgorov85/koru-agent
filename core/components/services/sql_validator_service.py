@@ -91,7 +91,8 @@ class SQLValidatorService(Service):
             "errors": [],
             "warnings": [],
             "safety_score": 1.0,
-            "sql_type": None
+            "sql_type": None,
+            "sql": sql  # Добавляем оригинальный SQL в результат
         }
         
         if not sql or not sql.strip():
