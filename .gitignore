@@ -1,16 +1,44 @@
 ```
-# Python cache
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.local
+.env
+.env.local
+.env.*
 
-# Compiled Python files in specific directories
-core/__pycache__/
-core/agent/__pycache__/
-core/config/__pycache__/
-core/infrastructure/event_bus/__pycache__/
-core/models/data/__pycache__/
-core/models/enums/__pycache__/
-core/models/types/__pycache__/
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```
