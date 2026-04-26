@@ -1,39 +1,58 @@
 #!/usr/bin/env python3
 """
 Универсальный индексатор для векторного поиска.
-
-Использует централизованную конфигурацию SOURCE_CONFIG из core/config/vector_config.py.
+Поддерживает индексацию по скиллам, батчинг, прогресс и интеграцию с AppConfig.
 
 ИСПОЛЬЗОВАНИЕ:
-    # Создать пустые индексы для всех источников
-    python -m scripts.vector.indexer init
+  # Индексация источников для навыка check_result (audits, violations)
+  python -m scripts.vector.indexer --skill check_result
 
-    # Индексация всех источников
-    python -m scripts.vector.indexer all
+  # Индексация конкретных источников
+  python -m scripts.vector.indexer --sources books authors
 
-    # Индексация конкретного источника
-    python -m scripts.vector.indexer authors
-    python -m scripts.vector.indexer audits
-    python -m scripts.vector.indexer violations
-    python -m scripts.vector.indexer books
+  # Создание пустых индексов (для инициализации)
+  python -m scripts.vector.indexer --empty
+
+  # Индексация всех источников из конфига
+  python -m scripts.vector.indexer
+  
+  # Устаревший CLI (совместимость)
+  python -m scripts.vector.indexer init
+  python -m scripts.vector.indexer all
+  python -m scripts.vector.indexer audits
 """
 import asyncio
 import sys
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-7s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+# Добавляем корень проекта в sys.path
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from core.config import get_config
+from core.config.vector_config import SOURCE_CONFIG
+from core.models.types.vector_types import RowMetadata
 
-# ===========================================================================
-# Утилиты
-# ===========================================================================
+# Маппинг скиллов -> требуемые векторные источники
+SKILL_SOURCES = {
+    "check_result": ["audits", "violations"],
+    "book_library": ["books", "authors"],
+    # Добавляйте новые скиллы по мере появления
+}
 
 async def _init_infrastructure(profile: str = "dev", data_dir: str = "data"):
     """Инициализация инфраструктуры (embedding + FAISS)."""
-    from core.config import get_config
     from core.config.vector_config import EmbeddingConfig
     from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
 
@@ -96,9 +115,9 @@ def _get_db_conn(vs_config):
 
 async def create_empty_indexes(vs_config) -> int:
     """Создание пустых FAISS индексов для всех источников."""
-    print("=" * 60)
-    print("СОЗДАНИЕ ПУСТЫХ ИНДЕКСОВ")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("СОЗДАНИЕ ПУСТЫХ ИНДЕКСОВ")
+    logger.info("=" * 60)
 
     from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
 
@@ -106,7 +125,7 @@ async def create_empty_indexes(vs_config) -> int:
     storage_path.mkdir(parents=True, exist_ok=True)
 
     for source, index_file in vs_config.indexes.items():
-        print(f"\n  {source}:")
+        logger.info(f"\n  {source}:")
 
         provider = FAISSProvider(
             dimension=vs_config.embedding.dimension,
@@ -118,22 +137,22 @@ async def create_empty_indexes(vs_config) -> int:
         await provider.save(str(index_path))
 
         count = await provider.count()
-        print(f"     Создан: {index_path}")
-        print(f"     Векторов: {count}")
+        logger.info(f"     Создан: {index_path}")
+        logger.info(f"     Векторов: {count}")
 
     # Статистика
-    print("\n" + "=" * 60)
-    print("СТАТИСТИКА")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("СТАТИСТИКА")
+    logger.info("=" * 60)
 
     for source, index_file in vs_config.indexes.items():
         index_path = storage_path / index_file
         status = "[OK]" if index_path.exists() else "[FAIL]"
-        print(f"  {status} {source}: {index_file}")
+        logger.info(f"  {status} {source}: {index_file}")
 
-    print("\n" + "=" * 60)
-    print("[OK] ИНДЕКСЫ СОЗДАНЫ!")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("[OK] ИНДЕКСЫ СОЗДАНЫ!")
+    logger.info("=" * 60)
     return 0
 
 
@@ -147,8 +166,8 @@ async def save_index(provider, vs_config, source: str) -> Path:
     await provider.save(str(index_path))
 
     count = await provider.count()
-    print(f"\n[OK] Saved: {index_path}")
-    print(f"[OK] Total vectors: {count}")
+    logger.info(f"\n[OK] Saved: {index_path}")
+    logger.info(f"[OK] Total vectors: {count}")
     return index_path
 
 
@@ -157,15 +176,12 @@ async def save_index(provider, vs_config, source: str) -> Path:
 # ===========================================================================
 
 async def index_source(source: str, embedding, faiss_provider, vs_config, db_conn) -> int:
-    """Динамическая индексация источника на основе SOURCE_CONFIG."""
-    from core.config.vector_config import SOURCE_CONFIG
-    from core.models.types.vector_types import RowMetadata
-    
+    """Динамическая индексация источника на основе SOURCE_CONFIG с прогрессом и обработкой ошибок."""
     if source not in SOURCE_CONFIG:
         raise ValueError(f"Неизвестный источник: {source}. Доступные: {list(SOURCE_CONFIG.keys())}")
     
     cfg = SOURCE_CONFIG[source]
-    print(f"\n{'='*60}\n📦 ИНДЕКСАЦИЯ: {source.upper()}\n{'='*60}")
+    logger.info(f"\n{'='*60}\n📦 ИНДЕКСАЦИЯ: {source.upper()}\n{'='*60}")
     
     # Формируем SQL динамически
     join = cfg.get("join_clause", "")
@@ -181,42 +197,150 @@ async def index_source(source: str, embedding, faiss_provider, vs_config, db_con
     col_names = [desc[0] for desc in cursor.description] if cursor.description else cfg["metadata_fields"]
     cursor.close()
     
-    print(f"🔍 Найдено записей: {len(rows)}")
+    total_rows = len(rows)
+    logger.info(f"🔍 Найдено записей: {total_rows}")
+    
+    if total_rows == 0:
+        logger.warning("⚠️ Нет данных для индексации. Пропускаю.")
+        return 0
     
     vectors, metadata_list = [], []
-    for row in rows:
-        row_dict = dict(zip(col_names, row))
-        
-        # Формируем поисковый текст
-        search_text = " ".join(str(row_dict.get(f, "")) for f in cfg["text_fields"] if row_dict.get(f))
-        
-        vector = await embedding.generate_single(search_text)
-        
-        meta = RowMetadata(
-            source=source,
-            table=f"{cfg['schema']}.{cfg['table']}",
-            primary_key=cfg["pk_column"],
-            pk_value=row_dict[cfg["pk_column"]],
-            row=row_dict,
-            chunk_index=0,
-            total_chunks=1,
-            search_text=search_text,
-            content=search_text,
-        )
-        
-        vectors.append(vector)
-        metadata_list.append(meta.model_dump())
-        
-        pk_val = row_dict[cfg["pk_column"]]
-        preview = str(row_dict.get(cfg["text_fields"][0], ""))[:60]
-        print(f"   ✅ [{pk_val}] {preview}")
+    processed = 0
+    skipped = 0
+    
+    for idx, row in enumerate(rows):
+        try:
+            row_dict = dict(zip(col_names, row))
+            
+            # Формируем поисковый текст только из непустых полей
+            search_text = " ".join(str(row_dict.get(f, "")).strip() for f in cfg["text_fields"] if row_dict.get(f))
+            
+            if not search_text:
+                skipped += 1
+                continue
+            
+            vector = await embedding.generate_single(search_text)
+            
+            meta = RowMetadata(
+                source=source,
+                table=table_ref,
+                primary_key=cfg["pk_column"],
+                pk_value=row_dict[cfg["pk_column"]],
+                row=row_dict,
+                chunk_index=0,
+                total_chunks=1,
+                search_text=search_text,
+                content=search_text,
+            )
+            
+            vectors.append(vector)
+            metadata_list.append(meta.model_dump())
+            processed += 1
+            
+            # Прогресс каждые 100 строк
+            if (idx + 1) % 100 == 0 or (idx + 1) == total_rows:
+                logger.info(f"   📝 Обработано: {idx + 1}/{total_rows} (векторов: {processed}, пропущено: {skipped})")
+                
+        except Exception as e:
+            logger.error(f"   ❌ Ошибка при обработке строки {idx}: {e}")
+            skipped += 1
+            continue
     
     if vectors:
         await faiss_provider.add(vectors, metadata_list)
         await save_index(faiss_provider, vs_config, source)
+        logger.info(f"✅ Индексация завершена: {processed} векторов, пропущено: {skipped}")
     else:
-        print("⚠️ Нет данных для индексации")
-    return 0
+        logger.warning("⚠️ Не удалось создать валидные векторы. Индекс не сохранён.")
+    
+    return processed
+
+
+# ===========================================================================
+# Основная функция запуска
+# ===========================================================================
+
+async def run_indexer(skill: Optional[str] = None, sources: Optional[List[str]] = None, create_empty: bool = False):
+    """Основная функция запуска индексации."""
+    config = get_config(profile="dev")
+    vs_config = config.vector_search
+
+    if not vs_config or not vs_config.enabled:
+        logger.error("❌ VectorSearch отключён в конфигурации. Проверьте vector_search.enabled")
+        return 1
+
+    if create_empty:
+        logger.info("🛠️ Режим создания пустых индексов. Данные из БД не загружаются.")
+        return await create_empty_indexes(vs_config)
+
+    embedding = None
+    db_conn = None
+    
+    try:
+        # Инициализация embedding провайдера
+        model_name = vs_config.embedding.model_name
+        emb_cfg = vs_config.embedding
+        
+        if "qwen3" in model_name.lower() or emb_cfg.local_model_path:
+            from core.infrastructure.providers.embedding.qwen3_embedding_provider import Qwen3EmbeddingProvider
+            if emb_cfg.device == "cuda":
+                import torch
+                if not torch.cuda.is_available():
+                    logger.warning("⚠️ CUDA недоступна. Переключаю embedding на CPU.")
+                    emb_cfg.device = "cpu"
+            embedding = Qwen3EmbeddingProvider(emb_cfg)
+        elif "giga" in model_name.lower():
+            from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
+            embedding = GigaEmbeddingsProvider(emb_cfg)
+        else:
+            from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
+            embedding = SentenceTransformersProvider(emb_cfg)
+        
+        await embedding.initialize()
+        logger.info(f"✅ Embedding провайдер инициализирован: {model_name}")
+
+        # Подключение к БД
+        db_conn = _get_db_conn(vs_config)
+        logger.info(f"🔌 Подключение к БД установлено")
+
+        # Определение целевых источников
+        targets = sources or []
+        
+        if skill:
+            skill = skill.lower()
+            if skill in SKILL_SOURCES:
+                targets = SKILL_SOURCES[skill]
+                logger.info(f"🎯 Режим скилла '{skill}'. Источники: {targets}")
+            else:
+                logger.warning(f"⚠️ Скилл '{skill}' не найден в конфигурации. Использую все источники.")
+                targets = list(SOURCE_CONFIG.keys())
+        
+        if not targets:
+            targets = list(SOURCE_CONFIG.keys())
+            logger.info(f"🌐 Индексирую все источники: {targets}")
+
+        # Индексация каждого источника
+        total_indexed = 0
+        for src in targets:
+            # Создаём новый FAISS провайдер для каждого источника
+            from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
+            faiss_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
+            await faiss_provider.initialize()
+            
+            count = await index_source(src, embedding, faiss_provider, vs_config, db_conn)
+            total_indexed += count
+
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🎉 Индексация завершена! Всего обработано: {total_indexed} записей.")
+        logger.info(f"{'='*60}")
+        return 0
+        
+    finally:
+        if db_conn:
+            db_conn.close()
+            logger.info("🔌 Соединение с БД закрыто.")
+        if embedding:
+            await embedding.shutdown() if hasattr(embedding, 'shutdown') else None
 
 
 # ===========================================================================
@@ -230,15 +354,17 @@ def build_parser():
     parser = argparse.ArgumentParser(
         description="Универсальный индексатор для векторного поиска",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Команды индексации")
-
-    # init — создание пустых индексов
+    
+    # Новый стиль аргументов
+    parser.add_argument("--skill", type=str, help="Индексировать источники для конкретного скилла (напр. check_result)")
+    parser.add_argument("--sources", nargs="+", help="Явный список источников для индексации")
+    parser.add_argument("--empty", action="store_true", help="Создать только пустые индексы (без данных)")
+    parser.add_argument("--profile", type=str, default="dev", help="Профиль конфигурации (dev/prod/sandbox)")
+    
+    # Старый стиль подкоманд (для совместимости)
+    subparsers = parser.add_subparsers(dest="command", help="Команды индексации (устаревший стиль)")
     subparsers.add_parser("init", help="Создать пустые индексы для всех источников")
-
-    # all — индексация всех источников
     subparsers.add_parser("all", help="Индексация всех источников")
-
-    # Динамическое создание подкоманд для каждого источника из конфига
     for source in SOURCE_CONFIG.keys():
         subparsers.add_parser(source, help=f"Индексация {source}")
 
@@ -249,12 +375,20 @@ async def async_main():
     parser = build_parser()
     args = parser.parse_args()
 
+    # Переопределяем профиль через env, если нужно
+    import os
+    os.environ.setdefault("APP_PROFILE", args.profile)
+
+    # Новый стиль аргументов имеет приоритет
+    if args.skill or args.sources or args.empty:
+        return await run_indexer(skill=args.skill, sources=args.sources, create_empty=args.empty)
+    
+    # Старый стиль подкоманд (для совместимости)
     if not args.command:
-        parser.print_help()
-        return 1
+        # Если нет ни новых ни старых аргументов - индексируем всё
+        return await run_indexer(skill=None, sources=None, create_empty=False)
 
     if args.command == "init":
-        from core.config import get_config
         config = get_config(profile="dev")
         vs_config = config.vector_search
         return await create_empty_indexes(vs_config)
@@ -265,7 +399,6 @@ async def async_main():
 
     try:
         if args.command == "all":
-            from core.config.vector_config import SOURCE_CONFIG
             for src in SOURCE_CONFIG.keys():
                 await index_source(src, embedding, faiss_provider, vs_config, conn)
         elif args.command in SOURCE_CONFIG:
