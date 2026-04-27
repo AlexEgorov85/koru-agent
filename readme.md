@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.41.8-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.43.1-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,19 +25,17 @@
 
 ---
 
-## 📊 Последние изменения (v5.41.8)
+## 📊 Последние изменения (v5.43.1)
 
-**Версия 5.41.8** (20 апреля 2026) — **Генерация финального ответа при превышении шагов + удаление traceback**
+**Версия 5.43.1** (27 апреля 2026) — **Исправления ошибок и улучшения indexer/sql_validator**
 
-### Генерация финального ответа
-- ✅ При достижении лимита шагов — попытка сгенерировать итоговый ответ через final_answer.generate
-- ✅ Fallback с информативным сообщением о собранных данных
-- ✅ Улучшенная обработка ошибок в runtime
-
-### Очистка кода
-- ✅ Удалён import traceback из main.py
-- ✅ Исправлен синтаксис в обработке ошибок
-- ✅ Улучшено логирование ошибок
+### Исправления
+- ✅ Исправлена ошибка db_providers и JSON сериализация в indexer
+- ✅ Исключены vector индексы из репозитория
+- ✅ Исправлена ошибка 'ExecutionContext' has no attribute 'config' в final_answer skill
+- ✅ Добавлена поддержка dict в валидации SQL
+- ✅ Исправлена ошибка 'ExecutionContext' has no attribute 'config' в final_answer skill
+- ✅ Добавлен интеграционный тест для final_answer skill
 
 📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5418---2026-04-20)
 

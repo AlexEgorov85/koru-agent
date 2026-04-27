@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.43.0"
+__version__ = "5.43.1"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 43
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Метаданные
 VERSION_CODENAME = "AgentFactory Refactoring"
-VERSION_RELEASE_DATE = "2026-04-24"
+VERSION_RELEASE_DATE = "2026-04-27"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"

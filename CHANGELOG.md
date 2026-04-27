@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [5.43.1] - 2026-04-27
+
+### Fixed
+- Исправлена ошибка db_providers и JSON сериализация в indexer
+- Исключены vector индексы из репозитория
+- Исправлена ошибка 'ExecutionContext' has no attribute 'config' в final_answer skill
+- Добавлена поддержка dict в валидации SQL
+- Исправлен импорт в sql_generation service
+- Исправлена ошибка инициализации SQL validator service
+- Исправлена ошибка валидации параметров в final_answer skill
+- Исправлена ошибка typeerror в observation analysis
+- Улучшена безопасность SQL validator service
+
+### Added
+- Добавлен интеграционный тест для final_answer skill
+- Добавлен SQL examples toggle parameter в ReAct pattern
+
 ## [5.42.0] - 2026-04-22
 
 ### Changed
