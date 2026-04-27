@@ -8,15 +8,15 @@
 """
 
 # Основная версия
-__version__ = "5.43.1"
+__version__ = "5.44.0"
 
 # Компоненты версии
 VERSION_MAJOR = 5
-VERSION_MINOR = 43
-VERSION_PATCH = 1
+VERSION_MINOR = 44
+VERSION_PATCH = 0
 
 # Метаданные
-VERSION_CODENAME = "AgentFactory Refactoring"
+VERSION_CODENAME = "GigaChat Support + Final Answer Fix"
 VERSION_RELEASE_DATE = "2026-04-27"
 
 # Полная строка версии

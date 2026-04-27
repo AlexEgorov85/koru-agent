@@ -127,26 +127,26 @@ class AgentRuntime:
     def _sync_dialogue_history_back(self):
         """
         Копирует новые сообщения из локальной истории в глобальную.
-
+        
         Вызывается после commit_turn() для сохранения диалога между запросами.
         """
         if self._shared_dialogue_history is None:
             return
-
+        
         local_history = self.session_context.dialogue_history
         shared_history = self._shared_dialogue_history
-
+        
         # Копируем только те сообщения, которых ещё нет в глобальной истории
         # (по количеству сообщений)
         local_count = len(local_history.messages)
         shared_count = len(shared_history.messages)
-
+        
         if local_count > shared_count:
             # Новые сообщения появились — копируем их
             new_messages = local_history.messages[shared_count:]
             for msg in new_messages:
                 from core.session_context.dialogue_context import DialogueMessage
-
+                
                 shared_history.messages.append(
                     DialogueMessage(
                         role=msg.role,
@@ -156,6 +156,73 @@ class AgentRuntime:
                 )
             # Обрезаем если превышен лимит
             shared_history._trim()
+
+    async def _attempt_final_answer(
+        self,
+        executed_steps: int,
+        stop_reason: Optional[str] = None,
+    ) -> 'ExecutionResult':
+        """
+        Попытка сформировать финальный ответ в любой ситуации.
+        
+        Вызывается при нормальном завершении, по ошибке, по лимиту шагов или empty results.
+        Генерирует ответ на основе собранных данных через FinalAnswerPhase.
+        
+        ARGS:
+            executed_steps: Количество выполненных шагов
+            stop_reason: Причина остановки (для логирования)
+        
+        RETURNS:
+            ExecutionResult с финальным ответом или ошибкой
+        """
+        if stop_reason:
+            self.log.warning(
+                f"🏁 Попытка сформировать финальный ответ: {stop_reason}",
+                extra={"event_type": EventType.AGENT_STOP}
+            )
+        else:
+            self.log.info(
+                "🏁 Формирование финального ответа...",
+                extra={"event_type": EventType.AGENT_STOP}
+            )
+        
+        # Если есть выполненные шаги — пробуем сгенерировать ответ
+        if executed_steps > 0:
+            try:
+                final_result = await self.final_answer_phase.generate_fallback_answer(
+                    session_context=self.session_context,
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                    goal=self.goal,
+                    executed_steps=executed_steps,
+                    sync_dialogue_callback=self._sync_dialogue_history_back,
+                )
+                if final_result:
+                    if self.narrative_log:
+                        answer_text = str(final_result.data)[:150] + "..." if final_result.data and len(str(final_result.data)) > 150 else str(final_result.data)
+                        self.narrative_log.info(f"Финальный ответ сформирован: {answer_text}")
+                    return final_result
+            except Exception as e:
+                self.log.error(f"Ошибка генерации fallback-ответа: {e}", exc_info=True)
+        
+        # Fallback: если шагов не было или генерация не удалась
+        fallback_msg = stop_reason or f"Не удалось достичь цели за {self.max_steps} шагов."
+        if executed_steps == 0:
+            fallback_msg += " Действия не выполнялись."
+        else:
+            fallback_msg += f" Собрано данных за {executed_steps} шагов, но синтез ответа не удался."
+        
+        self.session_context.commit_turn(
+            user_query=self.goal,
+            assistant_response=fallback_msg,
+            tools_used=[]
+        )
+        self._sync_dialogue_history_back()
+        
+        if self.narrative_log:
+            self.narrative_log.info(f"Агент завершён (fallback): {fallback_msg}")
+        
+        return ExecutionResult.failure(fallback_msg)
 
     async def run(
         self, goal: str = None, max_steps: Optional[int] = None
@@ -307,16 +374,11 @@ class AgentRuntime:
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id
                 )
-                self.session_context.commit_turn(
-                    user_query=self.goal,
-                    assistant_response=f"Остановлено: {stop_reason}",
-                    tools_used=[],
+                # ВСЕГДА пытаемся сформировать финальный ответ
+                return await self._attempt_final_answer(
+                    executed_steps=executed_steps,
+                    stop_reason=stop_reason or f"Stopped: {stop_reason}"
                 )
-                self._sync_dialogue_history_back()
-                result = ExecutionResult.failure(f"Stopped: {stop_reason}")
-                if self.narrative_log:
-                    self.narrative_log.info(f"Агент остановлен: {stop_reason}")
-                return result
             
             # Pattern решает - ДЕЛЕГИРОВАНО STEP
             decision = await self.decision_phase.execute(
@@ -386,17 +448,11 @@ class AgentRuntime:
                     f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
                     extra={"event_type": EventType.AGENT_STOP},
                 )
-                # Сохраняем диалог даже при ошибке
-                self.session_context.commit_turn(
-                    user_query=self.goal,
-                    assistant_response=f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
-                    tools_used=[],
+                # ВСЕГДА пытаемся сформировать финальный ответ
+                return await self._attempt_final_answer(
+                    executed_steps=executed_steps,
+                    stop_reason=decision.error or "Unknown error"
                 )
-                self._sync_dialogue_history_back()
-                result = ExecutionResult.failure(decision.error or "Unknown error")
-                if self.narrative_log:
-                    self.narrative_log.info(f"Ошибка: {decision.error or 'Неизвестная ошибка'}")
-                return result
 
             # Pattern решил ACT? - ДЕЛЕГИРОВАНО STEP
             if decision.type == DecisionType.ACT:
@@ -523,47 +579,12 @@ class AgentRuntime:
                 pattern = await self._get_pattern()
 
         # ─────────────────────────────────────────────────────────────
-        # ЦИКЛ ЗАВЕРШЁН: Попытка сформировать ответ по имеющимся данным
+        # ЦИКЛ ЗАВЕРШЁН: ВСЕГДА пытаемся сформировать финальный ответ
         # ─────────────────────────────────────────────────────────────
-        if executed_steps > 0:
-            self.log.warning(
-                f"Лимит шагов ({self.max_steps}) исчерпан. "
-                f"Пытаюсь сгенерировать итоговый ответ на основе {executed_steps} шагов..."
-            )
-            
-            # Делегируем обработку FinalAnswerPhase
-            try:
-                final_result = await self.final_answer_phase.generate_fallback_answer(
-                    session_context=self.session_context,
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                    goal=self.goal,
-                    executed_steps=executed_steps,
-                    sync_dialogue_callback=self._sync_dialogue_history_back,
-                )
-                return final_result
-            except Exception as e:
-                self.log.error(f"Не удалось сгенерировать fallback-ответ: {e}")
-
-        # ─────────────────────────────────────────────────────────────
-        # FALLBACK: Если шагов не было или финальная генерация упала
-        # ─────────────────────────────────────────────────────────────
-        fallback_msg = f"Не удалось достичь цели за {self.max_steps} шагов."
-        if executed_steps == 0:
-            fallback_msg += " Действия не выполнялись."
-        else:
-            fallback_msg += f" Собрано данных за {executed_steps} шагов, но синтез ответа не удался."
-
-        self.session_context.commit_turn(
-            user_query=self.goal,
-            assistant_response=fallback_msg,
-            tools_used=[]
+        return await self._attempt_final_answer(
+            executed_steps=executed_steps,
+            stop_reason=f"Лимит шагов ({self.max_steps}) исчерпан"
         )
-        self._sync_dialogue_history_back()
-        result = ExecutionResult.failure(fallback_msg)
-        if self.narrative_log:
-            self.narrative_log.info(f"Агент завершён с ошибкой: {fallback_msg}")
-        return result
 
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""

@@ -35,13 +35,14 @@ llm_providers:
   default_llm:
     enabled: true
     fallback_providers: []
-    model_name: qwen/qwen3.6-plus:free
+    model_name: GigaChat-Pro
     parameters:
-      api_key: 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
+      credentials: ""  # Укажите ключ GigaChat или задайте переменную GIGACHAT_CREDENTIALS
       temperature: 0.2
       max_tokens: 4096
-      timeout_seconds: 120.0
-    provider_type: openrouter
+      timeout: 120.0
+      profanity_check: false
+    provider_type: gigachat
     timeout_seconds: 300.0
 log_dir: logs/dev
 log_level: DEBUG
@@ -63,13 +64,13 @@ vector_search:
     chunk_size: 500
     min_chunk_size: 50
   embedding:
-    model_name: qwen3-embedding-0.6b
-    local_model_path: C:/Users/Алексей/Documents/WORK/llm_models/qwen3-embedding-0.6b
-    dimension: 1024
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    local_model_path: null
+    dimension: 384
     instruction: Дан вопрос, необходимо найти абзац текста с ответом
     use_instruction: true
-    max_length: 8192
-    device: cuda
+    max_length: 512
+    device: cpu
   enabled: true
   faiss:
     index_type: Flat

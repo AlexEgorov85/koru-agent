@@ -58,15 +58,22 @@ vector_search:
     chunk_size: 500
     min_chunk_size: 50
   embedding:
-    dimension: 384
-    model_name: models/embedding/all-MiniLM-L6-v2
+    model_name: qwen3-embedding-0.6b
+    local_model_path: C:/Users/Алексей/Documents/WORK/llm_models/qwen3-embedding-0.6b
+    dimension: 1024
+    instruction: Дан вопрос, необходимо найти абзац текста с ответом
+    use_instruction: true
+    max_length: 8192
+    device: cpu
   enabled: true
   faiss:
     index_type: Flat
     metric: IP
   indexes:
+    authors: authors_index.faiss
     audits: audits_index.faiss
     violations: violations_index.faiss
+    books: books_index.faiss
   storage:
     base_path: data/vector
 version: 5.40.2
