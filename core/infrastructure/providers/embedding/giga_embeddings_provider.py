@@ -40,18 +40,21 @@ class GigaEmbeddingsProvider(IEmbeddingProvider):
         self.tokenizer = None
         self._device = None
 
-    def _apply_instruction(self, texts: List[str], use_instruction: bool = True) -> List[str]:
+    def _apply_instruction(self, texts: List[str], use_instruction: bool = True, instruction: Optional[str] = None) -> List[str]:
         """Добавляет инструкцию перед текстами (только для query).
-        
+
         Шаблон: f'Instruct: {task_description}\nQuery: {query}'
-        
+
         ВАЖНО: Инструкция добавляется только к query (запросам), НЕ к документам.
         Для retrieval задач документы должны быть без инструкции.
         """
-        if not use_instruction or not self.config.instruction:
+        if not use_instruction:
             return texts
-        
-        task = self.config.instruction
+        # Приоритет: явная инструкция > конфиг
+        instr = instruction or self.config.instruction
+        if not instr:
+            return texts
+        task = instr
         return [f"Instruct: {task}\nQuery: {text}" for text in texts]
 
     async def initialize(self):
@@ -91,26 +94,27 @@ class GigaEmbeddingsProvider(IEmbeddingProvider):
                 f"Не удалось загрузить модель {self.config.model_name}: {e}"
             )
 
-    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
+    async def generate(self, texts: List[str], apply_instruction: bool = True, instruction: Optional[str] = None) -> List[List[float]]:
         """Генерация эмбеддингов для списка текстов.
-        
+
         Args:
             texts: Список текстов для эмбеддинга
             apply_instruction: Добавить инструкцию перед текстами (для query)
-        
+            instruction: Явная инструкция (переопределяет конфиг). Если None — используется из конфига.
+
         Для retrieval: apply_instruction=True для запросов, False для документов.
         """
-        
+
         if not self.model:
             await self.initialize()
-        
+
         if not texts:
             return []
-        
+
         max_length = min(self.config.max_length, 4096)  # Giga поддерживает max 4096
-        
+
         # Применяем инструкцию если нужно
-        processed_texts = self._apply_instruction(texts, apply_instruction)
+        processed_texts = self._apply_instruction(texts, apply_instruction, instruction)
         
         # Токенизация
         batch_dict = self.tokenizer(
@@ -132,14 +136,15 @@ class GigaEmbeddingsProvider(IEmbeddingProvider):
         
         return embeddings.tolist()
     
-    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
+    async def generate_single(self, text: str, apply_instruction: bool = True, instruction: Optional[str] = None) -> List[float]:
         """Генерация эмбеддинга для одного текста.
-        
+
         Args:
             text: Текст для эмбеддинга
             apply_instruction: Добавить инструкцию перед текстом
+            instruction: Явная инструкция (переопределяет конфиг). Если None — используется из конфига.
         """
-        embeddings = await self.generate([text], apply_instruction)
+        embeddings = await self.generate([text], apply_instruction, instruction)
         return embeddings[0] if embeddings else []
     
     def get_dimension(self) -> int:

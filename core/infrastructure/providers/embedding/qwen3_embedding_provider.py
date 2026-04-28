@@ -19,12 +19,15 @@ class Qwen3EmbeddingProvider(IEmbeddingProvider):
         self.model = None
         self._device = None
 
-    def _apply_instruction(self, texts: List[str], use_instruction: bool = True) -> List[str]:
+    def _apply_instruction(self, texts: List[str], use_instruction: bool = True, instruction: Optional[str] = None) -> List[str]:
         """Добавляет инструкцию перед текстами (только для query)."""
-        if not use_instruction or not self.config.instruction:
+        if not use_instruction:
             return texts
-        instruction = self.config.instruction
-        return [f"Instruct: {instruction}\nQuery: {text}" for text in texts]
+        # Приоритет: явная инструкция > конфиг
+        instr = instruction or self.config.instruction
+        if not instr:
+            return texts
+        return [f"Instruct: {instr}\nQuery: {text}" for text in texts]
 
     async def initialize(self):
         """Инициализация модели и токенизатора из локальной папки."""
@@ -48,14 +51,14 @@ class Qwen3EmbeddingProvider(IEmbeddingProvider):
         ).to(self._device)
         self.model.eval()
 
-    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
+    async def generate(self, texts: List[str], apply_instruction: bool = True, instruction: Optional[str] = None) -> List[List[float]]:
         """Генерация эмбеддингов для батча текстов."""
         if not self.model:
             await self.initialize()
         if not texts:
             return []
 
-        processed_texts = self._apply_instruction(texts, apply_instruction)
+        processed_texts = self._apply_instruction(texts, apply_instruction, instruction)
         # Qwen3 поддерживает до 8192 токенов
         max_length = min(self.config.max_length, 8192)
 

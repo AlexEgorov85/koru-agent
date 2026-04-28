@@ -22,28 +22,30 @@ class IEmbeddingProvider(ABC):
         pass
     
     @abstractmethod
-    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
+    async def generate(self, texts: List[str], apply_instruction: bool = True, instruction: Optional[str] = None) -> List[List[float]]:
         """
         Генерация эмбеддингов для текстов.
-        
+
         Args:
             texts: Список текстов
             apply_instruction: Добавить инструкцию перед текстами (для Giga-Embeddings)
-        
+            instruction: Явная инструкция (переопределяет конфиг). Если None — используется из конфига.
+
         Returns:
             Список векторов
         """
         pass
-    
+
     @abstractmethod
-    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
+    async def generate_single(self, text: str, apply_instruction: bool = True, instruction: Optional[str] = None) -> List[float]:
         """
         Генерация эмбеддинга для одного текста.
-        
+
         Args:
             text: Текст
             apply_instruction: Добавить инструкцию перед текстом
-        
+            instruction: Явная инструкция (переопределяет конфиг). Если None — используется из конфига.
+
         Returns:
             Вектор
         """

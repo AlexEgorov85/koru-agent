@@ -25,7 +25,8 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
         "metadata_fields": ["id", "first_name", "last_name", "birth_date"],
         "pk_column": "id",
         "where_clause": "WHERE last_name IS NOT NULL",
-        "order_by": "ORDER BY last_name, first_name"
+        "order_by": "ORDER BY last_name, first_name",
+        "instruction": "Дан вопрос о людях (авторах). Необходимо найти абзац текста с ответом о человеке.",
     },
     "audits": {
         "schema": "oarb",
@@ -35,7 +36,8 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
         "metadata_fields": ["id", "title", "audit_type", "status", "auditee_entity"],
         "pk_column": "id",
         "where_clause": "WHERE title IS NOT NULL",
-        "order_by": "ORDER BY id"
+        "order_by": "ORDER BY id",
+        "instruction": "Дан вопрос об аудите. Необходимо найти абзац текста с описанием аудита.",
     },
     "violations": {
         "schema": "oarb",
@@ -48,7 +50,8 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
         "pk_column": "id",
         "where_clause": "WHERE v.description IS NOT NULL",
         "order_by": "ORDER BY v.id",
-        "join_clause": "JOIN oarb.audits a ON v.audit_id = a.id"
+        "join_clause": "JOIN oarb.audits a ON v.audit_id = a.id",
+        "instruction": "Дан вопрос о нарушении. Необходимо найти абзац текста с описанием нарушения.",
     },
     "books": {
         "schema": "Lib",
@@ -58,7 +61,8 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
         "metadata_fields": ["id", "title", "isbn", "publication_date", "author_id"],
         "pk_column": "id",
         "where_clause": "WHERE title IS NOT NULL",
-        "order_by": "ORDER BY title"
+        "order_by": "ORDER BY title",
+        "instruction": "Дан вопрос о книге. Необходимо найти абзац текста с названием или описанием книги.",
     }
 }
 
@@ -66,18 +70,22 @@ SOURCE_CONFIG: Dict[str, Dict[str, Any]] = {
 class FAISSConfig(BaseModel):
     """
     Конфигурация FAISS индекса.
-    
+
     Attributes:
         index_type: Тип индекса (Flat/IVF/HNSW)
         nlist: Количество кластеров (для IVF)
         nprobe: Количество кластеров для поиска (для IVF)
         metric: Метрика расстояния (L2/IP)
+        hnsw_ef_construction: Качество построения (для HNSW, больше = точнее, медленнее)
+        hnsw_ef_search: Качество поиска (для HNSW, больше = точнее, медленнее)
     """
     index_type: Literal["Flat", "IVF", "HNSW"] = "Flat"
     nlist: int = Field(default=100, ge=1)
     nprobe: int = Field(default=10, ge=1)
     metric: Literal["L2", "IP"] = "IP"  # Inner Product для косинусного
-    
+    hnsw_ef_construction: int = Field(default=40, ge=1, le=500)
+    hnsw_ef_search: int = Field(default=16, ge=1, le=500)
+
     @field_validator('nprobe')
     @classmethod
     def validate_nprobe(cls, v, info):

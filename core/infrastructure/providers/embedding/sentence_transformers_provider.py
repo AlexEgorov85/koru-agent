@@ -105,20 +105,21 @@ class SentenceTransformersProvider(IEmbeddingProvider):
                 f"Онлайн загрузка отключена."
             )
     
-    async def generate(self, texts: List[str], apply_instruction: bool = True) -> List[List[float]]:
+    async def generate(self, texts: List[str], apply_instruction: bool = True, instruction: Optional[str] = None) -> List[List[float]]:
         """Генерация эмбеддингов для текстов.
-        
+
         Args:
             texts: Список текстов
             apply_instruction: Ignored for SentenceTransformers (for interface compatibility)
+            instruction: Ignored for SentenceTransformers (for interface compatibility)
         """
-        
+
         if not self.model:
             await self.initialize()
-        
+
         if not texts:
             return []
-        
+
         # Генерация батчами
         embeddings = self.model.encode(
             texts,
@@ -126,15 +127,16 @@ class SentenceTransformersProvider(IEmbeddingProvider):
             show_progress_bar=False,
             convert_to_numpy=True
         )
-        
+
         return embeddings.tolist()
-    
-    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
+
+    async def generate_single(self, text: str, apply_instruction: bool = True, instruction: Optional[str] = None) -> List[float]:
         """Генерация эмбеддинга для одного текста.
-        
+
         Args:
             text: Текст
             apply_instruction: Ignored for SentenceTransformers
+            instruction: Ignored for SentenceTransformers
         """
         embeddings = await self.generate([text], apply_instruction=False)
         return embeddings[0] if embeddings else []
