@@ -25,6 +25,7 @@ from core.agent.phases.observation_phase import ObservationPhase
 from core.agent.phases.context_update_phase import ContextUpdatePhase
 from core.agent.phases.final_answer_phase import FinalAnswerPhase
 from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
+from core.agent.phases.validation_phase import ValidationPhase
 
 from core.agent.behaviors.services import FallbackStrategyService
 
@@ -34,7 +35,7 @@ from core.config.agent_config import AgentConfig
 
 class AgentComponents:
     """Контейнер для всех созданных компонентов агента."""
-
+    
     def __init__(
         self,
         executor: ActionExecutor,
@@ -51,6 +52,7 @@ class AgentComponents:
         context_update_phase: ContextUpdatePhase,
         final_answer_phase: FinalAnswerPhase,
         error_recovery_phase: ErrorRecoveryPhase,
+        validation_phase: ValidationPhase,
         sql_diagnostic: Optional[SQLDiagnosticService] = None,
     ):
         self.executor = executor
@@ -67,6 +69,7 @@ class AgentComponents:
         self.context_update_phase = context_update_phase
         self.final_answer_phase = final_answer_phase
         self.error_recovery_phase = error_recovery_phase
+        self.validation_phase = validation_phase
         self.sql_diagnostic = sql_diagnostic
 
 
@@ -163,7 +166,12 @@ class AgentFactory:
             event_bus=event_bus,
             error_recovery_handler=error_recovery_phase,
         )
-
+        
+        validation_phase = ValidationPhase(
+            log=log,
+            event_bus=event_bus,
+        )
+        
         final_answer_phase = FinalAnswerPhase(
             application_context=application_context,
             executor=executor,
@@ -187,5 +195,6 @@ class AgentFactory:
             context_update_phase=context_update_phase,
             final_answer_phase=final_answer_phase,
             error_recovery_phase=error_recovery_phase,
+            validation_phase=validation_phase,
             sql_diagnostic=sql_diagnostic,
         )

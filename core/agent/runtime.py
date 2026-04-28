@@ -39,6 +39,7 @@ from core.agent.phases.observation_phase import ObservationPhase
 from core.agent.phases.context_update_phase import ContextUpdatePhase
 from core.agent.phases.final_answer_phase import FinalAnswerPhase
 from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
+from core.agent.phases.validation_phase import ValidationPhase
 from core.agent.agent_factory import AgentFactory
 
 
@@ -101,6 +102,7 @@ class AgentRuntime:
         self.context_update_phase = components.context_update_phase
         self.final_answer_phase = components.final_answer_phase
         self.error_recovery_phase = components.error_recovery_phase
+        self.validation_phase = components.validation_phase
 
         self._pattern = None
 
@@ -484,6 +486,64 @@ class AgentRuntime:
                     )
                     executed_steps += 1
                     continue
+
+                # Валидация инструмента и параметров через ValidationPhase
+                action_name = decision.action or ""
+                
+                if available_caps:
+                    is_valid, validation_result = self.validation_phase.validate_action(
+                        action_name=action_name,
+                        parameters=decision.parameters or {},
+                        available_capabilities=available_caps,
+                    )
+                    
+                    if not is_valid and validation_result:
+                        # Валидация не прошла — блокируем и отправляем ошибку LLM
+                        error_msg = validation_result.data.get("message", "Ошибка валидации") if validation_result.data else "Ошибка валидации"
+                        
+                        self.log.warning(
+                            f"⚠️ {error_msg}",
+                            extra={"event_type": EventType.WARNING},
+                        )
+                        
+                        # Регистрируем ошибку в состоянии
+                        self.session_context.agent_state.add_step(
+                            action_name=action_name,
+                            status="validation_failed",
+                            parameters=decision.parameters or {},
+                            observation={"status": "error", "message": error_msg}
+                        )
+                        
+                        # Создаём результат ошибки
+                        result = ExecutionResult(
+                            status=ExecutionStatus.FAILED,
+                            error=ValueError(error_msg),
+                            data=validation_result.data,
+                        )
+                        
+                        # observation_phase — чтобы LLM увидел ошибку
+                        observation = await self.observation_phase.analyze(
+                            result=result,
+                            decision_action=action_name,
+                            decision_parameters=decision.parameters or {},
+                            session_context=self.session_context,
+                            step_number=step + 1,
+                        )
+                        
+                        # Сохраняем ошибку в контекст
+                        await self.context_update_phase.save_and_register(
+                            result=result,
+                            observation=observation,
+                            decision_action=action_name,
+                            decision_parameters=decision.parameters or {},
+                            session_context=self.session_context,
+                            executed_steps=executed_steps,
+                            decision_reasoning=f"Ошибка: {error_msg}",
+                            error_recovery_handler=self.error_recovery_phase,
+                        )
+                        
+                        executed_steps += 1
+                        continue
 
                 # Выполнение действия - ДЕЛЕГИРОВАНО STEP
                 result = await self.execution_phase.execute(
