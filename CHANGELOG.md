@@ -1,6 +1,16 @@
 # CHANGELOG
 
-## [5.43.1] - 2026-04-27
+## [5.45.0] - 2026-04-28
+
+### Added
+- Add ValidationPhase for pre-execution action validation
+- Add repeated tool detection to prevent agent loops
+- Improve FAISS provider with HNSW support and better index management
+- Add instruction support to embedding providers
+- Update vector configuration with per-table instructions
+
+### Changed
+- Update version to 5.45.0
 
 ### Fixed
 - Исправлена ошибка db_providers и JSON сериализация в indexer
