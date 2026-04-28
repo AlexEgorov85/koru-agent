@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.44.0"
+__version__ = "5.45.0"
 
 # Компоненты версии
 VERSION_MAJOR = 5
-VERSION_MINOR = 44
+VERSION_MINOR = 45
 VERSION_PATCH = 0
 
 # Метаданные
-VERSION_CODENAME = "GigaChat Support + Final Answer Fix"
-VERSION_RELEASE_DATE = "2026-04-27"
+VERSION_CODENAME = "Validation Phase + Vector Improvements"
+VERSION_RELEASE_DATE = "2026-04-28"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"
