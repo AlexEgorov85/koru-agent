@@ -72,7 +72,7 @@ class ContextUpdatePhase:
         
         # Handle empty SQL results
         if result.data in (None, {}, [], "") and error_recovery_handler:
-            await error_recovery_handler.handle_empty_sql_result(
+            await self.handle_empty_sql_result(
                 decision_action=decision_action,
                 decision_parameters=decision_parameters,
                 session_context=session_context,
@@ -397,8 +397,9 @@ class ContextUpdatePhase:
             }
         
         # Register step (data stored in data_context, step contains only references)
+        # Используем executed_steps + 1 для синхронизации с observation_phase
         session_context.register_step(
-            step_number=executed_steps,
+            step_number=executed_steps + 1,
             capability_name=decision_action or "unknown",
             skill_name=(decision_action or "unknown").split(".")[0],
             action_item_id="",

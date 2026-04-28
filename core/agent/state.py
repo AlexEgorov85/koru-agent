@@ -66,6 +66,8 @@ class AgentState:
     # CONSECUTIVE метрики (приватные)
     _consecutive_empty_results: int = field(default=0, repr=False)
     _consecutive_repeated_actions: int = field(default=0, repr=False)
+    _last_tool_name: Optional[str] = field(default=None, repr=False)  # Имя инструмента (без параметров)
+    _consecutive_repeated_tool: int = field(default=0, repr=False)  # Счётчик повторов одного инструмента
 
     _last_action: Optional[str] = field(default=None, repr=False)
     _last_action_signature: Optional[str] = field(default=None, repr=False)
@@ -158,14 +160,23 @@ class AgentState:
         action_signature = self.build_action_signature(
             action_name=action_name, parameters=parameters
         )
-
+        
+        # Проверка повтора полной сигнатуры (действие + параметры)
         if self._last_action_signature == action_signature:
             self._consecutive_repeated_actions += 1
         else:
             self._consecutive_repeated_actions = 0
-
+        
+        # Проверка повтора инструмента (независимо от параметров)
+        tool_name = action_name.split('.')[0] if '.' in action_name else action_name
+        if self._last_tool_name == tool_name:
+            self._consecutive_repeated_tool += 1
+        else:
+            self._consecutive_repeated_tool = 0
+        
         self._last_action = action_name
         self._last_action_signature = action_signature
+        self._last_tool_name = tool_name
         self._last_observation = observation
 
         self._history.append(

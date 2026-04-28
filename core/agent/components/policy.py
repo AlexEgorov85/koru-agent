@@ -57,6 +57,7 @@ class AgentPolicy:
         max_no_progress_steps: int = 5,
         # Проверки
         max_repeated_actions: int = 3,
+        max_repeated_tool_calls: int = 3,  # Новое: блокировка повторов одного инструмента (независимо от параметров)
         max_empty_results: int = 3,
         # Retry
         retry_max_attempts: int = 4,
@@ -125,6 +126,10 @@ class AgentPolicy:
         if self._check_repeat_action(action_name, metrics, parameters):
             violations.append(f"repeat_action:{action_name}")
         
+        # Проверка на повторные вызовы одного инструмента (независимо от параметров)
+        if self._check_repeated_tool(action_name, metrics):
+            violations.append(f"repeated_tool:{action_name.split('.')[0]}")
+
         # Проверка на empty loop
         if self._check_empty_loop(metrics):
             violations.append("empty_loop")
@@ -152,24 +157,49 @@ class AgentPolicy:
     ) -> bool:
         """
         Проверка: не является ли действие повтором (с учётом параметров).
-
+        
         ПАРАМЕТРЫ:
         - action_name: имя действия
         - metrics: объект AgentMetrics
         - parameters: параметры действия
-
+        
         ВОЗВРАЩАЕТ:
         - True если действие повторяется слишком часто
         """
         if not hasattr(metrics, 'check_repeated_action'):
             return False
-
+        
         is_repeat = metrics.check_repeated_action(action_name, parameters)
-
+        
         if is_repeat and hasattr(metrics, 'repeated_actions_count'):
             return metrics.repeated_actions_count >= self.max_repeated_actions
-
+        
         return False
+    
+    def _check_repeated_tool(
+        self,
+        action_name: str,
+        metrics: Any,
+    ) -> bool:
+        """
+        Проверка: не зациклился ли агент на одном инструменте (независимо от параметров).
+        
+        ЛОГИКА:
+        - Сравниваем только имя инструмента (до точки)
+        - Если один и тот же инструмент вызывается подряд слишком часто — блокируем
+        
+        ПАРАМЕТРЫ:
+        - action_name: имя действия (например, check_result.generate_script)
+        - metrics: объект AgentMetrics
+        
+        ВОЗВРАЩАЕТ:
+        - True если инструмент повторяется слишком часто
+        """
+        if not hasattr(metrics, 'consecutive_repeated_tool'):
+            return False
+        
+        tool_name = action_name.split('.')[0] if '.' in action_name else action_name
+        return metrics.consecutive_repeated_tool >= self.max_repeated_tool_calls
     
     def _check_empty_loop(self, metrics: Any) -> bool:
         """
