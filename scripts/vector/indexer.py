@@ -41,8 +41,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from core.config import get_config
-from core.config.vector_config import SOURCE_CONFIG
+from core.config.vector_config import SOURCE_CONFIG, ChunkingConfig
 from core.models.types.vector_types import RowMetadata
+from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
 
 # Маппинг скиллов -> требуемые векторные источники
 SKILL_SOURCES = {
@@ -176,96 +177,124 @@ async def save_index(provider, vs_config, source: str) -> Path:
 # ===========================================================================
 
 async def index_source(source: str, embedding, faiss_provider, vs_config, db_conn) -> int:
-    """Динамическая индексация источника на основе SOURCE_CONFIG с прогрессом и обработкой ошибок."""
+    """Динамическая индексация источника на основе SOURCE_CONFIG с chunking и прогрессом."""
     if source not in SOURCE_CONFIG:
         raise ValueError(f"Неизвестный источник: {source}. Доступные: {list(SOURCE_CONFIG.keys())}")
-    
+
     cfg = SOURCE_CONFIG[source]
     logger.info(f"\n{'='*60}\n📦 ИНДЕКСАЦИЯ: {source.upper()}\n{'='*60}")
-    
+
+    # Инициализация chunking стратегии
+    chunking_cfg = vs_config.chunking
+    chunking = TextChunkingStrategy(
+        chunk_size=chunking_cfg.chunk_size,
+        chunk_overlap=chunking_cfg.chunk_overlap,
+        min_chunk_size=chunking_cfg.min_chunk_size,
+    )
+
     # Формируем SQL динамически
     join = cfg.get("join_clause", "")
     where = cfg.get("where_clause", "")
     order = cfg.get("order_by", "")
     table_ref = f"{cfg['schema']}.{cfg['table']}"
-    
+
     sql = f"SELECT {cfg['select_cols']} FROM {table_ref} {join} {where} {order}"
-    
+
     cursor = db_conn.cursor()
     cursor.execute(sql)
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description] if cursor.description else cfg["metadata_fields"]
     cursor.close()
-    
+
     total_rows = len(rows)
     logger.info(f"🔍 Найдено записей: {total_rows}")
-    
+    logger.info(f"📐 Chunking: size={chunking_cfg.chunk_size}, overlap={chunking_cfg.chunk_overlap}, min_size={chunking_cfg.min_chunk_size}")
+
     if total_rows == 0:
         logger.warning("⚠️ Нет данных для индексации. Пропускаю.")
         return 0
-    
+
     vectors, metadata_list = [], []
     processed = 0
     skipped = 0
-    
+    total_chunks_all = 0
+
     for idx, row in enumerate(rows):
         try:
             row_dict = dict(zip(col_names, row))
-            
+
             # Формируем поисковый текст только из непустых полей
             search_text = " ".join(str(row_dict.get(f, "")).strip() for f in cfg["text_fields"] if row_dict.get(f))
-            
+
             if not search_text:
                 skipped += 1
                 continue
-            
-            vector = await embedding.generate_single(search_text)
-            
-            meta = RowMetadata(
-                source=source,
-                table=table_ref,
-                primary_key=cfg["pk_column"],
-                pk_value=row_dict[cfg["pk_column"]],
-                row=row_dict,
-                chunk_index=0,
-                total_chunks=1,
-                search_text=search_text,
-                content=search_text,
-            )
-            
-            # ✅ КРИТИЧЕСКИ ВАЖНО: model_dump() возвращает словарь с данными, а не список ключей
-            meta_dict = meta.model_dump()
-            
-            # Отладочный вывод первой записи для проверки
-            if len(vectors) == 0:
-                logger.info(f"💡 Пример метаданных (первая запись):")
-                sample_keys = list(meta_dict.keys())[:5]
-                logger.info(f"   Ключи: {sample_keys}")
-                # Проверяем, что значения не пустые
-                first_val = meta_dict.get('row', {})
-                if isinstance(first_val, dict) and first_val:
-                    logger.info(f"   Пример данных в row: {list(first_val.values())[:3]}")
-            
-            vectors.append(vector)
-            metadata_list.append(meta_dict)
-            processed += 1
-            
+
+            # Разбиваем текст на чанки
+            document_id = f"{source}_{row_dict[cfg['pk_column']]}"
+            chunks = await chunking.split(search_text, document_id=document_id)
+
+            if not chunks:
+                # Если chunking вернул пусто — индексируем всю строку как один чанк
+                chunks = [type('Chunk', (), {'content': search_text, 'index': 0})()]
+
+            total_chunks = len(chunks)
+
+            # Получаем инструкцию для источника (если задана)
+            source_instruction = cfg.get("instruction")
+
+            for chunk in chunks:
+                chunk_text = chunk.content
+                vector = await embedding.generate_single(chunk_text, instruction=source_instruction)
+
+                meta = RowMetadata(
+                    source=source,
+                    table=table_ref,
+                    primary_key=cfg["pk_column"],
+                    pk_value=row_dict[cfg["pk_column"]],
+                    row=row_dict,  # ВСЯ строка целиком для каждого чанка
+                    chunk_index=chunk.index,
+                    total_chunks=total_chunks,
+                    search_text=chunk_text,
+                    content=chunk_text,
+                )
+
+                # ✅ КРИТИЧЕСКИ ВАЖНО: model_dump() возвращает словарь с данными, а не список ключей
+                meta_dict = meta.model_dump()
+
+                # Отладочный вывод первой записи для проверки
+                if len(vectors) == 0:
+                    logger.info(f"💡 Пример метаданных (первая запись):")
+                    sample_keys = list(meta_dict.keys())[:5]
+                    logger.info(f"   Ключи: {sample_keys}")
+                    # Проверяем, что значения не пустые
+                    first_val = meta_dict.get('row', {})
+                    if isinstance(first_val, dict) and first_val:
+                        logger.info(f"   Пример данных в row: {list(first_val.values())[:3]}")
+                    logger.info(f"   chunk_index={meta_dict.get('chunk_index')}, total_chunks={meta_dict.get('total_chunks')}")
+
+                vectors.append(vector)
+                metadata_list.append(meta_dict)
+                processed += 1
+
+            total_chunks_all += total_chunks
+
             # Прогресс каждые 100 строк
             if (idx + 1) % 100 == 0 or (idx + 1) == total_rows:
-                logger.info(f"   📝 Обработано: {idx + 1}/{total_rows} (векторов: {processed}, пропущено: {skipped})")
-                
+                logger.info(f"   📝 Обработано: {idx + 1}/{total_rows} (векторов: {processed}, пропущено: {skipped}, чанков: {total_chunks_all})")
+
         except Exception as e:
             logger.error(f"   ❌ Ошибка при обработке строки {idx}: {e}")
             skipped += 1
             continue
-    
+
     if vectors:
         await faiss_provider.add(vectors, metadata_list)
         await save_index(faiss_provider, vs_config, source)
-        logger.info(f"✅ Индексация завершена: {processed} векторов, пропущено: {skipped}")
+        logger.info(f"✅ Индексация завершена: {processed} векторов ({total_chunks_all} чанков), пропущено: {skipped}")
     else:
         logger.warning("⚠️ Не удалось создать валидные векторы. Индекс не сохранён.")
-    
+
     return processed
 
 

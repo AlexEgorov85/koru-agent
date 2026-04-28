@@ -106,6 +106,22 @@ def smart_format_observation(
                     lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False)}")
             if row_count_dict > 3:
                 lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+    elif isinstance(result_data, dict) and "results" in result_data:
+        # Обработка результатов векторного поиска
+        results_count = len(result_data.get("results", []))
+        if results_count > 0:
+            lines.append(f"📊 Найдено: {results_count} результатов")
+            query = result_data.get("query", "")
+            if query:
+                lines.append(f"🔍 Запрос: {query[:100]}")
+            sample = result_data["results"][:3]
+            for i, r in enumerate(sample):
+                if isinstance(r, dict):
+                    score = r.get('score', 0)
+                    text = r.get('matched_text', r.get('content', str(r)))[:80]
+                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+            if results_count > 3:
+                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
     elif isinstance(result_data, str) and result_data:
         lines.append(result_data[:100])
     else:
