@@ -39,79 +39,111 @@ def smart_format_observation(
 ) -> str:
     """
     Интеллектуальное форматирование для быстрого просмотра.
-
+    
     ПРАВИЛА:
     - Данные до 5 строк или 500 символов → показать всё
     - Большие данные → статистика + пример (3 строки или 100 символов)
     """
     if result_data is None:
         return "Данные отсутствуют"
-
-    data_type = type(result_data).__name__
-
-    if isinstance(result_data, list):
-        row_count = len(result_data)
+    
+    # Конвертируем Pydantic модели в dict для единообразной обработки
+    data_for_check = result_data
+    if hasattr(result_data, 'model_dump'):
+        try:
+            data_for_check = result_data.model_dump()
+        except Exception:
+            pass
+    elif hasattr(result_data, '__dict__') and not isinstance(result_data, dict):
+        data_for_check = result_data.__dict__
+    
+    data_type = type(data_for_check).__name__
+    
+    if isinstance(data_for_check, list):
+        row_count = len(data_for_check)
         sample_count = min(3, row_count)
     else:
         row_count = 0
         sample_count = 0
-
-    if hasattr(result_data, 'rows'):
-        row_count = len(getattr(result_data, 'rows', [])) or row_count
-
+    
+    if hasattr(data_for_check, 'rows'):
+        row_count = len(getattr(data_for_check, 'rows', [])) or row_count
+    
     try:
-        if hasattr(result_data, 'model_dump'):
-            data_dict = result_data.model_dump()
-        elif hasattr(result_data, '__dict__'):
-            data_dict = result_data.__dict__
-        elif isinstance(result_data, dict):
-            data_dict = result_data
+        if isinstance(data_for_check, dict):
+            data_str = json.dumps(data_for_check, ensure_ascii=False, default=str)
         else:
-            data_dict = None
-
-        if data_dict:
-            data_str = json.dumps(data_dict, ensure_ascii=False, default=str)
-        else:
-            data_str = str(result_data)
+            data_str = str(data_for_check)
     except:
-        data_str = str(result_data)
-
+        data_str = str(data_for_check)
+    
     char_count = len(data_str)
-
+    
     MAX_ROWS = 5
     MAX_CHARS = 500
-
+    
     if row_count <= MAX_ROWS and char_count <= MAX_CHARS:
         return format_observation(result_data, capability_name, parameters)
-
+    
     lines = []
-
     rows_data = []
-
-    if isinstance(result_data, list) and result_data:
-        rows_data = result_data[:sample_count]
-    elif hasattr(result_data, 'rows') and result_data.rows:
-        rows_data = list(result_data.rows)[:sample_count]
-    elif isinstance(result_data, dict) and "rows" in result_data:
-        row_count_dict = len(result_data.get("rows", []))
+    
+    # СНАЧАЛА проверяем специальные случаи для списков
+    if isinstance(data_for_check, list) and data_for_check:
+        # Векторный поиск (есть 'score')
+        if any(("score" in r if isinstance(r, dict) else hasattr(r, 'score')) for r in data_for_check):
+            results_count = len(data_for_check)
+            if results_count > 0:
+                lines.append(f"📊 Найдено: {results_count} результатов")
+                sample = data_for_check[:3]
+                for i, r in enumerate(sample):
+                    if isinstance(r, dict):
+                        score = r.get('score', 0)
+                        text = r.get('matched_text', r.get('content', str(r)))[:80]
+                    else:
+                        score = getattr(r, 'score', 0)
+                        text = getattr(r, 'matched_text', getattr(r, 'content', str(r)))[:80]
+                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+                if results_count > 3:
+                    lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+        # Результаты check_result.vector_search (есть 'type'='violations')
+        elif any("type" in r and r.get("type") == "violations" for r in data_for_check if isinstance(r, dict)):
+            results_count = len(data_for_check)
+            lines.append(f"📊 Найдено: {results_count} нарушений")
+            sample = data_for_check[:3]
+            for i, r in enumerate(sample):
+                if isinstance(r, dict):
+                    score = r.get('score', 0)
+                    text = r.get('matched_text', r.get('description', str(r)))[:80]
+                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+            if results_count > 3:
+                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+        else:
+            # Обычный список
+            rows_data = data_for_check[:sample_count]
+    
+    elif hasattr(data_for_check, 'rows') and data_for_check.rows:
+        rows_data = list(data_for_check.rows)[:sample_count]
+    elif isinstance(data_for_check, dict) and "rows" in data_for_check:
+        row_count_dict = len(data_for_check.get("rows", []))
         if row_count_dict > 0:
             lines.append(f"📊 Получено {row_count_dict} строк")
-            columns = result_data.get("columns", [])
+            columns = data_for_check.get("columns", [])
             if columns:
                 lines.append(f"📐 Колонки: {', '.join(str(c) for c in columns[:10])}")
-            sample = result_data["rows"][:3]
+            sample = data_for_check["rows"][:3]
             for i, row in enumerate(sample):
                 if isinstance(row, dict):
                     preview = {k: row[k] for k in list(row.keys())[:5]}
                     lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False)}")
             if row_count_dict > 3:
                 lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-    elif isinstance(result_data, list) and result_data and any("score" in r for r in result_data if isinstance(r, dict)):
+    elif isinstance(data_for_check, list) and data_for_check and any("score" in r for r in data_for_check if isinstance(r, dict)):
         # Обработка результатов векторного поиска (новый формат — список)
-        results_count = len(result_data)
+        results_count = len(data_for_check)
         if results_count > 0:
             lines.append(f"📊 Найдено: {results_count} результатов")
-            sample = result_data[:3]
+            sample = data_for_check[:3]
             for i, r in enumerate(sample):
                 if isinstance(r, dict):
                     score = r.get('score', 0)
@@ -119,6 +151,22 @@ def smart_format_observation(
                     lines.append(f"  [{i+1}] ({score:.2f}) {text}")
             if results_count > 3:
                 lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+    elif isinstance(data_for_check, list) and data_for_check and _check_violations_list(data_for_check):
+        # Обработка результатов check_result.vector_search (список с type="violations")
+        results_count = len(data_for_check)
+        lines.append(f"📊 Найдено: {results_count} нарушений")
+        sample = data_for_check[:3]
+        for i, r in enumerate(sample):
+            # Поддержка и dict, и Pydantic моделей
+            if isinstance(r, dict):
+                score = r.get('score', 0)
+                text = r.get('matched_text', r.get('description', str(r)))[:80]
+            else:
+                score = getattr(r, 'score', 0)
+                text = getattr(r, 'matched_text', getattr(r, 'description', str(r)))[:80]
+            lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+        if results_count > 3:
+            lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
     elif isinstance(result_data, str) and result_data:
         lines.append(result_data[:100])
     else:
@@ -136,6 +184,22 @@ def smart_format_observation(
                 lines.append(f"[{i}] {str(row)}")
 
     return "\n".join(lines)
+
+
+def _check_violations_list(data: list) -> bool:
+    """
+    Проверяет, является ли список результатами нарушений (violations).
+    Поддерживает и dict, и Pydantic модели.
+    """
+    for r in data:
+        if isinstance(r, dict):
+            if r.get("type") == "violations":
+                return True
+        else:
+            # Pydantic модель или объект
+            if getattr(r, 'type', None) == "violations":
+                return True
+    return False
 
 
 def _format_dict_observation(

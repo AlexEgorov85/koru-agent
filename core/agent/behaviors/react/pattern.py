@@ -395,6 +395,15 @@ class ReActPattern(BaseBehaviorPattern):
                 parameters = getattr(decision, "parameters", {}) if decision else {}
 
         if stop_condition:
+            # КРИТИЧНО: проверяем, есть ли большие результаты, требующие анализа
+            if self._should_continue_for_analysis(reasoning_result):
+                return Decision(
+                    type=DecisionType.ACT,
+                    action="data_analysis.analyze_step_data",
+                    parameters={},
+                    reasoning="Собрано много данных, требуется анализ перед остановкой",
+                    is_final=False,
+                )
             return self._handle_stop_condition(capability_name, parameters, stop_reason)
 
         if not capability_name:
@@ -448,6 +457,36 @@ class ReActPattern(BaseBehaviorPattern):
             reasoning=reasoning,
             is_final=capability_name == "final_answer.generate",
         )
+
+    def _should_continue_for_analysis(self, reasoning_result: Any) -> bool:
+        """
+        Проверить, нужно ли продолжить для анализа больших данных.
+        
+        ПРАВИЛО: Если в последнем наблюдении много данных, не останавливаемся,
+        а запускаем data_analysis для анализа.
+        """
+        # Проверяем observation из результата LLM
+        observation = None
+        if isinstance(reasoning_result, dict):
+            observation = reasoning_result.get("last_observation") or reasoning_result.get("observation")
+        else:
+            observation = getattr(reasoning_result, "last_observation", None) or getattr(reasoning_result, "observation", None)
+        
+        if observation:
+            obs_str = str(observation).lower()
+            # Ищем признаки больших данных в наблюдении
+            if "found" in obs_str and any(word in obs_str for word in ["results", "rows", "items"]):
+                # Извлекаем число
+                import re
+                numbers = re.findall(r'(\d+)\s*(?:results|rows|items)', obs_str)
+                for num_str in numbers:
+                    try:
+                        if int(num_str) > 10:
+                            return True
+                    except ValueError:
+                        pass
+        
+        return False
 
     def _handle_stop_condition(
         self, capability_name: str, parameters: Dict[str, Any], stop_reason: str

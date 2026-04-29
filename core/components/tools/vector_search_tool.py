@@ -21,9 +21,9 @@ class VectorSearchDefaults:
     """Константы для типичных сценариев поиска."""
     TOP_K_DEFAULT = 10
     TOP_K_ALL = None
-    MIN_SCORE_DEFAULT = 0.5
-    MIN_SCORE_LENIENT = 0.3
-    MIN_SCORE_STRICT = 0.7
+    MIN_SCORE_DEFAULT = 0.75
+    MIN_SCORE_LENIENT = 0.6
+    MIN_SCORE_STRICT = 0.85
 
 from typing import Optional, Dict, Any, List
 from core.components.tools.tool import Tool
@@ -199,7 +199,7 @@ class VectorSearchTool(Tool):
         if operation == "search":
             query = params_dict.get('query', '')
             top_k = params_dict.get('top_k')
-            min_score = params_dict.get('min_score', 0.5)
+            min_score = params_dict.get('min_score', 0.7)
             source = params_dict.get('source', 'books')
             self._log_debug(f"VectorSearchTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=EventType.DEBUG)
 
@@ -235,7 +235,7 @@ class VectorSearchTool(Tool):
         self,
         query: str,
         top_k: Optional[int] = None,
-        min_score: float = 0.5,
+        min_score: float = 0.7,
         filters: Optional[Dict[str, Any]] = None,
         source: str = "books"
     ) -> Dict[str, Any]:

@@ -51,6 +51,10 @@ class VectorSearchHandler(SkillHandler):
         min_score = getattr(params, 'min_score', VectorSearchDefaults.MIN_SCORE_DEFAULT)
         if min_score is None:
             min_score = VectorSearchDefaults.MIN_SCORE_DEFAULT
+        
+        # КРИТИЧНО: если LLM не указал min_score, используем более строгое значение для релевантности
+        if min_score < 0.6:
+            min_score = 0.75
 
         limit_str = f"top_k={top_k}" if top_k is not None else "без лимита"
         await self.log_info(f"Запуск векторного поиска: '{query[:80]}...' ({limit_str}, min_score={min_score})")
