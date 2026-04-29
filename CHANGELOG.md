@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [5.46.0] - 2026-04-28
+
+### Changed
+- Update version to 5.46.0
+
 ## [5.45.0] - 2026-04-28
 
 ### Added

@@ -358,6 +358,16 @@ if session_context.needs_exploration(threshold=2):
 
 ---
 
+## File Modification Rules
+
+| File | Rule | Why |
+|------|------|-----|
+| `.gitignore` | **ЗАПРЕЩЕНО ИЗМЕНЯТЬ** | Критический файл игнорирования Git. Изменение может привести к коммиту мусора или потере важных файлов. |
+| `core/config/defaults/*.yaml` | Только инфраструктурные параметры | Конфигурация ресурсов (LLM, DB), не поведения |
+| `data/prompts/**/*.yaml` | Только промпты и контракты | Поведение агента, версионируется отдельно |
+
+---
+
 ## Error Handling
 
 - Custom exceptions inherit from `AgentBaseError`
@@ -398,7 +408,7 @@ Agent_v5/
 │   ├── application_context/    # ApplicationContext (isolated per agent)
 │   ├── config/
 │   │   ├── defaults/           # InfraConfig ONLY (dev.yaml, prod.yaml)
-│   │   └── version.py          # Version info (5.45.0)
+│   │   └── version.py          # Version info (5.46.0)
 │   ├── errors/                 # Exceptions + ErrorHandler
 │   ├── infrastructure/         # Providers, EventBus, logging, storage
 │   ├── models/                 # Data models and enums
@@ -458,7 +468,7 @@ Agent_v5/
 | `docs/architecture/ideal.md` | Target architecture blueprint and maturity checklist |
 | `core/agent/agent_factory.py` | Factory for component initialization |
 | `core/agent/runtime.py` | Thin orchestrator (loop only) |
-| `core/version.py` | Version info (5.45.0) |
+| `core/version.py` | Version info (5.46.0) |
 | `core/agent/components/base_component.py` | Base class for all components |
 | `core/agent/components/action_executor.py` | Component interaction gateway |
 | `core/infrastructure/logging/session.py` | `LoggingSession` — ядро файлового логирования |

@@ -42,7 +42,7 @@ class MockFAISSProvider(IFAISSProvider):
     async def search(
         self,
         query_vector: List[float],
-        top_k: int = 10,
+        top_k: Optional[int] = None,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Поиск (возвращает псевдо-результаты)."""
@@ -65,7 +65,8 @@ class MockFAISSProvider(IFAISSProvider):
         # Сортируем по score
         results.sort(key=lambda x: x["score"], reverse=True)
         
-        return results[:top_k]
+        # Если top_k=None — возвращаем все результаты, иначе ограничиваем
+        return results if top_k is None else results[:top_k]
     
     def _matches_filters(self, metadata: Dict[str, Any], filters: Dict[str, Any]) -> bool:
         """Проверка фильтров."""

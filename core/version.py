@@ -8,11 +8,11 @@
 """
 
 # Основная версия
-__version__ = "5.45.0"
+__version__ = "5.46.0"
 
 # Компоненты версии
 VERSION_MAJOR = 5
-VERSION_MINOR = 45
+VERSION_MINOR = 46
 VERSION_PATCH = 0
 
 # Метаданные
