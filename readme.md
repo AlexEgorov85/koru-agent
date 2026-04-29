@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.46.0-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.46.1-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,14 +25,16 @@
 
 ---
 
-## 📊 Последние изменения (v5.46.0)
+## 📊 Последние изменения (v5.46.1)
 
-**Версия 5.46.0** (28 апреля 2026) — **Обновление версии проекта**
+**Версия 5.46.1** (29 апреля 2026) — **Исправление Observer + диагностика vector search**
 
 ### Изменения
-- ✅ Обновлена версия проекта с 5.45.0 на 5.46.0
+- ✅ Добавлена обработка Pydantic моделей в Observer
+- ✅ Добавлена диагностика пустых результатов vector search
+- ✅ Обновлена версия проекта с 5.46.0 на 5.46.1
 
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5460---2026-04-28)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5461---2026-04-29)
 
 ---
 

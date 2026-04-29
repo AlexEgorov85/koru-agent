@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [5.46.1] - 2026-04-29
+
+### Fixed
+- Добавлена обработка Pydantic моделей в Observer (model_dump/dict)
+- Добавлена диагностика пустых результатов vector search
+
+### Changed
+- Update version to 5.46.1
+
 ## [5.46.0] - 2026-04-28
 
 ### Changed

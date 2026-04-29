@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.46.0"
+__version__ = "5.46.1"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 46
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Метаданные
-VERSION_CODENAME = "Validation Phase + Vector Improvements"
-VERSION_RELEASE_DATE = "2026-04-28"
+VERSION_CODENAME = "Observer Fix + Vector Diagnostics"
+VERSION_RELEASE_DATE = "2026-04-29"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"
