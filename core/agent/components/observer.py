@@ -175,6 +175,12 @@ class Observer:
         ВОЗВРАЩАЕТ:
         - observation: структурированное наблюдение
         """
+        # Преобразуем Pydantic модели в стандартные типы Python
+        if hasattr(result, 'model_dump'):
+            result = result.model_dump()
+        elif hasattr(result, 'dict'):
+            result = result.dict()
+        
         # Определяем статус
         if error:
             return {
@@ -237,6 +243,23 @@ class Observer:
                 
                 completeness = 1.0 if count > 0 else 0.0
             else:
+                # Диагностика: почему не найдены результаты
+                if isinstance(result, list):
+                    self._log_info(
+                        f"⚠️ [Observer] Vector search вернул пустой список результатов",
+                        event_type=EventType.WARNING
+                    )
+                elif isinstance(result, dict):
+                    self._log_info(
+                        f"⚠️ [Observer] Vector search вернул словарь без 'results'. Ключи: {list(result.keys())[:10]}",
+                        event_type=EventType.WARNING
+                    )
+                else:
+                    self._log_info(
+                        f"⚠️ [Observer] Vector search вернул неожиданный тип: {type(result).__name__}",
+                        event_type=EventType.WARNING
+                    )
+                
                 observation_text = "No results found"
                 completeness = 0.0
                 key_findings.append("No results returned")
