@@ -328,9 +328,14 @@ class ContextUpdatePhase:
                     parameters=decision_parameters,
                 )
             
-            # ВСЕГДА сохраняем сырые данные в content (независимо от save_type)
-            # save_type используется только для принятия решения, но данные не теряем
-            content = result.data
+            # Сохраняем данные в content с проверкой лимитов
+            # Если данных мало (≤5 строк И длина ≤500 символов) — сохраняем полные данные
+            # Если много — сохраняем только метаданные (структура + количество), данные не попадают
+            # ИСКЛЮЧЕНИЕ: результаты data_analysis не обрезаем (это уже анализ, а не сырые данные)
+            content = self._prepare_observation_content(
+                result.data, 
+                is_data_analysis=is_data_analysis
+            )
             
             observation_item = ContextItem(
                 item_id="",
@@ -507,3 +512,50 @@ class ContextUpdatePhase:
         # Сохраняем в историю наблюдений (окно 3 шт. для промпта LLM)
         if observation:
             session_context.agent_state.push_observation(observation)
+
+    def _prepare_observation_content(self, data: Any, is_data_analysis: bool = False) -> Any:
+        """
+        Подготавливает контент для сохранения в observation.
+        
+        Правила:
+        - Если данные содержат ≤5 строк И общая длина строкового представления ≤500 символов
+          → сохраняем полные данные
+        - Иначе → сохраняем только метаданные (тип, количество, структура),
+          сами данные не попадают в контекст
+        - ИСКЛЮЧЕНИЕ: для data_analysis результаты сохраняются как есть (это уже анализ)
+        """
+        # Исключение: результаты data_analysis не обрезаем
+        if is_data_analysis:
+            return data
+        
+        # Обработка списка
+        if isinstance(data, list):
+            row_count = len(data)
+            data_str = str(data)
+            # Проверяем лимиты: ≤5 строк И ≤500 символов
+            if row_count <= 5 and len(data_str) <= 500:
+                return data
+            # Превышение лимитов — возвращаем только метаданные
+            structure = {}
+            if row_count > 0 and isinstance(data[0], dict):
+                structure = list(data[0].keys())
+            return {
+                "type": "list",
+                "count": row_count,
+                "structure": structure,
+                "note": "Data exceeds limits (5 rows / 500 chars), only metadata saved. Use data_analysis for full data.",
+            }
+
+        # Обработка словаря
+        if isinstance(data, dict):
+            data_str = str(data)
+            if len(data_str) <= 500:
+                return data
+            return {
+                "type": "dict",
+                "keys": list(data.keys()),
+                "note": "Data exceeds 500 chars limit, only metadata saved. Use data_analysis for full data.",
+            }
+
+        # Для остальных типов возвращаем как есть
+        return data
