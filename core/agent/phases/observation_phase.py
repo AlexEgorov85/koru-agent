@@ -3,10 +3,12 @@
 
 АРХИТЕКТУРА:
 - observation_phase.analyze() — единая точка входа
-- Внутри: _should_call_llm() → _run_analysis() → _register_result()
+- Внутри: _should_call_llm() → _run_analysis() (регистрация в ContextUpdatePhase)
 - Возвращает строго типизированный ObservationResult (Pydantic) - Шаг 2.3
+- Содержит логику оценки размера данных (_is_too_large, decide_save_type)
 """
 
+import json
 import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
@@ -21,7 +23,85 @@ class ObservationPhase:
     Унифицированная фаза наблюдения.
     
     Одна точка входа для анализа результата выполнения.
+    
+    ЛОГИКА СОХРАНЕНИЯ ДАННЫХ:
+    - Оценивает объём сырых данных (_is_too_large, decide_save_type)
+    - Решает: сохранять raw_data или summary
     """
+    
+    # Лимиты для оценки размера данных
+    MAX_ROWS = 5
+    MAX_JSON_BYTES = 1500
+    MAX_TEXT_CHARS = 1500
+    MAX_DICT_KEYS = 10
+    
+    @staticmethod
+    def decide_save_type(raw_data: Any, explicit_mode: str = "auto") -> str:
+        """
+        Определить тип сохранения: 'raw_data' или 'summary'.
+        
+        ARGS:
+            raw_data: данные для сохранения
+            explicit_mode: явный режим ('auto', 'full', 'summary')
+            
+        RETURNS:
+            'raw_data' если данные помещаются в пороги
+            'summary' если данные слишком большие
+        """
+        if explicit_mode == "summary":
+            return "summary"
+        
+        if explicit_mode == "full":
+            # full означает raw_data, если данные не слишком большие
+            return "raw_data" if not ObservationPhase._is_too_large(raw_data) else "summary"
+        
+        # auto mode
+        return "summary" if ObservationPhase._is_too_large(raw_data) else "raw_data"
+    
+    @staticmethod
+    def _is_too_large(data: Any) -> bool:
+        """Проверяет, превышают ли данные пороги сохранения."""
+        if isinstance(data, list):
+            if not data:
+                return True
+            if len(data) > ObservationPhase.MAX_ROWS:
+                return True
+            try:
+                return len(json.dumps(data, ensure_ascii=False)) > ObservationPhase.MAX_JSON_BYTES
+            except (TypeError, ValueError):
+                return True
+        if isinstance(data, str):
+            return len(data) > ObservationPhase.MAX_TEXT_CHARS
+        if isinstance(data, dict):
+            if len(data) > ObservationPhase.MAX_DICT_KEYS:
+                return True
+            try:
+                return len(json.dumps(data, ensure_ascii=False)) > ObservationPhase.MAX_JSON_BYTES
+            except (TypeError, ValueError):
+                return True
+        return True
+    
+    @staticmethod
+    def get_size_info(data: Any) -> dict:
+        """Возвращает информацию о размере данных."""
+        info = {"type": type(data).__name__, "too_large": ObservationPhase._is_too_large(data)}
+        
+        if isinstance(data, list):
+            info["row_count"] = len(data)
+            try:
+                info["json_size"] = len(json.dumps(data, ensure_ascii=False))
+            except (TypeError, ValueError):
+                info["json_size"] = None
+        elif isinstance(data, str):
+            info["char_count"] = len(data)
+        elif isinstance(data, dict):
+            info["key_count"] = len(data)
+            try:
+                info["json_size"] = len(json.dumps(data, ensure_ascii=False))
+            except (TypeError, ValueError):
+                info["json_size"] = None
+        
+        return info
     
     def __init__(
         self,
@@ -74,6 +154,9 @@ class ObservationPhase:
         )
         
         # Конвертируем в типизированный ObservationAnalysis (Шаг 2.3)
+        # Определяем тип сохранения на основе размера данных
+        save_type = self.decide_save_type(result.data)
+        
         observation = ObservationAnalysis(
             status=observation_dict.get('status', 'unknown'),
             quality=observation_dict.get('quality', {}) or {},
@@ -83,20 +166,13 @@ class ObservationPhase:
             timestamp=datetime.utcnow().isoformat(),
             action_name=decision_action,
             step_number=step_number,
-        )
-        
-        # Регистрируем в agent_state и metrics
-        await self._register_result(
-            observation=observation,
-            action=decision_action,
-            result=result,
-            session_context=session_context,
+            save_type=save_type,
         )
         
         # Логируем
         self.log.info(
             f"📊 Observation: status={observation.status}, "
-            f"quality={observation.quality}",
+            f"quality={observation.quality}, save_type={save_type}",
             extra={"event_type": EventType.INFO},
         )
         
@@ -158,49 +234,3 @@ class ObservationPhase:
         
         return observation
     
-    async def _register_result(
-        self,
-        observation: ObservationAnalysis,
-        action: str,
-        result: ExecutionResult,
-        session_context: Any,
-    ) -> None:
-        """Зарегистрировать в agent_state и metrics."""
-        if not session_context or not hasattr(session_context, 'agent_state'):
-            return
-        
-        agent_state = session_context.agent_state
-        
-        # Сохраняем в историю наблюдений (Шаг 2.2)
-        agent_state.push_observation(observation)
-        
-        # agent_state.add_step() + register_observation()
-        obs_status = str(observation.status).lower()
-        agent_state.add_step(
-            action_name=action,
-            status=result.status.value,
-            parameters={},
-            observation=observation.model_dump(),
-        )
-        agent_state.register_observation(observation.model_dump())
-        
-        # Metrics
-        self.metrics.add_step(
-            action_name=action,
-            status=obs_status,
-            error=None,  # ObservationAnalysis не содержит errors напрямую
-        )
-        
-        # Event
-        await self.event_bus.publish(
-            EventType.DEBUG,
-            {
-                "event": "OBSERVATION",
-                "status": obs_status,
-                "quality": observation.quality,
-                "rule_based": observation.rule_based,
-                "observer_skip_rate": self.metrics.observer_skip_rate,
-            },
-            session_id=session_context.session_id,
-            agent_id="agent",
-        )

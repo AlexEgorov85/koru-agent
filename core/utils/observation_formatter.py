@@ -106,15 +106,12 @@ def smart_format_observation(
                     lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False)}")
             if row_count_dict > 3:
                 lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-    elif isinstance(result_data, dict) and "results" in result_data:
-        # Обработка результатов векторного поиска
-        results_count = len(result_data.get("results", []))
+    elif isinstance(result_data, list) and result_data and any("score" in r for r in result_data if isinstance(r, dict)):
+        # Обработка результатов векторного поиска (новый формат — список)
+        results_count = len(result_data)
         if results_count > 0:
             lines.append(f"📊 Найдено: {results_count} результатов")
-            query = result_data.get("query", "")
-            if query:
-                lines.append(f"🔍 Запрос: {query[:100]}")
-            sample = result_data["results"][:3]
+            sample = result_data[:3]
             for i, r in enumerate(sample):
                 if isinstance(r, dict):
                     score = r.get('score', 0)
@@ -273,29 +270,48 @@ def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = N
     return table
 
 
-def _format_vector_search_observation(data: dict) -> str:
-    """Форматирует vector search результат."""
-    results = data.get("results", [])
-    query = data.get("query", "")
+def _format_vector_search_observation(data: Any) -> str:
+    """Форматирует vector search результат (поддерживает и старый dict, и новый list формат)."""
+    # Новый формат: список результатов напрямую
+    if isinstance(data, list):
+        results = data
+        if not results:
+            return "Результатов не найдено"
+        lines = [f"Найдено: {len(results)}", ""]
+        for i, r in enumerate(results[:10]):
+            if isinstance(r, dict):
+                score = r.get('score', 0)
+                text = r.get('matched_text', r.get('title', r.get('description', str(r))))[:80]
+                lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+            else:
+                lines.append(f"  [{i+1}] {r}")
+        return "\n".join(lines)
 
-    if not results:
-        return f"Запрос: {query}\nРезультатов не найдено"
+    # Старый формат: словарь с ключами results, query
+    if isinstance(data, dict):
+        results = data.get("results", [])
+        query = data.get("query", "")
 
-    lines = []
-    lines.append(f"Запрос: {query}")
-    lines.append(f"Найдено: {len(results)}")
-    lines.append("")
+        if not results:
+            return f"Запрос: {query}\nРезультатов не найдено"
 
-    for i, r in enumerate(results[:10]):
-        if hasattr(r, 'text'):
-            score = getattr(r, 'score', 0)
-            lines.append(f"[{i}] ({score:.2f}) {r.text}")
-        elif isinstance(r, dict):
-            lines.append(f"[{i}] {json.dumps(r, ensure_ascii=False, default=str)}")
-        else:
-            lines.append(f"[{i}] {r}")
+        lines = []
+        lines.append(f"Запрос: {query}")
+        lines.append(f"Найдено: {len(results)}")
+        lines.append("")
 
-    return "\n".join(lines)
+        for i, r in enumerate(results[:10]):
+            if hasattr(r, 'text'):
+                score = getattr(r, 'score',0)
+                lines.append(f"[{i}] ({score:.2f}) {r.text}")
+            elif isinstance(r, dict):
+                lines.append(f"[{i}] {json.dumps(r, ensure_ascii=False, default=str)}")
+            else:
+                lines.append(f"[{i}] {r}")
+
+        return "\n".join(lines)
+
+    return str(data)
 
 
 def _format_list_observation(data: list, capability_name: str) -> str:

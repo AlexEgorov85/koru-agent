@@ -152,46 +152,114 @@ class Observer:
                 "_rule_based": True
             }
         
-        # Успешный результат - базовая оценка качества
+        # Успешный результат - анализируем данные и формируем информативное наблюдение
         completeness = 1.0
         reliability = 0.8
+        observation_text = f"Action '{action_name}' completed successfully"
+        key_findings = []
         
-        if isinstance(result, dict):
-            data = result.get('result') or result.get('data') or result.get('rows', [])
-            if isinstance(data, list):
-                row_count = len(data)
-                if row_count == 0:
-                    completeness = 0.0
-                elif row_count < 5:
-                    completeness = 0.5
-                elif row_count > 100:
-                    completeness = 1.0
-                else:
-                    completeness = 0.8
+        # Для vector_search результатов (проверяем по имени действия или структуре данных)
+        if "vector_search" in action_name or (isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict) and "score" in result[0]):
+            results_list = []
+            if isinstance(result, list):
+                results_list = result
+            elif isinstance(result, dict) and "results" in result:
+                results_list = result.get("results", [])
+            
+            if results_list:
+                count = len(results_list)
+                query_text = ""
+                if isinstance(result, dict) and "query" in result:
+                    query_text = f" for query: {result['query'][:50]}"
+                observation_text = f"Found {count} results{query_text}"
                 
-                # Проверяем наличие warning-флагов
-                if result.get('warning') or result.get('truncated'):
-                    reliability = 0.6
-                    self._log_info(
-                        f"⚠️ [Rule-based] Result has warnings: {result.get('warning', 'N/A')}",
-                        event_type=EventType.WARNING
-                    )
-        elif isinstance(result, list):
-            if len(result) == 0:
-                completeness = 0.0
-            elif len(result) < 5:
-                completeness = 0.5
+                key_findings.append(f"Found {count} results")
+                
+                # Добавляем примеры результатов
+                for i, r in enumerate(results_list[:5]):
+                    if isinstance(r, dict):
+                        score = r.get('score', 0)
+                        text = r.get('matched_text', r.get('content', r.get('text', str(r))))[:100]
+                        key_findings.append(f"[{i+1}] (score={score:.2f}) {text}")
+                
+                if count > 5:
+                    key_findings.append(f"... and {count - 5} more results")
+                    observation_text += f". Use data_analysis.analyze_step_data to analyze all {count} results"
+                
+                completeness = 1.0 if count > 0 else 0.0
             else:
-                completeness = 0.8
+                observation_text = "No results found"
+                completeness = 0.0
+                key_findings.append("No results returned")
+        
+        # Для SQL результатов
+        elif isinstance(result, dict) and ("rows" in result or "rowcount" in result):
+            rows = result.get("rows", [])
+            row_count = len(rows) if rows else result.get("rowcount", 0)
+            
+            if row_count > 0:
+                observation_text = f"Query returned {row_count} rows"
+                key_findings.append(f"Retrieved {row_count} rows")
+                
+                # Показываем примеры строк
+                for i, row in enumerate(rows[:3]):
+                    if isinstance(row, dict):
+                        preview = {k: v for k, v in list(row.items())[:3]}
+                        key_findings.append(f"[{i+1}] {preview}")
+                
+                if row_count > 3:
+                    key_findings.append(f"... and {row_count - 3} more rows")
+                    if row_count > 10:
+                        observation_text += f". Use data_analysis.analyze_step_data for full analysis"
+                
+                completeness = 1.0 if row_count > 0 else 0.0
+            else:
+                observation_text = "Query returned no data"
+                completeness = 0.0
+                key_findings.append("Query returned empty result")
+        
+        # Для списков
+        elif isinstance(result, list):
+            count = len(result)
+            if count > 0:
+                observation_text = f"Received list with {count} items"
+                key_findings.append(f"List contains {count} items")
+                
+                if count > 3:
+                    key_findings.append(f"... and {count - 3} more items")
+                    observation_text += f". Use data_analysis.analyze_step_data for full analysis"
+                
+                completeness = 0.8 if count < 5 else 1.0
+            else:
+                observation_text = "Received empty list"
+                completeness = 0.0
+                key_findings.append("Empty list returned")
+        
+        # Для словарей
+        elif isinstance(result, dict):
+            key_count = len(result)
+            observation_text = f"Received dict with {key_count} keys"
+            key_findings.append(f"Dict contains {key_count} keys")
+            completeness = 0.8 if key_count > 0 else 0.0
+        
+        # Проверяем warning-флаги
+        if isinstance(result, dict):
+            if result.get('warning') or result.get('truncated'):
+                reliability = 0.6
+                key_findings.append(f"Warning: {result.get('warning', 'Result truncated')}")
+                self._log_info(
+                    f"⚠️ [Rule-based] Result has warnings: {result.get('warning', 'N/A')}",
+                    event_type=EventType.WARNING
+                )
         
         return {
             "status": "success",
-            "observation": f"Action '{action_name}' completed successfully",
-            "key_findings": [f"Received {type(result).__name__} result"],
+            "observation": observation_text,
+            "key_findings": key_findings,
             "data_quality": {"completeness": completeness, "reliability": reliability},
             "errors": [],
-            "next_step_suggestion": "Continue with next step based on goal progress",
-            "requires_additional_action": False,
+            "next_step_suggestion": "Continue with next step based on goal progress" if completeness > 0 else "Try different parameters or check data availability",
+            "requires_additional_action": completeness == 0.0,
             "_rule_based": True
         }
     
@@ -417,22 +485,30 @@ class Observer:
         ВОЗВРАЩАЕТ:
         - prompt текст
         """
+        # Формируем детальную информацию о параметрах
+        params_detail = ""
+        if parameters:
+            for key, value in parameters.items():
+                params_detail += f"  - {key}: {value}\n"
+        
         return f"""
-ACTION:
-{action_name}
+ACTION: {action_name}
 
 PARAMETERS:
 {self._truncate(str(parameters), 500)}
 
+PARAMETER DETAILS:
+{params_detail if params_detail else "  (none)"}
+
 RESULT:
-{self._truncate(result, 1000)}
+{self._truncate(result, 1500)}
 
 ERROR:
 {error if error else "None"}
 
 ---
 
-Проанализируй результат выполнения действия и оцени:
+Проанализируй результат выполнения действия. ВАЖНО: твой ответ должен быть информативным и содержать конкретные данные из результата.
 
 1. STATUS: Был ли результат успешным?
    - success: данные получены и полезны
@@ -440,17 +516,23 @@ ERROR:
    - empty: данных нет (пустой результат)
    - error: произошла ошибка
 
-2. QUALITY: Насколько качественны данные?
+2. OBSERVATION: Напиши ПОДРОБНОЕ описание что именно получено.
+   - Для vector_search: укажи количество найденных результатов, примеры найденных текстов с оценками (score)
+   - Для SQL запросов: укажи количество строк, примеры данных из первых строк
+   - Для других инструментов: опиши структуру и содержимое результата
+   - Если данных МНОГО (более 5 строк или 1000 символов) — укажи статистику и напиши: "Для полного анализа используйте data_analysis.analyze_step_data"
+
+3. KEY FINDINGS: Извлеки КОНКРЕТНЫЕ факты из данных (например, найденные тексты, значения полей, статистика)
+
+4. DATA_QUALITY: Насколько качественны данные?
    - completeness: 0.0–1.0 (насколько полные данные)
    - reliability: 0.0–1.0 (насколько надёжны данные)
 
-3. KEY FINDINGS: Какие важные факты можно извлечь?
-
-4. ERRORS: Какие проблемы обнаружены?
-
 5. NEXT STEP SUGGESTION: Что делать дальше?
+   - Если данных много — рекомендуй использовать data_analysis.analyze_step_data
+   - Если данных недостаточно — предложи изменить параметры или использовать другой инструмент
 
-Ответь в формате JSON согласно схеме.
+Ответь в формате JSON согласно схеме. Поле "observation" должно содержать ДЕТАЛЬНОЕ описание с конкретными данными.
 """.strip()
     
     def _format_result(self, result: Any) -> str:
