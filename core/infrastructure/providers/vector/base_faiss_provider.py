@@ -45,7 +45,7 @@ class IFAISSProvider(ABC):
     async def search(
         self,
         query_vector: List[float],
-        top_k: int = 10,
+        top_k: Optional[int] = None,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -53,7 +53,7 @@ class IFAISSProvider(ABC):
         
         Args:
             query_vector: Вектор запроса
-            top_k: Количество результатов
+            top_k: Количество результатов (None = без лимита, только по min_score)
             filters: Фильтры по метаданным
         
         Returns:

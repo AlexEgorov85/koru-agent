@@ -61,7 +61,7 @@ class VectorQuery(BaseModel):
     """
     query: Optional[str] = None
     vector: Optional[List[float]] = None
-    top_k: int = Field(default=10, ge=1, le=100)
+    top_k: Optional[int] = Field(default=None, ge=1)
     min_score: float = Field(default=0.5, ge=0.0, le=1.0)
     filters: Optional[Dict[str, Any]] = None
     offset: int = Field(default=0, ge=0)

@@ -122,7 +122,7 @@ class FAISSProvider(IFAISSProvider):
     async def search(
         self,
         query_vector: List[float],
-        top_k: Optional[int] = 10,
+        top_k: Optional[int] = None,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Поиск ближайших векторов.

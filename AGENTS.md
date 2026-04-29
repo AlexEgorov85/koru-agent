@@ -358,6 +358,16 @@ if session_context.needs_exploration(threshold=2):
 
 ---
 
+## File Modification Rules
+
+| File | Rule | Why |
+|------|------|-----|
+| `.gitignore` | **ЗАПРЕЩЕНО ИЗМЕНЯТЬ** | Критический файл игнорирования Git. Изменение может привести к коммиту мусора или потере важных файлов. |
+| `core/config/defaults/*.yaml` | Только инфраструктурные параметры | Конфигурация ресурсов (LLM, DB), не поведения |
+| `data/prompts/**/*.yaml` | Только промпты и контракты | Поведение агента, версионируется отдельно |
+
+---
+
 ## Error Handling
 
 - Custom exceptions inherit from `AgentBaseError`
