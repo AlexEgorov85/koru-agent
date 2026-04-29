@@ -953,9 +953,6 @@ class PromptBuilderService:
 
                 for i, cap in enumerate(sorted_caps, 1):
                     desc = cap.description if hasattr(cap, "description") else ""
-                    # Обрезаем длинные описания
-                    if len(desc) > 150:
-                        desc = desc[:147] + "..."
                     lines.append(f"  {i}. `{cap.name}` - {desc}")
 
             elif len(caps) == 1:
@@ -968,8 +965,6 @@ class PromptBuilderService:
             lines.append("\n📌 Другие инструменты:")
             for cap in standalone_caps:
                 desc = cap.description if hasattr(cap, "description") else ""
-                if len(desc) > 100:
-                    desc = desc[:97] + "..."
                 lines.append(f"- `{cap.name}` - {desc}")
 
         return "\n".join(lines)

@@ -102,7 +102,7 @@ class AgentFactory:
         metrics = AgentMetrics()
 
         # Observer с настройкой trigger_mode
-        observer_trigger_mode = "always"
+        observer_trigger_mode = "on_error"  # По умолчанию: LLM только при ошибках и пустых ответах
         if application_context and hasattr(application_context, 'config'):
             app_cfg = application_context.config
             if hasattr(app_cfg, 'agent_defaults') and hasattr(app_cfg.agent_defaults, 'observer_trigger_mode'):

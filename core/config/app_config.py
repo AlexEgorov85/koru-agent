@@ -156,7 +156,7 @@ class AgentDefaults(BaseSettings):
     enable_benchmark: bool = Field(default=False, description="Бенчмарки")
     profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
     observer_trigger_mode: Literal["always", "on_error", "on_empty"] = Field(
-        default="always",
+        default="on_error",
         description="Режим вызова LLM в Observer: always=on_error=on_empty"
     )
     
@@ -479,6 +479,7 @@ class AppConfig(BaseSettings):
         llm_providers = {}
         db_providers = {}
         vector_search_config = None
+        agent_defaults_dict = {}  # Инициализируем до try блока
         config_file = Path(__file__).parent / "defaults" / f"{profile}.yaml"
 
         if config_file.exists():
@@ -510,7 +511,6 @@ class AppConfig(BaseSettings):
                     vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
                 
                 # Загружаем agent_defaults из YAML (переопределяет env vars)
-                agent_defaults_dict = {}
                 if yaml_config and 'agent_defaults' in yaml_config:
                     agent_defaults_dict = yaml_config['agent_defaults']
             except Exception:

@@ -57,7 +57,7 @@ class ContextUpdatePhase:
             executed_steps: Number of executed steps
             decision_reasoning: Reasoning from decision
             error_recovery_handler: Optional error recovery handler
-            
+        
         Returns:
             List of observation item IDs
         """
@@ -68,6 +68,7 @@ class ContextUpdatePhase:
             decision_parameters=decision_parameters,
             session_context=session_context,
             executed_steps=executed_steps,
+            observation=observation,
         )
         
         # Handle empty SQL results
@@ -76,6 +77,8 @@ class ContextUpdatePhase:
                 decision_action=decision_action,
                 decision_parameters=decision_parameters,
                 session_context=session_context,
+                agent_state=session_context.agent_state,
+                error_recovery_handler=error_recovery_handler,
             )
         
         # Register step in session context
@@ -163,6 +166,7 @@ class ContextUpdatePhase:
         decision_parameters: Dict[str, Any],
         session_context: Any,
         executed_steps: int,
+        observation: Optional[Any] = None,
     ) -> List[str]:
         """
         Save execution result to data_context.
@@ -275,6 +279,13 @@ class ContextUpdatePhase:
             # Save successful observation
             additional_metadata = {}
             
+            # save_type должен приходиться из observation (заполнен в ObservationPhase)
+            # Если observation есть — берем из него, иначе по умолчанию raw_data
+            save_type = "raw_data"  # Fallback
+            if observation and hasattr(observation, 'save_type') and observation.save_type:
+                save_type = observation.save_type
+            additional_metadata["save_type"] = save_type
+            
             # Check if data_analysis for formatting
             is_data_analysis = decision_action and "data_analysis" in decision_action
             
@@ -293,11 +304,14 @@ class ContextUpdatePhase:
                     parameters=decision_parameters,
                 )
             
+            # Сохраняем сырые данные только если решено сохранить raw_data
+            content = result.data if save_type == "raw_data" else quick_content
+            
             observation_item = ContextItem(
                 item_id="",
                 session_id=session_context.session_id,
                 item_type=ContextItemType.OBSERVATION,
-                content=result.data,
+                content=content,
                 quick_content=quick_content,
                 metadata=ContextItemMetadata(
                     source=decision_action,
@@ -347,18 +361,55 @@ class ContextUpdatePhase:
         decision_action: str,
         decision_parameters: Dict[str, Any],
         session_context: Any,
+        agent_state: Optional[Any] = None,
+        error_recovery_handler: Optional[Any] = None,
     ) -> None:
         """
         Handle empty SQL result with diagnostics.
         
-        Delegates to ErrorRecoveryHandler if available.
+        Args:
+            decision_action: Action that returned empty result
+            decision_parameters: Action parameters
+            session_context: Session context
+            agent_state: Agent state for registration (optional, uses session_context.agent_state if not provided)
+            error_recovery_handler: Optional handler (overrides self.error_recovery_handler)
         """
-        if self.error_recovery_handler:
-            await self.error_recovery_handler.handle_empty_sql_result(
+        # Get agent_state from session_context if not provided
+        if agent_state is None:
+            agent_state = session_context.agent_state
+        
+        handler = error_recovery_handler or self.error_recovery_handler
+        
+        if not handler:
+            # Fallback: just register empty result
+            agent_state.register_step_outcome(
+                action_name=decision_action,
+                status="empty",
+                parameters=decision_parameters,
+                observation={"status": "empty", "data": None},
+                error_message=None,
+            )
+            return
+        
+        # Use error recovery handler
+        try:
+            await handler.handle_empty_sql_result(
                 decision_action=decision_action,
                 decision_parameters=decision_parameters,
                 session_context=session_context,
-                agent_state=session_context.agent_state,
+                agent_state=agent_state,
+            )
+        except Exception as e:
+            if self.log:
+                self.log.error(f"Error recovery failed: {e}", exc_info=True)
+            
+            # Fallback registration
+            agent_state.register_step_outcome(
+                action_name=decision_action,
+                status="empty",
+                parameters=decision_parameters,
+                observation={"status": "empty", "data": None},
+                error_message=None,
             )
     
     def register_step(
@@ -418,3 +469,7 @@ class ContextUpdatePhase:
         )
         
         session_context.agent_state.register_observation(observation_signal)
+        
+        # Сохраняем в историю наблюдений (окно 3 шт. для промпта LLM)
+        if observation:
+            session_context.agent_state.push_observation(observation)

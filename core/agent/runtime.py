@@ -29,7 +29,6 @@ from core.utils.observation_formatter import (
     format_observation,
     smart_format_observation,
 )
-from core.components.skills.utils.observation_policy import ObservationPolicy
 from core.agent.components.observer import Observer
 from core.config.agent_config import AgentConfig
 from core.agent.phases.decision_phase import DecisionPhase

@@ -24,6 +24,7 @@ class ObservationAnalysis(BaseModel):
     - Используется как единый контракт между ObservationPhase и AgentState
     - Содержит как сырые данные, так и интерпретацию
     - Поддерживает history с лимитом 3 записи
+    - Включает решение о типе сохранения (save_type)
     
     ПОЛЯ:
     - status: статус выполнения (success/error/empty)
@@ -32,6 +33,7 @@ class ObservationAnalysis(BaseModel):
     - hint: рекомендация для следующего шага
     - rule_based: был ли использован rule-based анализ
     - timestamp: время анализа
+    - save_type: тип сохранения ('raw_data' или 'summary')
     """
     status: str = "unknown"
     quality: Dict[str, Any] = Field(default_factory=dict)
@@ -41,6 +43,7 @@ class ObservationAnalysis(BaseModel):
     timestamp: Optional[str] = None
     action_name: Optional[str] = None
     step_number: Optional[int] = None
+    save_type: Optional[str] = None
 
 
 @dataclass
