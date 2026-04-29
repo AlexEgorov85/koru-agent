@@ -1,31 +1,18 @@
 #!/usr/bin/env python3
 """
-Универсальный индексатор для векторного поиска.
-Поддерживает индексацию по скиллам, батчинг, прогресс и интеграцию с AppConfig.
+Универсальный индексатор векторного поиска.
 
-ИСПОЛЬЗОВАНИЕ:
-  # Индексация источников для навыка check_result (audits, violations)
-  python -m scripts.vector.indexer --skill check_result
-
-  # Индексация конкретных источников
-  python -m scripts.vector.indexer --sources books authors
-
-  # Создание пустых индексов (для инициализации)
-  python -m scripts.vector.indexer --empty
-
-  # Индексация всех источников из конфига
-  python -m scripts.vector.indexer
-  
-  # Устаревший CLI (совместимость)
-  python -m scripts.vector.indexer init
-  python -m scripts.vector.indexer all
-  python -m scripts.vector.indexer audits
+АРХИТЕКТУРА:
+- Работает ТОЛЬКО через InfrastructureContext
+- Использует профиль prod
+- Все провайдеры (Embedding, FAISS, Chunking, DB) берутся из инфраструктуры
+- Никаких прямых psycopg2.connect(), FAISSProvider() или ручных инициализаций
 """
 import asyncio
 import sys
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 # Настройка логирования
 logging.basicConfig(
@@ -41,422 +28,208 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from core.config import get_config
-from core.config.vector_config import SOURCE_CONFIG, ChunkingConfig
+from core.config.vector_config import SOURCE_CONFIG
 from core.models.types.vector_types import RowMetadata
-from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
-# Маппинг скиллов -> требуемые векторные источники
+# Маппинг скиллов -> векторные источники (CLI-удобство, данные из конфига)
 SKILL_SOURCES = {
     "check_result": ["audits", "violations"],
     "book_library": ["books", "authors"],
-    # Добавляйте новые скиллы по мере появления
 }
 
-async def _init_infrastructure(profile: str = "dev", data_dir: str = "data"):
-    """Инициализация инфраструктуры (embedding + FAISS)."""
-    from core.config.vector_config import EmbeddingConfig
-    from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
 
-    config = get_config(profile=profile, data_dir=data_dir)
-    vs_config = config.vector_search
-
-    # Empty infra mock для совместимости с shutdown
-    class DummyInfra:
-        async def shutdown(self):
-            pass
-    
-    infra = DummyInfra()
-
-    # Выбор провайдера на основе модели или явного пути
-    model_name = vs_config.embedding.model_name
-    emb_cfg = vs_config.embedding
-    local_path = emb_cfg.local_model_path
-
-    if "qwen3" in model_name.lower() or local_path:
-        from core.infrastructure.providers.embedding.qwen3_embedding_provider import Qwen3EmbeddingProvider
-        embedding = Qwen3EmbeddingProvider(emb_cfg)
-    elif "Giga-Embeddings" in model_name or "giga" in model_name.lower():
-        from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
-        embedding = GigaEmbeddingsProvider(emb_cfg)
-    else:
-        from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-        embedding_config = EmbeddingConfig(model_name=model_name, dimension=vs_config.embedding.dimension)
-        embedding = SentenceTransformersProvider(embedding_config)
-    
-    await embedding.initialize()
-
-    # FAISS провайдер (базовый)
-    faiss_provider = FAISSProvider(
-        dimension=vs_config.embedding.dimension,
-        config=vs_config.faiss,
-    )
-    await faiss_provider.initialize()
-
-    return infra, embedding, faiss_provider, vs_config
-
-
-def _get_db_conn(config):
-    """Получение подключения к БД."""
-    import psycopg2
-    db_config = config.db_providers.get("default_db")
-    if not db_config:
-        raise ValueError("DB provider 'default_db' not found in config")
-    
-    params = db_config.parameters
-    conn = psycopg2.connect(
-        host=params.get("host", "localhost"),
-        port=params.get("port", 5432),
-        database=params.get("database", "postgres"),
-        user=params.get("user", "postgres"),
-        password=params.get("password", ""),
-    )
-    conn.autocommit = True
-    return conn
-
-
-async def create_empty_indexes(vs_config) -> int:
-    """Создание пустых FAISS индексов для всех источников."""
+async def _create_empty_indexes(infra: InfrastructureContext, vs_config) -> int:
+    """Создание пустых FAISS индексов через инфраструктуру."""
     logger.info("=" * 60)
     logger.info("СОЗДАНИЕ ПУСТЫХ ИНДЕКСОВ")
     logger.info("=" * 60)
 
-    from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
-
     storage_path = Path(vs_config.storage.base_path)
     storage_path.mkdir(parents=True, exist_ok=True)
 
     for source, index_file in vs_config.indexes.items():
-        logger.info(f"\n  {source}:")
-
-        provider = FAISSProvider(
-            dimension=vs_config.embedding.dimension,
-            config=vs_config.faiss,
-        )
-        await provider.initialize()
+        faiss = infra.get_faiss_provider(source)
+        if not faiss:
+            logger.warning(f"  ⚠️ FAISS для '{source}' не зарегистрирован в инфраструктуре")
+            continue
 
         index_path = storage_path / index_file
-        await provider.save(str(index_path))
+        await faiss.save(str(index_path))
+        logger.info(f"  ✅ {source}: {index_path} (векторов: {await faiss.count()})")
 
-        count = await provider.count()
-        logger.info(f"     Создан: {index_path}")
-        logger.info(f"     Векторов: {count}")
-
-    # Статистика
-    logger.info("\n" + "=" * 60)
-    logger.info("СТАТИСТИКА")
-    logger.info("=" * 60)
-
-    for source, index_file in vs_config.indexes.items():
-        index_path = storage_path / index_file
-        status = "[OK]" if index_path.exists() else "[FAIL]"
-        logger.info(f"  {status} {source}: {index_file}")
-
-    logger.info("\n" + "=" * 60)
-    logger.info("[OK] ИНДЕКСЫ СОЗДАНЫ!")
-    logger.info("=" * 60)
+    logger.info("[OK] ПУСТЫЕ ИНДЕКСЫ СОЗДАНЫ!")
     return 0
 
 
-async def save_index(provider, vs_config, source: str) -> Path:
-    """Сохранение FAISS индекса в файл."""
-    storage_path = Path(vs_config.storage.base_path)
-    storage_path.mkdir(parents=True, exist_ok=True)
-
-    index_file = vs_config.indexes.get(source, f"{source}_index.faiss")
-    index_path = storage_path / index_file
-    await provider.save(str(index_path))
-
-    count = await provider.count()
-    logger.info(f"\n[OK] Saved: {index_path}")
-    logger.info(f"[OK] Total vectors: {count}")
-    return index_path
-
-
-# ===========================================================================
-# Универсальная функция индексации
-# ===========================================================================
-
-async def index_source(source: str, embedding, faiss_provider, vs_config, db_conn) -> int:
-    """Динамическая индексация источника на основе SOURCE_CONFIG с chunking и прогрессом."""
+async def _index_source(
+    source: str,
+    embedding,
+    faiss,
+    chunking,
+    db_provider,
+    vs_config
+) -> int:
+    """Индексация одного источника через инфраструктурные провайдеры."""
     if source not in SOURCE_CONFIG:
-        raise ValueError(f"Неизвестный источник: {source}. Доступные: {list(SOURCE_CONFIG.keys())}")
+        raise ValueError(f"Источник '{source}' отсутствует в SOURCE_CONFIG")
 
     cfg = SOURCE_CONFIG[source]
     logger.info(f"\n{'='*60}\n📦 ИНДЕКСАЦИЯ: {source.upper()}\n{'='*60}")
 
-    # Инициализация chunking стратегии
-    chunking_cfg = vs_config.chunking
-    chunking = TextChunkingStrategy(
-        chunk_size=chunking_cfg.chunk_size,
-        chunk_overlap=chunking_cfg.chunk_overlap,
-        min_chunk_size=chunking_cfg.min_chunk_size,
-    )
-
-    # Формируем SQL динамически
+    # 1. Формирование SQL из конфига
     join = cfg.get("join_clause", "")
     where = cfg.get("where_clause", "")
     order = cfg.get("order_by", "")
     table_ref = f"{cfg['schema']}.{cfg['table']}"
-
     sql = f"SELECT {cfg['select_cols']} FROM {table_ref} {join} {where} {order}"
 
-    cursor = db_conn.cursor()
-    cursor.execute(sql)
-    rows = cursor.fetchall()
-    col_names = [desc[0] for desc in cursor.description] if cursor.description else cfg["metadata_fields"]
-    cursor.close()
+    # 2. Выполнение через DB Provider инфраструктуры
+    result = await db_provider.execute_query(query=sql)
+    rows = result.rows if hasattr(result, 'rows') else []
+    col_names = result.columns if hasattr(result, 'columns') else cfg.get("metadata_fields", [])
 
     total_rows = len(rows)
     logger.info(f"🔍 Найдено записей: {total_rows}")
-    logger.info(f"📐 Chunking: size={chunking_cfg.chunk_size}, overlap={chunking_cfg.chunk_overlap}, min_size={chunking_cfg.min_chunk_size}")
+    logger.info(f"📐 Chunking: size={vs_config.chunking.chunk_size}")
 
     if total_rows == 0:
-        logger.warning("⚠️ Нет данных для индексации. Пропускаю.")
+        logger.warning("⚠️ Нет данных. Пропускаю.")
         return 0
 
     vectors, metadata_list = [], []
-    processed = 0
-    skipped = 0
-    total_chunks_all = 0
+    processed, skipped, total_chunks_all = 0, 0, 0
+    instruction = cfg.get("instruction")
 
+    # 3. Обработка строк
     for idx, row in enumerate(rows):
         try:
             row_dict = dict(zip(col_names, row))
-
-            # Формируем поисковый текст только из непустых полей
-            search_text = " ".join(str(row_dict.get(f, "")).strip() for f in cfg["text_fields"] if row_dict.get(f))
-
+            search_text = "  ".join(
+                str(row_dict.get(f, "")).strip() 
+                for f in cfg["text_fields"] 
+                if row_dict.get(f)
+            )
             if not search_text:
                 skipped += 1
                 continue
 
-            # Разбиваем текст на чанки
-            document_id = f"{source}_{row_dict[cfg['pk_column']]}"
-            chunks = await chunking.split(search_text, document_id=document_id)
-
+            doc_id = f"{source}_{row_dict[cfg['pk_column']]}"
+            chunks = await chunking.split(search_text, document_id=doc_id)
             if not chunks:
-                # Если chunking вернул пусто — индексируем всю строку как один чанк
                 chunks = [type('Chunk', (), {'content': search_text, 'index': 0})()]
 
             total_chunks = len(chunks)
-
-            # Получаем инструкцию для источника (если задана)
-            source_instruction = cfg.get("instruction")
-
             for chunk in chunks:
-                chunk_text = chunk.content
-                vector = await embedding.generate_single(chunk_text, instruction=source_instruction)
-
+                # 4. Генерация вектора через инфраструктурный Embedding провайдер
+                vector = await embedding.generate_single(chunk.content, instruction=instruction)
+                
                 meta = RowMetadata(
-                    source=source,
-                    table=table_ref,
-                    primary_key=cfg["pk_column"],
-                    pk_value=row_dict[cfg["pk_column"]],
-                    row=row_dict,  # ВСЯ строка целиком для каждого чанка
-                    chunk_index=chunk.index,
-                    total_chunks=total_chunks,
-                    search_text=chunk_text,
-                    content=chunk_text,
+                    source=source, table=table_ref, primary_key=cfg["pk_column"],
+                    pk_value=row_dict[cfg["pk_column"]], row=row_dict,
+                    chunk_index=chunk.index, total_chunks=total_chunks,
+                    search_text=chunk.content, content=chunk.content,
                 )
-
-                # ✅ КРИТИЧЕСКИ ВАЖНО: model_dump() возвращает словарь с данными, а не список ключей
-                meta_dict = meta.model_dump()
-
-                # Отладочный вывод первой записи для проверки
-                if len(vectors) == 0:
-                    logger.info(f"💡 Пример метаданных (первая запись):")
-                    sample_keys = list(meta_dict.keys())[:5]
-                    logger.info(f"   Ключи: {sample_keys}")
-                    # Проверяем, что значения не пустые
-                    first_val = meta_dict.get('row', {})
-                    if isinstance(first_val, dict) and first_val:
-                        logger.info(f"   Пример данных в row: {list(first_val.values())[:3]}")
-                    logger.info(f"   chunk_index={meta_dict.get('chunk_index')}, total_chunks={meta_dict.get('total_chunks')}")
-
                 vectors.append(vector)
-                metadata_list.append(meta_dict)
+                metadata_list.append(meta.model_dump())
                 processed += 1
 
             total_chunks_all += total_chunks
 
-            # Прогресс каждые 100 строк
             if (idx + 1) % 100 == 0 or (idx + 1) == total_rows:
-                logger.info(f"   📝 Обработано: {idx + 1}/{total_rows} (векторов: {processed}, пропущено: {skipped}, чанков: {total_chunks_all})")
-
+                logger.info(f"   📝 Обработано: {idx + 1}/{total_rows} (векторов: {processed}, чанков: {total_chunks_all})")
         except Exception as e:
-            logger.error(f"   ❌ Ошибка при обработке строки {idx}: {e}")
+            logger.error(f"   ❌ Ошибка строки {idx}: {e}")
             skipped += 1
             continue
 
+    # 5. Сохранение через FAISS провайдер инфраструктуры
     if vectors:
-        await faiss_provider.add(vectors, metadata_list)
-        await save_index(faiss_provider, vs_config, source)
-        logger.info(f"✅ Индексация завершена: {processed} векторов ({total_chunks_all} чанков), пропущено: {skipped}")
+        await faiss.add(vectors, metadata_list)
+        storage_path = Path(vs_config.storage.base_path)
+        storage_path.mkdir(parents=True, exist_ok=True)
+        index_path = storage_path / vs_config.indexes.get(source, f"{source}_index.faiss")
+        await faiss.save(str(index_path))
+        logger.info(f"✅ Сохранено: {index_path} | Векторов: {await faiss.count()}")
     else:
-        logger.warning("⚠️ Не удалось создать валидные векторы. Индекс не сохранён.")
+        logger.warning("⚠️ Векторы не созданы.")
 
     return processed
 
 
-# ===========================================================================
-# Основная функция запуска
-# ===========================================================================
-
-async def run_indexer(skill: Optional[str] = None, sources: Optional[List[str]] = None, create_empty: bool = False):
-    """Основная функция запуска индексации."""
-    config = get_config(profile="dev")
+async def run_indexer(
+    skill: Optional[str] = None, 
+    sources: Optional[List[str]] = None, 
+    create_empty: bool = False
+) -> int:
+    """Основная функция. Полностью управляется через InfrastructureContext (prod)."""
+    # 1. Загрузка prod конфига
+    config = get_config(profile="prod", data_dir="data")
     vs_config = config.vector_search
-
     if not vs_config or not vs_config.enabled:
-        logger.error("❌ VectorSearch отключён в конфигурации. Проверьте vector_search.enabled")
-        return 1
+        raise RuntimeError("VectorSearch отключён в prod конфигурации")
 
-    if create_empty:
-        logger.info("🛠️ Режим создания пустых индексов. Данные из БД не загружаются.")
-        return await create_empty_indexes(vs_config)
+    # 2. Инициализация инфраструктуры (поднимает LLM, DB, Vector, Chunking)
+    infra = InfrastructureContext(config)
+    await infra.initialize()
 
-    embedding = None
-    db_conn = None
-    
     try:
-        # Инициализация embedding провайдера
-        model_name = vs_config.embedding.model_name
-        emb_cfg = vs_config.embedding
-        
-        if "qwen3" in model_name.lower() or emb_cfg.local_model_path:
-            from core.infrastructure.providers.embedding.qwen3_embedding_provider import Qwen3EmbeddingProvider
-            if emb_cfg.device == "cuda":
-                import torch
-                if not torch.cuda.is_available():
-                    logger.warning("⚠️ CUDA недоступна. Переключаю embedding на CPU.")
-                    emb_cfg.device = "cpu"
-            embedding = Qwen3EmbeddingProvider(emb_cfg)
-        elif "giga" in model_name.lower():
-            from core.infrastructure.providers.embedding.giga_embeddings_provider import GigaEmbeddingsProvider
-            embedding = GigaEmbeddingsProvider(emb_cfg)
-        else:
-            from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
-            embedding = SentenceTransformersProvider(emb_cfg)
-        
-        await embedding.initialize()
-        logger.info(f"✅ Embedding провайдер инициализирован: {model_name}")
+        if create_empty:
+            return await _create_empty_indexes(infra, vs_config)
 
-        # Подключение к БД
-        db_conn = _get_db_conn(config)
-        logger.info(f"🔌 Подключение к БД установлено")
-
-        # Определение целевых источников
-        targets = sources or []
+        # 3. Получение провайдеров ТОЛЬКО из инфраструктуры
+        embedding = infra.get_embedding_provider()
+        chunking = infra.get_chunking_strategy()
         
+        db_provider = infra.lifecycle_manager.get_resource("default_db")
+        if not db_provider:
+            raise RuntimeError("DB провайдер 'default_db' не найден в InfrastructureContext")
+
+        # 4. Определение целей индексации
+        targets = sources or list(SOURCE_CONFIG.keys())
         if skill:
-            skill = skill.lower()
-            if skill in SKILL_SOURCES:
-                targets = SKILL_SOURCES[skill]
-                logger.info(f"🎯 Режим скилла '{skill}'. Источники: {targets}")
-            else:
-                logger.warning(f"⚠️ Скилл '{skill}' не найден в конфигурации. Использую все источники.")
-                targets = list(SOURCE_CONFIG.keys())
-        
-        if not targets:
-            targets = list(SOURCE_CONFIG.keys())
-            logger.info(f"🌐 Индексирую все источники: {targets}")
+            targets = SKILL_SOURCES.get(skill.lower(), targets)
 
-        # Индексация каждого источника
         total_indexed = 0
         for src in targets:
-            # Создаём новый FAISS провайдер для каждого источника
-            from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
-            faiss_provider = FAISSProvider(dimension=vs_config.embedding.dimension, config=vs_config.faiss)
-            await faiss_provider.initialize()
-            
-            count = await index_source(src, embedding, faiss_provider, vs_config, db_conn)
-            total_indexed += count
+            if src not in vs_config.indexes:
+                logger.warning(f"⚠️ FAISS индекс для '{src}' не сконфигурирован, пропускаю.")
+                continue
+                
+            faiss = infra.get_faiss_provider(src)
+            if not faiss:
+                logger.warning(f"⚠️ FAISS провайдер для '{src}' не инициализирован, пропускаю.")
+                continue
 
-        logger.info(f"\n{'='*60}")
-        logger.info(f"🎉 Индексация завершена! Всего обработано: {total_indexed} записей.")
-        logger.info(f"{'='*60}")
+            total_indexed += await _index_source(src, embedding, faiss, chunking, db_provider, vs_config)
+
+        logger.info(f"\n🎉 Индексация завершена. Обработано записей: {total_indexed}")
         return 0
-        
+
     finally:
-        if db_conn:
-            db_conn.close()
-            logger.info("🔌 Соединение с БД закрыто.")
-        if embedding:
-            await embedding.shutdown() if hasattr(embedding, 'shutdown') else None
+        # 5. Гарантированное завершение работы всех ресурсов
+        logger.info("🔌 Завершение работы InfrastructureContext...")
+        await infra.shutdown()
 
 
 # ===========================================================================
 # CLI
 # ===========================================================================
-
 def build_parser():
     import argparse
-    from core.config.vector_config import SOURCE_CONFIG
-
-    parser = argparse.ArgumentParser(
-        description="Универсальный индексатор для векторного поиска",
-    )
-    
-    # Новый стиль аргументов
-    parser.add_argument("--skill", type=str, help="Индексировать источники для конкретного скилла (напр. check_result)")
-    parser.add_argument("--sources", nargs="+", help="Явный список источников для индексации")
-    parser.add_argument("--empty", action="store_true", help="Создать только пустые индексы (без данных)")
-    parser.add_argument("--profile", type=str, default="dev", help="Профиль конфигурации (dev/prod/sandbox)")
-    
-    # Старый стиль подкоманд (для совместимости)
-    subparsers = parser.add_subparsers(dest="command", help="Команды индексации (устаревший стиль)")
-    subparsers.add_parser("init", help="Создать пустые индексы для всех источников")
-    subparsers.add_parser("all", help="Индексация всех источников")
-    for source in SOURCE_CONFIG.keys():
-        subparsers.add_parser(source, help=f"Индексация {source}")
-
+    parser = argparse.ArgumentParser(description="Индексатор векторов (Infrastructure-only, prod)")
+    parser.add_argument("--skill", type=str, help="Фильтр по скиллу")
+    parser.add_argument("--sources", nargs="+", help="Явный список источников")
+    parser.add_argument("--empty", action="store_true", help="Создать пустые индексы")
+    parser.add_argument("--profile", type=str, default="prod", help="Профиль (по умолчанию prod)")
     return parser
 
-
 async def async_main():
-    parser = build_parser()
-    args = parser.parse_args()
-
-    # Переопределяем профиль через env, если нужно
-    import os
-    os.environ.setdefault("APP_PROFILE", args.profile)
-
-    # Новый стиль аргументов имеет приоритет
-    if args.skill or args.sources or args.empty:
-        return await run_indexer(skill=args.skill, sources=args.sources, create_empty=args.empty)
-    
-    # Старый стиль подкоманд (для совместимости)
-    if not args.command:
-        # Если нет ни новых ни старых аргументов - индексируем всё
-        return await run_indexer(skill=None, sources=None, create_empty=False)
-
-    if args.command == "init":
-        config = get_config(profile="dev")
-        vs_config = config.vector_search
-        return await create_empty_indexes(vs_config)
-
-    # Для всех остальных команд нужна инфраструктура
-    infra, embedding, faiss_provider, vs_config = await _init_infrastructure(profile="dev")
-    config = get_config(profile="dev")
-    conn = _get_db_conn(config)
-
-    try:
-        if args.command == "all":
-            for src in SOURCE_CONFIG.keys():
-                await index_source(src, embedding, faiss_provider, vs_config, conn)
-        elif args.command in SOURCE_CONFIG:
-            return await index_source(args.command, embedding, faiss_provider, vs_config, conn)
-        else:
-            parser.print_help()
-            return 1
-    finally:
-        conn.close()
-        await infra.shutdown()
-
+    args = build_parser().parse_args()
+    return await run_indexer(skill=args.skill, sources=args.sources, create_empty=args.empty)
 
 def main():
     sys.exit(asyncio.run(async_main()))
-
 
 if __name__ == "__main__":
     main()
