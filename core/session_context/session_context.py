@@ -142,6 +142,7 @@ class SessionContext(BaseSessionContext):
         summary: Optional[str] = None,
         status: Optional[ExecutionStatus] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        obs_text: Optional[str] = None,
     ) -> None:
         """
         Регистрация шага агента.
@@ -159,6 +160,7 @@ class SessionContext(BaseSessionContext):
         - summary: краткое описание шага
         - status: статус выполнения
         - parameters: параметры запуска действия/инструмента
+        - obs_text: текстовое представление наблюдения для отображения в истории шагов
         """
         step = AgentStep(
             step_number=step_number,
@@ -169,6 +171,7 @@ class SessionContext(BaseSessionContext):
             summary=summary,
             status=status,
             parameters=parameters,
+            obs_text=obs_text,
         )
         self.step_context.add_step(step)
         self.last_activity = datetime.now()

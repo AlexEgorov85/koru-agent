@@ -159,6 +159,7 @@ class AgentStep:
     - observation_item_ids: Список ID элементов с результатами в data_context
     - summary: Краткое описание шага для LLM
     - parameters: Параметры запуска действия
+    - obs_text: Текстовое представление наблюдения для отображения в истории шагов
     
     ПРИМЕР ИСПОЛЬЗОВАНИЯ:
     step = AgentStep(
@@ -168,7 +169,8 @@ class AgentStep:
         action_item_id="action_123",
         observation_item_ids=["obs_456"],
         summary="Создан первичный план для анализа данных",
-        parameters={"query": "SELECT * FROM users"}
+        parameters={"query": "SELECT * FROM users"},
+        obs_text="Найдено 10 записей в таблице users"
     )
     
     КАК ПОЛУЧИТЬ ДАННЫЕ ШАГА:
@@ -183,3 +185,4 @@ class AgentStep:
     summary: Optional[str] = None
     status: Optional[ExecutionStatus] = None
     parameters: Optional[Dict[str, Any]] = None
+    obs_text: Optional[str] = None
