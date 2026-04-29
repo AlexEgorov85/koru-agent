@@ -84,9 +84,9 @@ class Qwen3EmbeddingProvider(IEmbeddingProvider):
         
         return embeddings.cpu().tolist()
 
-    async def generate_single(self, text: str, apply_instruction: bool = True) -> List[float]:
+    async def generate_single(self, text: str, apply_instruction: bool = True, instruction: Optional[str] = None) -> List[float]:
         """Генерация эмбеддинга для одного текста."""
-        result = await self.generate([text], apply_instruction)
+        result = await self.generate([text], apply_instruction, instruction)
         return result[0] if result else []
 
     def get_dimension(self) -> int:
