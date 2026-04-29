@@ -461,6 +461,14 @@ class ContextUpdatePhase:
             decision_parameters: Action parameters
             observation: ObservationAnalysis from ObservationPhase
         """
+        # Извлекаем краткое текстовое наблюдение для отображения в истории шагов
+        obs_text = ""
+        if observation:
+            # ObservationAnalysis содержит insight, ObservationPhase маппит туда поле 'observation'
+            obs_text = getattr(observation, 'insight', '') or getattr(observation, 'observation', '')
+            if not obs_text and hasattr(observation, 'key_findings') and observation.key_findings:
+                obs_text = "; ".join(observation.key_findings[:2])  # Fallback на ключевые факты
+        
         # Build observation signal from passed observation or create minimal
         if observation:
             observation_signal = observation.model_dump()
@@ -483,6 +491,7 @@ class ContextUpdatePhase:
             summary=decision_reasoning,
             status=result_status,
             parameters=decision_parameters or {},
+            obs_text=obs_text,
         )
         
         # Update agent state with observation
