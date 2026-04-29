@@ -21,6 +21,7 @@ schema_data:
       default: 0.5
       minimum: 0.0
       maximum: 1.0
+      nullable: true
   required:
     - query
 status: active

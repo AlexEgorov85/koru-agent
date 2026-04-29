@@ -43,8 +43,14 @@ class VectorSearchHandler(SkillHandler):
 
         query = params.query if hasattr(params, 'query') else ''
         source = self.VECTOR_SOURCE
+
+        # Обработка None значений от LLM — используем default
         top_k = getattr(params, 'top_k', VectorSearchDefaults.TOP_K_ALL)
+        if top_k is None:
+            top_k = VectorSearchDefaults.TOP_K_ALL
         min_score = getattr(params, 'min_score', VectorSearchDefaults.MIN_SCORE_DEFAULT)
+        if min_score is None:
+            min_score = VectorSearchDefaults.MIN_SCORE_DEFAULT
 
         limit_str = f"top_k={top_k}" if top_k is not None else "без лимита"
         await self.log_info(f"Запуск векторного поиска: '{query[:80]}...' ({limit_str}, min_score={min_score})")
