@@ -75,6 +75,55 @@ class Observer:
             log_session = self.application_context.infrastructure_context.log_session
             logger = log_session.get_component_logger("observer")
             logger.error(message, extra={"event_type": EventType.ERROR}, exc_info=exc_info)
+
+    def _check_truncation(
+        self,
+        action_name: str,
+        parameters: Dict[str, Any],
+        result: Any
+    ) -> Optional[str]:
+        """
+        Проверяет, не обрезаны ли результаты из-за лимита.
+        
+        Если количество результатов >= лимиту (top_k, limit, max_results),
+        возвращает предупреждение.
+        """
+        # Ищем лимит в параметрах (учитываем что значение может быть строкой)
+        limit = None
+        for key in ['top_k', 'limit', 'max_results', 'max_rows', 'n_results']:
+            if key in parameters:
+                try:
+                    limit = int(parameters[key])  # int() корректно преобразует строку '5' в 5
+                    break
+                except (ValueError, TypeError):
+                    pass
+        
+        if limit is None or limit <= 0:
+            return None
+        
+        # Считаем количество результатов
+        count = 0
+        if isinstance(result, list):
+            count = len(result)
+        elif isinstance(result, dict):
+            if 'rows' in result and isinstance(result['rows'], list):
+                count = len(result['rows'])
+            elif 'results' in result and isinstance(result['results'], list):
+                count = len(result['results'])
+            elif 'data' in result and isinstance(result['data'], list):
+                count = len(result['data'])
+            elif 'result' in result and isinstance(result['result'], list):
+                count = len(result['result'])
+        
+        # КРИТИЧНО: если count == limit, результаты могли быть обрезаны!
+        if count > 0 and count >= limit:
+            new_limit = limit + 10 if limit < 100 else 0
+            return (
+                f"[TRUNCATION WARNING] Получено результатов ({count}) >= лимиту ({limit}). "
+                f"Возможно, данные обрезаны. Для полных данных увеличьте top_k={new_limit} или 0 для безлимитно. "
+                f"Или используйте data_analysis.analyze_step_data."
+            )
+        return None
     
     def should_call_llm(self, result: Any, error: Optional[str], status: Optional[str] = None) -> bool:
         """

@@ -36,10 +36,14 @@ schema_data:
     analysis_parameter_sources:
       type: string
       description: "Откуда берутся параметры: исходный вопрос, история шагов, результат предыдущего инструмента?"
-
+  
     analysis_parameter_validation:
       type: string
       description: "Все ли обязательные поля заполнены? Типы и диапазоны корректны? Нет ли конфликтов?"
+  
+    analysis_limit_strategy:
+      type: string
+      description: "КРИТИЧНО: Какую стратегию ограничения выбрать? ВАЖНО: ограничения (top_k, limit, max_results) влияют на полноту ответа! Если цель требует ПОЛНЫЕ данные ('найти ВСЕ', 'список ВСЕХ') — НЕ ставить жесткий лимит (top_k=0 или 100+). Если нужны ТОЛЬКО ПРИМЕРЫ ('приведи примеры') — top_k=5-10 достаточно. Если подсчёт — использовать COUNT в SQL. По умолчанию не используй ограничение вообще."
 
     analysis_alternative_paths:
       type: string
@@ -80,6 +84,7 @@ schema_data:
     - analysis_tool_choice
     - analysis_parameter_sources
     - analysis_parameter_validation
+    - analysis_limit_strategy
     - analysis_alternative_paths
     - analysis_stop
     - analysis_final

@@ -210,16 +210,31 @@ class ValidationPhase:
                 type_prefix = parts[0]
                 component_name = parts[1].split('.')[0]
                 
+                # Маппинг префиксов на типы компонентов
                 type_map = {
                     "skill": ComponentType.SKILL,
                     "tool": ComponentType.TOOL,
                     "service": ComponentType.SERVICE,
                     "behavior": ComponentType.BEHAVIOR,
+                    # Поддержка сложных префиксов (sql_tool, vector_tool и т.д.)
+                    "sql_tool": ComponentType.TOOL,
+                    "vector_tool": ComponentType.TOOL,
+                    "db_tool": ComponentType.TOOL,
                 }
                 
+                # Прямое совпадение
                 if type_prefix in type_map:
                     comp_type = type_map[type_prefix]
-                    return self.application_context.components.get(comp_type, component_name)
+                    result = self.application_context.components.get(comp_type, component_name)
+                    if result is not None:
+                        return result
+                
+                # Если префикс заканчивается на _tool, _skill и т.д.
+                for suffix, comp_type in [("_tool", ComponentType.TOOL), ("_skill", ComponentType.SKILL), ("_service", ComponentType.SERVICE), ("_behavior", ComponentType.BEHAVIOR)]:
+                    if type_prefix.endswith(suffix):
+                        result = self.application_context.components.get(comp_type, component_name)
+                        if result is not None:
+                            return result
             
             # Ищем во всех реестрах
             if hasattr(self.application_context, 'components'):

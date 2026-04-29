@@ -92,7 +92,7 @@ class TestCheckLoopConditions:
         """Превышение token budget → (True, reason)."""
         mock_metrics.total_tokens_used = 10000
         agent_config = MagicMock()
-        agent_config.max_total_tokens = 5000
+        agent_config.max_total_tokens = 5000  # Число вместо MagicMock
         
         should_stop, reason = policy_check_phase.check_loop_conditions(
             session_context=mock_session_context,
@@ -106,8 +106,9 @@ class TestCheckLoopConditions:
     
     def test_context_compression_called(self, policy_check_phase, mock_metrics, mock_session_context):
         """Превышение context_token_threshold → вызывается compress_history."""
-        agent_config = MagicMock()
-        agent_config.context_token_threshold = 1000
+        agent_config = MagicMock(spec=[])  # spec ограничивает авто-создание атрибутов
+        agent_config.context_token_threshold = 1000  # Число вместо MagicMock
+        agent_config.max_total_tokens = 100000  # Предотвращаем срабатывание token budget
         mock_session_context.get_context_token_estimate.return_value = 1500
         
         with patch.object(mock_session_context, 'compress_history', return_value=(1500, 800)) as mock_compress:
@@ -124,16 +125,18 @@ class TestCheckLoopConditions:
     
     def test_no_stop_after_compression(self, policy_check_phase, mock_metrics, mock_session_context):
         """После сжатия контекста цикл продолжается."""
-        agent_config = MagicMock()
-        agent_config.context_token_threshold = 1000
-        mock_session_context.get_context_token_estimate.return_value = 1500
+        agent_config = MagicMock(spec=[])  # spec ограничивает авто-создание атрибутов
+        agent_config.context_token_threshold = 1000  # Число вместо MagicMock
+        agent_config.max_total_tokens = 100000  # Предотвращаем срабатывание token budget
         
-        should_stop, reason = policy_check_phase.check_loop_conditions(
-            session_context=mock_session_context,
-            metrics=mock_metrics,
-            step_number=5,
-            agent_config=agent_config,
-        )
+        # Мокаем compress_history, чтобы он возвращал два значения
+        with patch.object(mock_session_context, 'compress_history', return_value=(1500, 800)):
+            should_stop, reason = policy_check_phase.check_loop_conditions(
+                session_context=mock_session_context,
+                metrics=mock_metrics,
+                step_number=5,
+                agent_config=agent_config,
+            )
         
         assert should_stop is False
 
@@ -176,10 +179,10 @@ class TestValidateAction:
     
     def test_raises_policy_violation(self, policy_check_phase, mock_metrics, mock_session_context):
         """Policy выбрасывает PolicyViolationError → тест должен проверить это."""
-        from core.agent.components.policy import PolicyViolation
+        from core.agent.components.policy import PolicyVerdict, PolicyViolationError
         
         # Настраиваем мок для выброса исключения
-        violation = PolicyViolation(
+        violation = PolicyVerdict(
             allowed=False,
             violations=["repeated_actions"],
         )
@@ -235,9 +238,9 @@ class TestHandleViolation:
     
     def test_logs_warning(self, policy_check_phase):
         """handle_violation() логирует предупреждение."""
-        from core.agent.components.policy import PolicyViolation
+        from core.agent.components.policy import PolicyVerdict, PolicyViolationError
         
-        violation = PolicyViolation(
+        violation = PolicyVerdict(
             allowed=False,
             violations=["test_violation"],
         )
@@ -254,9 +257,9 @@ class TestHandleViolation:
     
     def test_registers_blocked_action(self, policy_check_phase):
         """Регистрирует заблокированное действие в agent_state."""
-        from core.agent.components.policy import PolicyViolation
+        from core.agent.components.policy import PolicyVerdict, PolicyViolationError
         
-        violation = PolicyViolation(
+        violation = PolicyVerdict(
             allowed=False,
             violations=["test_violation"],
         )
@@ -276,9 +279,9 @@ class TestHandleViolation:
     
     def test_registers_step_in_context(self, policy_check_phase):
         """Регистрирует шаг в session_context."""
-        from core.agent.components.policy import PolicyViolation
+        from core.agent.components.policy import PolicyVerdict, PolicyViolationError
         
-        violation = PolicyViolation(
+        violation = PolicyVerdict(
             allowed=False,
             violations=["test_violation"],
         )
@@ -298,9 +301,9 @@ class TestHandleViolation:
     
     def test_returns_policy_message(self, policy_check_phase):
         """Возвращает строку с сообщением о нарушении."""
-        from core.agent.components.policy import PolicyViolation
+        from core.agent.components.policy import PolicyVerdict, PolicyViolationError
         
-        violation = PolicyViolation(
+        violation = PolicyVerdict(
             allowed=False,
             violations=["test_violation"],
         )

@@ -152,6 +152,9 @@ def _format_dict_observation(
         return _format_vector_search_observation(data_dict)
     elif capability_name.startswith("vector_search"):
         return _format_vector_search_observation(data_dict)
+    elif capability_name.startswith("data_analysis") and "content" in data_dict:
+        # Для data_analysis возвращаем содержимое напрямую
+        return str(data_dict["content"])
     else:
         return json.dumps(data_dict, ensure_ascii=False, indent=2, default=str)
 

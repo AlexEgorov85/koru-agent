@@ -280,10 +280,11 @@ class PromptBuilderService:
     def _build_step_history(self, last_steps: list, session_context=None) -> str:
         """
         Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение.
-        
+
         АРХИТЕКТУРА:
-        - Шаг 2.1-2.3: Читает готовый obs_text из step, без обращения к data_context
-        - Удалена сложная fallback-логика и format_observation()
+        - Нормализует все шаги в словари для единообразной обработки
+        - Обрабатывает AgentStep объекты и словари
+        - Без обращения к data_context
         """
         if not last_steps:
             return "Шаги не выполнены"
@@ -291,47 +292,56 @@ class PromptBuilderService:
         lines = ["\n"]
 
         for i, step in enumerate(last_steps, 1):
-            capability = None
-            summary = None
-            status = "unknown"
-            parameters = {}
-
-            if hasattr(step, "capability_name"):
-                capability = step.capability_name
-                summary = step.summary or ""
-                status = (
-                    step.status.value
-                    if hasattr(step.status, "value")
-                    else str(step.status)
-                )
-                parameters = step.parameters or {}
-            elif isinstance(step, dict):
-                capability = step.get(
-                    "capability_name", step.get("capability", step.get("action", "unknown"))
-                )
-                summary = step.get("summary", "")
-                status = step.get("status", "unknown")
-                parameters = step.get("parameters", {}) or {}
+            # Нормализация шага в словарь
+            if isinstance(step, dict):
+                step_dict = step
+            elif hasattr(step, "capability_name"):  # AgentStep объект
+                step_dict = {
+                    "capability_name": getattr(step, "capability_name", "unknown"),
+                    "summary": getattr(step, "summary", "") or "",
+                    "status": (
+                        step.status.value
+                        if hasattr(step, "status") and hasattr(step.status, "value")
+                        else str(getattr(step, "status", "unknown"))
+                    ),
+                    "parameters": getattr(step, "parameters", None) or {},
+                    "obs_text": getattr(step, "obs_text", "Нет данных"),
+                    "step_number": getattr(step, "step_number", getattr(step, "step", None)),
+                }
             else:
                 lines.append(f"[ШАГ {i}]\n{str(step)}\n")
                 continue
 
-            thought = summary.strip() if summary else "Не указано"
-            
-            # ПРИОРИТЕТ: Читаем готовый текст из шага. 
-            # Он уже отформатирован в AgentState.add_step()
-            obs_text = step.get("obs_text", "Нет данных")
-            
-            # Безопасный fallback только если obs_text пустой
+            # Теперь обрабатываем step_dict единообразно
+            capability = (
+                step_dict.get("capability_name")
+                or step_dict.get("capability")
+                or step_dict.get("action", "unknown")
+            )
+            summary = step_dict.get("summary", "") or ""
+            status = step_dict.get("status", "unknown")
+            parameters = step_dict.get("parameters", None) or {}
+            step_num = step_dict.get("step_number", step_dict.get("step"))
+
+            # Читаем obs_text
+            obs_text = step_dict.get("obs_text", "Нет данных")
             if not obs_text or obs_text.strip() == "Нет данных":
                 obs_text = "Наблюдение недоступно или ожидает анализа"
 
+            thought = summary.strip() if summary else "Не указано"
+
+            # Обработка статусов
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
             elif status == "blocked":
-                block_reason = step.get("observation", {}).get("reason", "неизвестная причина") if isinstance(step, dict) and isinstance(step.get("observation"), dict) else "политика безопасности"
+                observation = step_dict.get("observation", {})
+                if isinstance(observation, dict):
+                    block_reason = observation.get("reason", "политика безопасности")
+                else:
+                    block_reason = "политика безопасности"
                 obs_text = f"⛔ ЗАБЛОКИРОВАНО: {block_reason}. Выбери другое действие."
 
+            # Формируем блок шага
             block = f"[ШАГ {i}]\n"
 
             if "\n" in thought:

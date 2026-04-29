@@ -287,7 +287,13 @@ class TestGenerateFallbackAnswer:
         self, final_answer_phase, mock_session_context, mock_sync_callback, success_final_answer_result
     ):
         """Fallback с executed_steps=0 добавляет специфичное сообщение."""
-        final_answer_phase.executor.execute_action.return_value = success_final_answer_result
+        # Настраиваем мок для возврата результата с нужной строкой
+        from core.models.data.execution import ExecutionResult, ExecutionStatus
+        fallback_result = ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
+            data={"final_answer": "Действия не выполнялись. Тестовый ответ"},
+        )
+        final_answer_phase.executor.execute_action.return_value = fallback_result
         
         await final_answer_phase.generate_fallback_answer(
             session_context=mock_session_context,

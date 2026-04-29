@@ -162,6 +162,7 @@ class ObservationPhase:
             quality=observation_dict.get('quality', {}) or {},
             insight=observation_dict.get('insight', observation_dict.get('observation', '')),
             hint=observation_dict.get('hint', observation_dict.get('next_step_suggestion', '')),
+            key_findings=observation_dict.get('key_findings', []) or [],
             rule_based=observation_dict.get('_rule_based', False),
             timestamp=datetime.utcnow().isoformat(),
             action_name=decision_action,
