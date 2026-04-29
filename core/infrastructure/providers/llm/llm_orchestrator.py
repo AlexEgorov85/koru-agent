@@ -459,6 +459,28 @@ class LLMOrchestrator:
             extra={"event_type": EventType.LLM_CALL}
         )
 
+        # Логирование в llm_calls.log (отдельный файл для всех LLM вызовов)
+        if self._llm_call_logger:
+            self._llm_call_logger.info(
+                f"LLM_REQ | call_id={record.call_id} | session={record.session_id} | "
+                f"agent={record.agent_id} | step={record.step_number} | "
+                f"phase={record.phase} | "
+                f"system_len={len(record.request.system_prompt) if record.request.system_prompt else 0} | "
+                f"user_len={len(record.request.prompt)} | "
+                f"temp={record.request.temperature} | max_tokens={record.request.max_tokens}",
+                extra={"event_type": EventType.LLM_CALL_REQUEST}
+            )
+            # Полный промт в DEBUG
+            if record.request.system_prompt:
+                self._llm_call_logger.debug(
+                    f"[LLM_REQ] System Prompt (call_id={record.call_id}):\n{record.request.system_prompt}",
+                    extra={"event_type": EventType.LLM_CALL_REQUEST}
+                )
+            self._llm_call_logger.debug(
+                f"[LLM_REQ] User Prompt (call_id={record.call_id}):\n{record.request.prompt}",
+                extra={"event_type": EventType.LLM_CALL_REQUEST}
+            )
+
         # Публикация события LLM_PROMPT_GENERATED
         await self._publish_prompt_event(record)
 
