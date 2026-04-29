@@ -55,25 +55,39 @@ class VectorSearchHandler(SkillHandler):
         # Форматируем результаты
         formatted_results = await self._format_results(results)
 
+        # Дедупликация: одна строка БД может иметь несколько векторов
+        # Сохраняем результат с максимальным score для каждой уникальной строки
+        best_results = {}  # key: (source, row_id), value: (score, item)
+        no_id_results = []
+
+        for item in formatted_results:
+            row = item.get("row", {})
+            row_id = row.get("id") if row else None
+            source_key = item.get("source", "unknown")
+            score = item.get("score", 0.0)
+
+            if row_id is not None:
+                dedup_key = f"{source_key}:{row_id}"
+                if dedup_key not in best_results or score > best_results[dedup_key][0]:
+                    best_results[dedup_key] = (score, item)
+            else:
+                # Строки без id добавляем как есть
+                no_id_results.append(item)
+
+        # Собираем уникальные результаты (лучший score для каждой строки)
+        unique_results = [item for _, (_, item) in best_results.items()] + no_id_results
+
         total_time = time.time() - start_time
-        result_data = {
-            "results": formatted_results,
-            "total_found": len(formatted_results),
-            "query": query,
-            "source": source,
-            "execution_time": total_time,
-            "warning": "Результатов не найдено" if not formatted_results else None
-        }
 
         await self.publish_metrics(
             success=True,
             execution_time_ms=total_time * 1000,
             execution_type="vector_search",
-            rows_returned=len(formatted_results)
+            rows_returned=len(unique_results)
         )
 
-        # Возвращаем dict — валидацию выполнит Component._validate_output()
-        return result_data
+        # Возвращаем список уникальных результатов — готовые данные для анализа
+        return unique_results
 
     async def _vector_search(
         self,

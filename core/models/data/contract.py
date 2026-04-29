@@ -1,7 +1,7 @@
 """
 Типизированная модель контракта с встроенной Pydantic-схемой.
 """
-from pydantic import BaseModel, Field, model_validator, ConfigDict, field_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict, field_validator, RootModel
 from typing import Dict, Optional, Type, Any, Literal, get_args
 import json
 from jsonschema import validate as jsonschema_validate, ValidationError as JsonSchemaError
@@ -89,6 +89,7 @@ class Contract(TemplateValidatorMixin, BaseModel):
         Компиляция JSON Schema в Pydantic-модель.
 
         ПОДДЕРЖИВАЕТ:
+        - type: array на верхнем уровне → RootModel[List[ItemType]]
         - Вложенные object → рекурсивные Pydantic-модели
         - array с items → list[ItemType] (с рекурсией)
         - enum → Literal[...]
@@ -99,7 +100,29 @@ class Contract(TemplateValidatorMixin, BaseModel):
         - additionalProperties → extra="allow"/"forbid"
         - Строгая валидация типов (без fallback на str)
         """
-        from typing import Optional, get_origin
+        from typing import Optional, get_origin, List
+
+        schema_type = self.schema_data.get("type")
+
+        # НОВОЕ: Поддержка type: array на верхнем уровне
+        if schema_type == "array":
+            items_schema = self.schema_data.get("items")
+            class_name = f"{self.capability.replace('.', '').title()}Array"
+            if items_schema:
+                item_type = self._compile_field_schema("root", items_schema)
+                # Создаём RootModel динамически через определение аннотации root
+                model_annotations = {"root": List[item_type]}
+                DynamicRootModel = type(
+                    class_name,
+                    (RootModel,),
+                    {
+                        "__annotations__": model_annotations,
+                        "model_config": ConfigDict(),
+                    }
+                )
+                return DynamicRootModel
+            # Если items не определен, возвращаем базовую модель для list
+            return RootModel[List]
 
         properties = self.schema_data.get("properties", {})
         required = self.schema_data.get("required", [])

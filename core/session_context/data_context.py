@@ -14,9 +14,13 @@
 3. Быстрый доступ: O(1) для получения элементов по ID
 4. Изоляция: не зависит от внешних систем
 """
+import logging
 from typing import Dict, List
 
+from core.infrastructure.logging.event_types import LogEventType
 from core.session_context.model import ContextItem
+
+log = logging.getLogger(__name__)
 
 class DataContext:
     """
@@ -41,13 +45,13 @@ class DataContext:
     def add_item(self, item: ContextItem) -> str:
         """
         Добавление элемента в контекст.
-        
+
         ПАРАМЕТРЫ:
         - item: Элемент контекста для добавления
-        
+
         ВОЗВРАЩАЕТ:
         - item_id: Уникальный идентификатор элемента
-        
+
         БИЗНЕС-ЛОГИКА:
         - Если item_id уже существует, элемент перезаписывается
         - Если item_id не указан, генерируется автоматически
@@ -56,8 +60,13 @@ class DataContext:
         if not item.item_id:
             self.item_counter += 1
             item.item_id = f"auto_{self.item_counter}"
-        
+
         self.items[item.item_id] = item
+        content_preview = str(item.content)[:200] if item.content else "None"
+        log.info(
+            f"CONTEXT WRITE: item_id={item.item_id}, type={item.item_type}, content_preview={content_preview}",
+            extra={"event_type": LogEventType.DEBUG}
+        )
         return item.item_id
     
     def get_item(self, item_id: str, raise_on_missing: bool = True) -> ContextItem:
