@@ -1125,6 +1125,7 @@ class LLMOrchestrator:
         )
 
         # Компактное логирование метаданных запроса в отдельный логгер
+        # Промпт НЕ логируем здесь — это делает execute() через _log_call_start()
         if self._llm_call_logger:
             self._llm_call_logger.info(
                 f"LLM_REQ | call_id={call_id} | session={session_id} | "
@@ -1132,16 +1133,6 @@ class LLMOrchestrator:
                 f"system_len={len(request.system_prompt) if request.system_prompt else 0} | "
                 f"user_len={len(request.prompt)} | "
                 f"temp={request.temperature} | max_tokens={request.max_tokens}",
-                extra={"event_type": EventType.LLM_CALL_REQUEST}
-            )
-            # Полный промт в DEBUG
-            if request.system_prompt:
-                self._llm_call_logger.debug(
-                    f"[LLM_REQ] System Prompt (call_id={call_id}):\n{request.system_prompt}",
-                    extra={"event_type": EventType.LLM_CALL_REQUEST}
-                )
-            self._llm_call_logger.debug(
-                f"[LLM_REQ] User Prompt (call_id={call_id}):\n{request.prompt}",
                 extra={"event_type": EventType.LLM_CALL_REQUEST}
             )
 
@@ -1356,7 +1347,7 @@ class LLMOrchestrator:
                     extra={"event_type": EventType.LLM_CALL}
                 )
 
-            # Вызываем провайдер напрямую — он сам управляет потоком
+            # Вызываем провайдер напрямую — он сам управляет потоком и таймаутами
             result = await provider._generate_impl(request)
 
             # === ВАЛИДАЦИЯ ОТВЕТА ===
