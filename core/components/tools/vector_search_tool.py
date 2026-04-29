@@ -198,7 +198,7 @@ class VectorSearchTool(Tool):
         # Выполняем async операцию напрямую
         if operation == "search":
             query = params_dict.get('query', '')
-            top_k = params_dict.get('top_k', 10)
+            top_k = params_dict.get('top_k')
             min_score = params_dict.get('min_score', 0.5)
             source = params_dict.get('source', 'books')
             self._log_debug(f"VectorSearchTool._search: query='{query[:50]}...', top_k={top_k}, source={source}", event_type=EventType.DEBUG)
@@ -234,7 +234,7 @@ class VectorSearchTool(Tool):
     async def _search(
         self,
         query: str,
-        top_k: Optional[int] = 10,
+        top_k: Optional[int] = None,
         min_score: float = 0.5,
         filters: Optional[Dict[str, Any]] = None,
         source: str = "books"
@@ -285,7 +285,10 @@ class VectorSearchTool(Tool):
                 )
 
             # 3. Поиск в FAISS
-            self._log_debug(f"[_search] Searching FAISS ({count} vectors)...", event_type=EventType.DEBUG)
+            self._log_debug(
+                f"[_search] Searching FAISS ({'all' if top_k is None else top_k} vectors)...",
+                event_type=EventType.DEBUG
+            )
 
             faiss_search_start = time.time()
             faiss_results = await faiss.search(query_vector.tolist() if query_vector is not None else [], top_k=top_k)
