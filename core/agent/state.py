@@ -31,6 +31,7 @@ class ObservationAnalysis(BaseModel):
     - quality: оценка качества данных
     - insight: ключевое наблюдение
     - hint: рекомендация для следующего шага
+    - key_findings: список ключевых фактов (включая предупреждения об обрезке)
     - rule_based: был ли использован rule-based анализ
     - timestamp: время анализа
     - save_type: тип сохранения ('raw_data' или 'summary')
@@ -39,6 +40,7 @@ class ObservationAnalysis(BaseModel):
     quality: Dict[str, Any] = Field(default_factory=dict)
     insight: str = ""
     hint: str = ""
+    key_findings: List[str] = Field(default_factory=list)
     rule_based: bool = False
     timestamp: Optional[str] = None
     action_name: Optional[str] = None
@@ -182,9 +184,33 @@ class AgentState:
         self._last_tool_name = tool_name
         self._last_observation = observation
 
+        # Формируем текст наблюдения для быстрого доступа
+        obs_text = ""
+        if isinstance(observation, dict):
+            insight = observation.get('insight', observation.get('observation', ''))
+            key_findings = observation.get('key_findings', [])
+            hint = observation.get('hint', observation.get('next_step_suggestion', ''))
+        elif hasattr(observation, 'insight'):  # Pydantic ObservationAnalysis
+            insight = observation.insight
+            key_findings = observation.key_findings
+            hint = observation.hint
+        else:
+            insight, key_findings, hint = "Нет анализа", [], ""
+
+        obs_parts = [insight] if insight else []
+        for finding in key_findings:
+            if finding:
+                obs_parts.append(f"  - {finding}")
+        if hint:
+            obs_parts.append(f"💡 Подсказка: {hint}")
+        
+        obs_text = "\n".join(obs_parts) if obs_parts else "Нет данных"
+        
         self._history.append(
             {
                 "step": self._step_number,
+                "step_number": self._step_number,  # для надёжного поиска
+                "obs_text": obs_text,  # <-- СОХРАНЯЕМ ТЕКСТ НАБЛЮДЕНИЯ ПРЯМО В STEP
                 "action": action_name,
                 "action_signature": action_signature,
                 "status": status,

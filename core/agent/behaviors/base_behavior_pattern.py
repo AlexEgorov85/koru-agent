@@ -282,36 +282,19 @@ class PromptBuilderService:
         Формирует историю шагов в формате: Мысль → Действие → Параметры → Наблюдение.
         
         АРХИТЕКТУРА:
-        - Шаг 2.4: Берёт наблюдения из observation_history, а не парсит сырые data_context
-        - Использует типизированные ObservationAnalysis если доступны
+        - Шаг 2.1-2.3: Читает готовый obs_text из step, без обращения к data_context
+        - Удалена сложная fallback-логика и format_observation()
         """
         if not last_steps:
             return "Шаги не выполнены"
 
         lines = ["\n"]
 
-        # Проверяем есть ли observation_history (Шаг 2.4)
-        has_observation_history = (
-            session_context 
-            and hasattr(session_context, 'agent_state')
-            and hasattr(session_context.agent_state, 'observation_history')
-            and len(session_context.agent_state.observation_history) > 0
-        )
-        
-        # Получаем наблюдения из истории если доступна
-        obs_history_map = {}
-        if has_observation_history:
-            for obs in session_context.agent_state.observation_history:
-                if obs.step_number:
-                    obs_history_map[obs.step_number] = obs
-
         for i, step in enumerate(last_steps, 1):
             capability = None
             summary = None
             status = "unknown"
             parameters = {}
-            obs_ids = []
-            step_num = None
 
             if hasattr(step, "capability_name"):
                 capability = step.capability_name
@@ -322,12 +305,6 @@ class PromptBuilderService:
                     else str(step.status)
                 )
                 parameters = step.parameters or {}
-                obs_ids = (
-                    step.observation_item_ids
-                    if hasattr(step, "observation_item_ids")
-                    else []
-                )
-                step_num = getattr(step, 'step_number', None)
             elif isinstance(step, dict):
                 capability = step.get(
                     "capability_name", step.get("capability", step.get("action", "unknown"))
@@ -335,57 +312,25 @@ class PromptBuilderService:
                 summary = step.get("summary", "")
                 status = step.get("status", "unknown")
                 parameters = step.get("parameters", {}) or {}
-                obs_ids = step.get("observation_item_ids", [])
-                step_num = step.get("step_number")
             else:
                 lines.append(f"[ШАГ {i}]\n{str(step)}\n")
                 continue
 
             thought = summary.strip() if summary else "Не указано"
-
-            # Пытаемся взять наблюдение из observation_history (Шаг 2.4)
-            obs_text = "Нет данных"
-            if step_num and step_num in obs_history_map:
-                # Используем типизированное наблюдение из истории
-                obs_analysis = obs_history_map[step_num]
-                obs_text = f"{obs_analysis.insight}"
-                if obs_analysis.hint:
-                    obs_text += f"\n💡 Подсказка: {obs_analysis.hint}"
-            elif obs_ids and session_context and hasattr(session_context, "data_context"):
-                # Fallback на старый метод через data_context
-                obs_parts = []
-                for obs_id in obs_ids:
-                    item = session_context.data_context.get_item(
-                        obs_id, raise_on_missing=False
-                    )
-                    if item:
-                        if hasattr(item, "quick_content") and item.quick_content:
-                            obs_parts.append(item.quick_content)
-                        elif hasattr(item, "content"):
-                            from core.utils.observation_formatter import (
-                                format_observation,
-                            )
-
-                            obs_parts.append(
-                                format_observation(item.content, capability, parameters)
-                            )
-                if obs_parts:
-                    obs_text = "\n".join(obs_parts)
-            elif hasattr(step, "result") and step.data is not None:
-                from core.utils.observation_formatter import format_observation
-
-                obs_text = format_observation(step.data, capability, parameters)
-            elif isinstance(step, dict) and step.get("result"):
-                from core.utils.observation_formatter import format_observation
-
-                obs_text = format_observation(step["data"], capability, parameters)
+            
+            # ПРИОРИТЕТ: Читаем готовый текст из шага. 
+            # Он уже отформатирован в AgentState.add_step()
+            obs_text = step.get("obs_text", "Нет данных")
+            
+            # Безопасный fallback только если obs_text пустой
+            if not obs_text or obs_text.strip() == "Нет данных":
+                obs_text = "Наблюдение недоступно или ожидает анализа"
 
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
             elif status == "blocked":
-                obs = step.get("observation", {}) if isinstance(step, dict) else {}
-                block_reason = obs.get("reason", "неизвестная причина")
-                obs_text = f"⛔ ЗАБЛОКИРОВАНО ПОЛИТИКОЙ: {block_reason}. Выбери другое действие или измени параметры."
+                block_reason = step.get("observation", {}).get("reason", "неизвестная причина") if isinstance(step, dict) and isinstance(step.get("observation"), dict) else "политика безопасности"
+                obs_text = f"⛔ ЗАБЛОКИРОВАНО: {block_reason}. Выбери другое действие."
 
             block = f"[ШАГ {i}]\n"
 

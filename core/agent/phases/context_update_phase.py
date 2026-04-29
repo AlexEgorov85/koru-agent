@@ -149,8 +149,12 @@ class ContextUpdatePhase:
             decision_action: Action name
             decision_parameters: Action parameters
             result_status: Execution status
-            observation_signal: Observation signal dict
+            observation_signal: Observation signal (dict или Pydantic модель)
         """
+        # Гарантируем, что observation_signal — dict (для add_step)
+        if hasattr(observation_signal, 'model_dump') and callable(observation_signal.model_dump):
+            observation_signal = observation_signal.model_dump()
+        
         session_context.agent_state.add_step(
             action_name=decision_action or "unknown",
             status=result_status.value,
@@ -158,6 +162,26 @@ class ContextUpdatePhase:
             observation=observation_signal,
         )
         session_context.agent_state.register_observation(observation_signal)
+        
+        # Сохраняем текст наблюдения прямо в последний шаг для быстрого доступа
+        if observation_signal and hasattr(session_context.agent_state, '_history'):
+            history = session_context.agent_state._history
+            if history:
+                last_step = history[-1]
+                # Формируем текст из observation_signal (уже dict)
+                insight = observation_signal.get('insight', observation_signal.get('observation', ''))
+                hint = observation_signal.get('hint', observation_signal.get('next_step_suggestion', ''))
+                key_findings = observation_signal.get('key_findings', [])
+                
+                obs_text_parts = [insight]
+                if key_findings:
+                    for finding in key_findings:
+                        if finding:
+                            obs_text_parts.append(f"  - {finding}")
+                if hint:
+                    obs_text_parts.append(f"💡 Подсказка: {hint}")
+                
+                last_step['obs_text'] = "\n".join(obs_text_parts) if obs_text_parts else "Нет данных"
     
     def save_result_data(
         self,
@@ -304,8 +328,9 @@ class ContextUpdatePhase:
                     parameters=decision_parameters,
                 )
             
-            # Сохраняем сырые данные только если решено сохранить raw_data
-            content = result.data if save_type == "raw_data" else quick_content
+            # ВСЕГДА сохраняем сырые данные в content (независимо от save_type)
+            # save_type используется только для принятия решения, но данные не теряем
+            content = result.data
             
             observation_item = ContextItem(
                 item_id="",
