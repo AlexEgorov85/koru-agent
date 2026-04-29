@@ -507,7 +507,6 @@ class AppConfig(BaseSettings):
 
                 # Загружаем vector_search конфигурацию
                 if yaml_config and 'vector_search' in yaml_config:
-                    from core.config.vector_config import VectorSearchConfig
                     vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
                 
                 # Загружаем agent_defaults из YAML (переопределяет env vars)
@@ -674,7 +673,11 @@ class AppConfig(BaseSettings):
         # Создаем AgentDefaults из YAML (переопопределяет env vars)
         agent_defaults = AgentDefaults(**agent_defaults_dict) if agent_defaults_dict else AgentDefaults()
         
-        return cls(
+        # Используем default_factory если конфиг не был загружен из YAML
+        if vector_search_config is None:
+            vector_search_config = VectorSearchConfig()
+        
+        config = cls(
             config_id=f"app_config_{profile}_discovery",
             profile=profile,
             debug=(profile == "dev"),
@@ -698,6 +701,7 @@ class AppConfig(BaseSettings):
         _DISCOVERY_CACHE[cache_key] = config
         
         # Сохраняем mtime data_dir для будущей проверки инвалидации
+        data_path = Path(data_dir)
         if data_path.exists():
             data_mtime = max(
                 (os.path.getmtime(f) for f in data_path.rglob("*") if f.is_file()),
