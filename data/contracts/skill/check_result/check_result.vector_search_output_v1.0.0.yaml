@@ -1,32 +1,21 @@
 capability: check_result.vector_search
 component_type: skill
-description: Output contract for check_result.vector_search - список результатов семантического поиска (готовые данные для анализа)
+description: Output contract for check_result.vector_search - список результатов семантического поиска по нарушениям (violations)
 direction: output
 schema_data:
   type: array
-  description: Список результатов семантического поиска (уникальные строки, без дублей по id)
+  description: Список результатов семантического поиска по нарушениям (уникальные строки, без дублей по id)
   items:
     type: object
     properties:
       type:
         type: string
-        description: Тип найденного объекта
+        description: Тип найденного объекта (всегда "violations")
         enum:
-          - audit
-          - violation
-          - unknown
+          - violations
       score:
         type: number
         description: Оценка схожести (от 0.0 до 1.0)
-      audit_id:
-        type: integer
-        description: ID аудиторской проверки
-      audit_title:
-        type: string
-        description: Название проверки (для нарушений)
-      title:
-        type: string
-        description: Название (для проверок)
       violation_id:
         type: integer
         description: ID нарушения
@@ -36,6 +25,9 @@ schema_data:
       description:
         type: string
         description: Описание нарушения
+      recommendation:
+        type: string
+        description: Рекомендация по устранению
       severity:
         type: string
         description: Критичность нарушения
@@ -45,12 +37,15 @@ schema_data:
       responsible:
         type: string
         description: Ответственное лицо
-      audit_type:
+      deadline:
         type: string
-        description: Тип проверки
-      auditee_entity:
+        description: Срок устранения
+      audit_id:
+        type: integer
+        description: ID аудиторской проверки
+      audit_title:
         type: string
-        description: Проверяемый объект
+        description: Название проверки
       matched_text:
         type: string
         description: Текст, по которому найдено совпадение (до 300 символов)

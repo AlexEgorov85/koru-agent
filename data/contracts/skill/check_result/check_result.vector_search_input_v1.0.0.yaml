@@ -1,6 +1,6 @@
 capability: check_result.vector_search
 component_type: skill
-description: Input contract for check_result.vector_search - семантический поиск по текстам актов
+description: Input contract for check_result.vector_search - семантический поиск по нарушениям (violations)
 direction: input
 schema_data:
   type: object
@@ -8,13 +8,6 @@ schema_data:
     query:
       type: string
       description: Текст запроса для семантического поиска (например, "нарушения в сфере закупок")
-    source:
-      type: string
-      description: Источник FAISS индекса
-      enum:
-        - audits
-        - violations
-      default: audits
     top_k:
       type: integer
       description: Количество возвращаемых результатов (null = без лимита)

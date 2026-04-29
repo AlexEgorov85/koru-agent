@@ -5,7 +5,7 @@
 ТРИ CAPABILITY:
 1. check_result.execute_script - выполнение заготовленного скрипта
 2. check_result.generate_script - генерация SQL через LLM и выполнение
-3. check_result.vector_search - семантический поиск по текстам актов
+3. check_result.vector_search - семантический поиск по нарушениям (violations)
 
 АРХИТЕКТУРА:
 - skill.py: координация и маршрутизация
@@ -51,7 +51,7 @@ class CheckResultSkill(Skill):
     Поддерживает три режима работы:
     1. execute_script - выполнение заготовленных скриптов
     2. generate_script - генерация SQL через LLM и выполнение
-    3. vector_search - семантический поиск по текстам актов
+    3. vector_search - семантический поиск по нарушениям (только violations)
     """
 
     @property
@@ -390,11 +390,11 @@ class CheckResultSkill(Skill):
             Capability(
                 name="check_result.vector_search",
                 description=(
-                    "Семантический поиск по текстам актов аудиторской проверки и отклонениям "
+                    "Семантический поиск по нарушениям (violations) "
                     "с использованием FAISS векторной БД. "
                     "Найди фрагменты, где упоминаются определённые нарушения, формулировки, "
                     "ответственные лица или ключевые понятия. "
-                    "Параметры: query (текст запроса), source (audits|violations), "
+                    "Параметры: query (текст запроса), "
                     "top_k (кол-во результатов), min_score (порог схожести 0.0-1.0)"
                 ),
                 skill_name=self.name,
