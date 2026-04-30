@@ -239,7 +239,7 @@ class Observer:
                 
                 if count > 5:
                     key_findings.append(f"... and {count - 5} more results")
-                    observation_text += f". Use data_analysis.analyze_step_data to analyze all {count} results"
+                    observation_text += f". Внимание данные не доступны для анализа {count} результатов необходимо запустить data_analysis.analyze_step_data"
                 
                 completeness = 1.0 if count > 0 else 0.0
             else:
