@@ -27,6 +27,7 @@ import asyncio
 import time
 import json
 import logging
+import os
 import re
 from typing import List, Dict, Any, Optional
 
@@ -73,6 +74,9 @@ class DataAnalysisSkill(Skill):
         self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
         self._chars_per_token = self.DEFAULT_CHARS_PER_TOKEN
         self._schema_cache: Dict[str, str] = {}
+        self.chunk_llm_timeout = int(os.environ.get("DATA_ANALYSIS_CHUNK_TIMEOUT", "120"))
+        self.retry_max_attempts = int(os.environ.get("DATA_ANALYSIS_RETRY_ATTEMPTS", str(self.RETRY_MAX_ATTEMPTS)))
+        self.retry_base_delay = float(os.environ.get("DATA_ANALYSIS_RETRY_DELAY", str(self.RETRY_BASE_DELAY)))
 
     def _calculate_max_chars(
         self,
@@ -136,6 +140,38 @@ class DataAnalysisSkill(Skill):
 
         if sample_text:
             self._chars_per_token = self._detect_charset_density(sample_text)
+
+    def _get_model_name(self, execution_context: Any) -> Optional[str]:
+        """Получает имя модели LLM из контекста."""
+        try:
+            app_ctx = getattr(execution_context, 'application_context', None)
+            if app_ctx is None and hasattr(execution_context, 'session_context'):
+                app_ctx = getattr(execution_context.session_context, 'application_context', None)
+
+            if app_ctx and hasattr(app_ctx, 'get_infrastructure_context'):
+                infra = app_ctx.get_infrastructure_context()
+                if hasattr(infra, 'resource_registry') and infra.resource_registry:
+                    from core.models.enums.common_enums import ResourceType
+                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
+                    if default_llm_info and default_llm_info.instance:
+                        provider = default_llm_info.instance
+                        model_name = getattr(provider, 'model_name', "") or ""
+                        return model_name if model_name else None
+        except Exception:
+            pass
+        return None
+
+    def _is_tokenizable_model(self, model_name: str) -> bool:
+        """Проверяет, поддерживает ли модель токенизацию через tiktoken."""
+        if not model_name:
+            return False
+        # Список моделей, поддерживаемых tiktoken
+        tokenizable_prefixes = [
+            'gpt-', 'claude', 'gemini', 'text-davinci', 'text-curie',
+            'text-babbage', 'text-ada', 'davinci', 'curie', 'babbage', 'ada'
+        ]
+        model_lower = model_name.lower()
+        return any(prefix in model_lower for prefix in tokenizable_prefixes)
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -265,13 +301,45 @@ class DataAnalysisSkill(Skill):
         )
 
         from core.infrastructure.providers.vector.chunking_service import ChunkingService
-        chunking_service = ChunkingService(
-            chunk_size_chars=max_chunk_chars,
-            chunk_size_rows=50
-        )
-
+        
+        # Определяем модель LLM
+        model_name = self._get_model_name(execution_context)
+        
+        # Создаем сервис с токен-режимом (если модель поддерживается)
+        use_tokens = model_name is not None and self._is_tokenizable_model(model_name)
+        
+        if use_tokens:
+            max_tokens = self._context_window - self._max_new_tokens - self.DEFAULT_RESERVE_TOKENS
+            chunking_service = ChunkingService(
+                use_tokens=True,
+                model_name=model_name,
+                max_tokens_per_chunk=max_tokens,
+                token_overlap=int(max_tokens * 0.1)  # 10% overlap
+            )
+            # Проверяем, удалось ли инициализировать encoder
+            actual_token_mode = chunking_service._token_encoder is not None
+        else:
+            chunking_service = ChunkingService(
+                chunk_size_chars=max_chunk_chars,
+                chunk_size_rows=50
+            )
+            actual_token_mode = False
+        
+        if actual_token_mode:
+            self._log_info(
+                f"🎯 [data_analysis] Токен-ориентированный чанкинг: model={model_name}, "
+                f"max_tokens={chunking_service.max_tokens_per_chunk}",
+                event_type=EventType.INFO
+            )
+        else:
+            self._log_info(
+                f"🎯 [data_analysis] Символ-ориентированный чанкинг (fallback): "
+                f"max_chars={max_chunk_chars}",
+                event_type=EventType.INFO
+            )
+        
         schema = self._extract_schema(data)
-
+        
         if isinstance(data, list):
             chunks = chunking_service.chunk_rows(data)
             self._log_info(
@@ -281,8 +349,9 @@ class DataAnalysisSkill(Skill):
             input_type = "rows"
         elif isinstance(data, str):
             chunks = chunking_service.chunk_text(data)
+            mode = chunks[0].get('mode', 'chars') if chunks else 'none'
             self._log_info(
-                f"📄 [data_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков",
+                f"📄 [data_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков (mode={mode})",
                 event_type=EventType.INFO
             )
             input_type = "text"
@@ -481,32 +550,53 @@ class DataAnalysisSkill(Skill):
         question: str,
         execution_context: Any
     ) -> List[Dict[str, Any]]:
+        if not chunks:
+            return []
+
         if len(chunks) == 1:
             return [await self._analyze_chunk_with_retry(chunks[0], question, execution_context)]
 
+        self._log_info(
+            f"🗺️ [MAP] Начало: {len(chunks)} чанков",
+            event_type=EventType.INFO
+        )
+
         semaphore = asyncio.Semaphore(self.DEFAULT_MAX_CONCURRENT)
 
-        async def analyze_with_limit(chunk: Dict[str, Any]) -> Dict[str, Any]:
+        async def _run_with_progress(idx: int, chunk: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
-                return await self._analyze_chunk_with_retry(chunk, question, execution_context)
+                self._log_debug(
+                    f"🔹 [MAP] Запуск чанка {idx}/{len(chunks)} (id={chunk.get('chunk_id')})"
+                )
+                result = await self._analyze_chunk_with_retry(chunk, question, execution_context)
+                self._log_debug(
+                    f"✅ [MAP] Завершён чанк {idx}/{len(chunks)} (статус=success: {result.get('status') == 'success'})"
+                )
+                return result
 
-        tasks = [analyze_with_limit(chunk) for chunk in chunks]
+        tasks = [_run_with_progress(i, chunk) for i, chunk in enumerate(chunks, 1)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        summaries = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
+        # Фильтрация ошибок/исключений
+        valid_summaries = []
+        for i, r in enumerate(results, 1):
+            if isinstance(r, Exception):
+                self._log_error(
+                    f"❌ [MAP] Исключение в чанке {i}: {r}"
+                )
+            elif isinstance(r, dict) and r.get("content"):
+                valid_summaries.append(r)
+            else:
                 self._log_warning(
-                    f"⚠️ [text_analysis] Ошибка анализа чанка {i}: {result}",
+                    f"⚠️ [MAP] Пропущен чанк {i}: {r}",
                     event_type=EventType.WARNING
                 )
-                summaries.append({"content": "", "chunk_id": i, "error": str(result)})
-            elif not self._is_valid_result(result):
-                summaries.append({"content": "", "chunk_id": i, "error": f"Invalid result type: {type(result)}"})
-            else:
-                summaries.append(result)
 
-        return summaries
+        self._log_info(
+            f"🗺️ [MAP] Завершено: {len(valid_summaries)}/{len(chunks)} успешных",
+            event_type=EventType.INFO
+        )
+        return valid_summaries
 
     async def _analyze_chunk_with_retry(
         self,
@@ -514,19 +604,34 @@ class DataAnalysisSkill(Skill):
         question: str,
         execution_context: Any
     ) -> Dict[str, Any]:
-        """Анализ чанка с retry логикой."""
+        """Анализ чанка с retry логикой и таймаутом."""
         last_error = None
-        for attempt in range(self.RETRY_MAX_ATTEMPTS):  # ARCHITECTURE: Retry logic для transient ошибок LLM
+        for attempt in range(1, self.retry_max_attempts + 1):
             try:
-                result = await self._analyze_chunk(chunk, question, execution_context)
+                # ⏱️ Жёсткий таймаут на попытку
+                result = await asyncio.wait_for(
+                    self._analyze_chunk(chunk, question, execution_context),
+                    timeout=self.chunk_llm_timeout
+                )
                 if result.get("content"):
                     return result
-                if attempt < self.RETRY_MAX_ATTEMPTS - 1:
-                    await asyncio.sleep(self.RETRY_BASE_DELAY * (attempt + 1))
+                self._log_warning(
+                    f"⚠️ Chunk {chunk.get('chunk_id')} вернул пустой контент (попытка {attempt})",
+                    event_type=EventType.WARNING
+                )
+            except asyncio.TimeoutError:
+                last_error = f"Таймаут {self.chunk_llm_timeout}s (попытка {attempt})"
+                self._log_error(
+                    f"⏱️ Chunk {chunk.get('chunk_id')} превысил таймаут {self.chunk_llm_timeout}s (попытка {attempt})"
+                )
             except Exception as e:
                 last_error = e
-                if attempt < self.RETRY_MAX_ATTEMPTS - 1:
-                    await asyncio.sleep(self.RETRY_BASE_DELAY * (attempt + 1))
+                self._log_error(
+                    f"❌ Chunk {chunk.get('chunk_id')} ошибка: {e} (попытка {attempt})"
+                )
+
+            if attempt < self.retry_max_attempts:
+                await asyncio.sleep(self.retry_base_delay * attempt)
 
         return {"content": "", "chunk_id": chunk.get("chunk_id", 0), "error": str(last_error)}
 
