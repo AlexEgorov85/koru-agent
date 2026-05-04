@@ -2,7 +2,7 @@ agent:
   default_strategy: react
   enable_context_window_management: true
   enable_self_reflection: true
-  llm_timeout_seconds: 1200.0
+  llm_timeout_seconds: 6000.0
   max_retries: 3
   max_steps: 10
   temperature: 0.2

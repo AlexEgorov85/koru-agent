@@ -36,7 +36,7 @@ class TimeoutConfig(BaseModel):
     )
     
     llm_total_timeout: float = Field(
-        default=1200.0,
+        default=6000.0,
         ge=60.0,
         le=7200.0,
         description="Общий таймаут на все попытки LLM вызова (секунды). "
@@ -106,7 +106,7 @@ class TimeoutConfig(BaseModel):
     )
     
     action_context_timeout: float = Field(
-        default=120.0,
+        default=600.0,
         ge=30.0,
         le=600.0,
         description="Таймаут для действий контекста (секунды)."
@@ -124,7 +124,7 @@ class TimeoutConfig(BaseModel):
     # ========================================================================
     
     agent_step_timeout: float = Field(
-        default=1200.0,
+        default=6000.0,
         ge=300.0,
         le=7200.0,
         description="Таймаут на один шаг агента (секунды). "
