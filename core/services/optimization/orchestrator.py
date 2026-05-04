@@ -795,7 +795,7 @@ class OptimizationOrchestrator:
                         ),
                     ],
                 ),
-                timeout_seconds=120,
+                timeout_seconds=600,
                 metadata={
                     'source': 'benchmark',
                     'expected_sql': tc.get('expected_sql'),
