@@ -991,12 +991,20 @@ class ActionExecutor:
             step_number = None
             goal = None
             
-            if context and context.session_context:
-                session_id = getattr(context.session_context, 'session_id', None)
-                agent_id = getattr(context.session_context, 'agent_id', None)
-                goal = getattr(context.session_context, 'goal', None)
-                if hasattr(context.session_context, 'step_context') and context.session_context.step_context:
-                    step_number = context.session_context.step_context.get_current_step_number()
+            if context:
+                from core.session_context.session_context import SessionContext
+                if isinstance(context, SessionContext):
+                    session_id = getattr(context, 'session_id', None)
+                    agent_id = getattr(context, 'agent_id', None)
+                    goal = getattr(context, 'goal', None)
+                    if hasattr(context, 'step_context') and context.step_context:
+                        step_number = context.step_context.get_current_step_number()
+                elif hasattr(context, 'session_context') and context.session_context:
+                    session_id = getattr(context.session_context, 'session_id', None)
+                    agent_id = getattr(context.session_context, 'agent_id', None)
+                    goal = getattr(context.session_context, 'goal', None)
+                    if hasattr(context.session_context, 'step_context') and context.session_context.step_context:
+                        step_number = context.session_context.step_context.get_current_step_number()
             
             response = await orchestrator.execute(
                 request=request,

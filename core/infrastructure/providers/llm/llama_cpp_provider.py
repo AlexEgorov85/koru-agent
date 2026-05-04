@@ -144,7 +144,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             # Создание ThreadPoolExecutor для LLM вызовов
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(
-                max_workers=2,  # 2 worker для предотвращения блокировок
+                max_workers=1,  # 1 worker — llama_cpp не потокобезопасна
                 thread_name_prefix='llm_worker'
             )
 
@@ -340,7 +340,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         if not self._executor:
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(
-                max_workers=2,
+                max_workers=1,  # 1 worker — llama_cpp не потокобезопасна
                 thread_name_prefix='llm_worker'
             )
 

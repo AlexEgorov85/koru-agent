@@ -1,24 +1,31 @@
 """
-Навык анализа данных с LLM и MapReduce.
+Навык анализа данных с поддержкой разных режимов работы.
 
-АРХИТЕКТУРА:
+ПОДДЕРЖИВАЕМЫЕ РЕЖИМЫ:
+- mapreduce: LLM + разбиение на чанки (для больших данных)
+- python: Локальные вычисления без LLM (для числовых данных)
+- llm: Прямой запрос к LLM без чанкинга (для небольших данных)
+- auto: Автовыбор режима на основе размера данных и типа вопроса
+
+АРХИТЕКТУРА (MAPREDUCE):
 - INPUT: step_id → получение данных из контекста
 - MAP: Разбиение на чанки → Параллельный LLM-анализ
 - REDUCE: Иерархическое (tree) объединение ответов через LLM
 
-УЛУЧШЕНИЯ v2:
+УЛУЧШЕНИЯ:
 - Schema-aware chunking: схема данных инжектится в каждый чанк
 - Tree Reduce: O(log N) вместо O(N) вызовов LLM
 - Early filtering: фильтрация пустых/мусорных результатов Map-фазы
 - Adaptive chars_per_token: динамический расчёт для RU/EN текста
-- Retry logic: tenacity для устойчивости к сбоям
+- Retry logic: устойчивость к сбоям
 
 ИСПОЛЬЗОВАНИЕ:
     result = await executor.execute_action(
         action_name="data_analysis.analyze_step_data",
         parameters={
             "question": "Какие ключевые темы?",
-            "step_id": 1
+            "step_id": 1,
+            "mode": "auto"  # Опционально: mapreduce, python, llm, auto
         },
         context=execution_context
     )
@@ -260,34 +267,304 @@ class DataAnalysisSkill(Skill):
 
         return chunks
 
-    async def _execute_impl(
-        self,
-        capability: Capability,
-        parameters: Dict[str, Any],
-        execution_context: Any
-    ) -> Dict[str, Any]:
+    async def _execute_impl(self, capability, parameters, context):
+        """Реализация анализа данных с поддержкой разных режимов."""
         start_time = time.time()
 
         params_dict = self._normalize_parameters(parameters)
 
         question = params_dict.get("question")
         step_id = params_dict.get("step_id")
+        mode = params_dict.get("mode", "auto")  # mapreduce, python, llm, auto
 
         if not question:
             raise ValueError("Параметр 'question' обязателен")
         if step_id is None:
             raise ValueError("Параметр 'step_id' обязателен")
 
-        data = self._get_step_data(execution_context, step_id)
+        data = self._get_step_data(context, step_id)
 
         if data is None:
             self._log_warning(
                 f"❌ Данные шага {step_id} не найдены. "
-                f"execution_context type={type(execution_context).__name__}",
+                f"context type={type(context).__name__}",
                 event_type=EventType.WARNING
             )
             raise ValueError(f"Данные шага {step_id} не найдены")
 
+        # Определяем режим работы
+        if mode == "auto":
+            mode = self._detect_mode(data, question)
+            self._log_info(
+                f"🤖 [data_analysis] Auto-detected mode: {mode}",
+                event_type=EventType.INFO
+            )
+
+        # Выполняем в зависимости от режима
+        if mode == "python":
+            answer, confidence, metadata = await self._analyze_python_mode(
+                data=data,
+                question=question,
+                step_id=step_id
+            )
+            mode_used = "python"
+        elif mode == "llm":
+            answer, confidence, metadata = await self._analyze_llm_mode(
+                data=data,
+                question=question,
+                execution_context=context,
+                step_id=step_id
+            )
+            mode_used = "llm"
+        else:  # mapreduce (по умолчанию)
+            answer, confidence, metadata = await self._analyze_mapreduce_mode(
+                data=data,
+                question=question,
+                execution_context=context,
+                step_id=step_id
+            )
+            mode_used = "mapreduce"
+
+        processing_time = round((time.time() - start_time) * 1000, 2)
+        metadata["processing_time_ms"] = processing_time
+        metadata["mode_used"] = mode_used
+
+        await self._save_result_to_context(
+            execution_context=context,
+            question=question,
+            answer=answer,
+            step_id=step_id,
+            metadata=metadata
+        )
+
+        return {
+            "answer": answer,
+            "execution_status": "success",
+            "confidence": confidence,
+            "executed_operations": metadata.get("operations", [mode_used]),
+            "metadata": metadata
+        }
+
+    def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
+        """Нормализация параметров к словарю."""
+        if hasattr(parameters, 'model_dump'):
+            return parameters.model_dump()
+        elif hasattr(parameters, 'dict'):
+            return parameters.dict()
+        elif isinstance(parameters, dict):
+            return parameters
+        raise ValueError(f"Неподдерживаемый тип параметров: {type(parameters)}")
+
+    def _detect_mode(self, data: Any, question: str) -> str:
+        """
+        Автоматическое определение режима на основе данных и вопроса.
+        
+        ЛОГИКА:
+        - Если данные - список словарей с числами и вопрос про вычисления → python
+        - Если данные небольшие (< 2000 символов) → llm
+        - Иначе → mapreduce
+        """
+        # Проверяем, подходит ли для python mode
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            # Проверяем, есть ли числовые поля
+            has_numeric = any(isinstance(v, (int, float)) for item in data[:10] for v in item.values())
+            # Проверяем, является ли вопрос вычислительным
+            calc_keywords = ["сумм", "средн", "количеств", "сколько", "миним", "максим", "count", "sum", "avg"]
+            is_calc_question = any(kw in question.lower() for kw in calc_keywords)
+            
+            if has_numeric and is_calc_question:
+                return "python"
+        
+        # Проверяем размер данных
+        data_str = str(data)
+        if len(data_str) < 2000:
+            return "llm"  # Небольшие данные - прямой запрос к LLM
+        
+        return "mapreduce"  # Большие данные - разбиение на чанки
+
+    async def _analyze_python_mode(
+        self,
+        data: Any,
+        question: str,
+        step_id: int
+    ) -> tuple[str, float, Dict[str, Any]]:
+        """
+        Локальный анализ данных без LLM (только Python).
+        
+        ПОДДЕРЖИВАЕМЫЕ ОПЕРАЦИИ:
+        - Сумма по полю (sum)
+        - Среднее по полю (average/mean)
+        - Количество записей (count)
+        - Минимум/максимум (min/max)
+        - Группировка по полю
+        """
+        if not isinstance(data, list) or not data:
+            return "Нет данных для анализа", 0.1, {"mode": "python", "operations": []}
+        
+        # Анализируем вопрос для определения операций
+        question_lower = question.lower()
+        operations = []
+        results = {}
+        
+        # Получаем все числовые поля
+        numeric_fields = []
+        if isinstance(data[0], dict):
+            numeric_fields = [k for k, v in data[0].items() if isinstance(v, (int, float))]
+        
+        # Count
+        if any(kw in question_lower for kw in ["количеств", "сколько", "запис", "count"]):
+            results["count"] = len(data)
+            operations.append("count")
+        
+        # Sum
+        for field in numeric_fields:
+            field_lower = field.lower()
+            if any(kw in question_lower for kw in ["сумм", "sum"]) and any(
+                field_lower in question_lower or field_lower in question_lower.replace(" ", "")
+                for kw in [field_lower]
+            ):
+                total = sum(item.get(field, 0) or 0 for item in data)
+                results[f"sum_{field}"] = total
+                operations.append(f"sum:{field}")
+        
+        # Average
+        for field in numeric_fields:
+            field_lower = field.lower()
+            if any(kw in question_lower for kw in ["средн", "average", "avg", "среднее"]) and any(
+                field_lower in question_lower or field_lower in question_lower.replace(" ", "")
+                for kw in [field_lower]
+            ):
+                total = sum(item.get(field, 0) or 0 for item in data)
+                avg = total / len(data) if data else 0
+                results[f"avg_{field}"] = round(avg, 2)
+                operations.append(f"avg:{field}")
+        
+        # Min/Max
+        for field in numeric_fields:
+            field_lower = field.lower()
+            if any(kw in question_lower for kw in ["мин", "min"]) and any(
+                field_lower in question_lower
+                for kw in [field_lower]
+            ):
+                values = [item.get(field) for item in data if item.get(field) is not None]
+                if values:
+                    results[f"min_{field}"] = min(values)
+                    operations.append(f"min:{field}")
+            
+            if any(kw in question_lower for kw in ["макс", "max"]) and any(
+                field_lower in question_lower
+                for kw in [field_lower]
+            ):
+                values = [item.get(field) for item in data if item.get(field) is not None]
+                if values:
+                    results[f"max_{field}"] = max(values)
+                    operations.append(f"max:{field}")
+        
+        # Формируем ответ
+        if not results:
+            # Просто выводим общую информацию
+            results["count"] = len(data)
+            results["fields"] = list(data[0].keys()) if data else []
+            operations.append("info")
+        
+        answer_parts = [f"Результат анализа данных (python mode):"]
+        for key, value in results.items():
+            if key == "fields":
+                answer_parts.append(f"- Поля: {', '.join(value)}")
+            else:
+                answer_parts.append(f"- {key}: {value}")
+        
+        answer = "\n".join(answer_parts)
+        confidence = 0.95 if operations else 0.5
+        
+        metadata = {
+            "mode": "python",
+            "operations": operations,
+            "rows_processed": len(data),
+            "fields": list(data[0].keys()) if data and isinstance(data[0], dict) else []
+        }
+        
+        return answer, confidence, metadata
+
+    async def _analyze_llm_mode(
+        self,
+        data: Any,
+        question: str,
+        execution_context: Any,
+        step_id: int
+    ) -> tuple[str, float, Dict[str, Any]]:
+        """
+        Прямой запрос к LLM без разбиения на чанки.
+        Для небольших данных.
+        """
+        data_str = str(data)
+        
+        prompt = f"""Проанализируй данные и ответь на вопрос.
+
+    ВОПРОС: {question}
+
+    ДАННЫЕ:
+    {data_str}
+
+    Инструкции:
+    - Отвечай ТОЛЬКО на основе предоставленных данных
+    - Если информации недостаточно, укажи это
+    - Пиши на русском языке
+    - Будь краток и точен
+
+    Ответ:"""
+        
+        executor = self._get_active_executor(execution_context)
+        
+        try:
+            result = await executor.execute_action(
+                action_name="llm.generate",
+                parameters={
+                    "prompt": prompt,
+                    "temperature": 0.2,
+                    "max_tokens": 2000
+                },
+                context=execution_context
+            )
+            
+            if result.status == ExecutionStatus.COMPLETED:
+                answer = ""
+                if result.data:
+                    if isinstance(result.data, dict):
+                        answer = result.data.get("content", "") or result.data.get("text", "")
+                    else:
+                        answer = str(result.data)
+                
+                if not answer:
+                    answer = "Не удалось получить ответ от LLM"
+                
+                return answer, 0.85, {
+                    "mode": "llm",
+                    "operations": ["llm_direct"],
+                    "data_size": len(data_str)
+                }
+            else:
+                return f"Ошибка LLM: {result.error}", 0.1, {
+                    "mode": "llm",
+                    "error": result.error
+                }
+        except Exception as e:
+            return f"Ошибка при вызове LLM: {str(e)}", 0.1, {
+                "mode": "llm",
+                "error": str(e)
+            }
+
+    async def _analyze_mapreduce_mode(
+        self,
+        data: Any,
+        question: str,
+        execution_context: Any,
+        step_id: int
+    ) -> tuple[str, float, Dict[str, Any]]:
+        """
+        MapReduce режим: разбиение на чанки → параллельный анализ → объединение.
+        Для больших данных.
+        """
         sample_text = str(data)[:1000] if data else ""
         self._update_llm_config(execution_context, sample_text)
 
@@ -316,7 +593,6 @@ class DataAnalysisSkill(Skill):
                 max_tokens_per_chunk=max_tokens,
                 token_overlap=int(max_tokens * 0.1)  # 10% overlap
             )
-            # Проверяем, удалось ли инициализировать encoder
             actual_token_mode = chunking_service._token_encoder is not None
         else:
             chunking_service = ChunkingService(
@@ -363,7 +639,6 @@ class DataAnalysisSkill(Skill):
         chunks = self._inject_schema_to_chunks(chunks, schema, input_type)
 
         summaries = await self._map_phase(chunks, question, execution_context)
-
         summaries = self._filter_empty_summaries(summaries)
 
         if not summaries:
@@ -372,36 +647,17 @@ class DataAnalysisSkill(Skill):
             max_batch_chars = self._calculate_max_chars(len(question) + 500)
             answer = await self._tree_reduce(summaries, question, execution_context, max_batch_chars)
 
-        processing_time = round((time.time() - start_time) * 1000, 2)
-
-        await self._save_result_to_context(
-            execution_context=execution_context,
-            question=question,
-            answer=answer,
-            step_id=step_id,
-            metadata={
-                "input_type": input_type,
-                "chunks_created": len(chunks),
-                "chunks_analyzed": len(summaries),
-                "processing_time_ms": processing_time,
-                "chars_per_token": self._chars_per_token
-            }
-        )
-
-        return {
-            "answer": answer,
-            "execution_status": "success",
-            "confidence": 0.85,
-            "executed_operations": [f"map:{len(chunks)}", "reduce"],
-            "metadata": {
-                "mode_used": "mapreduce",
-                "input_type": input_type,
-                "step_id": step_id,
-                "chunks_created": len(chunks),
-                "chunks_analyzed": len(summaries),
-                "processing_time_ms": processing_time
-            }
+        metadata = {
+            "mode": "mapreduce",
+            "input_type": input_type,
+            "step_id": step_id,
+            "chunks_created": len(chunks),
+            "chunks_analyzed": len(summaries),
+            "operations": [f"map:{len(chunks)}", "reduce"],
+            "chars_per_token": self._chars_per_token
         }
+        
+        return answer, 0.85, metadata
 
     def _filter_empty_summaries(
         self,
@@ -526,15 +782,6 @@ class DataAnalysisSkill(Skill):
             if sc and hasattr(sc, 'record_observation'):
                 return sc
         return None
-
-    def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
-        if hasattr(parameters, 'model_dump'):
-            return parameters.model_dump()
-        elif hasattr(parameters, 'dict'):
-            return parameters.dict()
-        elif isinstance(parameters, dict):
-            return parameters
-        raise ValueError(f"Неподдерживаемый тип параметров: {type(parameters)}")
 
     def _get_active_executor(self, execution_context: Any):
         """Получает executor из execution_context."""
