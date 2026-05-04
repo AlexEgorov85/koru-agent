@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.46.1-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.46.2-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,16 +25,17 @@
 
 ---
 
-## 📊 Последние изменения (v5.46.1)
+## 📊 Последние изменения (v5.46.2)
 
-**Версия 5.46.1** (29 апреля 2026) — **Исправление Observer + диагностика vector search**
+**Версия 5.46.2** (4 мая 2026) — **Исправление компонентов + обновление тестов**
 
 ### Изменения
-- ✅ Добавлена обработка Pydantic моделей в Observer
-- ✅ Добавлена диагностика пустых результатов vector search
-- ✅ Обновлена версия проекта с 5.46.0 на 5.46.1
+- ✅ Исправлены компоненты и провайдеры LLM
+- ✅ Исправлена конфигурация и типы векторов
+- ✅ Обновлены интеграционные тесты
+- ✅ Исправлен владелец прав в LICENSE (Egorov A.V.)
 
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5461---2026-04-29)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5462---2026-05-04)
 
 ---
 
@@ -257,7 +258,7 @@ agent_config = AgentConfig(
 
 | Показатель | Значение |
 |------------|----------|
-| **Версия** | 5.46.1 |
+| **Версия** | 5.46.2 |
 | **Тестов** | 446+ тестов (100% pass) |
 | **Покрытие** | ≥98% |
 | **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic, Gemini |
@@ -356,4 +357,4 @@ MIT License — см. файл [LICENSE](LICENSE)
 
 ## 👥 Авторы
 
-**koru-agent Team** — [GitHub](https://github.com/your-org)
+**Egorov A.V.** — [GitHub](https://github.com/AlexEgorov85)

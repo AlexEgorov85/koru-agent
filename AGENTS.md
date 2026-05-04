@@ -465,7 +465,7 @@ Agent_v5/
 | `docs/architecture/ideal.md` | Target architecture blueprint and maturity checklist |
 | `core/agent/agent_factory.py` | Factory for component initialization |
 | `core/agent/runtime.py` | Thin orchestrator (loop only) |
-| `core/version.py` | Version info (5.46.1) |
+| `core/version.py` | Version info (5.46.2) |
 | `core/agent/components/base_component.py` | Base class for all components |
 | `core/agent/components/action_executor.py` | Component interaction gateway |
 | `core/infrastructure/logging/session.py` | `LoggingSession` — ядро файлового логирования |
