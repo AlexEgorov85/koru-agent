@@ -392,39 +392,36 @@ if session_context.needs_exploration(threshold=2):
 ```
 Agent_v5/
 ├── core/
-│   ├── agent/
-│   │   ├── runtime.py              # Thin orchestrator (loop only)
-│   │   ├── agent_factory.py       # Factory for component initialization
-│   │   ├── phases/               # Execution phases
-│   │   │   ├── decision_phase.py
-│   │   │   ├── policy_check_phase.py
-│   │   │   ├── execution_phase.py
-│   │   │   ├── observation_phase.py
-│   │   │   ├── context_update_phase.py
-│   │   │   ├── final_answer_phase.py
-│   │   │   └── error_recovery_phase.py
-│   │   ├── behaviors/             # Patterns (ReAct, Planning, etc.)
-│   │   └── components/           # Agent-specific components
-│   ├── application_context/    # ApplicationContext (isolated per agent)
-│   ├── config/
-│   │   ├── defaults/           # InfraConfig ONLY (dev.yaml, prod.yaml)
-│   │   └── version.py          # Version info (5.46.1)
-│   ├── errors/                 # Exceptions + ErrorHandler
-│   ├── infrastructure/         # Providers, EventBus, logging, storage
-│   ├── models/                 # Data models and enums
-│   ├── security/               # Authorization
-│   ├── services/               # Business services and skills
-│   └── session_context/        # Session/Step contexts
-├── data/                       # SINGLE source of truth for resources
-│   ├── prompts/                # Auto-discovery: data/prompts/{type}/{component}/{version}.yaml
-│   └── contracts/              # Auto-discovery: data/contracts/{type}/{component}/{version}.yaml
-├── docs/
-│   ├── RULES.MD                # Full development rules
-│   └── architecture/ideal.md   # Target architecture blueprint
-├── scripts/                    # Validation, maintenance, CLI tools
-├── tests/                      # Test suite
-├── main.py                     # Entry point
-└── .coveragerc                 # Coverage config
+│   ├── components/                 # Base components (BaseComponent, Skill, Tool)
+│   │   ├── skills/                # Skills (agent reasoning)
+│   │   ├── tools/                 # Tools (execution actions)
+│   │   └── services/              # Services (business logic)
+│   ├── agent/                      # Agent Runtime, Factory, Phases, Behaviors
+│   ├── config/                     # Configuration (InfraConfig, AppConfig)
+│   │   └── defaults/              # InfraConfig ONLY (dev.yaml, prod.yaml)
+│   ├── infrastructure/             # Providers (LLM, DB), EventBus, logging, storage
+│   ├── models/                     # Data models and enums
+│   ├── session_context/            # SessionContext (agent session)
+│   ├── application_context/        # ApplicationContext (isolated per agent)
+│   ├── infrastructure_context/     # InfrastructureContext (shared)
+│   ├── errors/                     # Exceptions + ErrorHandler
+│   └── security/                  # Authorization
+│
+├── data/                           # SINGLE source of truth for resources
+│   ├── prompts/                    # Auto-discovery: data/prompts/{type}/{component}/
+│   └── contracts/                 # Auto-discovery: data/contracts/{type}/{component}/
+│
+├── docs/                           # Documentation
+│   ├── RULES.MD                    # Full development rules
+│   ├── AGENTS.md                    # Quick reference for coding agents
+│   ├── guides/                     # Practical guides
+│   │   └── skill_development.md    # Skill development guide
+│   └── architecture/               # Architecture documents
+│
+├── scripts/                        # Validation, maintenance, CLI tools
+├── tests/                          # Test suite
+├── main.py                         # Entry point
+└── .coveragerc                     # Coverage config
 ```
 
 ---

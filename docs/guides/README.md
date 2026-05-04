@@ -1,7 +1,7 @@
 # 📖 Руководства koru-agent
 
-> **Версия:** 5.41.1
-> **Дата обновления:** 2026-04-17
+> **Версия проекта:** 5.46.1
+> **Дата обновления:** 2026-05-04
 
 ---
 
@@ -13,6 +13,7 @@
 
 | Руководство | Описание |
 |-------------|----------|
+| [Skill Development](./skill_development.md) | **Руководство по разработке нового навыка (Skill)** |
 | [Vector Search](./vector_search.md) | Векторный поиск |
 | [Async Best Practices](./async_best_practices.md) | Лучшие практики асинхронности |
 | [Agent Resilience](./agent_resilience.md) | Устойчивость агентного цикла: policy, state, SQL empty recovery |

@@ -1,7 +1,7 @@
 # 📚 Документация koru-agent
 
-> **Версия:** 5.41.1
-> **Дата обновления:** 2026-04-17
+> **Версия проекта:** 5.46.1
+> **Дата обновления:** 2026-05-04
 > **Статус:** approved
 
 ---
@@ -17,35 +17,46 @@
 ```
 docs/
 ├── README.md                          # Этот файл
-├── RULES.MD                           # Требования к разработке
+├── RULES.MD                           # Требования к разработке (полные)
+├── AGENTS.md                          # Краткое руководство для coding agents
 │
 ├── architecture/                      # Архитектурные документы
+│   ├── README.md                      # Навигация по архитектуре
 │   ├── ideal.md                       # Целевая архитектура
 │   ├── checklist.md                   # Чек-лист зрелости
-│   └── lifecycle.md                   # Жизненный цикл компонентов
+│   ├── lifecycle.md                   # Жизненный цикл компонентов
+│   ├── AGENT_DOCUMENTATION.md         # Документация компонентов агента
+│   └── KORU_AGENT_PRESENTATION.md    # Презентация проекта
 │
-├── adr/                               # Архитектурные решения
+├── adr/                               # Архитектурные решения (ADR)
 │   ├── 0001-modular-architecture.md   # Модульная архитектура
-│   ├── 0002-contract-validation.md    # Валидация контрактов
 │   └── template.md                    # Шаблон ADR
 │
-├── guides/                            # Руководства
+├── guides/                            # Практические руководства
 │   ├── README.md                      # Обзор руководств
-│   └── vector_search.md               # Vector Search
+│   ├── skill_development.md           # 🆕 Разработка навыков (Skill)
+│   ├── async_best_practices.md       # Async паттерны
+│   ├── agent_resilience.md           # Устойчивость агента
+│   └── vector_search.md               # Vector Search (кратко)
 │
 ├── vector_search/                     # Vector Search документация
-│   ├── README.md                      # Навигация
+│   ├── README.md                      # Навигация по Vector Search
 │   ├── UNIVERSAL_SPEC.md              # Спецификация
 │   ├── VECTOR_LIFECYCLE.md            # Жизненный цикл
 │   ├── CHUNKING_STRATEGY.md           # Chunking стратегия
-│   └── BOOKS_INTEGRATION.md           # Интеграция с книгами
+│   ├── BOOKS_INTEGRATION.md           # Интеграция с книгами
+│   ├── ADDING_NEW_VECTOR_DB.md        # Добавление новой БД
+│   ├── VECTOR_FAISS_CONFIG.md         # Настройка FAISS индексов
+│   └── VECTOR_SOURCE_CONFIG.md        # Настройка источников
 │
 ├── logging/                           # Документация логирования
-│   ├── README.md                      # Обзор системы логирования
-│   └── ARCHITECTURE.md                # Архитектура логирования
+│   └── README.md                      # Система логирования
 │
-└── api/                               # API документация
-    └── vector_search_api.md           # Vector Search API
+├── api/                               # API документация
+│   └── vector_search_api.md           # Vector Search API
+│
+└── fixes/                             # Исправления и хотфиксы
+    └── json_comma_fix.md               # Исправление JSON запятых
 ```
 
 ---
@@ -69,7 +80,7 @@ pip install -r requirements.txt
 ### 3. Запуск
 
 ```bash
-python main.py "Проанализируй рынок искусственного интеллекта"
+python main.py "Какие книги написал Пушкин?"
 ```
 
 ### 4. Тесты
@@ -84,13 +95,16 @@ python -m pytest tests/ -v
 
 ### Разработчики
 
-- [RULES.MD](./RULES.MD) — требования к разработке
+- [AGENTS.md](../AGENTS.md) — краткое руководство (README)
+- [RULES.MD](./RULES.MD) — полные требования к разработке
+- [guides/skill_development.md](./guides/skill_development.md) — 🆕 разработка навыков
 - [architecture/lifecycle.md](./architecture/lifecycle.md) — жизненный цикл компонентов
 - [guides/async_best_practices.md](./guides/async_best_practices.md) — async паттерны
 - [logging/README.md](./logging/README.md) — система логирования
 
 ### Архитекторы
 
+- [architecture/README.md](./architecture/README.md) — навигация по архитектуре
 - [architecture/ideal.md](./architecture/ideal.md) — целевая архитектура
 - [architecture/checklist.md](./architecture/checklist.md) — проверка зрелости
 - [adr/](./adr/) — архитектурные решения
@@ -130,4 +144,4 @@ python -m pytest tests/ -v
 
 ---
 
-*Документ обновлён: 2026-04-13*
+*Документ обновлён: 2026-05-04*
