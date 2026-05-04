@@ -98,32 +98,29 @@ TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 
 ### Уровни системы
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Agent Runtime                            │
-│  (Reasoning-цикл: think → select → execute → write)        │
-├─────────────────────────────────────────────────────────────┤
-│                  Application Context                        │
-│  (Изолированный на агента: сервисы, навыки, кэши)          │
-├─────────────────────────────────────────────────────────────┤
-│               Infrastructure Context                        │
-│  (Общий: провайдеры, EventBus, метрики, логи)              │
-└─────────────────────────────────────────────────────────────┘
-```
+Система строится на трёх независимых жизненных циклах:
+
+| Слой | Конфигурация | Источник | Жизненный цикл | Ответственность |
+|------|--------------|----------|----------------|-----------------|
+| **Инфраструктурный** | `InfraConfig` | `core/config/defaults/{profile}.yaml` | 1 раз на приложение | Тяжёлые ресурсы (модели, пулы), пути к данным |
+| **Прикладной** | `AppConfig` | Auto-discovery из `data/prompts/`, `data/contracts/` | 1 раз на агента | Версионируемое поведение (промпты, контракты), профиль |
+| **Сессионный** | `AgentConfig` | Параметры запроса | 1 раз на запрос | Контекст выполнения (goal, correlation_id, max_steps) |
 
 ### Контексты
 
 **InfrastructureContext** — общий для всех агентов:
-- ProviderFactory (LLM, DB)
-- ResourceRegistry
-- EventBus
-- MetricsCollector
-- LogCollector
+- LLMProvider, DBProvider (общие провайдеры)
+- PromptStorage, ContractStorage (хранилища)
+- LoggingSession (логирование)
 
 **ApplicationContext** — изолированный на агента:
-- ComponentRegistry (сервисы, навыки, инструменты)
-- Isolated caches (промпты, контракты)
-- ComponentConfig
+- PromptService, ContractService (изолированные кэши)
+- ComponentRegistry (навыки, инструменты, сервисы)
+- ActionExecutor (единая точка взаимодействия)
+
+**SessionContext** — изолированный на сессию:
+- AgentRuntime (reasoning-цикл)
+- Шаги, наблюдения, планы
 
 ---
 
@@ -131,22 +128,35 @@ TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 
 ```
 Agent_v5/
-├── core/                           # Ядро системы
-│   ├── agent/                      # Runtime, Factory, Behaviors, Strategies
+├── core/
+│   ├── components/                 # Базовые компоненты (BaseComponent, Skill, Tool)
+│   │   ├── skills/                # Навыки (Skills)
+│   │   ├── tools/                 # Инструменты (Tools)
+│   │   └── services/              # Сервисы (Services)
+│   ├── agent/                      # Agent Runtime, Factory, Phases, Behaviors
+│   ├── config/                     # Конфигурация (InfraConfig, AppConfig)
+│   │   └── defaults/              # Инфраструктурные профили (dev.yaml, prod.yaml)
+│   ├── infrastructure/             # Провайдеры (LLM, DB), EventBus, logging, storage
+│   ├── models/                     # Модели данных (Capability, ExecutionResult)
+│   ├── session_context/            # SessionContext (сессия агента)
 │   ├── application_context/        # ApplicationContext (изолированный на агента)
-│   ├── components/                 # BaseComponent, ActionExecutor
-│   ├── config/                     # Конфигурация (defaults/)
-│   ├── infrastructure/             # Провайдеры, EventBus, logging, storage
 │   ├── infrastructure_context/     # InfrastructureContext (общий)
-│   ├── models/                     # Модели данных
-│   ├── errors/                     # Исключения
-│   ├── session_context/            # SessionContext (сессия)
+│   ├── errors/                     # Исключения и ErrorHandler
 │   └── security/                  # Безопасность
 │
-├── data/                           # Промпты, контракты
-├── scripts/                        # CLI утилиты
-├── tests/                          # Тесты
+├── data/                           # Единый источник истины для ресурсов
+│   ├── prompts/                    # Промпты (auto-discovery)
+│   │   └── {type}/{component}/
+│   └── contracts/                 # Контракты (auto-discovery)
+│       └── {type}/{component}/
+│
+├── scripts/                        # CLI утилиты, валидация, обслуживание
+├── tests/                          # Тесты (unit/, integration/, benchmark/)
 └── docs/                           # Документация
+    ├── RULES.MD                    # Требования к разработке
+    ├── guides/                     # Практические руководства
+    │   └── skill_development.md    # Руководство по разработке навыков
+    └── architecture/               # Архитектурные документы
 ```
 
 ---
@@ -157,9 +167,17 @@ Agent_v5/
 
 | Категория | Тестов | Моки | Описание |
 |-----------|--------|------|----------|
-| **Unit** | 446 | ✅ Частично | Чистая логика, изоляция внешних зависимостей |
-| **Integration** | - | ❌ Нет | Реальные компоненты |
-| **Итого** | **446** | **100% pass** | ✅ Все проходят |
+| **Unit** | 446+ | ✅ Mock LLM | Чистая логика, изоляция внешних зависимостей |
+| **Integration** | 50+ | ✅ Mock LLM | Быстрые интеграционные тесты (1000x быстрее реальных) |
+| **Benchmark** | 10+ | ✅ Mock LLM | Тесты производительности |
+| **Итого** | **500+** | **100% pass** | ✅ Все проходят |
+
+### Mock LLM тестирование
+
+- 🚀 Скорость: тесты выполняются в 1000x быстрее (< 1ms на запрос)
+- 💰 Экономия: $0 на тестирование
+- ✅ Надёжность: 100% детерминированные результаты
+- 📊 Полная история вызовов для отладки
 
 ### Запуск
 
@@ -167,44 +185,70 @@ Agent_v5/
 # Все тесты
 python -m pytest tests/ -v
 
-# Только без моков
-python -m pytest tests/unit/core_models/ tests/unit/storage/ -v
+# Unit тесты
+python -m pytest tests/unit/ -v
 
-# Интеграционные
-python -m pytest tests/integration/ tests/e2e/ -v
+# Integration тесты с Mock LLM (быстро)
+python -m pytest tests/integration/ -v
+
+# Benchmark тесты
+python -m pytest tests/benchmark/ -v
 
 # С покрытием
 python -m pytest tests/ --cov=core --cov-report=html
+
+# С реальной LLM (для финальной валидации)
+TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 ```
 
 ---
 
 ## ⚙️ Конфигурация
 
-### Файлы
+### Трёхслойная иерархия (без дублирования)
 
-| Файл | Назначение |
-|------|------------|
-| `core/config/defaults/{profile}.yaml` | InfraConfig (провайдеры, пути) |
-| `data/prompts/` | Auto-discovery промптов |
-| `data/contracts/` | Auto-discovery контрактов |
+| Слой | Файл / Источник | Что содержит |
+|------|------------------|---------------|
+| **Infrastructure** | `core/config/defaults/{profile}.yaml` | Тяжёлые ресурсы: `llm_providers`, `db_providers`, `data_dir` |
+| **Application** | Auto-discovery: `data/prompts/`, `data/contracts/` | Поведение: версии промптов/контрактов, `profile` |
+| **Session** | Код при запуске агента | Параметры запроса: `goal`, `max_steps`, `correlation_id` |
 
-### Пример
+> ⚠️ **Критическое правило:** Никакого дублирования! `llm_providers` только в InfraConfig, `goal`/`max_steps` только в AgentConfig.
+
+### Пример InfraConfig (`core/config/defaults/dev.yaml`)
 
 ```yaml
 profile: "dev"
 log_level: "DEBUG"
+data_dir: data/dev
 
 llm_providers:
-  primary_llm:
+  default_llm:
     enabled: true
-    provider_type: "vllm"
+    provider_type: "llama_cpp"
     parameters:
-      model_path: "models/mistral-7b-instruct.gguf"
+      model_path: "models/qwen3-4b-instruct-f16.gguf"
+      n_ctx: 2048
 
-agent:
-  max_steps: 10
-  timeout: 300
+db_providers:
+  default_db:
+    enabled: true
+    provider_type: "postgres"
+    parameters:
+      host: "localhost"
+      port: 5432
+```
+
+### Пример AgentConfig (в коде)
+
+```python
+from core.config.agent_config import AgentConfig
+
+agent_config = AgentConfig(
+    goal="Какие книги написал Пушкин?",
+    max_steps=10,
+    correlation_id="req_123"
+)
 ```
 
 ---
@@ -213,11 +257,13 @@ agent:
 
 | Показатель | Значение |
 |------------|----------|
-| **Тестов** | 446 тестов (100% pass) |
+| **Версия** | 5.46.1 |
+| **Тестов** | 446+ тестов (100% pass) |
 | **Покрытие** | ≥98% |
-| **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic |
+| **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic, Gemini |
 | **Vector Search** | FAISS с chunking/embedding |
 | **Профили** | dev, sandbox, prod |
+| **Архитектура** | 3-слойная (Infra → App → Session) |
 
 ---
 
@@ -233,21 +279,39 @@ venv\Scripts\activate     # Windows
 
 # Зависимости
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
 ```
 
-### Линтинг
+### Быстрый старт
 
 ```bash
+# Простой вопрос
+python main.py "Какие книги написал Пушкин?"
+
+# Анализ данных
+python main.py "Проанализируй рынок искусственного интеллекта"
+
+# С отладкой
+python main.py "Сравни подходы к ML" --profile=dev --debug
+```
+
+### Линтинг и валидация
+
+```bash
+# Линтеры
 flake8 core/
 black core/ --check
+
+# Архитектурные проверки
+python scripts/validation/check_skill_architecture.py
+python scripts/validation/check_yaml_syntax.py
+python scripts/maintenance/check_consistency.py
 ```
 
 ### Вклад в проект
 
 1. Fork репозитория
 2. Feature branch (`git checkout -b feature/amazing-feature`)
-3. Коммиты (`git commit -m 'Add amazing feature'`)
+3. Коммиты (согласно чеклисту в `docs/RULES.MD`)
 4. Push (`git push origin feature/amazing-feature`)
 5. Pull Request
 
@@ -257,19 +321,36 @@ black core/ --check
 ### Основная документация
 
 - **[CHANGELOG.md](CHANGELOG.md)** — История изменений
-- **[AGENTS.md](AGENTS.md)** — Требования к разработке и архитектура
+- **[AGENTS.md](AGENTS.md)** — Краткое руководство (README для coding agents)
+- **[docs/RULES.MD](docs/RULES.MD)** — Полные требования к разработке
 - **[docs/README.md](docs/README.md)** — Обзор документации
+- **[docs/guides/skill_development.md](docs/guides/skill_development.md)** — 🆕 Руководство по разработке навыков
+
+### Практические руководства
+
+- **[docs/guides/skill_development.md](docs/guides/skill_development.md)** — 🆕 Руководство по разработке навыков (Skill)
+- **[docs/guides/README.md](docs/guides/README.md)** — Все руководства
 
 ### Архитектура
 
-- **[docs/architecture/README.md](docs/architecture/README.md)** — Архитектурные документы
+- **[docs/architecture/README.md](docs/architecture/README.md)** — Навигация по архитектуре
 - **[docs/architecture/ideal.md](docs/architecture/ideal.md)** — Целевая архитектура
+- **[docs/architecture/checklist.md](docs/architecture/checklist.md)** — Чек-лист зрелости
+- **[docs/architecture/lifecycle.md](docs/architecture/lifecycle.md)** — Жизненный цикл компонентов
 
 ---
 
 ## 📄 Лицензия
 
 MIT License — см. файл [LICENSE](LICENSE)
+
+---
+
+### Дополнительно
+
+- **[docs/logging/README.md](docs/logging/README.md)** — Система логирования
+- **[docs/api/vector_search_api.md](docs/api/vector_search_api.md)** — Vector Search API
+- **[docs/fixes/json_comma_fix.md](docs/fixes/json_comma_fix.md)** — Исправление ошибок
 
 ---
 
