@@ -8,6 +8,7 @@ from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvide
 from core.infrastructure.providers.llm.mock_provider import MockProvider
 from core.infrastructure.providers.llm.openrouter_provider import OpenRouterProvider
 from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
+from core.infrastructure.providers.llm.sglang_provider import SGLangProvider
 
 
 class LLMProviderFactory:
@@ -20,6 +21,7 @@ class LLMProviderFactory:
         'mock': MockProvider,
         'openrouter': OpenRouterProvider,
         'vllm': VLLMProvider,
+        'sglang': SGLangProvider,
     }
 
     @classmethod
