@@ -30,7 +30,7 @@ class ScriptDefinition:
     description: str
     sql_template: str
     parameters: Dict[str, ParamDefinition] = field(default_factory=dict)
-    max_rows_default: int = 50
+    max_rows_default: int = 1000
     returns: str = ""
     long_description: str = ""
 
@@ -173,12 +173,25 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
                 type="like",
                 required=False,
                 description="Статус проверки",
-                validation={"type": "enum", "allowed_values": ["Планируется", "В работе", "Завершена", "Отменена"]}
+                validation={
+                    "type": "enum",
+                    "allowed_values": ["Планируется", "В работе", "Завершена", "Отменена"],
+                    "vector_source": "audits",
+                    "vector_field": "status",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "audit_type": ParamDefinition(
                 type="like",
                 required=False,
-                description="Тип проверки"
+                description="Тип проверки",
+                validation={
+                    "vector_source": "audits",
+                    "vector_field": "audit_type",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "date_from": ParamDefinition(
                 type="date",
@@ -193,7 +206,13 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             "auditee_entity": ParamDefinition(
                 type="like",
                 required=False,
-                description="Проверяемый объект"
+                description="Проверяемый объект",
+                validation={
+                    "vector_source": "audits",
+                    "vector_field": "auditee_entity",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
@@ -304,18 +323,37 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
                 type="like",
                 required=False,
                 description="Статус отклонения",
-                validation={"type": "enum", "allowed_values": ["Открыто", "В работе", "Устранено", "На проверке"]}
+                validation={
+                    "type": "enum",
+                    "allowed_values": ["Открыто", "В работе", "Устранено", "На проверке"],
+                    "vector_source": "violations",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "severity": ParamDefinition(
                 type="exact",
                 required=False,
                 description="Критичность",
-                validation={"type": "enum", "allowed_values": ["Высокая", "Средняя", "Низкая"]}
+                validation={
+                    "type": "enum",
+                    "allowed_values": ["Высокая", "Средняя", "Низкая"],
+                    "vector_source": "violations",
+                    "vector_field": "severity",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "responsible": ParamDefinition(
                 type="like",
                 required=False,
-                description="Ответственный"
+                description="Ответственный",
+                validation={
+                    "vector_source": "violations",
+                    "vector_field": "responsible",
+                    "vector_min_score": 0.7,
+                    "vector_top_k": 3
+                }
             ),
             "deadline_from": ParamDefinition(
                 type="date",
@@ -530,9 +568,12 @@ class ExecuteScriptHandler(SkillHandler):
                     if sugg_list:
                         await self.log_info(f"💡 Возможно вы имели в виду ({param_name}): {', '.join(sugg_list)}")
 
-        # Этап 3: Применение автокоррекции
+        # Этап 3: Применение автокоррекции с явным подсвечиванием
         corrected_params = validation_result.get("corrected_params", {})
         if corrected_params:
+            for param_name, corrected_value in corrected_params.items():
+                original = params_dict.get(param_name, "")
+                await self.log_info(f"✏️ Исправлена опечатка: '{param_name}': '{original}' → '{corrected_value}'")
             params_dict.update(corrected_params)
 
         # Этап 4: Подготовка параметров + динамическая сборка SQL

@@ -298,7 +298,7 @@ class ParamValidator:
         # =========================================================
         # ШАГ 2: Vector search — семантический поиск
         # =========================================================
-        # vector_source должен быть явно указан в config
+        # Пропускаем, если vector_source не указан в config
         if "vector_source" in config:
             try:
                 result = await self._validate_vector(param_value, config["vector_source"], config)
@@ -394,7 +394,7 @@ class ParamValidator:
         vector_source: str,
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Ступень 2: Vector search"""
+        """Ступень 2: Vector search — семантический поиск."""
         exec_context = ExecutionContext()
 
         min_score = config.get("vector_min_score", 0.7)
@@ -429,21 +429,32 @@ class ParamValidator:
                 metadata = best.get("metadata", {})
                 score = best.get("score", 0)
 
-                # Определяем поле с именем по source
-                if vector_source == "authors":
-                    found_value = metadata.get("author", metadata.get("author_name", 
-                        metadata.get("last_name", metadata.get("name", ""))))
-                elif vector_source == "genres":
-                    found_value = metadata.get("genre_name", metadata.get("name", ""))
-                elif vector_source == "audits":
-                    found_value = metadata.get("title", metadata.get("audit_title", ""))
-                elif vector_source == "violations":
-                    found_value = metadata.get("violation_code", metadata.get("description", ""))
+                # Если score достаточный — считаем валидацию успешной
+                vector_field = config.get("vector_field")
+                found_value = None
+                
+                if vector_field:
+                    # Если указано конкретное поле — используем его
+                    found_value = metadata.get(vector_field, "")
                 else:
-                    found_value = metadata.get("name", metadata.get("title", ""))
-
+                    # Иначе пробуем извлечь подходящее значение из метаданных
+                    # Приоритет: search_text > content > первое значимое текстовое поле
+                    found_value = metadata.get("search_text", metadata.get("content", ""))
+                    if not found_value:
+                        for key, val in metadata.items():
+                            if isinstance(val, str) and val.strip() and key not in (
+                                "source", "table", "pk_value", "chunk_index", "total_chunks", "vector"
+                            ):
+                                found_value = val
+                                break
+                
                 if score >= min_score and found_value:
-                    return {"valid": True, "corrected_value": found_value, "warning": None, "suggestions": []}
+                    return {
+                        "valid": True, 
+                        "corrected_value": found_value,
+                        "warning": None, 
+                        "suggestions": []
+                    }
 
         return {"valid": True, "corrected_value": None, "warning": None, "suggestions": []}
 
@@ -525,6 +536,6 @@ class ParamValidator:
             corrected = validation.get("corrected_value")
             if corrected and corrected != param_value:
                 result["corrected_params"][param_name] = corrected
-                result["warnings"].append(f"✏️ Исправлена опечатка: '{param_value}' → '{corrected}'")
+                # Логирование будет в execute_script_handler.py
 
         return result
