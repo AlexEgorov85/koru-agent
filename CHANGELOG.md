@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [5.46.3] - 2026-05-05
+
+### Fixed
+- Исправлена передача параметров в PostgreSQL (asyncpg) — параметры `:param_name` теперь корректно конвертируются в `$1, $2...`
+- Исправлен `DynamicQueryBuilder` — фильтрует параметры, которых нет в SQL
+- Устранена ошибка `the server expects 0 arguments for this query, 2 were passed`
+
+### Changed
+- Обновлена версия проекта до 5.46.3
+
 ## [5.46.2] - 2026-05-04
 
 ### Fixed

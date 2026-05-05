@@ -194,25 +194,25 @@ class PostgreSQLProvider(BaseDBProvider):
                 # Выполняем запрос
                 if params:
                     if isinstance(params, dict):
-                        # Если параметры переданы как словарь, извлекаем значения в правильном порядке
-                        # Сортируем по числовому значению (1, 2, 3...), не alphabetically!
-                        # Ключи могут быть вида '1', '2' или 'p1', 'p2'
-                        def sort_key(key):
-                            try:
-                                # Пробуем извлечь число напрямую (ключи '1', '2', ...)
-                                return int(key)
-                            except (ValueError, IndexError):
-                                # Если не получилось, пробуем извлечь число из ключа вида 'p1', 'p2', etc.
-                                try:
-                                    return int(key[1:]) if key.startswith('p') else 0
-                                except (ValueError, IndexError):
-                                    return 0
-                        param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
-                        # Конвертируем %s в $1, $2, ... для asyncpg
-                        converted_query = query
-                        for i in range(len(param_values)):
-                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        result = await conn.fetch(converted_query, *param_values)
+                        # Обрабатываем формат :param_name (используется в скриптах)
+                        import re
+                        # Находим все :param_name в запросе
+                        param_names = re.findall(r':(\w+)', query)
+                        if param_names:
+                            # Заменяем :param_name на $1, $2, ... для asyncpg
+                            converted_query = query
+                            param_values = []
+                            for i, name in enumerate(param_names):
+                                converted_query = converted_query.replace(f':{name}', f'${i+1}', 1)
+                                param_values.append(params.get(name))
+                            result = await conn.fetch(converted_query, *param_values)
+                        else:
+                            # Старый формат %s — конвертируем в $1, $2, ... для asyncpg
+                            param_values = list(params.values())
+                            converted_query = query
+                            for i in range(len(param_values)):
+                                converted_query = converted_query.replace('%s', f'${i+1}', 1)
+                            result = await conn.fetch(converted_query, *param_values)
                     elif isinstance(params, (list, tuple)):
                         # Если параметры переданы как список или кортеж, передаем напрямую
                         # Конвертируем %s в $1, $2, ... для asyncpg

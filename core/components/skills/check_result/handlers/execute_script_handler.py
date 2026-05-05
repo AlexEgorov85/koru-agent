@@ -135,11 +135,15 @@ class DynamicQueryBuilder:
         # Рендерим шаблон
         final_sql = DynamicQueryBuilder._render_template(script.sql_template, clean_params)
 
-        # Гарантируем наличие max_rows
-        if "max_rows" not in clean_params:
-            clean_params["max_rows"] = script.max_rows_default
-            if ":max_rows" not in final_sql:
-                final_sql += " LIMIT :max_rows"
+        # Гарантируем наличие LIMIT :max_rows в SQL
+        if ":max_rows" not in final_sql:
+            final_sql += " LIMIT :max_rows"
+            clean_params["max_rows"] = clean_params.get("max_rows", script.max_rows_default)
+
+        # Оставляем только те параметры, которые реально используются в SQL как :param_name
+        import re
+        param_names_in_sql = re.findall(r':(\w+)', final_sql)
+        clean_params = {k: v for k, v in clean_params.items() if k in param_names_in_sql}
 
         return final_sql, clean_params
 
@@ -216,7 +220,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 
     # ==========================================
@@ -254,7 +258,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 
     "get_report_items": ScriptDefinition(
@@ -283,7 +287,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 
     # ==========================================
@@ -377,7 +381,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 
     # ==========================================
@@ -423,7 +427,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 
     "get_violations_timeline": ScriptDefinition(
@@ -456,7 +460,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptDefinition] = {
             ),
             "max_rows": ParamDefinition(type="limit", required=False)
         },
-        max_rows_default=50
+        max_rows_default=1000
     ),
 }
 
