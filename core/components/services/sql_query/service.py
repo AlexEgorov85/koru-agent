@@ -222,19 +222,29 @@ class SQLQueryService(Service):
 
             validation_result = validation_result_exec.data
             
+            # Поддержка как dict, так и объекта
+            if isinstance(validation_result, dict):
+                is_valid = validation_result.get('is_valid', False)
+                validated_sql = validation_result.get('sql', sql_query)
+                errors = validation_result.get('errors', [])
+            else:
+                is_valid = validation_result.is_valid
+                validated_sql = validation_result.sql
+                errors = validation_result.errors
+            
             await self._publish_with_context(
                 event_type="sql_query.validated",
-                data={"is_valid": validation_result.is_valid},
+                data={"is_valid": is_valid},
                 source="sql_query"
             )
-
-            if not validation_result.is_valid:
+            
+            if not is_valid:
                 return DBQueryResult(
                     success=False,
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
+                    error=f"Запрос не прошел валидацию: {errors}"
                 )
 
             # === ЭТАП 3: Выполнение запроса через db_provider ===
@@ -263,12 +273,12 @@ class SQLQueryService(Service):
             try:
                 await self._publish_with_context(
                     event_type="sql_query.executing",
-                    data={"sql": validation_result.sql},
+                    data={"sql": validated_sql},
                     source="sql_query"
                 )
 
                 result = await db_provider.execute_query(
-                    query=validation_result.sql,
+                    query=validated_sql,
                     params=parameters
                 )
                 execution_time = time.time() - start_exec_time

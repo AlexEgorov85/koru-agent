@@ -194,15 +194,9 @@ class InfrastructureContext:
         )
         await asyncio.to_thread(self.resource_loader.load_all)
 
-        # === ЭТАП 4: Vector Search ===
-        self.log.info("=== ЭТАП 4: Vector Search ===",
-                      extra={"event_type": EventType.SYSTEM_INIT})
-        if self.config.vector_search and self.config.vector_search.enabled:
-            await self._init_vector_search()
-
-        # === ЭТАП 5: Регистрация и инициализация провайдеров ===
+        # === ЭТАП 4: Регистрация и инициализация провайдеров (LLM) ===
         try:
-            self.log.info("=== ЭТАП 5: Регистрация и инициализация провайдеров ===",
+            self.log.info("=== ЭТАП 4: Регистрация и инициализация провайдеров (LLM) ===",
                           extra={"event_type": EventType.SYSTEM_INIT})
             await self._register_providers_from_config()
             self.log.info("Вызов lifecycle_manager.initialize_all()...",
@@ -214,6 +208,12 @@ class InfrastructureContext:
             self.log.error("[ERROR] Provider init error: %s", str(e),
                            extra={"event_type": EventType.SYSTEM_ERROR}, exc_info=True)
             return False
+
+        # === ЭТАП 5: Vector Search (Embeddings) ===
+        self.log.info("=== ЭТАП 5: Vector Search (Embeddings) ===",
+                      extra={"event_type": EventType.SYSTEM_INIT})
+        if self.config.vector_search and self.config.vector_search.enabled:
+            await self._init_vector_search()
 
         await self.event_bus.publish(
             EventType.USER_RESULT,

@@ -378,14 +378,14 @@ class CheckResultSkill(Skill):
                 description="Выполнение предопределённых SQL скриптов для получения данных о проверках и отклонениях",
                 skill_name=self.name,
                 supported_strategies=["react"],
-                visiable=False
+                visiable=True
             ),
             Capability(
                 name="check_result.generate_script",
                 description="Генерация произвольного SQL-скрипта через LLM и его выполнение",
                 skill_name=self.name,
                 supported_strategies=["react"],
-                visiable=False
+                visiable=True
             ),
             Capability(
                 name="check_result.vector_search",
