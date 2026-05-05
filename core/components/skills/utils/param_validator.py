@@ -340,13 +340,31 @@ class ParamValidator:
         value_lower = str(param_value).lower().strip()
         for allowed in allowed_values:
             if str(allowed).lower().strip() == value_lower:
-                # Точное совпадение — используем каноническое значение
+                # Точное совпадение (возможно отличается регистр)
+                if str(allowed) != str(param_value):
+                    # Отличается регистр — исправляем с warning
+                    return {
+                        "valid": True,
+                        "corrected_value": allowed,
+                        "warning": f"Исправлен регистр: '{param_value}' → '{allowed}'",
+                        "suggestions": []
+                    }
                 return {
                     "valid": True,
                     "corrected_value": allowed,
                     "warning": None,
                     "suggestions": []
                 }
+
+        # Fuzzy matching — исправление опечаток
+        fuzzy_result = fuzzy_match(param_value, allowed_values, max_distance=2)
+        if fuzzy_result:
+            return {
+                "valid": True,
+                "corrected_value": fuzzy_result,
+                "warning": f"Исправлена опечатка: '{param_value}' → '{fuzzy_result}'",
+                "suggestions": list(allowed_values)
+            }
 
         # Не найдено — warning, но НЕ ошибка
         return {
