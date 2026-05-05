@@ -1,7 +1,7 @@
 """
 Утилита для формирования наблюдений из результатов выполнения.
 
-ARCHITECTURE:
+АРХИТЕКТУРА:
 - format_observation: полное форматирование (для сохранения всех данных)
 - smart_format_observation: интеллектуальное форматирование (для быстрого просмотра)
   - маленькие данные (до 5 строк или 500 символов) → всё как есть
@@ -382,7 +382,7 @@ def _format_vector_search_observation(data: Any) -> str:
 
 
 def _format_list_observation(data: list, capability_name: str) -> str:
-    """Формирует list результат."""
+    """Форматирует list результат."""
     if not data:
         return "Пустой список"
 

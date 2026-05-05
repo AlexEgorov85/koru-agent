@@ -395,7 +395,21 @@ class ReActPattern(BaseBehaviorPattern):
                 parameters = getattr(decision, "parameters", {}) if decision else {}
 
         if stop_condition:
-            # КРИТИЧНО: проверяем, есть ли большие результаты, требующие анализа
+            # КРИТИЧНО: если LLM вернул next_action вместе с stop_condition=true,
+            # выполняем этот action (например, data_analysis.analyze_step_data) перед остановкой
+            if capability_name and capability_name != "final_answer.generate":
+                self._log_info(
+                    f"⚠️ LLM запросил {capability_name} перед остановкой (stop_condition=true)",
+                    event_type=EventType.INFO
+                )
+                return Decision(
+                    type=DecisionType.ACT,
+                    action=capability_name,
+                    parameters=parameters,
+                    reasoning=f"Выполнение {capability_name} перед остановкой",
+                    is_final=False,
+                )
+            # Если LLM не указал next_action, проверяем большие данные
             if self._should_continue_for_analysis(reasoning_result):
                 return Decision(
                     type=DecisionType.ACT,

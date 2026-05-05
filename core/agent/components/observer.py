@@ -119,7 +119,7 @@ class Observer:
         if count > 0 and count >= limit:
             new_limit = limit + 10 if limit < 100 else 0
             return (
-                f"[TRUNCATION WARNING] Получено результатов ({count}) >= лимиту ({limit}). "
+                f"[ПРЕДУПРЕЖДЕНИЕ ОБ ОБРЕЗАНИИ] Получено результатов ({count}) >= лимиту ({limit}). "
                 f"Возможно, данные обрезаны. Для полных данных увеличьте top_k={new_limit} или 0 для безлимитно. "
                 f"Или используйте data_analysis.analyze_step_data."
             )
@@ -185,11 +185,11 @@ class Observer:
         if error:
             return {
                 "status": "error",
-                "observation": f"Error during execution: {error}",
-                "key_findings": [f"Action '{action_name}' failed"],
+                "observation": f"Ошибка выполнения: {error}",
+                "key_findings": [f"Действие '{action_name}' не выполнено"],
                 "data_quality": {"completeness": 0.0, "reliability": 0.0},
                 "errors": [error],
-                "next_step_suggestion": "Retry with different parameters or use recovery strategy",
+                "next_step_suggestion": "Повторить с другими параметрами или использовать стратегию восстановления",
                 "requires_additional_action": True,
                 "_rule_based": True
             }
@@ -198,11 +198,11 @@ class Observer:
         if result is None or (isinstance(result, (list, dict)) and len(result) == 0):
             return {
                 "status": "empty",
-                "observation": "Empty result received",
-                "key_findings": [f"Action '{action_name}' returned no data"],
+                "observation": "Получен пустой результат",
+                "key_findings": [f"Действие '{action_name}' не вернуло данных"],
                 "data_quality": {"completeness": 0.0, "reliability": 0.5},
                 "errors": [],
-                "next_step_suggestion": "Try different parameters or check data availability",
+                "next_step_suggestion": "Попробуйте другие параметры или проверьте доступность данных",
                 "requires_additional_action": True,
                 "_rule_based": True
             }
@@ -210,7 +210,7 @@ class Observer:
         # Успешный результат - анализируем данные и формируем информативное наблюдение
         completeness = 1.0
         reliability = 0.8
-        observation_text = f"Action '{action_name}' completed successfully"
+        observation_text = f"Действие '{action_name}' успешно выполнено"
         key_findings = []
         
         # Для vector_search результатов (проверяем по имени действия или структуре данных)
@@ -226,9 +226,9 @@ class Observer:
                 query_text = ""
                 if isinstance(result, dict) and "query" in result:
                     query_text = f" for query: {result['query'][:50]}"
-                observation_text = f"Found {count} results{query_text}"
+                observation_text = f"Найдено {count} результатов{query_text}"
                 
-                key_findings.append(f"Found {count} results")
+                key_findings.append(f"Найдено {count} результатов")
                 
                 # Добавляем примеры результатов
                 for i, r in enumerate(results_list[:5]):
@@ -238,7 +238,7 @@ class Observer:
                         key_findings.append(f"[{i+1}] (score={score:.2f}) {text}")
                 
                 if count > 5:
-                    key_findings.append(f"... and {count - 5} more results")
+                    key_findings.append(f"... ещё {count - 5} результатов")
                     observation_text += f". Внимание данные не доступны для анализа {count} результатов необходимо запустить data_analysis.analyze_step_data"
                 
                 completeness = 1.0 if count > 0 else 0.0
@@ -260,9 +260,9 @@ class Observer:
                         event_type=EventType.WARNING
                     )
                 
-                observation_text = "No results found"
+                observation_text = "Результаты не найдены"
                 completeness = 0.0
-                key_findings.append("No results returned")
+                key_findings.append("Результаты не возвращены")
         
         # Для SQL результатов
         elif isinstance(result, dict) and ("rows" in result or "rowcount" in result):
@@ -270,8 +270,8 @@ class Observer:
             row_count = len(rows) if rows else result.get("rowcount", 0)
             
             if row_count > 0:
-                observation_text = f"Query returned {row_count} rows"
-                key_findings.append(f"Retrieved {row_count} rows")
+                observation_text = f"Запрос вернул {row_count} строк"
+                key_findings.append(f"Получено {row_count} строк")
                 
                 # Показываем примеры строк
                 for i, row in enumerate(rows[:3]):
@@ -280,47 +280,47 @@ class Observer:
                         key_findings.append(f"[{i+1}] {preview}")
                 
                 if row_count > 3:
-                    key_findings.append(f"... and {row_count - 3} more rows")
+                    key_findings.append(f"... ещё {row_count - 3} строк")
                     if row_count > 10:
-                        observation_text += f". Use data_analysis.analyze_step_data for full analysis"
+                        observation_text += f". Для полного анализа используйте data_analysis.analyze_step_data"
                 
                 completeness = 1.0 if row_count > 0 else 0.0
             else:
-                observation_text = "Query returned no data"
+                observation_text = "Запрос не вернул данных"
                 completeness = 0.0
-                key_findings.append("Query returned empty result")
+                key_findings.append("Запрос вернул пустой результат")
         
         # Для списков
         elif isinstance(result, list):
             count = len(result)
             if count > 0:
-                observation_text = f"Received list with {count} items"
-                key_findings.append(f"List contains {count} items")
+                observation_text = f"Получен список из {count} элементов"
+                key_findings.append(f"Список содержит {count} элементов")
                 
                 if count > 3:
-                    key_findings.append(f"... and {count - 3} more items")
-                    observation_text += f". Use data_analysis.analyze_step_data for full analysis"
+                    key_findings.append(f"... и ещё {count - 3} элементов")
+                    observation_text += f". Для полного анализа используйте data_analysis.analyze_step_data"
                 
                 completeness = 0.8 if count < 5 else 1.0
             else:
-                observation_text = "Received empty list"
+                observation_text = "Получен пустой список"
                 completeness = 0.0
-                key_findings.append("Empty list returned")
+                key_findings.append("Возвращён пустой список")
         
         # Для словарей
         elif isinstance(result, dict):
             key_count = len(result)
-            observation_text = f"Received dict with {key_count} keys"
-            key_findings.append(f"Dict contains {key_count} keys")
+            observation_text = f"Получен словарь из {key_count} ключей"
+            key_findings.append(f"Словарь содержит {key_count} ключей")
             completeness = 0.8 if key_count > 0 else 0.0
         
         # Проверяем warning-флаги
         if isinstance(result, dict):
             if result.get('warning') or result.get('truncated'):
                 reliability = 0.6
-                key_findings.append(f"Warning: {result.get('warning', 'Result truncated')}")
-                self._log_info(
-                    f"⚠️ [Rule-based] Result has warnings: {result.get('warning', 'N/A')}",
+                key_findings.append(f"Предупреждение: {result.get('warning', 'Результат обрезан')}")
+            self._log_info(
+                f"⚠️ [Rule-based] Результат имеет предупреждения: {result.get('warning', 'N/A')}",
                     event_type=EventType.WARNING
                 )
         
@@ -330,7 +330,7 @@ class Observer:
             "key_findings": key_findings,
             "data_quality": {"completeness": completeness, "reliability": reliability},
             "errors": [],
-            "next_step_suggestion": "Continue with next step based on goal progress" if completeness > 0 else "Try different parameters or check data availability",
+            "next_step_suggestion": "Продолжить следующий шаг на основе прогресса цели" if completeness > 0 else "Попробуйте другие параметры или проверьте доступность данных",
             "requires_additional_action": completeness == 0.0,
             "_rule_based": True
         }
@@ -635,7 +635,7 @@ ERROR:
         """Обрезка текста до максимальной длины."""
         if len(text) <= max_length:
             return text
-        return text[:max_length] + "... [truncated]"
+        return text[:max_length] + "... [обрезано]"
     
     def _fallback_observation(self, result: Any, error: Optional[str]) -> Dict[str, Any]:
         """
@@ -655,27 +655,27 @@ ERROR:
                 "key_findings": [],
                 "data_quality": {"completeness": 0.0, "reliability": 0.0},
                 "errors": [error],
-                "next_step_suggestion": "Try a different approach or fix the error",
+                "next_step_suggestion": "Попробуйте другой подход или исправьте ошибку",
                 "requires_additional_action": True
             }
         
         if result is None or (isinstance(result, (list, dict)) and len(result) == 0):
             return {
                 "status": "empty",
-                "observation": "Empty result received",
+                "observation": "Получен пустой результат",
                 "key_findings": [],
                 "data_quality": {"completeness": 0.0, "reliability": 0.5},
                 "errors": [],
-                "next_step_suggestion": "Try different parameters or a different tool",
+                "next_step_suggestion": "Попробуйте другие параметры или другой инструмент",
                 "requires_additional_action": True
             }
         
         return {
             "status": "partial",
-            "observation": "Result received but not analyzed by LLM",
+                "observation": "Результат получен, но не проанализирован LLM",
             "key_findings": ["Result exists"],
             "data_quality": {"completeness": 0.5, "reliability": 0.5},
             "errors": [],
-            "next_step_suggestion": "Continue with caution",
+                "next_step_suggestion": "Продолжайте с осторожностью",
             "requires_additional_action": True
         }

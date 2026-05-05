@@ -46,22 +46,22 @@ class ContextUpdatePhase:
         error_recovery_handler: Optional[Any] = None,
     ) -> List[str]:
         """
-        Save execution result to data_context and register step.
+        Сохранить результат выполнения в data_context и зарегистрировать шаг.
         
-        Args:
-            result: ExecutionResult from executor
-            observation: ObservationAnalysis from ObservationPhase
-            decision_action: Action name
-            decision_parameters: Action parameters
-            session_context: Session context
-            executed_steps: Number of executed steps
-            decision_reasoning: Reasoning from decision
-            error_recovery_handler: Optional error recovery handler
+        АРГУМЕНТЫ:
+            result: ExecutionResult от исполнителя
+            observation: ObservationAnalysis из ObservationPhase
+            decision_action: Имя действия
+            decision_parameters: Параметры действия
+            session_context: Контекст сессии
+            executed_steps: Количество выполненных шагов
+            decision_reasoning: Обоснование решения
+            error_recovery_handler: Обработчик восстановления после ошибок
         
-        Returns:
-            List of observation item IDs
+        ВОЗВРАЩАЕТ:
+            Список ID элементов наблюдений
         """
-        # Save result data (returns observation_item_ids)
+        # Сохраняем данные результата (возвращает observation_item_ids)
         observation_item_ids = self.save_result_data(
             result=result,
             decision_action=decision_action,
@@ -71,7 +71,7 @@ class ContextUpdatePhase:
             observation=observation,
         )
         
-        # Handle empty SQL results
+        # Обрабатываем пустые SQL-результаты
         if result.data in (None, {}, [], "") and error_recovery_handler:
             await self.handle_empty_sql_result(
                 decision_action=decision_action,
@@ -81,7 +81,7 @@ class ContextUpdatePhase:
                 error_recovery_handler=error_recovery_handler,
             )
         
-        # Register step in session context
+        # Регистрируем шаг в контексте сессии
         self.register_step(
             session_context=session_context,
             executed_steps=executed_steps,
@@ -110,8 +110,8 @@ class ContextUpdatePhase:
         - Использует явный ContextItemType.OBSERVATION_ANALYSIS
         - Не дублирует логику форматирования
         
-        Args:
-            session_context: Session context
+        АРГУМЕНТЫ:
+            session_context: Контекст сессии
             observation_data: Данные наблюдения (status, quality, insight, hint)
             action_name: Название действия
             step_number: Номер шага
@@ -141,15 +141,15 @@ class ContextUpdatePhase:
         observation_signal: Dict[str, Any],
     ) -> None:
         """
-        Update agent state with step outcome and observation.
+        Обновить состояние агента результатом шага и наблюдением.
         
-        Args:
-            session_context: Session context
-            executed_steps: Number of executed steps
-            decision_action: Action name
-            decision_parameters: Action parameters
-            result_status: Execution status
-            observation_signal: Observation signal (dict или Pydantic модель)
+        АРГУМЕНТЫ:
+            session_context: Контекст сессии
+            executed_steps: Количество выполненных шагов
+            decision_action: Название действия
+            decision_parameters: Параметры действия
+            result_status: Статус выполнения
+            observation_signal: Сигнал наблюдения (dict или Pydantic модель)
         """
         # Гарантируем, что observation_signal — dict (для add_step)
         if hasattr(observation_signal, 'model_dump') and callable(observation_signal.model_dump):
@@ -193,17 +193,17 @@ class ContextUpdatePhase:
         observation: Optional[Any] = None,
     ) -> List[str]:
         """
-        Save execution result to data_context.
+        Сохранить результат выполнения в data_context.
         
-        Args:
-            result: ExecutionResult from executor
-            decision_action: Action name
-            decision_parameters: Action parameters
-            session_context: Session context
-            executed_steps: Number of executed steps
+        АРГУМЕНТЫ:
+            result: ExecutionResult от исполнителя
+            decision_action: Название действия
+            decision_parameters: Параметры действия
+            session_context: Контекст сессии
+            executed_steps: Количество выполненных шагов
             
-        Returns:
-            List of observation item IDs
+        ВОЗВРАЩАЕТ:
+            Список ID элементов наблюдений
         """
         observation_item_ids = []
         items_count_before = (
@@ -213,7 +213,7 @@ class ContextUpdatePhase:
         )
         
         if result.status == ExecutionStatus.FAILED:
-            # Save error observation
+            # Сохраняем наблюдение об ошибке
             error_details = {
                 "error": result.error or "Неизвестная ошибка",
                 "status": "FAILED",
@@ -221,7 +221,7 @@ class ContextUpdatePhase:
                 "parameters": decision_parameters or {},
             }
             
-            # Add stack trace if available
+            # Добавляем стек вызовов если доступен
             if hasattr(result, "traceback") and result.traceback:
                 error_details["traceback"] = result.traceback[:2000]
             
@@ -269,14 +269,14 @@ class ContextUpdatePhase:
                 session_context=session_context,
             )
 
-            # Save empty observation for final_answer visibility
+            # Сохраняем пустое наблюдение для видимости в final_answer
             empty_observation_data = {
                 "status": "empty",
                 "data": None,
                 "action": decision_action,
                 "parameters": decision_parameters or {},
             }
-            quick_content = f"empty: {decision_action}"
+            quick_content = f"пусто: {decision_action}"
             observation_item = ContextItem(
                 item_id="",
                 session_id=session_context.session_id,
@@ -295,7 +295,7 @@ class ContextUpdatePhase:
 
             items_count_after = session_context.data_context.count()
             self.log.debug(
-                f"📝 Сохранено empty observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
+                f"📝 Сохранено пустое наблюдение: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
                 extra={"event_type": EventType.STEP_COMPLETED},
             )
             
@@ -328,14 +328,8 @@ class ContextUpdatePhase:
                     parameters=decision_parameters,
                 )
             
-            # Сохраняем данные в content с проверкой лимитов
-            # Если данных мало (≤5 строк И длина ≤500 символов) — сохраняем полные данные
-            # Если много — сохраняем только метаданные (структура + количество), данные не попадают
-            # ИСКЛЮЧЕНИЕ: результаты data_analysis не обрезаем (это уже анализ, а не сырые данные)
-            content = self._prepare_observation_content(
-                result.data, 
-                is_data_analysis=is_data_analysis
-            )
+            # Сохраняем полные данные в content (обрезание только в quick_content)
+            content = result.data
             
             observation_item = ContextItem(
                 item_id="",
@@ -358,14 +352,14 @@ class ContextUpdatePhase:
             
             items_count_after = session_context.data_context.count()
             self.log.debug(
-                f"📝 Сохранено observation: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
+                f"📝 Сохранено наблюдение: item_id={observation_item_id}, items: {items_count_before}→{items_count_after}",
                 extra={"event_type": EventType.STEP_COMPLETED},
             )
             
             # Log observation in prompt format
             if quick_content:
                 self.log.info(
-                    f"[OBSERVATION] step={executed_steps + 1} | capability={decision_action}\n{quick_content}",
+                    f"[НАБЛЮДЕНИЕ] шаг={executed_steps + 1} | capability={decision_action}\n{quick_content}",
                     extra={"event_type": EventType.STEP_COMPLETED},
                 )
         
@@ -395,23 +389,23 @@ class ContextUpdatePhase:
         error_recovery_handler: Optional[Any] = None,
     ) -> None:
         """
-        Handle empty SQL result with diagnostics.
+        Обработать пустой SQL-результат с диагностикой.
         
-        Args:
-            decision_action: Action that returned empty result
-            decision_parameters: Action parameters
-            session_context: Session context
-            agent_state: Agent state for registration (optional, uses session_context.agent_state if not provided)
-            error_recovery_handler: Optional handler (overrides self.error_recovery_handler)
+        АРГУМЕНТЫ:
+            decision_action: Действие, вернувшее пустой результат
+            decision_parameters: Параметры действия
+            session_context: Контекст сессии
+            agent_state: Состояние агента для регистрации (опционально, использует session_context.agent_state если не указано)
+            error_recovery_handler: Обработчик (опционально, переопределяет self.error_recovery_handler)
         """
-        # Get agent_state from session_context if not provided
+        # Получаем agent_state из session_context если не указано
         if agent_state is None:
             agent_state = session_context.agent_state
         
         handler = error_recovery_handler or self.error_recovery_handler
         
         if not handler:
-            # Fallback: just register empty result
+            # Запасной вариант: просто регистрируем пустой результат
             agent_state.register_step_outcome(
                 action_name=decision_action,
                 status="empty",
@@ -454,17 +448,17 @@ class ContextUpdatePhase:
         observation: Optional[Any] = None,
     ) -> None:
         """
-        Register step in session context and update agent state.
+        Зарегистрировать шаг в контексте сессии и обновить состояние агента.
         
-        Args:
-            session_context: Session context to update
-            executed_steps: Number of executed steps
-            decision_action: Action name
-            decision_reasoning: Reasoning from decision
-            observation_item_ids: IDs of observation items
-            result_status: Execution status
-            decision_parameters: Action parameters
-            observation: ObservationAnalysis from ObservationPhase
+        АРГУМЕНТЫ:
+            session_context: Контекст сессии для обновления
+            executed_steps: Количество выполненных шагов
+            decision_action: Название действия
+            decision_reasoning: Обоснование решения
+            observation_item_ids: ID элементов наблюдений
+            result_status: Статус выполнения
+            decision_parameters: Параметры действия
+            observation: ObservationAnalysis из ObservationPhase
         """
         # Извлекаем краткое текстовое наблюдение для отображения в истории шагов
         obs_text = ""
@@ -485,7 +479,7 @@ class ContextUpdatePhase:
                 "hint": "",
             }
         
-        # Register step (data stored in data_context, step contains only references)
+        # Регистрируем шаг (данные хранятся в data_context, шаг содержит только ссылки)
         # Используем executed_steps + 1 для синхронизации с observation_phase
         session_context.register_step(
             step_number=executed_steps + 1,
@@ -499,7 +493,7 @@ class ContextUpdatePhase:
             obs_text=obs_text,
         )
         
-        # Update agent state with observation
+        # Обновляем состояние агента наблюдением
         session_context.agent_state.add_step(
             action_name=decision_action or "unknown",
             status=result_status.value if hasattr(result_status, 'value') else str(result_status),
@@ -513,49 +507,4 @@ class ContextUpdatePhase:
         if observation:
             session_context.agent_state.push_observation(observation)
 
-    def _prepare_observation_content(self, data: Any, is_data_analysis: bool = False) -> Any:
-        """
-        Подготавливает контент для сохранения в observation.
-        
-        Правила:
-        - Если данные содержат ≤5 строк И общая длина строкового представления ≤500 символов
-          → сохраняем полные данные
-        - Иначе → сохраняем только метаданные (тип, количество, структура),
-          сами данные не попадают в контекст
-        - ИСКЛЮЧЕНИЕ: для data_analysis результаты сохраняются как есть (это уже анализ)
-        """
-        # Исключение: результаты data_analysis не обрезаем
-        if is_data_analysis:
-            return data
-        
-        # Обработка списка
-        if isinstance(data, list):
-            row_count = len(data)
-            data_str = str(data)
-            # Проверяем лимиты: ≤5 строк И ≤500 символов
-            if row_count <= 5 and len(data_str) <= 500:
-                return data
-            # Превышение лимитов — возвращаем только метаданные
-            structure = {}
-            if row_count > 0 and isinstance(data[0], dict):
-                structure = list(data[0].keys())
-            return {
-                "type": "list",
-                "count": row_count,
-                "structure": structure,
-                "note": "Data exceeds limits (5 rows / 500 chars), only metadata saved. Use data_analysis for full data.",
-            }
 
-        # Обработка словаря
-        if isinstance(data, dict):
-            data_str = str(data)
-            if len(data_str) <= 500:
-                return data
-            return {
-                "type": "dict",
-                "keys": list(data.keys()),
-                "note": "Data exceeds 500 chars limit, only metadata saved. Use data_analysis for full data.",
-            }
-
-        # Для остальных типов возвращаем как есть
-        return data
