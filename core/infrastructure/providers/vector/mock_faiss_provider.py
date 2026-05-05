@@ -114,6 +114,12 @@ class MockFAISSProvider(IFAISSProvider):
         """Получение метаданных."""
         return self.metadata.get(vector_id)
     
+    async def reset(self):
+        """Полный сброс индекса и метаданных."""
+        self.vectors = []
+        self.metadata = {}
+        self.id_counter = 0
+
     async def shutdown(self):
         """Закрытие."""
         self.vectors = []

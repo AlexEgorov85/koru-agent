@@ -95,6 +95,11 @@ class IFAISSProvider(ABC):
         pass
     
     @abstractmethod
+    async def reset(self):
+        """Полный сброс индекса и метаданных (для пересоздания векторов)."""
+        pass
+
+    @abstractmethod
     async def shutdown(self):
         """Закрытие провайдера."""
         pass

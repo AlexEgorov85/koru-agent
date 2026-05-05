@@ -86,8 +86,14 @@ async def _index_source(
 
     # 2. Выполнение через DB Provider инфраструктуры
     result = await db_provider.execute_query(query=sql)
-    rows = result.rows if hasattr(result, 'rows') else []
-    col_names = result.columns if hasattr(result, 'columns') else cfg.get("metadata_fields", [])
+
+    # Обработка результата: поддержка как объектов, так и словарей
+    if isinstance(result, dict):
+        rows = result.get("rows", [])
+        col_names = result.get("columns", cfg.get("metadata_fields", []))
+    else:
+        rows = result.rows if hasattr(result, 'rows') else []
+        col_names = result.columns if hasattr(result, 'columns') else cfg.get("metadata_fields", [])
 
     total_rows = len(rows)
     logger.info(f"🔍 Найдено записей: {total_rows}")
@@ -104,7 +110,11 @@ async def _index_source(
     # 3. Обработка строк
     for idx, row in enumerate(rows):
         try:
-            row_dict = dict(zip(col_names, row))
+            # Если row уже словарь (например, ответ от БД в формате dict), используем его напрямую
+            if isinstance(row, dict):
+                row_dict = row
+            else:
+                row_dict = dict(zip(col_names, row))
             search_text = "  ".join(
                 str(row_dict.get(f, "")).strip() 
                 for f in cfg["text_fields"] 
@@ -143,8 +153,10 @@ async def _index_source(
             skipped += 1
             continue
 
-    # 5. Сохранение через FAISS провайдер инфраструктуры
+    # 5. Сохранение через FAISS провайдер инфраструктуры (пересоздание по умолчанию)
     if vectors:
+        # Сбрасываем индекс перед добавлением (векторы пересоздаются, не дозаписываются)
+        await faiss.reset()
         await faiss.add(vectors, metadata_list)
         storage_path = Path(vs_config.storage.base_path)
         storage_path.mkdir(parents=True, exist_ok=True)

@@ -79,6 +79,14 @@ class FAISSProvider(IFAISSProvider):
         else:
             raise ValueError(f"Unknown index type: {index_type}")
 
+    async def reset(self):
+        """Полный сброс индекса и метаданных (для пересоздания векторов)."""
+        self.index = None
+        self.metadata = {}
+        self.id_counter = 0
+        self._deleted_ids = set()
+        await self.initialize()
+
     async def _ensure_trained(self, vectors_array: np.ndarray):
         """Обучение индекса если нужно (для IVF)."""
         if self.config.index_type == "IVF" and not self.index.is_trained:
