@@ -52,7 +52,7 @@ class OpenRouterConfig(BaseModel):
     model_name: str = Field(default="qwen/qwen3.6-plus:free", description="ID модели в формате openrouter")
     temperature: float = Field(default=0.7, description="Температура генерации")
     max_tokens: int = Field(default=4096, description="Максимальное количество токенов")
-    timeout_seconds: float = Field(default=180.0, ge=0.0, description="Таймаут HTTP запроса")
+    timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут HTTP запроса")
     base_url: str = Field(default=OPENROUTER_API_URL, description="Базовый URL API")
 
     @model_validator(mode="after")

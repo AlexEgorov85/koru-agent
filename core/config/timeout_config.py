@@ -253,7 +253,7 @@ class TimeoutConfig(BaseModel):
             llm_total_timeout=180.0,
             llm_max_retries=3,
             action_default_timeout=60.0,
-            agent_step_timeout=120.0,
+            agent_step_timeout=600.0,
         )
     
     @classmethod
