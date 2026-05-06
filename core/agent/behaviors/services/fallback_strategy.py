@@ -26,7 +26,7 @@ class FallbackStrategyService:
         return Decision(
             type=DecisionType.FAIL,
             error=f"llm_error: {reason}",
-            reasoning=f"Ошибка при генерации решения: {reason}",
+            reasoning_detail={"analysis_final": f"Ошибка при генерации решения: {reason}"},
             confidence=0.0
         )
 
@@ -40,6 +40,6 @@ class FallbackStrategyService:
         return Decision(
             type=DecisionType.FAIL,
             error=f"llm_reasoning_error: {reason}",
-            reasoning=f"Не удалось сгенерировать решение: {reason}",
+            reasoning_detail={"analysis_final": f"Не удалось сгенерировать решение: {reason}"},
             confidence=0.0
         )

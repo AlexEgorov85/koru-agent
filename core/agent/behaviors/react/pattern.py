@@ -332,9 +332,9 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
             # Извлекаем размышление из 10 полей анализа
-            reasoning = self._extract_analysis_reasoning(reasoning_result)
+            reasoning_detail = self._extract_full_reasoning(reasoning_result)
             session_context.record_decision(
-                decision_data="reasoning", reasoning=reasoning
+                decision_data="reasoning", reasoning_detail=reasoning_detail
             )
 
             # Извлекаем полное размышление из 10 полей анализа
@@ -441,7 +441,7 @@ class ReActPattern(BaseBehaviorPattern):
             return self._handle_stop_condition(capability_name, parameters, stop_reason, reasoning_detail)
 
         if not capability_name:
-            return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action")
+            return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action", reasoning_detail={"analysis_final": "LLM не вернул next_action"})
 
         # Поиск capability (inline реализация вместо _find_capability)
         capability = None
@@ -466,10 +466,11 @@ class ReActPattern(BaseBehaviorPattern):
                     capability_name = cap.name
                     break
 
-            if not capability:
-                return Decision(
-                    type=DecisionType.FAIL, error="no_available_capabilities"
-                )
+                if not capability:
+                    return Decision(
+                        type=DecisionType.FAIL, error="no_available_capabilities",
+                        reasoning_detail={"analysis_final": "no_available_capabilities"}
+                    )
 
         # Валидация параметров (inline реализация вместо _validate_capability_parameters)
         validated_params = parameters
