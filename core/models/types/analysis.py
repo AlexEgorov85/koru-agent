@@ -28,7 +28,7 @@ class AnalysisResult(BaseModel):
         analysis_type: Тип анализа ("character", "theme", etc.)
         result: Любые результаты анализа
         confidence: Уверенность (0-1)
-        reasoning: Обоснование
+        reasoning_detail: Полное структурированное рассуждение (10 полей)
         analyzed_at: Дата анализа
         error: Ошибка
     """
@@ -36,7 +36,7 @@ class AnalysisResult(BaseModel):
     analysis_type: str
     result: Dict[str, Any]
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-    reasoning: Optional[str] = None
+    reasoning_detail: Optional[Dict[str, Any]] = None
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
     error: Optional[str] = None
 
@@ -59,7 +59,7 @@ class AnalysisResult(BaseModel):
             "analysis_type": self.analysis_type,
             "result": self.result,
             "confidence": self.confidence,
-            "reasoning": self.reasoning,
+            "reasoning_detail": self.reasoning_detail,
             "analyzed_at": self.analyzed_at.isoformat(),
             "error": self.error
         }
@@ -72,7 +72,7 @@ class AnalysisResult(BaseModel):
             analysis_type=data["analysis_type"],
             result=data.get("result", {}),
             confidence=data.get("confidence", 0.5),
-            reasoning=data.get("reasoning"),
+            reasoning_detail=data.get("reasoning_detail"),
             analyzed_at=datetime.fromisoformat(data["analyzed_at"]),
             error=data.get("error")
         )
@@ -87,7 +87,7 @@ class AnalysisResult(BaseModel):
                     "gender": "male"
                 },
                 "confidence": 0.95,
-                "reasoning": "Имя в названии"
+                "reasoning_detail": {"analysis_final": "Имя в названии"}
             }
         }
     )

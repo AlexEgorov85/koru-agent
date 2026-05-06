@@ -4,6 +4,7 @@
 - Хранит агрегированное состояние сессии, влияющее на следующие шаги.
 - Не содержит тяжёлых ресурсов и инфраструктурных зависимостей.
 - Используется как источник правды для policy/reflection/prompt.
+- Все данные наблюдений — строго через Pydantic модель ObservationResult.
 
 ВАЖНО:
 - Здесь разделены total-метрики и consecutive-метрики.
@@ -11,59 +12,45 @@
   чтобы случайные разовые пустые ответы не «ломали» сессию.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
-class ObservationAnalysis(BaseModel):
+class ObservationResult(BaseModel):
     """
     Структурированный результат анализа наблюдения.
-    
-    АРХИТЕКТУРА:
-    - Используется как единый контракт между ObservationPhase и AgentState
-    - Содержит как сырые данные, так и интерпретацию
-    - Поддерживает history с лимитом 3 записи
-    - Включает решение о типе сохранения (save_type)
-    
-    ПОЛЯ:
-    - status: статус выполнения (success/error/empty)
-    - quality: оценка качества данных
-    - insight: ключевое наблюдение
-    - hint: рекомендация для следующего шага
-    - key_findings: список ключевых фактов (включая предупреждения об обрезке)
-    - rule_based: был ли использован rule-based анализ
-    - timestamp: время анализа
-    - save_type: тип сохранения ('raw_data' или 'summary')
+
+    МИНИМАЛЬНЫЙ НАБОР ПОЛЕЙ:
+    - Только то, что реально используется в коде
+    - Типизация через Pydantic (валидация при создании)
     """
     status: str = "unknown"
-    quality: Dict[str, Any] = Field(default_factory=dict)
-    insight: str = ""
-    hint: str = ""
-    key_findings: List[str] = Field(default_factory=list)
-    rule_based: bool = False
-    timestamp: Optional[str] = None
-    action_name: Optional[str] = None
-    step_number: Optional[int] = None
-    save_type: Optional[str] = None
+    observation: str = ""           # Краткий текст для промпта LLM
+    key_findings: List[str] = Field(default_factory=list)  # Ключевые факты
+    data_quality: Dict[str, Any] = Field(default_factory=dict)  # completeness, reliability
+    next_step_suggestion: str = ""   # Подсказка для следующего шага (hint)
+    errors: List[str] = Field(default_factory=list)  # Список ошибок
+    requires_additional_action: bool = False
 
 
 @dataclass
 class AgentState:
     """Состояние выполнения агентного цикла.
-    
+
     ИНКАПСУЛЯЦИЯ:
-    - Все поля состояния приватные (с подчеркиванием)
+    - Все поля состояния приватные (с подчёркиванием)
     - Доступ только через методы
     - Изменение состояния только через register_step_outcome()
     """
-
     _step_number: int = field(default=0, repr=False)
     _history: List[Dict[str, Any]] = field(default_factory=list, repr=False)
     _errors: List[str] = field(default_factory=list, repr=False)
-    
-    # История наблюдений (лимит 3 записи) - Шаг 2.2
-    _observation_history: List[ObservationAnalysis] = field(default_factory=list, repr=False)
+
+    # История наблюдений (лимит 3 записи) — Шаг 2.2
+    _observation_history: List[ObservationResult] = field(default_factory=list, repr=False)
 
     # TOTAL метрики (приватные)
     _total_empty_results: int = field(default=0, repr=False)
@@ -71,68 +58,68 @@ class AgentState:
     # CONSECUTIVE метрики (приватные)
     _consecutive_empty_results: int = field(default=0, repr=False)
     _consecutive_repeated_actions: int = field(default=0, repr=False)
-    _last_tool_name: Optional[str] = field(default=None, repr=False)  # Имя инструмента (без параметров)
-    _consecutive_repeated_tool: int = field(default=0, repr=False)  # Счётчик повторов одного инструмента
+    _last_tool_name: Optional[str] = field(default=None, repr=False)
+    _consecutive_repeated_tool: int = field(default=0, repr=False)
 
     _last_action: Optional[str] = field(default=None, repr=False)
     _last_action_signature: Optional[str] = field(default=None, repr=False)
-    _last_observation: Optional[Dict[str, Any]] = field(default=None, repr=False)
+    _last_observation: Optional[ObservationResult] = field(default=None, repr=False)
     _last_corrected_params: Optional[Dict[str, Any]] = field(default=None, repr=False)
-    
+
     # Публичные свойства только для чтения
     @property
     def step_number(self) -> int:
         return self._step_number
-    
+
     @property
     def history(self) -> List[Dict[str, Any]]:
-        return list(self._history)  # Возвращаем копию
-    
+        return list(self._history)
+
     @property
     def errors(self) -> List[str]:
-        return list(self._errors)  # Возвращаем копию
-    
+        return list(self._errors)
+
     @property
     def total_empty_results(self) -> int:
         return self._total_empty_results
-    
+
     @property
     def consecutive_empty_results(self) -> int:
         return self._consecutive_empty_results
-    
+
     @property
     def consecutive_repeated_actions(self) -> int:
         return self._consecutive_repeated_actions
-    
+
     @property
     def last_action(self) -> Optional[str]:
         return self._last_action
-    
+
     @property
     def last_action_signature(self) -> Optional[str]:
         return self._last_action_signature
-    
+
     @property
-    def last_observation(self) -> Optional[Dict[str, Any]]:
+    def last_observation(self) -> Optional[ObservationResult]:
         return self._last_observation
-    
+
     @property
     def last_corrected_params(self) -> Optional[Dict[str, Any]]:
         return self._last_corrected_params
-    
+
     @last_corrected_params.setter
     def last_corrected_params(self, value: Optional[Dict[str, Any]]):
         self._last_corrected_params = value
-    
+
     @property
-    def observation_history(self) -> List[ObservationAnalysis]:
+    def observation_history(self) -> List[ObservationResult]:
         """Получить копию истории наблюдений (лимит 3)."""
         return list(self._observation_history)
-    
-    def push_observation(self, analysis: ObservationAnalysis) -> None:
+
+    def push_observation(self, analysis: ObservationResult) -> None:
         """
         Добавить наблюдение в историю с автосдвигом старых записей.
-        
+
         АРХИТЕКТУРА:
         - Лимит max_history=3 записи (конфигурируемо)
         - Старые записи автоматически удаляются (FIFO)
@@ -140,7 +127,7 @@ class AgentState:
         """
         max_history = 3
         self._observation_history.append(analysis)
-        
+
         # Автосдвиг старых записей если превышен лимит
         if len(self._observation_history) > max_history:
             self._observation_history = self._observation_history[-max_history:]
@@ -150,7 +137,7 @@ class AgentState:
         action_name: str,
         status: str,
         parameters: Optional[Dict[str, Any]] = None,
-        observation: Optional[Dict[str, Any]] = None,
+        observation: Optional[ObservationResult] = None,
     ) -> None:
         """
         Добавить запись шага и обновить счётчики повторов.
@@ -165,20 +152,20 @@ class AgentState:
         action_signature = self.build_action_signature(
             action_name=action_name, parameters=parameters
         )
-        
+
         # Проверка повтора полной сигнатуры (действие + параметры)
         if self._last_action_signature == action_signature:
             self._consecutive_repeated_actions += 1
         else:
             self._consecutive_repeated_actions = 0
-        
+
         # Проверка повтора инструмента (независимо от параметров)
         tool_name = action_name.split('.')[0] if '.' in action_name else action_name
         if self._last_tool_name == tool_name:
             self._consecutive_repeated_tool += 1
         else:
             self._consecutive_repeated_tool = 0
-        
+
         self._last_action = action_name
         self._last_action_signature = action_signature
         self._last_tool_name = tool_name
@@ -186,31 +173,31 @@ class AgentState:
 
         # Формируем текст наблюдения для быстрого доступа
         obs_text = ""
-        if isinstance(observation, dict):
-            insight = observation.get('insight', observation.get('observation', ''))
-            key_findings = observation.get('key_findings', [])
-            hint = observation.get('hint', observation.get('next_step_suggestion', ''))
-        elif hasattr(observation, 'insight'):  # Pydantic ObservationAnalysis
-            insight = observation.insight
-            key_findings = observation.key_findings
-            hint = observation.hint
-        else:
-            insight, key_findings, hint = "Нет анализа", [], ""
+        if observation:
+            # Поддержка и dict, и ObservationResult
+            if isinstance(observation, dict):
+                insight = observation.get("observation", "")
+                key_findings = observation.get("key_findings", [])
+                hint = observation.get("next_step_suggestion", "")
+            else:
+                insight = observation.observation
+                key_findings = observation.key_findings
+                hint = observation.next_step_suggestion
 
-        obs_parts = [insight] if insight else []
-        for finding in key_findings:
-            if finding:
-                obs_parts.append(f"  - {finding}")
-        if hint:
-            obs_parts.append(f"💡 Подсказка: {hint}")
-        
-        obs_text = "\n".join(obs_parts) if obs_parts else "Нет данных"
-        
+            obs_parts = [insight] if insight else []
+            for finding in key_findings:
+                if finding:
+                    obs_parts.append(f"  - {finding}")
+            if hint:
+                obs_parts.append(f"💡 Подсказка: {hint}")
+
+            obs_text = "\n".join(obs_parts) if obs_parts else "Нет данных"
+
         self._history.append(
             {
                 "step": self._step_number,
-                "step_number": self._step_number,  # для надёжного поиска
-                "obs_text": obs_text,  # <-- СОХРАНЯЕМ ТЕКСТ НАБЛЮДЕНИЯ ПРЯМО В STEP
+                "step_number": self._step_number,
+                "obs_text": obs_text,
                 "action": action_name,
                 "action_signature": action_signature,
                 "status": status,
@@ -219,27 +206,27 @@ class AgentState:
             }
         )
 
-    def register_observation(self, observation: Optional[Dict[str, Any]]) -> None:
+    def register_observation(self, observation: Optional[ObservationResult]) -> None:
         """Обновить метрики состояния на основе observation."""
         if observation is None:
             return
 
         self._last_observation = observation
 
-        obs_status = str(observation.get("status", "")).lower()
+        obs_status = str(observation.status).lower()
         if obs_status == "empty":
             self._total_empty_results += 1
             self._consecutive_empty_results += 1
         elif obs_status == "error":
             self._errors.append(
-                f"OBSERVATION:{observation.get('insight', 'unknown_error')}"
+                f"OBSERVATION:{observation.observation or 'unknown_error'}"
             )
             self._consecutive_empty_results = 0
         else:
             # Любой непустой и неошибочный ответ разрывает streak пустых результатов.
             self._consecutive_empty_results = 0
 
-        quality = str(observation.get("quality", "")).lower()
+        quality = str(observation.data_quality).lower()
         if quality == "useless":
             self._errors.append("OBSERVATION:USELESS_RESULT")
 
@@ -248,12 +235,12 @@ class AgentState:
         action_name: str,
         status: str,
         parameters: Optional[Dict[str, Any]] = None,
-        observation: Optional[Dict[str, Any]] = None,
+        observation: Optional[ObservationResult] = None,
         error_message: Optional[str] = None,
     ) -> None:
         """
         Единый метод для регистрации исхода шага.
-        
+
         ИНКАПСУЛЯЦИЯ:
         - Все изменения состояния проходят только через этот метод
         - Вызывается после каждого шага выполнения
@@ -265,11 +252,11 @@ class AgentState:
             parameters=parameters,
             observation=observation,
         )
-        
+
         # Регистрируем observation если есть
         if observation:
             self.register_observation(observation)
-        
+
         # Регистрируем ошибку если есть
         if error_message:
             self._errors.append(f"EXECUTION:{error_message}")
