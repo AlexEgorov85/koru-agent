@@ -81,7 +81,7 @@ class DataAnalysisSkill(Skill):
         self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
         self._chars_per_token = self.DEFAULT_CHARS_PER_TOKEN
         self._schema_cache: Dict[str, str] = {}
-        self.chunk_llm_timeout = int(os.environ.get("DATA_ANALYSIS_CHUNK_TIMEOUT", "120"))
+        self.chunk_llm_timeout = int(os.environ.get("DATA_ANALYSIS_CHUNK_TIMEOUT", "600"))
         self.retry_max_attempts = int(os.environ.get("DATA_ANALYSIS_RETRY_ATTEMPTS", str(self.RETRY_MAX_ATTEMPTS)))
         self.retry_base_delay = float(os.environ.get("DATA_ANALYSIS_RETRY_DELAY", str(self.RETRY_BASE_DELAY)))
 
@@ -232,7 +232,21 @@ class DataAnalysisSkill(Skill):
         if obs_item is None:
             return None
 
-        return obs_item.content if hasattr(obs_item, 'content') else obs_item
+        content = obs_item.content if hasattr(obs_item, 'content') else obs_item
+
+        # Нормализация данных разных форматов
+        if isinstance(content, dict):
+            # Формат от SQL/check_result: {"rows": [...], "columns": [...], ...}
+            if "rows" in content:
+                return content["rows"]
+            # Формат от data_analysis или других: {"data": [...], ...}
+            if "data" in content:
+                return content["data"]
+            # Формат observation: {"type": "raw_data", "data": {...}}
+            if "type" in content and "data" in content:
+                return content["data"]
+
+        return content
 
     def _extract_schema(self, data: Any) -> Optional[str]:
         """Извлекает схему данных из List[Dict] для инжекта в чанки."""
@@ -617,7 +631,7 @@ class DataAnalysisSkill(Skill):
         schema = self._extract_schema(data)
         
         if isinstance(data, list):
-            chunks = chunking_service.chunk_rows(data)
+            chunks = chunking_service.chunk_rows(data, max_chunk_chars=max_chunk_chars)
             self._log_info(
                 f"📊 [data_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
                 event_type=EventType.INFO
