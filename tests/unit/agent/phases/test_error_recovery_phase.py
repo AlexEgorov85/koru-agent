@@ -70,9 +70,9 @@ class TestHandleEmptySqlResult:
     async def test_calls_diagnostic_service(
         self, error_recovery_phase_with_service, mock_agent_state
     ):
-        """Вызывает sql_diagnostic_service.diagnose_empty_result()."""
+        """Вызывает sql_diagnostic_service.analyze_empty_result()."""
         phase = error_recovery_phase_with_service
-        phase.sql_diagnostic_service.diagnose_empty_result.return_value = {
+        phase.sql_diagnostic_service.analyze_empty_result.return_value = {
             "diagnosis": "No data found",
             "suggestion": "Try different filters",
         }
@@ -84,7 +84,7 @@ class TestHandleEmptySqlResult:
             agent_state=mock_agent_state,
         )
         
-        phase.sql_diagnostic_service.diagnose_empty_result.assert_called_once()
+        phase.sql_diagnostic_service.analyze_empty_result.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_registers_with_diagnostic_info(
@@ -92,7 +92,7 @@ class TestHandleEmptySqlResult:
     ):
         """Регистрирует результат с диагностической информацией."""
         phase = error_recovery_phase_with_service
-        phase.sql_diagnostic_service.diagnose_empty_result.return_value = {
+        phase.sql_diagnostic_service.analyze_empty_result.return_value = {
             "diagnosis": "Empty result",
             "suggestion": "Check filters",
         }
@@ -135,7 +135,7 @@ class TestHandleEmptySqlResult:
     ):
         """Логирует результат диагностики."""
         phase = error_recovery_phase_with_service
-        phase.sql_diagnostic_service.diagnose_empty_result.return_value = {
+        phase.sql_diagnostic_service.analyze_empty_result.return_value = {
             "diagnosis": "Test diagnosis",
         }
         
@@ -156,7 +156,7 @@ class TestHandleEmptySqlResult:
     ):
         """При исключении в диагностике использует fallback."""
         phase = error_recovery_phase_with_service
-        phase.sql_diagnostic_service.diagnose_empty_result.side_effect = Exception("Diagnostic failed")
+        phase.sql_diagnostic_service.analyze_empty_result.side_effect = Exception("Diagnostic failed")
         
         # Не должно быть исключения
         await phase.handle_empty_sql_result(
@@ -338,7 +338,7 @@ class TestResilience:
     ):
         """handle_empty_sql_result() не бросает исключения."""
         phase = error_recovery_phase_with_service
-        phase.sql_diagnostic_service.diagnose_empty_result.side_effect = Exception("Boom")
+        phase.sql_diagnostic_service.analyze_empty_result.side_effect = Exception("Boom")
         
         # Не должно быть исключения
         await phase.handle_empty_sql_result(
