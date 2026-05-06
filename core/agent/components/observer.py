@@ -11,6 +11,7 @@ Observer — LLM-анализ результатов выполнения дей
 - Поддержка режимов trigger_mode: "always", "on_error", "on_empty"
 - Rule-based анализ для success-статусов (экономия LLM-вызовов)
 """
+import json
 from typing import Any, Dict, Optional, Literal
 from core.infrastructure.event_bus.unified_event_bus import EventType
 
@@ -210,8 +211,9 @@ class Observer:
         # Успешный результат - анализируем данные и формируем информативное наблюдение
         completeness = 1.0
         reliability = 0.8
-        observation_text = f"Действие '{action_name}' успешно выполнено"
+        observation_text = ""
         key_findings = []
+        next_step_suggestion = "Продолжить следующий шаг на основе прогресса цели"
         
         # Для vector_search результатов (проверяем по имени действия или структуре данных)
         if "vector_search" in action_name or (isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict) and "score" in result[0]):
@@ -239,7 +241,10 @@ class Observer:
                 
                 if count > 5:
                     key_findings.append(f"... ещё {count - 5} результатов")
-                    observation_text += f". Внимание данные не доступны для анализа {count} результатов необходимо запустить data_analysis.analyze_step_data"
+                    if count > 100:
+                        next_step_suggestion = f"Обнаружено слишком много данных ({count} записей). Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data. Перед запуском проверьте параметры или SQL-запрос — если они неполные, запустите навык повторно с доработанными параметрами (измените фильтры или SQL-запрос), чтобы сузить выборку."
+                    else:
+                        next_step_suggestion = f"Для полного анализа {count} результатов используйте data_analysis.analyze_step_data"
                 
                 completeness = 1.0 if count > 0 else 0.0
             else:
@@ -270,10 +275,14 @@ class Observer:
             row_count = len(rows) if rows else result.get("rowcount", 0)
             
             if row_count > 0:
-                observation_text = f"Запрос вернул {row_count} строк"
+                # Выводим сами данные
+                try:
+                    observation_text = json.dumps(rows, ensure_ascii=False, indent=2, default=str)
+                except (TypeError, ValueError):
+                    observation_text = str(rows)
                 key_findings.append(f"Получено {row_count} строк")
                 
-                # Показываем примеры строк
+                # Показываем примеры строк в key_findings
                 for i, row in enumerate(rows[:3]):
                     if isinstance(row, dict):
                         preview = {k: v for k, v in list(row.items())[:3]}
@@ -281,8 +290,12 @@ class Observer:
                 
                 if row_count > 3:
                     key_findings.append(f"... ещё {row_count - 3} строк")
-                    if row_count > 10:
-                        observation_text += f". Для полного анализа используйте data_analysis.analyze_step_data"
+                
+                if row_count > 10:
+                    if row_count > 100:
+                        next_step_suggestion = f"Обнаружено слишком много данных ({row_count} строк). Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data. Перед запуском проверьте параметры или SQL-запрос — если они неполные, запустите навык повторно с доработанными параметрами (измените фильтры или SQL-запрос), чтобы сузить выборку."
+                    else:
+                        next_step_suggestion = f"Для полного анализа {row_count} строк используйте data_analysis.analyze_step_data"
                 
                 completeness = 1.0 if row_count > 0 else 0.0
             else:
@@ -294,12 +307,19 @@ class Observer:
         elif isinstance(result, list):
             count = len(result)
             if count > 0:
-                observation_text = f"Получен список из {count} элементов"
+                # Выводим содержимое списка
+                try:
+                    observation_text = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+                except (TypeError, ValueError):
+                    observation_text = str(result)
                 key_findings.append(f"Список содержит {count} элементов")
                 
                 if count > 3:
                     key_findings.append(f"... и ещё {count - 3} элементов")
-                    observation_text += f". Для полного анализа используйте data_analysis.analyze_step_data"
+                    if count > 100:
+                        next_step_suggestion = f"Обнаружено слишком много данных ({count} элементов). Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data. Перед запуском проверьте параметры или SQL-запрос — если они неполные, запустите навык повторно с доработанными параметрами (измените фильтры или SQL-запрос), чтобы сузить выборку."
+                    else:
+                        next_step_suggestion = f"Для полного анализа {count} элементов используйте data_analysis.analyze_step_data"
                 
                 completeness = 0.8 if count < 5 else 1.0
             else:
@@ -310,7 +330,11 @@ class Observer:
         # Для словарей
         elif isinstance(result, dict):
             key_count = len(result)
-            observation_text = f"Получен словарь из {key_count} ключей"
+            # Выводим содержимое словаря в читаемом виде
+            try:
+                observation_text = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+            except (TypeError, ValueError):
+                observation_text = str(result)
             key_findings.append(f"Словарь содержит {key_count} ключей")
             completeness = 0.8 if key_count > 0 else 0.0
         
@@ -330,7 +354,7 @@ class Observer:
             "key_findings": key_findings,
             "data_quality": {"completeness": completeness, "reliability": reliability},
             "errors": [],
-            "next_step_suggestion": "Продолжить следующий шаг на основе прогресса цели" if completeness > 0 else "Попробуйте другие параметры или проверьте доступность данных",
+            "next_step_suggestion": next_step_suggestion if completeness > 0 else "Попробуйте другие параметры или проверьте доступность данных",
             "requires_additional_action": completeness == 0.0,
             "_rule_based": True
         }
