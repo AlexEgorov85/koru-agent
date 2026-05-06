@@ -2,13 +2,24 @@
 Утилита для формирования наблюдений из результатов выполнения.
 
 АРХИТЕКТУРА:
-- format_observation: полное форматирование (для сохранения всех данных)
-- smart_format_observation: интеллектуальное форматирование (для быстрого просмотра)
-  - маленькие данные (до 5 строк или 500 символов) → всё как есть
-  - большие данные → статистика + пример + указание на анализ
+- format_observation: единая функция с интеллектуальным форматированием
+  - Маленькие данные (до 5 строк или 500 символов) → всё как есть
+  - Большие данные → статистика + пример (3 строки или 100 символов)
 """
 import json
 from typing import Any, Dict, Optional
+
+# =============================================================================
+# ЛИМИТЫ ДЛЯ ОЦЕНКИ РАЗМЕРА ДАННЫХ
+# =============================================================================
+# Можно менять гибко, они все в одном месте
+MAX_ROWS = 5                    # Максимальное количество строк для полного показа
+MAX_JSON_BYTES = 1500            # Максимальный размер JSON в байтах
+MAX_TEXT_CHARS = 1500            # Максимальная длина текста в символах
+MAX_DICT_KEYS = 10              # Максимальное количество ключей в словаре
+MAX_SUMMARY_CHARS = 500         # Лимит для краткого форматирования
+MAX_SAMPLE_ROWS = 3             # Количество примеров строк в кратком формате
+MAX_SAMPLE_CHARS = 100          # Длина примера в кратком формате
 
 
 def format_observation(
@@ -17,329 +28,128 @@ def format_observation(
     parameters: Optional[Dict[str, Any]] = None
 ) -> str:
     """
-    Полное форматирование результата для сохранения в observation.
-    """
-    if result_data is None:
-        return "Данные отсутствуют"
-
-    if isinstance(result_data, dict):
-        return _format_dict_observation(result_data, capability_name, parameters)
-    elif isinstance(result_data, list):
-        return _format_list_observation(result_data, capability_name)
-    elif isinstance(result_data, str):
-        return _format_string_observation(result_data, capability_name)
-    else:
-        return _format_generic_observation(result_data, capability_name)
-
-
-def smart_format_observation(
-    result_data: Any,
-    capability_name: str,
-    parameters: Optional[Dict[str, Any]] = None
-) -> str:
-    """
-    Интеллектуальное форматирование для быстрого просмотра.
+    Интеллектуальное форматирование результата для наблюдения.
     
-    ПРАВИЛА:
-    - Данные до 5 строк или 500 символов → показать всё
-    - Большие данные → статистика + пример (3 строки или 100 символов)
+    ЛОГИКА:
+    - Данные до 5 строк или 500 символов → полное форматирование
+    - Большие данные → статистика + пример + указание на анализ
+    - Специальная обработка для vector search (score), violations, SQL
     """
     if result_data is None:
         return "Данные отсутствуют"
     
-    # Конвертируем Pydantic модели в dict для единообразной обработки
-    data_for_check = result_data
-    if hasattr(result_data, 'model_dump'):
-        try:
-            data_for_check = result_data.model_dump()
-        except Exception:
-            pass
-    elif hasattr(result_data, '__dict__') and not isinstance(result_data, dict):
-        data_for_check = result_data.__dict__
+    # Конвертируем Pydantic/dataclass в dict для единообразной обработки
+    data = _to_dict(result_data)
     
-    data_type = type(data_for_check).__name__
-    
-    if isinstance(data_for_check, list):
-        row_count = len(data_for_check)
-        sample_count = min(3, row_count)
-    else:
-        row_count = 0
-        sample_count = 0
-    
-    if hasattr(data_for_check, 'rows'):
-        row_count = len(getattr(data_for_check, 'rows', [])) or row_count
-    
-    try:
-        if isinstance(data_for_check, dict):
-            data_str = json.dumps(data_for_check, ensure_ascii=False, default=str)
-        else:
-            data_str = str(data_for_check)
-    except:
-        data_str = str(data_for_check)
-    
+    # Определяем размер данных
+    row_count = _estimate_row_count(data)
+    data_str = _to_string(data)
     char_count = len(data_str)
     
-    MAX_ROWS = 5
-    MAX_CHARS = 500
+    # Маленькие данные → полное форматирование
+    if row_count <= MAX_ROWS and char_count <= MAX_SUMMARY_CHARS:
+        return _format_full(data, capability_name, parameters)
     
-    if row_count <= MAX_ROWS and char_count <= MAX_CHARS:
-        return format_observation(result_data, capability_name, parameters)
-    
-    lines = []
-    rows_data = []
-    
-    # СНАЧАЛА проверяем специальные случаи для списков
-    if isinstance(data_for_check, list) and data_for_check:
-        # Векторный поиск (есть 'score')
-        if any(("score" in r if isinstance(r, dict) else hasattr(r, 'score')) for r in data_for_check):
-            results_count = len(data_for_check)
-            if results_count > 0:
-                lines.append(f"📊 Найдено: {results_count} результатов")
-                sample = data_for_check[:3]
-                for i, r in enumerate(sample):
-                    if isinstance(r, dict):
-                        score = r.get('score', 0)
-                        text = r.get('matched_text', r.get('content', str(r)))[:80]
-                    else:
-                        score = getattr(r, 'score', 0)
-                        text = getattr(r, 'matched_text', getattr(r, 'content', str(r)))[:80]
-                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
-                if results_count > 3:
-                    lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-        # Результаты check_result.vector_search (есть 'type'='violations')
-        elif any("type" in r and r.get("type") == "violations" for r in data_for_check if isinstance(r, dict)):
-            results_count = len(data_for_check)
-            lines.append(f"📊 Найдено: {results_count} нарушений")
-            sample = data_for_check[:3]
-            for i, r in enumerate(sample):
-                if isinstance(r, dict):
-                    score = r.get('score', 0)
-                    text = r.get('matched_text', r.get('description', str(r)))[:80]
-                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
-            if results_count > 3:
-                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-        else:
-            # Обычный список
-            rows_data = data_for_check[:sample_count]
-    
-    elif hasattr(data_for_check, 'rows') and data_for_check.rows:
-        rows_data = list(data_for_check.rows)[:sample_count]
-    elif isinstance(data_for_check, dict) and "rows" in data_for_check:
-        row_count_dict = len(data_for_check.get("rows", []))
-        if row_count_dict > 0:
-            lines.append(f"📊 Получено {row_count_dict} строк")
-            columns = data_for_check.get("columns", [])
-            if columns:
-                lines.append(f"📐 Колонки: {', '.join(str(c) for c in columns[:10])}")
-            sample = data_for_check["rows"][:3]
-            for i, row in enumerate(sample):
-                if isinstance(row, dict):
-                    preview = {k: row[k] for k in list(row.keys())[:5]}
-                    lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False)}")
-            if row_count_dict > 3:
-                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-    elif isinstance(data_for_check, list) and data_for_check and any("score" in r for r in data_for_check if isinstance(r, dict)):
-        # Обработка результатов векторного поиска (новый формат — список)
-        results_count = len(data_for_check)
-        if results_count > 0:
-            lines.append(f"📊 Найдено: {results_count} результатов")
-            sample = data_for_check[:3]
-            for i, r in enumerate(sample):
-                if isinstance(r, dict):
-                    score = r.get('score', 0)
-                    text = r.get('matched_text', r.get('content', str(r)))[:80]
-                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
-            if results_count > 3:
-                lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-    elif isinstance(data_for_check, list) and data_for_check and _check_violations_list(data_for_check):
-        # Обработка результатов check_result.vector_search (список с type="violations")
-        results_count = len(data_for_check)
-        lines.append(f"📊 Найдено: {results_count} нарушений")
-        sample = data_for_check[:3]
-        for i, r in enumerate(sample):
-            # Поддержка и dict, и Pydantic моделей
-            if isinstance(r, dict):
-                score = r.get('score', 0)
-                text = r.get('matched_text', r.get('description', str(r)))[:80]
-            else:
-                score = getattr(r, 'score', 0)
-                text = getattr(r, 'matched_text', getattr(r, 'description', str(r)))[:80]
-            lines.append(f"  [{i+1}] ({score:.2f}) {text}")
-        if results_count > 3:
-            lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
-    elif isinstance(result_data, str) and result_data:
-        lines.append(result_data[:100])
-    else:
-        lines.append(f"Нет данных (тип: {type(result_data).__name__})")
-
-    if rows_data:
-        for i, row in enumerate(rows_data):
-            if isinstance(row, dict):
-                row_str = ", ".join(f"{k}={v}" for k, v in row.items())
-                lines.append(f"[{i}] {row_str}")
-            elif hasattr(row, '__dict__'):
-                row_str = ", ".join(f"{k}={v}" for k, v in row.__dict__.items())
-                lines.append(f"[{i}] {row_str}")
-            else:
-                lines.append(f"[{i}] {str(row)}")
-
-    return "\n".join(lines)
+    # Большие данные → краткая статистика + пример
+    return _format_summary(data, capability_name, row_count, char_count)
 
 
-def _check_violations_list(data: list) -> bool:
-    """
-    Проверяет, является ли список результатами нарушений (violations).
-    Поддерживает и dict, и Pydantic модели.
-    """
-    for r in data:
-        if isinstance(r, dict):
-            if r.get("type") == "violations":
-                return True
-        else:
-            # Pydantic модель или объект
-            if getattr(r, 'type', None) == "violations":
-                return True
-    return False
-
-
-def _format_dict_observation(
-    data: Any,
-    capability_name: str,
-    parameters: Optional[Dict[str, Any]]
-) -> str:
-    """Форматирует dict/dataclass/pydantic результат."""
-    data_dict = _to_dict(data)
-
-    if "rows" in data_dict and "rowcount" in data_dict:
-        return _format_sql_observation(data_dict, parameters)
-    elif "results" in data_dict and "query" in data_dict:
-        return _format_vector_search_observation(data_dict)
-    elif capability_name.startswith("vector_search"):
-        return _format_vector_search_observation(data_dict)
-    elif capability_name.startswith("data_analysis") and "content" in data_dict:
-        # Для data_analysis возвращаем содержимое напрямую
-        return str(data_dict["content"])
-    else:
-        return json.dumps(data_dict, ensure_ascii=False, indent=2, default=str)
-
-
-def _to_dict(data: Any) -> dict:
+def _to_dict(data: Any) -> Any:
     """Конвертирует dict/dataclass/pydantic в dict."""
     if isinstance(data, dict):
         return data
     if hasattr(data, 'model_dump'):
-        return data.model_dump()
-    if hasattr(data, '__dict__'):
+        try:
+            return data.model_dump()
+        except Exception:
+            pass
+    if hasattr(data, '__dict__') and not isinstance(data, dict):
         return data.__dict__
-    return {"value": str(data)}
+    return data
 
 
-def _format_sql_result_object(data: Any, parameters: Optional[Dict[str, Any]] = None) -> str:
-    """Форматирует SQL результат (dataclass/pydantic объект)."""
-    rows = getattr(data, 'rows', []) or []
-    warning = getattr(data, 'warning', None)
-    sql_query = getattr(data, 'sql_query', "")
-    max_display = 10
-
-    lines = []
-
-    if sql_query:
-        lines.append(f"SQL: {sql_query}")
-        if rows:
-            lines.append("")
-
-    if warning:
-        lines.append(f"⚠️ {warning}")
-
-    if not rows:
-        lines.append("Нет данных")
-        return "\n".join(lines)
-
-    for i, row in enumerate(rows[:max_display]):
-        if hasattr(row, '__dict__'):
-            row = row.__dict__
-        if isinstance(row, dict):
-            row_str = ", ".join(f"{k}={v}" for k, v in row.items())
-            lines.append(f"[{i}] {row_str}")
-        else:
-            lines.append(f"[{i}] {str(row)}")
-
-    if len(rows) > max_display:
-        lines.append(f"... и ещё {len(rows) - max_display} записей")
-
-    return "\n".join(lines)
+def _to_string(data: Any) -> str:
+    """Преобразует данные в строку для оценки размера."""
+    try:
+        if isinstance(data, dict):
+            return json.dumps(data, ensure_ascii=False, default=str)
+        return str(data)
+    except Exception:
+        return str(data)
 
 
-def _format_vector_search_result_object(data: Any) -> str:
-    """Форматирует vector search результат (dataclass/pydantic объект)."""
-    results = getattr(data, 'results', []) or []
-    query = getattr(data, 'query', "")
-
-    if not results:
-        return f"Запрос: {query}\nРезультатов не найдено"
-
-    lines = []
-    lines.append(f"Запрос: {query}")
-    lines.append(f"Найдено: {len(results)}")
-    lines.append("")
-
-    for i, r in enumerate(results[:10]):
-        if hasattr(r, 'text'):
-            score = getattr(r, 'score', 0)
-            lines.append(f"[{i}] ({score:.2f}) {r.text}")
-        elif hasattr(r, '__dict__'):
-            lines.append(f"[{i}] {json.dumps(r.__dict__, ensure_ascii=False, default=str)}")
-        else:
-            lines.append(f"[{i}] {str(r)}")
-
-    return "\n".join(lines)
+def _estimate_row_count(data: Any) -> int:
+    """Оценивает количество строк/элементов в данных."""
+    if isinstance(data, list):
+        return len(data)
+    if isinstance(data, dict):
+        if "rows" in data:
+            return len(data.get("rows", []))
+        if "results" in data:
+            return len(data.get("results", []))
+    if hasattr(data, 'rows'):
+        return len(getattr(data, 'rows', []))
+    return 0
 
 
-def _format_sql_observation(data: dict, parameters: Optional[Dict[str, Any]] = None) -> str:
-    """Форматирует SQL результат."""
+def _format_full(data: Any, capability_name: str, parameters: Optional[Dict[str, Any]]) -> str:
+    """Полное форматирование для небольших данных."""
+    if isinstance(data, dict):
+        return _format_dict_full(data, capability_name, parameters)
+    elif isinstance(data, list):
+        return _format_list_full(data)
+    elif isinstance(data, str):
+        return data
+    else:
+        return str(data)
+
+
+def _format_dict_full(data: dict, capability_name: str, parameters: Optional[Dict[str, Any]]) -> str:
+    """Полное форматирование dict."""
+    if "rows" in data and ("rowcount" in data or "warning" in data):
+        return _format_sql_full(data, parameters)
+    elif "results" in data and "query" in data:
+        return _format_vector_search_full(data)
+    elif capability_name.startswith("vector_search"):
+        return _format_vector_search_full(data)
+    elif capability_name.startswith("data_analysis") and "content" in data:
+        return str(data["content"])
+    else:
+        return json.dumps(data, ensure_ascii=False, indent=2, default=str)
+
+
+def _format_sql_full(data: dict, parameters: Optional[Dict[str, Any]] = None) -> str:
+    """Полное форматирование SQL результата."""
     rows = data.get("rows", [])
     warning = data.get("warning")
     sql_query = data.get("sql_query", "")
-    max_display = 10
-
+    
     if warning:
         return f"⚠️ {warning}"
-
+    
     if not rows:
         return "Запрос выполнен, данных не найдено"
-
-    display_rows = rows[:max_display]
-    row_count = len(rows)
-    total_chars = sum(len(str(r)) for r in display_rows)
-
-    is_small = len(display_rows) < 5 and total_chars < 500
-
-    if is_small:
-        lines = []
-        for row in display_rows:
-            if isinstance(row, dict):
-                line = "| " + " | ".join(str(v) for v in row.values()) + " |"
-                lines.append(line)
-            else:
-                lines.append(f"| {row} |")
-
-        if len(rows) > max_display:
-            lines.append(f"| ... (+ ещё {len(rows) - max_display} записей) |")
-
-        table = "\n".join(lines)
-    else:
-        table = f"Получено {row_count} строк ({total_chars} символов). Для анализа запустите data_analysis."
-
+    
+    lines = []
     if sql_query:
-        clean_sql = sql_query.replace('\n', ' ').strip()
-        return f"Выполнен запрос {clean_sql};\n{table}"
+        lines.append(f"Выполнен запрос: {sql_query}")
+        lines.append("")
+    
+    for i, row in enumerate(rows[:10]):
+        if isinstance(row, dict):
+            line = "| " + " | ".join(str(v) for v in row.values()) + " |"
+            lines.append(line)
+        else:
+            lines.append(f"| {row} |")
+    
+    if len(rows) > 10:
+        lines.append(f"... и ещё {len(rows) - 10} записей")
+    
+    return "\n".join(lines)
 
-    return table
 
-
-def _format_vector_search_observation(data: Any) -> str:
-    """Форматирует vector search результат (поддерживает и старый dict, и новый list формат)."""
-    # Новый формат: список результатов напрямую
+def _format_vector_search_full(data: Any) -> str:
+    """Полное форматирование vector search результата."""
     if isinstance(data, list):
         results = data
         if not results:
@@ -348,67 +158,109 @@ def _format_vector_search_observation(data: Any) -> str:
         for i, r in enumerate(results[:10]):
             if isinstance(r, dict):
                 score = r.get('score', 0)
-                text = r.get('matched_text', r.get('title', r.get('description', str(r))))[:80]
+                text = r.get('matched_text', r.get('title', r.get('description', str(r))))[:100]
                 lines.append(f"  [{i+1}] ({score:.2f}) {text}")
             else:
                 lines.append(f"  [{i+1}] {r}")
         return "\n".join(lines)
-
-    # Старый формат: словарь с ключами results, query
+    
     if isinstance(data, dict):
         results = data.get("results", [])
         query = data.get("query", "")
-
         if not results:
             return f"Запрос: {query}\nРезультатов не найдено"
-
-        lines = []
-        lines.append(f"Запрос: {query}")
-        lines.append(f"Найдено: {len(results)}")
-        lines.append("")
-
+        lines = [f"Запрос: {query}", f"Найдено: {len(results)}", ""]
         for i, r in enumerate(results[:10]):
-            if hasattr(r, 'text'):
-                score = getattr(r, 'score',0)
-                lines.append(f"[{i}] ({score:.2f}) {r.text}")
-            elif isinstance(r, dict):
-                lines.append(f"[{i}] {json.dumps(r, ensure_ascii=False, default=str)}")
+            if isinstance(r, dict):
+                score = r.get('score', 0)
+                text = r.get('matched_text', r.get('title', str(r)))[:100]
+                lines.append(f"  [{i+1}] ({score:.2f}) {text}")
             else:
-                lines.append(f"[{i}] {r}")
-
+                lines.append(f"  [{i+1}] {r}")
         return "\n".join(lines)
-
+    
     return str(data)
 
 
-def _format_list_observation(data: list, capability_name: str) -> str:
-    """Форматирует list результат."""
+def _format_list_full(data: list) -> str:
+    """Полное форматирование списка."""
     if not data:
         return "Пустой список"
-
+    
     lines = []
     for i, item in enumerate(data[:10]):
         if isinstance(item, dict):
-            row_str = ", ".join(f"{k}={v}" for k, v in item.items())
-            lines.append(f"[{i}] {row_str}")
+            line = ", ".join(f"{k}={v}" for k, v in item.items())
+            lines.append(f"[{i}] {line}")
         else:
             lines.append(f"[{i}] {item}")
-
+    
     if len(data) > 10:
         lines.append(f"... и ещё {len(data) - 10} элементов")
-
+    
     return "\n".join(lines)
 
 
-def _format_string_observation(data: str, capability_name: str) -> str:
-    """Форматирует string результат."""
-    return data
+def _format_summary(data: Any, capability_name: str, row_count: int, char_count: int) -> str:
+    """Краткая статистика для больших данных."""
+    lines = []
+    
+    # Специальная обработка для vector search (проверка на score)
+    if isinstance(data, list) and data:
+        if _is_vector_search_results(data):
+            lines.append(f"📊 Найдено: {row_count} результатов")
+            for i, r in enumerate(data[:3]):
+                if isinstance(r, dict):
+                    score = r.get('score', 0)
+                    text = r.get('matched_text', r.get('content', str(r)))[:80]
+                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+            lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+            return "\n".join(lines)
+        
+        if _is_violations_list(data):
+            lines.append(f"📊 Найдено: {row_count} нарушений")
+            for i, r in enumerate(data[:3]):
+                if isinstance(r, dict):
+                    score = r.get('score', 0)
+                    text = r.get('matched_text', r.get('description', str(r)))[:80]
+                    lines.append(f"  [{i+1}] ({score:.2f}) {text}")
+            lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+            return "\n".join(lines)
+    
+    # SQL результаты
+    if isinstance(data, dict) and "rows" in data:
+        rows = data.get("rows", [])
+        lines.append(f"📊 Получено {len(rows)} строк ({char_count} символов)")
+        columns = data.get("columns", [])
+        if columns:
+            lines.append(f"📐 Колонки: {', '.join(str(c) for c in columns[:10])}")
+        for i, row in enumerate(rows[:3]):
+            if isinstance(row, dict):
+                preview = {k: row[k] for k in list(row.keys())[:5]}
+                lines.append(f"  Пример {i+1}: {json.dumps(preview, ensure_ascii=False, default=str)}")
+        lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+        return "\n".join(lines)
+    
+    # Общий случай
+    lines.append(f"📊 Данные: {row_count} элементов, {char_count} символов")
+    lines.append(f"💡 Для полного анализа используйте data_analysis.analyze_step_data")
+    return "\n".join(lines)
 
 
-def _format_generic_observation(data: Any, capability_name: str) -> str:
-    """Форматирует generic результат."""
-    if hasattr(data, 'model_dump'):
-        return json.dumps(data.model_dump(), ensure_ascii=False, indent=2, default=str)
-    elif isinstance(data, dict):
-        return json.dumps(data, ensure_ascii=False, indent=2, default=str)
-    return str(data)
+def _is_vector_search_results(data: list) -> bool:
+    """Проверяет, является ли список результатами vector search."""
+    return any(
+        (isinstance(r, dict) and "score" in r) or 
+        (not isinstance(r, dict) and hasattr(r, 'score'))
+        for r in data
+    )
+
+
+def _is_violations_list(data: list) -> bool:
+    """Проверяет, является ли список результатами нарушений."""
+    for r in data:
+        if isinstance(r, dict) and r.get("type") == "violations":
+            return True
+        if not isinstance(r, dict) and getattr(r, 'type', None) == "violations":
+            return True
+    return False

@@ -123,7 +123,7 @@ class ObservationFormatter:
             data = obs.get("data")
             if data is not None:
                 preview = cls._safe_sample(data, 3)
-                preview_str = json.dumps(preview, ensure_ascii=False)
+                preview_str = json.dumps(preview, ensure_ascii=False, default=str)
                 lines.append(f"📦 НАБЛЮДЕНИЕ (шаг {step_id}, тип: raw)")
                 lines.append(f"📊 Данные: {preview_str}")
                 lines.append(f"💡 Доступ: observation['data'] (полный набор)")
