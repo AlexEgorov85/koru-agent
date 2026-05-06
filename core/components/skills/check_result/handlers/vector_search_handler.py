@@ -7,6 +7,7 @@ from core.models.data.execution import ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.tools.vector_search_tool import VectorSearchDefaults
+from core.components.skills.check_result.handlers.param_utils import params_to_dict, get_param
 
 
 class VectorSearchHandler(SkillHandler):
@@ -41,16 +42,13 @@ class VectorSearchHandler(SkillHandler):
         """
         start_time = time.time()
 
-        query = params.query if hasattr(params, 'query') else ''
+        params_dict = params_to_dict(params)
+        query = params_dict.get('query', '')
         source = self.VECTOR_SOURCE
 
         # Обработка None значений от LLM — используем default
-        top_k = getattr(params, 'top_k', VectorSearchDefaults.TOP_K_ALL)
-        if top_k is None:
-            top_k = VectorSearchDefaults.TOP_K_ALL
-        min_score = getattr(params, 'min_score', VectorSearchDefaults.MIN_SCORE_DEFAULT)
-        if min_score is None:
-            min_score = VectorSearchDefaults.MIN_SCORE_DEFAULT
+        top_k = params_dict.get('top_k') or VectorSearchDefaults.TOP_K_ALL
+        min_score = params_dict.get('min_score') or VectorSearchDefaults.MIN_SCORE_DEFAULT
         
         # КРИТИЧНО: если LLM не указал min_score, используем более строгое значение для релевантности
         if min_score < 0.6:

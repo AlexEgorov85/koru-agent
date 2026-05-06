@@ -8,6 +8,7 @@ from core.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.components.skills.handlers.base_handler import SkillHandler
 from core.components.skills.utils.param_validator import ParamValidator
+from core.components.skills.check_result.handlers.param_utils import params_to_dict, get_param
 
 
 # =============================================================================
@@ -506,24 +507,29 @@ class ExecuteScriptHandler(SkillHandler):
         """
         start_time = time.time()
 
-        script_name = params.script_name if hasattr(params, 'script_name') else ''
-        max_rows = params.max_rows if hasattr(params, 'max_rows') else 1000
+        # Поддержка и dict, и Pydantic модели
+        if hasattr(params, 'model_dump'):
+            params_dict = params.model_dump()
+        elif hasattr(params, 'dict'):
+            params_dict = params.dict()
+        elif isinstance(params, dict):
+            params_dict = params
+        else:
+            params_dict = {}
+
+        script_name = params_dict.get('script_name', '')
+        max_rows = params_dict.get('max_rows', 1000)
 
         # Извлекаем параметры скрипта:
         # 1. Сначала пробуем params.parameters (если LLM обернул в parameters)
         # 2. Если пусто — берём все поля из params кроме script_name и max_rows
-        if hasattr(params, 'parameters') and params.parameters:
-            script_params = params.parameters
+        parameters_field = params_dict.get('parameters')
+        if parameters_field:
+            script_params = parameters_field
         else:
             # LLM передал параметры на верхнем уровне — извлекаем их
             script_params = {}
-            if hasattr(params, 'model_dump'):
-                all_fields = params.model_dump()
-            elif hasattr(params, 'dict'):
-                all_fields = params.dict()
-            else:
-                all_fields = {}
-            for key, value in all_fields.items():
+            for key, value in params_dict.items():
                 if key not in ('script_name', 'max_rows') and value is not None:
                     script_params[key] = value
 

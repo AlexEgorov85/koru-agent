@@ -7,6 +7,7 @@ from core.models.data.execution import ExecutionStatus
 from core.components.action_executor import ExecutionContext
 from core.errors.exceptions import SQLGenerationError
 from core.components.skills.handlers.base_handler import SkillHandler
+from core.components.skills.check_result.handlers.param_utils import params_to_dict, get_param
 
 
 class GenerateScriptHandler(SkillHandler):
@@ -64,9 +65,10 @@ class GenerateScriptHandler(SkillHandler):
         """
         start_time = time.time()
 
-        query = params.query if hasattr(params, 'query') else ''
-        max_results = params.max_results if hasattr(params, 'max_results') else 50
-        hints = params.hints if hasattr(params, 'hints') and params.hints else ''
+        params_dict = params_to_dict(params)
+        query = params_dict.get('query', '')
+        max_results = params_dict.get('max_results', 50)
+        hints = params_dict.get('hints') or ''
 
         await self.log_info(f"Запуск генерации скрипта: {query}")
         if hints:
