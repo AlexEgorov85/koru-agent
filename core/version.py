@@ -8,15 +8,15 @@
 """
 
 # Основная версия
-__version__ = "5.46.4"
+__version__ = "5.46.5"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 46
-VERSION_PATCH = 4
+VERSION_PATCH = 5
 
 # Метаданные
-VERSION_CODENAME = "Fix validation, save full data, Russian localization"
+VERSION_CODENAME = "Improved observations, timeouts, data analysis chunking"
 VERSION_RELEASE_DATE = "2026-05-06"
 
 # Полная строка версии

@@ -80,6 +80,6 @@ vector_search:
     audits: audits_index.faiss
     violations: violations_index.faiss
     books: books_index.faiss
-  storage:
+    storage:
     base_path: data/vector
-version: 5.46.4
+version: 5.46.5
