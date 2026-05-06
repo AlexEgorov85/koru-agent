@@ -37,7 +37,6 @@ class Decision:
     # Для ACT
     action: Optional[str] = None           # capability_name
     parameters: Optional[Dict[str, Any]] = None
-    reasoning: str = ""
     
     # Для FINISH
     data: Optional[Any] = None
@@ -51,6 +50,21 @@ class Decision:
     # Мета
     confidence: float = 1.0
     is_final: bool = False  # ← Помечает финальный шаг
+    
+    # Полное структурированное рассуждение (10 полей анализа)
+    reasoning_detail: Optional[Dict[str, Any]] = None
+    
+    @property
+    def reasoning(self) -> str:
+        """Обратная совместимость: возвращает краткое представление из reasoning_detail."""
+        if not self.reasoning_detail:
+            return ""
+        # Формируем краткое описание из analysis_final или analysis_progress
+        if self.reasoning_detail.get("analysis_final"):
+            return str(self.reasoning_detail["analysis_final"])
+        if self.reasoning_detail.get("analysis_progress"):
+            return str(self.reasoning_detail["analysis_progress"])
+        return ""
     
     # ← НОВОЕ: capability_name как алиас на action (для обратной совместимости)
     @property

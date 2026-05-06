@@ -37,6 +37,7 @@ class ContextAnalysis:
     no_progress_steps: int = 0
     consecutive_errors: int = 0
     summary: Dict[str, Any] = field(default_factory=dict)
+    reasoning_detail: Dict[str, Any] = field(default_factory=dict)
 
 
 def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
@@ -94,7 +95,8 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
             last_activity=getattr(session_context, 'last_activity', None),
             no_progress_steps=getattr(session_context, 'no_progress_steps', 0),
             consecutive_errors=getattr(session_context, 'consecutive_errors', 0),
-            summary=summary
+            summary=summary,
+            reasoning_detail={}
         )
 
     except Exception as e:
@@ -107,5 +109,6 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
             progress={},
             current_step=0,
             execution_time_seconds=0.0,
-            summary={}
+            summary={},
+            reasoning_detail={}
         )

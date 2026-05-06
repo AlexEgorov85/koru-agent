@@ -318,18 +318,28 @@ class PromptBuilderService:
                 or step_dict.get("capability")
                 or step_dict.get("action", "unknown")
             )
-            summary = step_dict.get("summary", "") or ""
             status = step_dict.get("status", "unknown")
             parameters = step_dict.get("parameters", None) or {}
             step_num = step_dict.get("step_number", step_dict.get("step"))
-
+            reasoning_detail = step_dict.get("reasoning_detail", None)
+            
+            # Формируем краткое описание из reasoning_detail
+            thought = ""
+            if reasoning_detail and isinstance(reasoning_detail, dict):
+                thought = (
+                    reasoning_detail.get("analysis_final")
+                    or reasoning_detail.get("analysis_progress")
+                    or ""
+                )
+ 
             # Читаем obs_text
             obs_text = step_dict.get("obs_text", "Нет данных")
             if not obs_text or obs_text.strip() == "Нет данных":
                 obs_text = "Наблюдение недоступно или ожидает анализа"
-
-            thought = summary.strip() if summary else "Не указано"
-
+  
+            # Формируем краткое описание из reasoning_detail
+            thought = thought if thought else "Не указано"
+  
             # Обработка статусов
             if status == "FAILED":
                 obs_text = f"❌ Ошибка: {obs_text}"
@@ -340,15 +350,36 @@ class PromptBuilderService:
                 else:
                     block_reason = "политика безопасности"
                 obs_text = f"⛔ ЗАБЛОКИРОВАНО: {block_reason}. Выбери другое действие."
-
+  
             # Формируем блок шага
             block = f"[ШАГ {i}]\n"
-
+  
             if "\n" in thought:
-                block += f"💭 Обоснование:\n{thought}\n"
+                block += f"💭 Обоснование (кратко):\n{thought}\n"
             else:
-                block += f"💭 Обоснование: {thought}\n"
-
+                block += f"💭 Обоснование (кратко): {thought}\n"
+  
+            # Добавляем полное рассуждение если доступно
+            if reasoning_detail and isinstance(reasoning_detail, dict):
+                block += "🧠 Полное рассуждение:\n"
+                ANALYSIS_LABELS = {
+                    "analysis_progress": "Прогресс",
+                    "analysis_state": "Состояние",
+                    "analysis_deficit": "Дефицит",
+                    "analysis_history": "История",
+                    "analysis_errors": "Ошибки",
+                    "analysis_tool_choice": "Выбор инструмента",
+                    "analysis_params": "Параметры",
+                    "analysis_fallback": "Fallback",
+                    "analysis_stop": "Остановка",
+                    "analysis_final": "Итог",
+                }
+                for field_name, label in ANALYSIS_LABELS.items():
+                    value = reasoning_detail.get(field_name)
+                    if value:
+                        block += f"  - {label}: {value}\n"
+                block += "\n"
+  
             block += f"🛠️ Действие: {capability}\n"
             block += f"📥 Параметры: {parameters}\n"
             block += f"👁️ Наблюдение: {obs_text}\n"
@@ -428,9 +459,9 @@ class PromptBuilderService:
                 )
 
                 if item and hasattr(item, "content"):
-                    # Используем quick_content если есть (отформатированное наблюдение)
-                    if hasattr(item, "quick_content") and item.quick_content:
-                        observations.append(item.quick_content)
+                    # Используем content (наблюдение)
+                    if hasattr(item, "content") and item.content:
+                        observations.append(item.content)
                         continue
 
                     content = item.content
@@ -1131,5 +1162,5 @@ class BaseBehaviorPattern(Component, BehaviorPatternInterface):
             ),
             "capability_name": decision.capability_name,
             "parameters": decision.parameters,
-            "reasoning": decision.reasoning,
+            "reasoning_detail": decision.reasoning_detail,
         }

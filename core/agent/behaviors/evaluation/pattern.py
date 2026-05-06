@@ -231,9 +231,9 @@ class EvaluationPattern(BaseBehaviorPattern):
                 user_prompt=evaluation_prompt,
             )
 
-            # 2. Логирование начала оценки
+        # 2. Логирование начала оценки
             self._log_info(f"🔍 Оценка достижения цели: {goal}.")
-
+            
             # Получаем LLM провайдер через executor (REFACTOR: требуется миграция на executor.execute_action)
             llm_result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
@@ -244,7 +244,7 @@ class EvaluationPattern(BaseBehaviorPattern):
                     "max_tokens": 1000,
                     "structured_output": {
                         "output_model": "EvaluationResult",
-                        "schema_def": output_schema,
+                        "schema_def": self.reasoning_schema,
                         "max_retries": 3,
                         "strict_mode": False
                     }
@@ -292,26 +292,36 @@ class EvaluationPattern(BaseBehaviorPattern):
             achieved = result.achieved if hasattr(result, 'achieved') else result.get("achieved", False)
             partial_progress = result.partial_progress if hasattr(result, 'partial_progress') else result.get("partial_progress", False)
             confidence = confidence_val
-            summary = result.summary if hasattr(result, 'summary') else result.get("summary", "")
-            reasoning = result.reasoning if hasattr(result, 'reasoning') else result.get("reasoning", "")
+            reasoning_detail = result.reasoning_detail if hasattr(result, 'reasoning_detail') else result.get("reasoning_detail", {})
+            
+            # Извлекаем краткое описание из reasoning_detail
+            summary_short = ""
+            if reasoning_detail and isinstance(reasoning_detail, dict):
+                summary_short = (
+                    reasoning_detail.get("analysis_final")
+                    or reasoning_detail.get("analysis_progress")
+                    or ""
+                )[:200]
 
             if achieved or (confidence > 0.8 and not partial_progress):
-                self._log_info(f"🎯 Цель достигнута: {summary}")
+                self._log_info(f"🎯 Цель достигнута: {summary_short}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
-                    reason=f"goal_achieved: {summary}"
+                    reason=f"goal_achieved: {summary_short}",
+                    reasoning_detail=reasoning_detail
                 )
             elif confidence < 0.3:
-                self._log_warning(f"⚠️ Низкая уверенность: {reasoning}")
+                self._log_warning(f"⚠️ Низкая уверенность: {summary_short}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.FAIL,
-                    reason=f"low_confidence: {reasoning}"
+                    reason=f"low_confidence: {summary_short}",
+                    reasoning_detail=reasoning_detail
                 )
             else:
-                self._log_info(f"🔄 Продолжаем выполнение: {summary}")
+                self._log_info(f"🔄 Продолжаем выполнение: {summary_short}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.CONTINUE,
-                    reason=f"continue_execution: {summary}"
+                    reason=f"continue_execution: {summary_short}"
                 )
 
         except Exception as e:

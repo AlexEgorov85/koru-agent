@@ -7,14 +7,13 @@
 4. _make_decision() - принятие решения на основе результата LLM
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
 from core.agent.behaviors.react.schema_validator import SchemaValidator
 from core.agent.behaviors.react.utils import analyze_context
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
-from core.models.types.llm_types import LLMRequest
 from core.agent.behaviors.services import FallbackStrategyService
 from core.session_context.session_context import SessionContext
 
@@ -97,7 +96,7 @@ class ReActPattern(BaseBehaviorPattern):
             "last_activity": analysis.last_activity,
             "no_progress_steps": analysis.no_progress_steps,
             "consecutive_errors": analysis.consecutive_errors,
-            "summary": analysis.summary,
+            "reasoning_detail": analysis.reasoning_detail,
             "available_capabilities": available_capabilities,
             "state_errors": agent_state.errors[-3:] if agent_state else [],
             "empty_results_count": (
@@ -338,18 +337,38 @@ class ReActPattern(BaseBehaviorPattern):
                 decision_data="reasoning", reasoning=reasoning
             )
 
+            # Извлекаем полное размышление из 10 полей анализа
+            reasoning = self._extract_analysis_reasoning(reasoning_result)
+            reasoning_detail = self._extract_full_reasoning(reasoning_result)
+            
+            # Регистрируем решение в контексте с полным размышлением
+            session_context.record_decision(
+                decision_data="reasoning", reasoning_detail=reasoning_detail
+            )
+ 
             # Принятие решения
             decision = await self._make_decision(
                 reasoning_result, available_capabilities
             )
-
+            
+            # Добавляем полное размышление в решение
+            decision.reasoning_detail = reasoning_detail
+ 
             # Логируем финальное решение агента
+            reasoning_short = ""
+            if reasoning_detail:
+                reasoning_short = (
+                    reasoning_detail.get("analysis_final")
+                    or reasoning_detail.get("analysis_progress")
+                    or ""
+                )
+            
             self._log_info(
                 f"🎯 [ReAct.decide] Финальное решение: "
                 f"type={decision.type.value}, "
                 f"action={decision.action or 'N/A'}, "
                 f"params={list((decision.parameters or {}).keys())}, "
-                f"reasoning={decision.reasoning or 'N/A'}",
+                f"reasoning={reasoning_short or 'N/A'}",
                 event_type=EventType.AGENT_DECISION,
             )
 
@@ -368,6 +387,7 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> Decision:
         """Преобразовать результат LLM в Decision."""
         reasoning = self._extract_analysis_reasoning(reasoning_result)
+        reasoning_detail = self._extract_full_reasoning(reasoning_result)
 
         if isinstance(reasoning_result, dict):
             stop_condition = reasoning_result.get("stop_condition", False)
@@ -406,7 +426,7 @@ class ReActPattern(BaseBehaviorPattern):
                     type=DecisionType.ACT,
                     action=capability_name,
                     parameters=parameters,
-                    reasoning=f"Выполнение {capability_name} перед остановкой",
+                    reasoning_detail=reasoning_detail,
                     is_final=False,
                 )
             # Если LLM не указал next_action, проверяем большие данные
@@ -415,10 +435,10 @@ class ReActPattern(BaseBehaviorPattern):
                     type=DecisionType.ACT,
                     action="data_analysis.analyze_step_data",
                     parameters={},
-                    reasoning="Собрано много данных, требуется анализ перед остановкой",
+                    reasoning_detail=reasoning_detail,
                     is_final=False,
                 )
-            return self._handle_stop_condition(capability_name, parameters, stop_reason)
+            return self._handle_stop_condition(capability_name, parameters, stop_reason, reasoning_detail)
 
         if not capability_name:
             return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action")
@@ -468,7 +488,7 @@ class ReActPattern(BaseBehaviorPattern):
             type=DecisionType.ACT,
             action=capability_name,
             parameters=validated_params,
-            reasoning=reasoning,
+            reasoning_detail=reasoning_detail,
             is_final=capability_name == "final_answer.generate",
         )
 
@@ -503,12 +523,16 @@ class ReActPattern(BaseBehaviorPattern):
         return False
 
     def _handle_stop_condition(
-        self, capability_name: str, parameters: Dict[str, Any], stop_reason: str
+        self, capability_name: str, parameters: Dict[str, Any], stop_reason: str, reasoning_detail: Optional[Dict[str, Any]] = None
     ) -> Decision:
         """Обработать условие остановки - просто FINISH, Runtime сам вызовет final_answer."""
+        # Формируем reasoning_detail если не передан
+        if reasoning_detail is None:
+            reasoning_detail = {"analysis_final": stop_reason or "goal_achieved"}
+        
         return Decision(
             type=DecisionType.FINISH,
-            reasoning=f"Цель достигнута: {stop_reason or 'goal_achieved'}",
+            reasoning_detail=reasoning_detail,
             is_final=True,
         )
 
@@ -546,6 +570,7 @@ class ReActPattern(BaseBehaviorPattern):
         """
         Универсальное извлечение размышления из ответа LLM.
         Поддерживает: Pydantic-модели, dict, а также как 10 полей анализа, так и простое поле reasoning.
+        ВОЗВРАЩАЕТ: строку для summary (краткое обоснование)
         """
         import json
 
@@ -592,3 +617,43 @@ class ReActPattern(BaseBehaviorPattern):
             return json.dumps(reasoning_result, ensure_ascii=False, indent=2)
 
         return "Размышление не доступно"
+
+    def _extract_full_reasoning(self, reasoning_result: Any) -> Dict[str, Any]:
+        """
+        Извлечение ПОЛНОГО структурированного рассуждения (все 10 полей анализа).
+        Используется для сохранения в AgentStep.reasoning_detail для переиспользования.
+
+        ВОЗВРАЩАЕТ:
+        - Dict со всеми полями анализа (даже пустыми)
+        """
+        def safe_get(obj: Any, key: str) -> Any:
+            if isinstance(obj, dict):
+                return obj.get(key)
+            return getattr(obj, key, None)
+
+        # 10 полей анализа
+        ANALYSIS_FIELDS = [
+            "analysis_progress",
+            "analysis_state",
+            "analysis_deficit",
+            "analysis_history",
+            "analysis_errors",
+            "analysis_tool_choice",
+            "analysis_params",
+            "analysis_fallback",
+            "analysis_stop",
+            "analysis_final",
+        ]
+
+        result = {}
+        for field_name in ANALYSIS_FIELDS:
+            value = safe_get(reasoning_result, field_name)
+            result[field_name] = value if value else None
+
+        # Дополнительно сохраняем стандартные поля, если они есть
+        for key in ("reasoning", "thought", "stop_condition", "stop_reason", "decision"):
+            val = safe_get(reasoning_result, key)
+            if val:
+                result[key] = val
+
+        return result
