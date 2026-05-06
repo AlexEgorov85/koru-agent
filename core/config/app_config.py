@@ -157,7 +157,7 @@ class AgentDefaults(BaseSettings):
     profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
     observer_trigger_mode: Literal["always", "on_error", "on_empty"] = Field(
         default="on_error",
-        description="Режим вызова LLM в Observer: always=on_error=on_empty"
+        description="Режим вызова LLM в ObservationPhase: always=on_error=on_empty"
     )
     
     @field_validator('max_steps')

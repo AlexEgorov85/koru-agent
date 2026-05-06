@@ -180,24 +180,14 @@ class SessionLogParser:
                     reasoning='',
                     parameters={},
                     result_status='failed',
-                    error=error_match.group(1).strip() if error_match else 'Unknown error'
+                    error=error_match.group(1).strip() if error_match else None
                 )
                 session.actions.append(failed_action)
-                
-                # Добавляем в ошибки
-                session.errors.append({
-                    'timestamp': event.get('timestamp'),
-                    'action': failed_action.action,
-                    'error': failed_action.error,
-                    'event_type': 'action_failed',
-                    'severity': 'action_error'
-                })
             
             # Pattern.decide результаты
             if 'Pattern вернул' in message:
                 type_match = re.search(r'type=(\w+)', message)
                 action_match = re.search(r'action=(\S+)', message)
-                reasoning_match = re.search(r'reasoning:\s*(.+?)(?:\.\.\.|$)', message)
                 
                 if type_match:
                     action_type = type_match.group(1)
@@ -205,7 +195,7 @@ class SessionLogParser:
                         last_action = {
                             'timestamp': event.get('timestamp', ''),
                             'action': action_match.group(1),
-                            'reasoning': reasoning_match.group(1) if reasoning_match else '',
+                            'reasoning_detail': {},
                             'result_status': 'pending'
                         }
             
@@ -225,7 +215,7 @@ class SessionLogParser:
                         session.actions.append(AgentAction(
                             timestamp=last_action.get('timestamp', ''),
                             action=last_action.get('action', ''),
-                            reasoning=last_action.get('reasoning', ''),
+                            reasoning_detail=last_action.get('reasoning_detail', {}),
                             parameters={},
                             result_status=last_action.get('result_status', ''),
                             error=last_action.get('error')
@@ -288,17 +278,17 @@ class SessionLogParser:
                     'error': c.error,
                     'duration_ms': c.duration_ms
                 }
-                for c in failed_calls
-            ],
-            'failed_actions': [
-                {
-                    'action': a.action,
-                    'timestamp': a.timestamp,
-                    'error': a.error,
-                    'reasoning': a.reasoning
-                }
-                for a in failed_actions
-            ],
+                 for c in failed_calls
+             ],
+             'failed_actions': [
+                 {
+                     'action': a.action,
+                     'timestamp': a.timestamp,
+                     'error': a.error,
+                     'reasoning_detail': a.reasoning_detail
+                 }
+                 for a in failed_actions
+             ],
             'recommendations': self._generate_recommendations(session, patterns, failed_calls, failed_actions)
         }
     
