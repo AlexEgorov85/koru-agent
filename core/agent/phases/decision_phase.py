@@ -60,10 +60,18 @@ class DecisionPhase:
         )
         
         # Format decision message
+        reasoning_short = ""
+        if decision.reasoning_detail:
+            reasoning_short = (
+                decision.reasoning_detail.get("analysis_final")
+                or decision.reasoning_detail.get("analysis_progress")
+                or ""
+            )
+        
         decision_msg = (
             f"✅ Pattern вернул: type={decision.type.value}"
             + (f", action={decision.action}" if decision.action else "")
-            + (f", reasoning: {decision.reasoning}" if decision.reasoning else "")
+            + (f", reasoning: {reasoning_short}" if reasoning_short else "")
         )
         
         self.log.info(
@@ -77,7 +85,7 @@ class DecisionPhase:
             {
                 "capability": decision.action,
                 "pattern": decision.type.value,
-                "reasoning": decision.reasoning or "",
+                "reasoning_detail": decision.reasoning_detail or {},
                 "step": step_number,
             },
             session_id=session_context.session_id,
@@ -85,8 +93,16 @@ class DecisionPhase:
         )
         
         # Log for UI
+        reasoning_short = ""
+        if decision.reasoning_detail:
+            reasoning_short = (
+                decision.reasoning_detail.get("analysis_final")
+                or decision.reasoning_detail.get("analysis_progress")
+                or ""
+            )
+        
         self.log.info(
-            f"🎯 Capability: {decision.action} | {decision.reasoning or ''}",
+            f"🎯 Capability: {decision.action} | {reasoning_short or ''}",
             extra={"event_type": EventType.AGENT_DECISION},
         )
         

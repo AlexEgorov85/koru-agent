@@ -1,11 +1,11 @@
 """
-Runtime — цикл выполнения агента с Observer и Metrics.
+Runtime — цикл выполнения агента с ObservationPhase и Metrics.
 
-АРХИТЕКТУРА (Этап 10 + v2.0):
-- Pattern.decide() → Policy.check() → Executor.execute() → Observer.analyze() → Metrics.update()
+АРХИТЕКТУРА:
+- Pattern.decide() → Policy.check() → Executor.execute() → ObservationPhase.analyze() → Metrics.update()
 - Reflection validation в Pattern
 - Policy проверки на повторы и empty_loop
-- Observer LLM-анализ результатов
+- ObservationPhase выполняет анализ результатов (rule-based + LLM)
 - AgentMetrics для отслеживания качества
 """
 
@@ -25,12 +25,6 @@ from core.errors.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy, AgentPolicy, PolicyViolationError
 from core.agent.components.agent_metrics import AgentMetrics
 from core.agent.behaviors.base import Decision, DecisionType
-from core.utils.observation_formatter import (
-    format_observation,
-    smart_format_observation,
-)
-from core.agent.components.observer import Observer
-from core.config.agent_config import AgentConfig
 from core.agent.phases.decision_phase import DecisionPhase
 from core.agent.phases.policy_check_phase import PolicyCheckPhase
 from core.agent.phases.execution_phase import ExecutionPhase
@@ -40,6 +34,7 @@ from core.agent.phases.final_answer_phase import FinalAnswerPhase
 from core.agent.phases.error_recovery_phase import ErrorRecoveryPhase
 from core.agent.phases.validation_phase import ValidationPhase
 from core.agent.agent_factory import AgentFactory
+from core.config.agent_config import AgentConfig
 
 
 class AgentRuntime:
@@ -50,7 +45,7 @@ class AgentRuntime:
     1. Pattern.decide()
     2. Executor.execute()
     3. Запись в context
-    4. Observer.analyze() → Metrics.update()
+    4. ObservationPhase.analyze() → Metrics.update()
     """
 
     def __init__(
@@ -91,7 +86,6 @@ class AgentRuntime:
         self.failure_memory = components.failure_memory
         self.policy = components.policy
         self.metrics = components.metrics
-        self.observer = components.observer
         self.fallback_strategy = components.fallback_strategy
         self.safe_executor = components.safe_executor
         self.decision_phase = components.decision_phase
@@ -391,16 +385,25 @@ class AgentRuntime:
 
             # Высокоуровневый лог: принято решение
             if self.narrative_log:
+                # Формируем краткое описание из reasoning_detail для лога
+                reasoning_short = ""
+                if decision.reasoning_detail:
+                    reasoning_short = (
+                        decision.reasoning_detail.get("analysis_final")
+                        or decision.reasoning_detail.get("analysis_progress")
+                        or ""
+                    )
+                
                 if decision.type == DecisionType.ACT:
                     params_str = ", ".join(
                         f"{k}={v}" for k, v in (decision.parameters or {}).items()
                     )
                     self.narrative_log.info(
-                        f"Принято решение: {decision.action}({params_str}) — {decision.reasoning}"
+                        f"Принято решение: {decision.action}({params_str}) — {reasoning_short}"
                     )
                 elif decision.type == DecisionType.FINISH:
                     self.narrative_log.info(
-                        f"Принято решение: завершить — {decision.reasoning}"
+                        f"Принято решение: завершить — {reasoning_short}"
                     )
                 elif decision.type == DecisionType.FAIL:
                     self.narrative_log.info(
@@ -414,7 +417,7 @@ class AgentRuntime:
                     session_id=self.session_context.session_id,
                     agent_id=self.agent_id,
                     goal=self.goal,
-                    decision_reasoning=decision.reasoning,
+                    decision_reasoning_detail=decision.reasoning_detail,
                     sync_dialogue_callback=self._sync_dialogue_history_back,
                 )
 
@@ -430,14 +433,25 @@ class AgentRuntime:
                     return final_result
                 
                 # Fallback если генерация не удалась
+                # Формируем краткий ответ из reasoning_detail
+                fallback_response = ""
+                if decision.reasoning_detail:
+                    fallback_response = (
+                        decision.reasoning_detail.get("analysis_final")
+                        or decision.reasoning_detail.get("analysis_progress")
+                        or "Завершено"
+                    )
+                else:
+                    fallback_response = "Завершено"
+                
                 self.session_context.commit_turn(
                     user_query=self.goal,
-                    assistant_response=decision.reasoning or "Завершено",
+                    assistant_response=fallback_response,
                     tools_used=[],
                 )
                 self._sync_dialogue_history_back()
                 result = decision.data or ExecutionResult.success(
-                    data=decision.reasoning
+                    data=fallback_response
                 )
                 if self.narrative_log:
                     self.narrative_log.info("Агент завершён успешно")
@@ -449,42 +463,20 @@ class AgentRuntime:
                     f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
                     extra={"event_type": EventType.AGENT_STOP},
                 )
-                # ВСЕГДА пытаемся сформировать финальный ответ
-                return await self._attempt_final_answer(
-                    executed_steps=executed_steps,
-                    stop_reason=decision.error or "Unknown error"
-                )
 
-            # Pattern решил ACT? - ДЕЛЕГИРОВАНО STEP
-            if decision.type == DecisionType.ACT:
-                # Policy проверка через evaluate() с Fail-Fast - ДЕЛЕГИРОВАНО STEP
-                try:
-                    self.policy_check_phase.validate_action(
-                        action_name=decision.action or "",
-                        metrics=self.metrics,
-                        session_context=self.session_context,
-                        parameters=decision.parameters or {},
-                    )
-                except PolicyViolationError as e:
-                    policy_msg = self.policy_check_phase.handle_violation(
-                        error=e,
-                        decision_action=decision.action,
-                        step_number=step + 1,
-                        session_context=self.session_context,
-                    )
-                    
-                    await event_bus.publish(
-                        EventType.ERROR_OCCURRED,
-                        {
-                            "reason": policy_msg,
-                            "action": decision.action,
-                            "step": step + 1,
-                        },
-                        session_id=self.session_context.session_id,
-                        agent_id=self.agent_id,
-                    )
-                    executed_steps += 1
-                    continue
+                # Публикация события об ошибке
+                await event_bus.publish(
+                    EventType.ERROR_OCCURRED,
+                    data={
+                        "error": decision.error,
+                        "decision_reasoning_detail": decision.reasoning_detail or {"analysis_final": f"Ошибка: {decision.error or 'Неизвестная ошибка'}"},
+                        "step": executed_steps,
+                    },
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id,
+                )
+                executed_steps += 1
+                continue
 
                 # Валидация инструмента и параметров через ValidationPhase
                 action_name = decision.action or ""
@@ -537,10 +529,10 @@ class AgentRuntime:
                             decision_parameters=decision.parameters or {},
                             session_context=self.session_context,
                             executed_steps=executed_steps,
-                            decision_reasoning=f"Ошибка: {error_msg}",
                             error_recovery_handler=self.error_recovery_phase,
+                            decision_reasoning_detail={"analysis_final": f"Ошибка: {error_msg}"},
                         )
-                        
+
                         executed_steps += 1
                         continue
 
@@ -575,9 +567,8 @@ class AgentRuntime:
 
                 # Высокоуровневый лог: наблюдение
                 if self.narrative_log and observation:
-                    obs_text = observation.insight[:200] + "..." if len(observation.insight) > 200 else observation.insight
                     self.narrative_log.info(
-                        f"Наблюдение: {obs_text}"
+                        f"Наблюдение: {observation.observation}"
                     )
 
                 # Сохранение данных результата и регистрация шага - ПОТОМ
@@ -588,7 +579,7 @@ class AgentRuntime:
                     decision_parameters=decision.parameters or {},
                     session_context=self.session_context,
                     executed_steps=executed_steps,
-                    decision_reasoning=decision.reasoning,
+                    decision_reasoning_detail=decision.reasoning_detail,
                     error_recovery_handler=self.error_recovery_phase,
                 )
 

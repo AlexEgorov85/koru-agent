@@ -11,7 +11,7 @@
 """
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult
@@ -41,8 +41,8 @@ class FinalAnswerPhase:
         session_id: str,
         agent_id: str,
         goal: str,
-        decision_reasoning: Optional[str],
-        sync_dialogue_callback: Callable[[], None],
+        decision_reasoning_detail: Optional[Dict[str, Any]] = None,
+        sync_dialogue_callback: Callable[[], None] = None,
     ) -> Optional[ExecutionResult]:
         """
         Generate final answer when Pattern decides FINISH.
@@ -52,14 +52,19 @@ class FinalAnswerPhase:
             session_id: Current session ID
             agent_id: Current agent ID
             goal: Original goal
-            decision_reasoning: Reasoning from FINISH decision
+            decision_reasoning_detail: Full structured reasoning (10 fields) from FINISH decision
             sync_dialogue_callback: Callback to sync dialogue history
             
         Returns:
             ExecutionResult with final answer or None to use default
         """
+        # Формируем краткое описание из полного рассуждения для лога
+        reasoning_short = ""
+        if decision_reasoning_detail:
+            reasoning_short = decision_reasoning_detail.get("analysis_final") or decision_reasoning_detail.get("analysis_progress") or ""
+        
         self.log.info(
-            f"Завершение: {decision_reasoning if decision_reasoning else 'готов'}. "
+            f"Завершение: {reasoning_short if reasoning_short else 'готов'}. "
             f"Запускаю final_answer.generate...",
             extra={"event_type": EventType.AGENT_STOP},
         )
@@ -81,7 +86,7 @@ class FinalAnswerPhase:
                     "format_type": "structured",
                     "include_steps": True,
                     "include_evidence": True,
-                    "decision_reasoning": decision_reasoning,
+                    "decision_reasoning_detail": decision_reasoning_detail,
                 },
                 context=execution_context,
             )
