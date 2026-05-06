@@ -257,9 +257,11 @@ class ChunkingService:
         if chunk_size is None:
             chunk_size = self._calculate_rows_per_chunk(rows, headers, max_chunk_chars)
 
-        if len(rows) <= chunk_size:
+        # Если все строки помещаются в один чанк по количеству И по символам
+        single_content = self._rows_to_text(rows, headers)
+        if len(rows) <= chunk_size and len(single_content) <= (max_chunk_chars or self.chunk_size_chars):
             return [{
-                "content": self._rows_to_text(rows, headers),
+                "content": single_content,
                 "chunk_id": 0,
                 "row_start": 0,
                 "row_end": len(rows),
@@ -268,22 +270,58 @@ class ChunkingService:
                 "type": "rows",
                 "avg_row_chars": self._estimate_row_chars(rows[0], headers)
             }]
-
+        
         chunks = []
-
-        for i in range(0, len(rows), chunk_size):
-            chunk_rows = rows[i:i + chunk_size]
+        current_chunk_rows = []
+        current_chars = 0
+        target_chars = max_chunk_chars or self.chunk_size_chars
+        
+        for row in rows:
+            row_text = self._row_to_text(row, headers)
+            row_chars = len(row_text)
+            
+            # Если добавление этой строки превысит лимит И в чанке уже есть строки — финализируем чанк
+            if current_chunk_rows and current_chars + row_chars > target_chars:
+                # Сохраняем текущий чанк
+                chunk_content = self._rows_to_text(current_chunk_rows, headers)
+                chunks.append({
+                    "content": chunk_content,
+                    "chunk_id": len(chunks),
+                    "row_start": len(chunks) * chunk_size,  # приблизительно
+                    "row_end": len(chunks) * chunk_size + len(current_chunk_rows),
+                    "row_count": len(current_chunk_rows),
+                    "headers": headers,
+                    "type": "rows",
+                    "avg_row_chars": self._estimate_row_chars(current_chunk_rows[0], headers)
+                })
+                current_chunk_rows = []
+                current_chars = 0
+            
+            # Добавляем строку (даже если она одна превышает лимит — резать нельзя)
+            current_chunk_rows.append(row)
+            current_chars += row_chars
+        
+        # Не забываем последний чанк
+        if current_chunk_rows:
+            chunk_content = self._rows_to_text(current_chunk_rows, headers)
             chunks.append({
-                "content": self._rows_to_text(chunk_rows, headers),
+                "content": chunk_content,
                 "chunk_id": len(chunks),
-                "row_start": i,
-                "row_end": i + len(chunk_rows),
-                "row_count": len(chunk_rows),
+                "row_start": 0,  # заполним позже
+                "row_end": 0,
+                "row_count": len(current_chunk_rows),
                 "headers": headers,
                 "type": "rows",
-                "avg_row_chars": self._estimate_row_chars(chunk_rows[0] if chunk_rows else rows[0], headers)
+                "avg_row_chars": self._estimate_row_chars(current_chunk_rows[0], headers)
             })
-
+        
+        # Пересчитаем row_start и row_end
+        start = 0
+        for chunk in chunks:
+            chunk["row_start"] = start
+            chunk["row_end"] = start + chunk["row_count"]
+            start += chunk["row_count"]
+        
         return chunks
 
     def _calculate_rows_per_chunk(
@@ -385,7 +423,16 @@ class ChunkingService:
             lines.append(" | ".join(values))
 
         return "\n".join(lines)
-
+    
+    def _row_to_text(
+        self,
+        row: Dict[str, Any],
+        headers: List[str]
+    ) -> str:
+        """Конвертирует одну строку в текст (для оценки размера)."""
+        values = [str(row.get(h, "")) for h in headers]
+        return " | ".join(values)
+    
     def _split_text_simple(
         self,
         text: str,
