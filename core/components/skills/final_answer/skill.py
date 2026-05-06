@@ -198,7 +198,7 @@ class FinalAnswerSkill(Skill):
         if hasattr(parameters, 'goal'):
             # Pydantic модель — используем getattr()
             goal_from_params = getattr(parameters, 'goal', None)
-            decision_reasoning = getattr(parameters, 'decision_reasoning', None)
+            decision_reasoning_detail = getattr(parameters, 'decision_reasoning_detail', None)
             is_fallback = getattr(parameters, 'is_fallback', False)
             executed_steps = getattr(parameters, 'executed_steps', 0)
             include_steps = getattr(parameters, 'include_steps', True)
@@ -209,7 +209,7 @@ class FinalAnswerSkill(Skill):
         elif isinstance(parameters, dict):
             # dict — используем .get()
             goal_from_params = parameters.get("goal", None)
-            decision_reasoning = parameters.get("decision_reasoning", None)
+            decision_reasoning_detail = parameters.get("decision_reasoning_detail", None)
             is_fallback = parameters.get("is_fallback", False)
             executed_steps = parameters.get("executed_steps", 0)
             include_steps = parameters.get("include_steps", True)
@@ -220,7 +220,7 @@ class FinalAnswerSkill(Skill):
         else:
             # Fallback
             goal_from_params = None
-            decision_reasoning = None
+            decision_reasoning_detail = None
             is_fallback = False
             executed_steps = 0
             include_steps = True
@@ -256,7 +256,7 @@ class FinalAnswerSkill(Skill):
                     f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов",
                     event_type=EventType.DEBUG
                 )
-        # Параметры уже извлечены выше (goal_from_params, decision_reasoning, is_fallback, executed_steps, etc.)
+        # Параметры уже извлечены выше (goal_from_params, decision_reasoning_detail, is_fallback, executed_steps, etc.)
         # Обработка параметров (могут быть Pydantic моделью или dict) больше не нужна
 
         # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR
@@ -282,17 +282,6 @@ class FinalAnswerSkill(Skill):
                     return serialize_for_prompt_step(obj.__dict__)
                 else:
                     return obj
-
-            def format_book_data(row):
-                """Форматирование данных книги для промпта."""
-                if isinstance(row, dict):
-                    title = row.get('book_title', row.get('title', 'Без названия'))
-                    author = row.get('last_name', row.get('author', 'Без автора'))
-                    year = row.get('publication_date', '')
-                    if year:
-                        year = str(year)[:4]  # Только год
-                    return f"'{title}' ({author}, {year})" if year else f"'{title}' ({author})"
-                return str(row)
 
             all_items_result = await self.executor.execute_action(
                 action_name="context.get_all_items",
@@ -325,12 +314,10 @@ class FinalAnswerSkill(Skill):
                     if isinstance(item, dict):
                         item_type_raw = item.get("item_type", "")
                         item_content = item.get("content", {})
-                        item_quick = item.get("quick_content", "")
                     else:
                         # Это объект ContextItem
                         item_type_raw = item.item_type
                         item_content = item.content
-                        item_quick = getattr(item, 'quick_content', "")
                     
                     # Нормализация item_type до строки
                     if hasattr(item_type_raw, 'value'):
@@ -344,11 +331,11 @@ class FinalAnswerSkill(Skill):
                     self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=EventType.DEBUG)
 
                     if item_type == "OBSERVATION":
-                        # Используем quick_content (саммари), а не сырые данные!
-                        text_to_use = item_quick if item_quick else None
+                        # Используем content (саммари), а не сырые данные!
+                        text_to_use = item_content if item_content else None
                         
                         if not text_to_use:
-                            # Fallback: если quick_content пустой, используем саммари от форматтера
+                            # Fallback: если content пустой, используем саммари от форматтера
                             if isinstance(item_content, dict) and "data" in item_content:
                                 # Это данные — не включаем сырые данные в промпт
                                 rows = item_content.get("data", [])
@@ -513,7 +500,7 @@ class FinalAnswerSkill(Skill):
         prompt_template = prompt_obj.content
         prompt_vars = {
             "goal": goal,
-            "decision_reasoning": decision_reasoning if decision_reasoning else "",
+            "decision_reasoning_detail": decision_reasoning_detail if decision_reasoning_detail else {},
             "dialogue_history": dialogue_history_str,
             "observations": observations_str,
             "steps_taken": steps_str,

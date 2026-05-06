@@ -132,7 +132,7 @@ class GenerateFinalAnswerHandler(SkillHandler):
                 if isinstance(item, dict):
                     item_type_raw = item.get("item_type", item.get("type", "unknown"))
                     item_type = str(item_type_raw).lower() if item_type_raw else "unknown"
-                    content = item.get("content", item.get("quick_content", ""))
+                    content = item.get("content", "")
                     if item_type in ("observation", "obs", "obs_result"):
                         observations.append(content)
                     elif item_type in ("thought", "think", "reasoning"):
