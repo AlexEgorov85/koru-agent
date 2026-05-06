@@ -126,47 +126,6 @@ class Observer:
             )
         return None
     
-    def _extract_validation_details(self, error: str) -> Dict[str, Any]:
-        """
-        Извлекает детали ошибки валидации Pydantic.
-        
-        ПАРАМЕТРЫ:
-        - error: текст ошибки валидации
-        
-        ВОЗВРАЩАЕТ:
-        - Dict с ключами: summary, missing_fields, invalid_fields
-        """
-        import re
-        
-        missing_fields = []
-        invalid_fields = []
-        summary = error
-        
-        # Извлекаем краткое сообщение (первая строка)
-        lines = error.strip().split('\n')
-        if lines:
-            summary = lines[0].strip()
-            # Убираем префикс "Валидация входных данных не пройдена: "
-            prefix = "Валидация входных данных не пройдена: "
-            if summary.startswith(prefix):
-                summary = summary[len(prefix):]
-        
-        # Ищем missing fields
-        missing_pattern = r"(\w+)\n\s+Field required"
-        missing_matches = re.findall(missing_pattern, error)
-        missing_fields = list(missing_matches)
-        
-        # Ищем invalid fields
-        invalid_pattern = r"(\w+)\n\s+Input should be"
-        invalid_matches = re.findall(invalid_pattern, error)
-        invalid_fields = list(invalid_matches)
-        
-        return {
-            "summary": summary,
-            "missing_fields": missing_fields,
-            "invalid_fields": invalid_fields,
-        }
-    
     def should_call_llm(self, result: Any, error: Optional[str], status: Optional[str] = None) -> bool:
         """
         Определение необходимости вызова LLM на основе trigger_mode.
@@ -225,45 +184,6 @@ class Observer:
         
         # Определяем статус
         if error:
-            # Проверяем, это ошибка валидации?
-            is_validation_error = any(
-                keyword in error.lower()
-                for keyword in ['validation error', 'field required', 'input should be', 'extra fields not permitted']
-            )
-            
-            if is_validation_error:
-                # Формируем информативное сообщение для ошибок валидации
-                validation_details = self._extract_validation_details(error)
-                observation_text = (
-                    f"Ошибка валидации параметров для '{action_name}'. "
-                    f"Переданные параметры: {parameters}. "
-                    f"Проблема: {validation_details['summary']}"
-                )
-                key_findings = [
-                    f"Параметры не прошли валидацию",
-                    f"Передано: {list(parameters.keys()) if parameters else 'нет параметров'}",
-                    f"Ошибка: {validation_details['summary']}"
-                ]
-                if validation_details['missing_fields']:
-                    key_findings.append(f"Отсутствуют обязательные поля: {validation_details['missing_fields']}")
-                if validation_details['invalid_fields']:
-                    key_findings.append(f"Неверный тип у полей: {validation_details['invalid_fields']}")
-                
-                return {
-                    "status": "error",
-                    "observation": observation_text,
-                    "key_findings": key_findings,
-                    "data_quality": {"completeness": 0.0, "reliability": 0.0},
-                    "errors": [validation_details['summary']],
-                    "next_step_suggestion": (
-                        f"Исправьте параметры для '{action_name}'. "
-                        f"Убедитесь что все обязательные поля присутствуют и имеют правильный тип. "
-                        f"Не оборачивайте параметры в лишний уровень 'parameters' — передавайте их на верхнем уровне."
-                    ),
-                    "requires_additional_action": True,
-                    "_rule_based": True
-                }
-            
             return {
                 "status": "error",
                 "observation": f"Ошибка выполнения: {error}",

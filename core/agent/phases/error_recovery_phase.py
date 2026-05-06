@@ -57,10 +57,10 @@ class ErrorRecoveryPhase:
         
         # Use SQL diagnostic service
         try:
-            diagnostic = await self.sql_diagnostic_service.analyze_empty_result(
-                sql_query="",
-                original_params=decision_parameters,
-                table_hint=None,
+            diagnostic = await self.sql_diagnostic_service.diagnose_empty_result(
+                capability_name=decision_action,
+                parameters=decision_parameters,
+                session_context=session_context,
             )
             
             # Log diagnostic result

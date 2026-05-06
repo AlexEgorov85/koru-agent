@@ -620,23 +620,18 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         cap_name = capability.name
         
         if cap_name in self.input_contracts:
-            schema = self.input_contracts[cap_name]
-            # schema уже является Pydantic-классом (скомпилирован в _preload_resources)
-            if hasattr(schema, 'model_validate'):
+            contract = self.input_contracts[cap_name]
+            # Используем pydantic_schema из контракта для валидации
+            if hasattr(contract, 'pydantic_schema') and contract.pydantic_schema:
                 try:
-                    validated = schema.model_validate(parameters)
-                    return validated.model_dump() if hasattr(validated, 'model_dump') else validated
-                except Exception as e:
-                    raise ValueError(f"Валидация входных данных не пройдена: {e}")
-            # Fallback: если по какой-то причине это Contract-объект
-            elif hasattr(schema, 'pydantic_schema') and schema.pydantic_schema:
-                try:
-                    validated = schema.pydantic_schema.model_validate(parameters)
+                    validated = contract.pydantic_schema.model_validate(parameters)
+                    # Возвращаем dict для совместимости
                     return validated.model_dump() if hasattr(validated, 'model_dump') else validated
                 except Exception as e:
                     raise ValueError(f"Валидация входных данных не пройдена: {e}")
             else:
-                self._log_warning(f"Контракт {cap_name} не имеет схемы для валидации", event_type=EventType.WARNING)
+                # Fallback: если нет pydantic_schema, пропускаем валидацию
+                self._log_warning(f"Контракт {cap_name} не имеет pydantic_schema", event_type=EventType.WARNING)
         
         return parameters
     
@@ -649,29 +644,22 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         cap_name = capability.name
         
         if cap_name in self.output_contracts:
-            schema = self.output_contracts[cap_name]
-            # schema уже является Pydantic-классом (скомпилирован в _preload_resources)
-            if hasattr(schema, 'model_validate'):
+            contract = self.output_contracts[cap_name]
+            # Используем pydantic_schema из контракта для валидации
+            if hasattr(contract, 'pydantic_schema') and contract.pydantic_schema:
                 try:
-                    validated = schema.model_validate(result)
+                    validated = contract.pydantic_schema.model_validate(result)
+                    # Возвращаем dict для совместимости
                     return validated.model_dump() if hasattr(validated, 'model_dump') else validated
                 except Exception as e:
                     self._log_warning(f"Валидация выходных данных не пройдена: {e}", event_type=EventType.WARNING)
-                    if hasattr(result, 'model_dump'):
-                        return result.model_dump()
-                    return result
-            # Fallback: если по какой-то причине это Contract-объект
-            elif hasattr(schema, 'pydantic_schema') and schema.pydantic_schema:
-                try:
-                    validated = schema.pydantic_schema.model_validate(result)
-                    return validated.model_dump() if hasattr(validated, 'model_dump') else validated
-                except Exception as e:
-                    self._log_warning(f"Валидация выходных данных не пройдена: {e}", event_type=EventType.WARNING)
+                    # Возвращаем как dict
                     if hasattr(result, 'model_dump'):
                         return result.model_dump()
                     return result
             else:
-                self._log_warning(f"Контракт {cap_name} не имеет схемы для валидации", event_type=EventType.WARNING)
+                # Fallback: если нет pydantic_schema, пропускаем валидацию
+                self._log_warning(f"Контракт {cap_name} не имеет pydantic_schema", event_type=EventType.WARNING)
         
         return result
     
