@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.46.3"
+__version__ = "5.46.4"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 46
-VERSION_PATCH = 3
+VERSION_PATCH = 4
 
 # Метаданные
-VERSION_CODENAME = "Fix DB params passing to asyncpg"
-VERSION_RELEASE_DATE = "2026-05-05"
+VERSION_CODENAME = "Fix validation, save full data, Russian localization"
+VERSION_RELEASE_DATE = "2026-05-06"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"

@@ -82,4 +82,4 @@ vector_search:
     books: books_index.faiss
   storage:
     base_path: data/vector
-version: 5.40.2
+version: 5.46.4

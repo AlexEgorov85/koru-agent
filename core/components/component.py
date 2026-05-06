@@ -620,11 +620,18 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         cap_name = capability.name
         
         if cap_name in self.input_contracts:
-            schema = self.input_contracts[cap_name]
-            try:
-                return schema.model_validate(parameters)
-            except Exception as e:
-                raise ValueError(f"Валидация входных данных не пройдена: {e}")
+            contract = self.input_contracts[cap_name]
+            # Используем pydantic_schema из контракта для валидации
+            if hasattr(contract, 'pydantic_schema') and contract.pydantic_schema:
+                try:
+                    validated = contract.pydantic_schema.model_validate(parameters)
+                    # Возвращаем dict для совместимости
+                    return validated.model_dump() if hasattr(validated, 'model_dump') else validated
+                except Exception as e:
+                    raise ValueError(f"Валидация входных данных не пройдена: {e}")
+            else:
+                # Fallback: если нет pydantic_schema, пропускаем валидацию
+                self._log_warning(f"Контракт {cap_name} не имеет pydantic_schema", event_type=EventType.WARNING)
         
         return parameters
     
@@ -637,14 +644,22 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         cap_name = capability.name
         
         if cap_name in self.output_contracts:
-            schema = self.output_contracts[cap_name]
-            try:
-                return schema.model_validate(result)
-            except Exception:
-                # Если валидация не прошла, возвращаем как dict
-                if hasattr(result, 'model_dump'):
-                    return result.model_dump()
-                return result
+            contract = self.output_contracts[cap_name]
+            # Используем pydantic_schema из контракта для валидации
+            if hasattr(contract, 'pydantic_schema') and contract.pydantic_schema:
+                try:
+                    validated = contract.pydantic_schema.model_validate(result)
+                    # Возвращаем dict для совместимости
+                    return validated.model_dump() if hasattr(validated, 'model_dump') else validated
+                except Exception as e:
+                    self._log_warning(f"Валидация выходных данных не пройдена: {e}", event_type=EventType.WARNING)
+                    # Возвращаем как dict
+                    if hasattr(result, 'model_dump'):
+                        return result.model_dump()
+                    return result
+            else:
+                # Fallback: если нет pydantic_schema, пропускаем валидацию
+                self._log_warning(f"Контракт {cap_name} не имеет pydantic_schema", event_type=EventType.WARNING)
         
         return result
     

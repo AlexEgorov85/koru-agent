@@ -325,10 +325,12 @@ class FinalAnswerSkill(Skill):
                     if isinstance(item, dict):
                         item_type_raw = item.get("item_type", "")
                         item_content = item.get("content", {})
+                        item_quick = item.get("quick_content", "")
                     else:
                         # Это объект ContextItem
                         item_type_raw = item.item_type
                         item_content = item.content
+                        item_quick = getattr(item, 'quick_content', "")
                     
                     # Нормализация item_type до строки
                     if hasattr(item_type_raw, 'value'):
@@ -342,45 +344,25 @@ class FinalAnswerSkill(Skill):
                     self._log_info(f"[DEBUG] item_id={item_id}, item_type={item_type}, is_OBSERVATION: {item_type == 'OBSERVATION'}", event_type=EventType.DEBUG)
 
                     if item_type == "OBSERVATION":
-                        # Используем content напрямую - там ВСЕ данные!
-                        if isinstance(item_content, str):
-                            observations.append(item_content)
-                        elif isinstance(item_content, dict):
-                            # Если это наш формат observation с данными - используем данные
-                            if "data" in item_content:
+                        # Используем quick_content (саммари), а не сырые данные!
+                        text_to_use = item_quick if item_quick else None
+                        
+                        if not text_to_use:
+                            # Fallback: если quick_content пустой, используем саммари от форматтера
+                            if isinstance(item_content, dict) and "data" in item_content:
+                                # Это данные — не включаем сырые данные в промпт
                                 rows = item_content.get("data", [])
                                 if rows:
-                                    # Форматируем в Markdown таблицу
-                                    md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
-                                    if md_table:
-                                        observations.append(f"📊 Данные ({len(rows)} строк):\n{md_table}")
-                                    else:
-                                        observations.append(json.dumps(rows[:5], ensure_ascii=False))
-                                observations.append(f"answer: {item_content.get('answer', 'n/a')}")
-                            # Проверяем новый формат observation
-                            elif "type" in item_content and item_content.get("type") in ("raw_data", "summary"):
-                                obs_type = item_content.get("type")
-                                if obs_type == "raw_data" and "data" in item_content:
-                                    rows = item_content["data"]
-                                    md_table = BaseBehaviorPattern(None)._format_table_markdown(rows, 10)
-                                    if md_table:
-                                        observations.append(f"📊 raw_data ({len(rows)} строк):\n{md_table}")
+                                    text_to_use = f"📊 Получено {len(rows)} строк данных (см. анализ выше)"
                                 else:
-                                    observations.append(ObservationFormatter.render_for_prompt(item_content))
+                                    text_to_use = "Данные отсутствуют"
+                            elif isinstance(item_content, str):
+                                # Обрезаем длинные строки
+                                text_to_use = item_content[:500] + "..." if len(item_content) > 500 else item_content
                             else:
-                                serialized = serialize_for_prompt_step(item_content)
-                                if isinstance(serialized, dict):
-                                    observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
-                                else:
-                                    observations.append(str(serialized))
-                        elif hasattr(item_content, 'model_dump'):
-                            content_dict = serialize_for_prompt_step(item_content)
-                            if isinstance(content_dict, dict):
-                                observations.append(json.dumps(content_dict, ensure_ascii=False, indent=1))
-                            else:
-                                observations.append(str(content_dict))
-                        else:
-                            observations.append(str(item_content))
+                                text_to_use = str(item_content)[:500]
+                        
+                        observations.append(text_to_use)
                     elif item_type == "ERROR_LOG":
                         # Ошибки также включаем в observation для финального ответа
                         if isinstance(item_content, dict):
@@ -602,12 +584,18 @@ class FinalAnswerSkill(Skill):
                     # Таймауты из централизованной конфигурации инфраструктуры
                     "total_timeout": (
                         self.application_context.infrastructure_context.config.timeouts.resolve_for('llm', 'generate_structured')
-                        if self.application_context and hasattr(self.application_context, 'infrastructure_context') and self.application_context.infrastructure_context
+                        if self.application_context 
+                        and hasattr(self.application_context, 'infrastructure_context') 
+                        and self.application_context.infrastructure_context
+                        and hasattr(self.application_context.infrastructure_context.config, 'timeouts')
                         else 300.0
                     ),
                     "attempt_timeout": (
                         self.application_context.infrastructure_context.config.timeouts.resolve_for('llm', 'generate')
-                        if self.application_context and hasattr(self.application_context, 'infrastructure_context') and self.application_context.infrastructure_context
+                        if self.application_context 
+                        and hasattr(self.application_context, 'infrastructure_context') 
+                        and self.application_context.infrastructure_context
+                        and hasattr(self.application_context.infrastructure_context.config, 'timeouts')
                         else 60.0
                     ),
                 },

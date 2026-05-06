@@ -317,11 +317,29 @@ class TestFinalAnswerSkillExecution:
             session_id="test-session-001"
         )
         
-        # Настраиваем mock_executor.execute_action для возврата успешного результата
-        mock_executor.execute_action.return_value = ExecutionResult(
-            status=ExecutionStatus.COMPLETED,
-            data={"final_answer": "Тестовый ответ", "evidence": []}
-        )
+        # Настраиваем mock_executor.execute_action для возврата данных контекста
+        async def mock_execute_action(action_name, parameters, context):
+            if action_name == "context.get_all_items":
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
+                    data={"items": {}}
+                )
+            elif action_name == "context.get_step_history":
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
+                    data={"steps": []}
+                )
+            elif action_name == "llm.generate_structured":
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
+                    data={"parsed_content": {"final_answer": "Тестовый ответ", "confidence_score": 0.9, "sources": []}}
+                )
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={}
+            )
+        
+        mock_executor.execute_action.side_effect = mock_execute_action
         
         parameters = {
             "goal": "Тестовая цель",
@@ -334,20 +352,16 @@ class TestFinalAnswerSkillExecution:
             skill_name="final_answer"
         )
         
-        # Мокаем execute, чтобы он возвращал успешный результат
-        final_answer_skill.execute = AsyncMock(return_value=ExecutionResult(
-            status=ExecutionStatus.COMPLETED,
-            data={"final_answer": "Тестовый ответ", "evidence": []}
-        ))
-        
-        await final_answer_skill.execute(
+        # Не мокаем execute - позволяем коду выполняться
+        result = await final_answer_skill.execute(
             capability=capability,
             parameters=parameters,
             execution_context=exec_context
         )
         
-        # Проверяем что executor был вызван (для сбора контекста)
+        # Проверяем что executor был вызван для сбора контекста
         assert mock_executor.execute_action.called
+        assert result.status == ExecutionStatus.COMPLETED
 
 
 class TestFinalAnswerWithMockLLM:
@@ -356,42 +370,18 @@ class TestFinalAnswerWithMockLLM:
     @pytest_asyncio.fixture
     async def infrastructure_with_mock_llm(self):
         """InfrastructureContext с MockLLM"""
-        from core.config.models import SystemConfig
+        from core.config import get_config
         from core.infrastructure_context.infrastructure_context import InfrastructureContext
         from core.models.data.resource import ResourceInfo
         from core.models.enums.common_enums import ResourceType
         from core.infrastructure_context.resource_registry import ResourceRegistry
         from tests.mocks.interfaces import MockLLM
         
-        config = SystemConfig(
-            llm_providers={},
-            db_providers={},
-            data_dir='data'
-        )
+        # Используем get_config как в работающих тестах
+        config = get_config(profile='prod', data_dir='data')
         
         infra = InfrastructureContext(config)
         await infra.initialize()
-        
-        # Создаём новый registry с MockLLM
-        old_registry = infra.resource_registry
-        infra.resource_registry = ResourceRegistry()
-        infra._initialized = True
-        
-        # Регистрируем MockLLM
-        mock_llm = MockLLM(default_response="Финальный ответ от MockLLM")
-        mock_llm.register_response("final_answer.generate", "Финальный ответ на основе контекста")
-        
-        infra.resource_registry.register_resource(
-            ResourceInfo(
-                name='mock_llm',
-                resource_type=ResourceType.LLM,
-                instance=mock_llm
-            )
-        )
-        
-        # Копируем DB провайдеры
-        for res in old_registry.get_resources_by_type(ResourceType.DATABASE):
-            infra.resource_registry.register_resource(res)
         
         yield infra
         await infra.shutdown()

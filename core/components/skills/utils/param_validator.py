@@ -365,8 +365,9 @@ class ParamValidator:
                 "warning": f"Исправлена опечатка: '{param_value}' → '{fuzzy_result}'",
                 "suggestions": list(allowed_values)
             }
-
+        
         # Не найдено — warning, но НЕ ошибка
+        print(f"[DEBUG] _validate_enum: returning corrected_value=None for param_value='{param_value}', allowed={allowed_values}")
         return {
             "valid": True,  # НЕ блокируем!
             "corrected_value": None,
