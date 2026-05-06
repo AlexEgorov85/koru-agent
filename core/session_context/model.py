@@ -108,7 +108,6 @@ class ContextItem:
     - session_id: ID сессии, к которой принадлежит элемент
     - item_type: Тип элемента (ContextItemType)
     - content: Содержимое элемента (любой тип)
-    - quick_content: Краткое содержимое для быстрого просмотра
     - metadata: Метаданные элемента
     - created_at: Время создания
     - updated_at: Время последнего обновления
@@ -121,7 +120,6 @@ class ContextItem:
     session_id: str
     item_type: ContextItemType
     content: Any
-    quick_content: Optional[str] = None
     metadata: ContextItemMetadata = None
     created_at: datetime = None
     updated_at: datetime = None
@@ -134,8 +132,6 @@ class ContextItem:
             self.created_at = datetime.now()
         if self.updated_at is None:
             self.updated_at = datetime.now()
-        if self.quick_content is None and isinstance(self.content, str):
-            self.quick_content = self.content
 
 @dataclass
 class AgentStep:
@@ -182,7 +178,7 @@ class AgentStep:
     skill_name: str
     action_item_id: str
     observation_item_ids: List[str]
-    summary: Optional[str] = None
     status: Optional[ExecutionStatus] = None
     parameters: Optional[Dict[str, Any]] = None
     obs_text: Optional[str] = None
+    reasoning_detail: Optional[Dict[str, Any]] = None

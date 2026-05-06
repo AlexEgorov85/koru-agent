@@ -139,10 +139,10 @@ class SessionContext(BaseSessionContext):
         skill_name: str,
         action_item_id: str,
         observation_item_ids: List[str],
-        summary: Optional[str] = None,
         status: Optional[ExecutionStatus] = None,
         parameters: Optional[Dict[str, Any]] = None,
         obs_text: Optional[str] = None,
+        reasoning_detail: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Регистрация шага агента.
@@ -157,10 +157,10 @@ class SessionContext(BaseSessionContext):
         - skill_name: название навыка
         - action_item_id: ID элемента действия в data_context
         - observation_item_ids: ID результатов в data_context
-        - summary: краткое описание шага
         - status: статус выполнения
         - parameters: параметры запуска действия/инструмента
         - obs_text: текстовое представление наблюдения для отображения в истории шагов
+        - reasoning_detail: полное структурированное рассуждение (10 полей анализа)
         """
         step = AgentStep(
             step_number=step_number,
@@ -168,10 +168,10 @@ class SessionContext(BaseSessionContext):
             skill_name=skill_name,
             action_item_id=action_item_id,
             observation_item_ids=observation_item_ids,
-            summary=summary,
             status=status,
             parameters=parameters,
             obs_text=obs_text,
+            reasoning_detail=reasoning_detail,
         )
         self.step_context.add_step(step)
         self.last_activity = datetime.now()
@@ -241,7 +241,7 @@ class SessionContext(BaseSessionContext):
                     "skill": step.skill_name,
                     # Используем step.parameters напрямую, т.к. action_item_id может быть None для заблокированных действий
                     "parameters": step.parameters or {},
-                    "summary": step.summary,
+                    "reasoning_detail": step.reasoning_detail,
                 }
 
                 # Добавляем observation если есть
@@ -383,10 +383,10 @@ class SessionContext(BaseSessionContext):
         )
         return self.current_plan_item_id
 
-    def record_decision(self, decision_data, reasoning=None, metadata=None):
-        """Запись решения стратегии в контекст"""
+    def record_decision(self, decision_data, reasoning_detail=None, metadata=None):
+        """Запись решения стратегии в контекст с полным рассуждением"""
         meta = metadata or ContextItemMetadata(source="behavior", confidence=0.85)
-        content = {"decision": decision_data, "reasoning": reasoning}
+        content = {"decision": decision_data, "reasoning_detail": reasoning_detail}
         return self._add_context_item(
             item_type=ContextItemType.THOUGHT, content=content, metadata=meta
         )
@@ -562,7 +562,7 @@ class SessionContext(BaseSessionContext):
         
         # Оцениваем текущий размер контекста
         total_tokens_before = sum(
-            self.estimate_context_tokens(str(step.summary)) +
+            self.estimate_context_tokens(str(step.reasoning_detail or {})) +
             self.estimate_context_tokens(str(step.parameters or {})) +
             self.estimate_context_tokens(str(step.observation_item_ids))
             for step in steps
@@ -579,8 +579,16 @@ class SessionContext(BaseSessionContext):
         summary_text_parts = []
         for i, step in enumerate(steps_to_compress):
             status_icon = "✓" if step.status == ExecutionStatus.COMPLETED else "✗"
+            # Формируем краткое описание из reasoning_detail для сжатия
+            step_summary = ""
+            if step.reasoning_detail and isinstance(step.reasoning_detail, dict):
+                step_summary = (
+                    step.reasoning_detail.get("analysis_final")
+                    or step.reasoning_detail.get("analysis_progress")
+                    or ""
+                )
             summary_text_parts.append(
-                f"Шаг {step.step_number} [{status_icon}]: {step.capability_name} → {step.summary}"
+                f"Шаг {step.step_number} [{status_icon}]: {step.capability_name} → {step_summary}"
             )
         
         summary_text = " | ".join(summary_text_parts)
@@ -653,7 +661,7 @@ class SessionContext(BaseSessionContext):
         
         # Оцениваем новый размер
         total_tokens_after = sum(
-            self.estimate_context_tokens(str(step.summary)) +
+            self.estimate_context_tokens(str(step.reasoning_detail or {})) +
             self.estimate_context_tokens(str(step.parameters or {})) +
             self.estimate_context_tokens(str(step.observation_item_ids))
             for step in self.step_context.steps
@@ -672,7 +680,7 @@ class SessionContext(BaseSessionContext):
         
         # Считаем токены шагов
         for step in self.step_context.steps:
-            total += self.estimate_context_tokens(str(step.summary))
+            total += self.estimate_context_tokens(str(step.reasoning_detail or {}))
             total += self.estimate_context_tokens(str(step.parameters or {}))
             if step.observation_item_ids:
                 for obs_id in step.observation_item_ids:

@@ -2,7 +2,7 @@
 AgentFactory — фабрика для создания всех компонентов и фаз AgentRuntime.
 
 АРХИТЕКТУРА:
-- Инкапсулирует логику инициализации executor, policies, metrics, observer, всех фаз
+- Инкапсулирует логику инициализации executor, policies, metrics, всех фаз
 - Runtime получает готовые компоненты через ссылки
 - Упрощает тестирование (можно подменять фабрику или мокать компоненты)
 """
@@ -15,7 +15,6 @@ from core.agent.components.safe_executor import SafeExecutor
 from core.errors.failure_memory import FailureMemory
 from core.agent.components.policy import AgentPolicy
 from core.agent.components.agent_metrics import AgentMetrics
-from core.agent.components.observer import Observer
 from core.agent.components.sql_diagnostic import SQLDiagnosticService
 
 from core.agent.phases.decision_phase import DecisionPhase
@@ -42,7 +41,6 @@ class AgentComponents:
         failure_memory: FailureMemory,
         policy: AgentPolicy,
         metrics: AgentMetrics,
-        observer: Observer,
         fallback_strategy: FallbackStrategyService,
         safe_executor: SafeExecutor,
         decision_phase: DecisionPhase,
@@ -59,7 +57,6 @@ class AgentComponents:
         self.failure_memory = failure_memory
         self.policy = policy
         self.metrics = metrics
-        self.observer = observer
         self.fallback_strategy = fallback_strategy
         self.safe_executor = safe_executor
         self.decision_phase = decision_phase
@@ -101,14 +98,6 @@ class AgentFactory:
         policy = AgentPolicy()
         metrics = AgentMetrics()
 
-        # Observer с настройкой trigger_mode
-        observer_trigger_mode = "on_error"  # По умолчанию: LLM только при ошибках и пустых ответах
-        if application_context and hasattr(application_context, 'config'):
-            app_cfg = application_context.config
-            if hasattr(app_cfg, 'agent_defaults') and hasattr(app_cfg.agent_defaults, 'observer_trigger_mode'):
-                observer_trigger_mode = app_cfg.agent_defaults.observer_trigger_mode
-        observer = Observer(application_context, trigger_mode=observer_trigger_mode)
-
         # Fallback strategy
         from core.agent.behaviors.services import FallbackStrategyService
         fallback_strategy = FallbackStrategyService()
@@ -141,13 +130,21 @@ class AgentFactory:
             agent_config=agent_config,
         )
 
+        # Получаем trigger_mode из конфига для ObservationPhase
+        observer_trigger_mode = "on_error"
+        if application_context and hasattr(application_context, 'config'):
+            app_cfg = application_context.config
+            if hasattr(app_cfg, 'agent_defaults') and hasattr(app_cfg.agent_defaults, 'observer_trigger_mode'):
+                observer_trigger_mode = app_cfg.agent_defaults.observer_trigger_mode
+
         observation_phase = ObservationPhase(
-            observer=observer,
             metrics=metrics,
             policy=policy,
             log=log,
             event_bus=event_bus,
+            application_context=application_context,
         )
+        observation_phase.TRIGGER_MODE = observer_trigger_mode
 
         # SQL diagnostic для error recovery
         sql_diagnostic = None
@@ -185,7 +182,6 @@ class AgentFactory:
             failure_memory=failure_memory,
             policy=policy,
             metrics=metrics,
-            observer=observer,
             fallback_strategy=fallback_strategy,
             safe_executor=safe_executor,
             decision_phase=decision_phase,

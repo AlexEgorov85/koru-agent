@@ -2,6 +2,7 @@
 
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional
+from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.model import ContextItem, ContextItemMetadata, ContextItemType
 
 
@@ -46,10 +47,16 @@ class BaseSessionContext:
         skill_name: str,
         action_item_id: str,
         observation_item_ids: List[str],
-        summary: Optional[str] = None
+        status: Optional[ExecutionStatus] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        obs_text: Optional[str] = None,
+        reasoning_detail: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Регистрация шага агента.
+
+        ПАРАМЕТРЫ:
+        - reasoning_detail: полное структурированное рассуждение (10 полей анализа)
         """
         pass
     
@@ -94,8 +101,8 @@ class BaseSessionContext:
         """Запись плана и его обновлений в контекст"""
         raise NotImplementedError
         
-    def record_decision(self, decision_data, reasoning=None, metadata=None):
-        """Запись решения стратегии в контекст"""
+    def record_decision(self, decision_data, reasoning_detail=None, metadata=None):
+        """Запись решения стратегии в контекст с полным рассуждением"""
         raise NotImplementedError
         
     def record_error(self, error_data, error_type=None, step_number=None, metadata=None):

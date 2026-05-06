@@ -6,8 +6,7 @@
 - Интеграция с SessionContext через composition
 - Используется для Reflection и Policy проверок
 
-ОПТИМИЗАЦИЯ (Фаза 1):
-- Метрика observer_skip_rate для мониторинга экономии LLM-вызовов
+ОПТИМИЗАЦИЯ:
 - Счётчик total_llm_calls для отслеживания количества вызовов LLM
 """
 from typing import Any, Dict, List, Optional
@@ -27,8 +26,6 @@ class AgentMetrics:
     - repeated_actions_count: счётчик повторяющихся действий
     - recent_actions: последние N действий для детектирования повторов
     - action_hashes: хеши действий с параметрами для точного детектирования повторов
-    - observer_llm_calls: количество вызовов LLM в Observer
-    - observer_skips: количество пропущенных LLM-вызовов (rule-based)
     """
     step_number: int = 0
     errors: List[Dict[str, Any]] = field(default_factory=list)
@@ -37,10 +34,6 @@ class AgentMetrics:
     recent_actions: List[str] = field(default_factory=list)
     max_recent_actions: int = 10
     action_hashes: List[str] = field(default_factory=list)
-    
-    # Метрики Observer
-    observer_llm_calls: int = 0
-    observer_skips: int = 0
     total_tokens_used: int = 0
 
     def _hash_action(self, action_name: str, parameters: Dict[str, Any]) -> str:
@@ -220,31 +213,9 @@ class AgentMetrics:
             "repeated_actions_count": self.repeated_actions_count,
             "recent_actions": self.get_recent_actions(5),
             "last_errors": self.get_errors_summary(3),
-            "observer_llm_calls": self.observer_llm_calls,
-            "observer_skips": self.observer_skips,
             "total_tokens_used": self.total_tokens_used,
         }
-    
-    def record_observer_call(self, used_llm: bool):
-        """
-        Регистрация вызова Observer.
-        
-        ПАРАМЕТРЫ:
-        - used_llm: True если был вызван LLM, False если использован rule-based
-        """
-        if used_llm:
-            self.observer_llm_calls += 1
-        else:
-            self.observer_skips += 1
     
     def add_tokens(self, count: int):
         """Добавление использованных токенов."""
         self.total_tokens_used += count
-
-    @property
-    def observer_skip_rate(self) -> float:
-        """Процент пропущенных LLM-вызовов от общего числа наблюдений."""
-        total = self.observer_llm_calls + self.observer_skips
-        if total == 0:
-            return 0.0
-        return self.observer_skips / total
