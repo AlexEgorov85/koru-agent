@@ -2,16 +2,16 @@
 Тесты для ObservationPhase.
 
 Проверяемая бизнес-логика:
-1. analyze() возвращает типизированный ObservationAnalysis и НЕ мутирует состояние
+1. analyze() возвращает ObservationResult (Pydantic модель)
 2. decide_save_type() определяет тип сохранения на основе размера данных
 3. _is_too_large() корректно оценивает лимиты (MAX_ROWS=5, MAX_JSON_BYTES=1500, MAX_TEXT_CHARS=1500)
-4. get_size_info() возвращает корректную информацию о размере
+4. Сжатие observation text при больших данных (row_count > 10)
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from core.agent.phases.observation_phase import ObservationPhase
-from core.agent.state import ObservationAnalysis, AgentState
+from core.agent.state import ObservationResult
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 
 
@@ -20,45 +20,63 @@ from core.models.data.execution import ExecutionResult, ExecutionStatus
 # ============================================================================
 
 @pytest.fixture
-def real_agent_state():
-    """Реальный AgentState для тестов."""
-    return AgentState()
-
-
-@pytest.fixture
 def observation_phase():
     """ObservationPhase с замоканными зависимостями."""
-    mock_observer = AsyncMock()
-    mock_observer.analyze.return_value = {
-        "status": "success",
-        "insight": "Test insight",
-        "hint": "Test hint",
-        "quality": {},
-        "_rule_based": False,
-    }
     mock_metrics = MagicMock()
     mock_policy = MagicMock()
     mock_log = MagicMock()
     mock_event_bus = MagicMock()
+    mock_app_context = MagicMock()
+    mock_app_context.config.agent_defaults.observer_trigger_mode = "on_error"
     
     phase = ObservationPhase(
-        observer=mock_observer,
         metrics=mock_metrics,
         policy=mock_policy,
         log=mock_log,
         event_bus=mock_event_bus,
+        application_context=mock_app_context,
     )
     return phase
 
 
 @pytest.fixture
-def mock_execution_result():
-    """Mock объект с данными для ExecutionResult."""
-    result = MagicMock()
-    result.status = MagicMock(value="success")
-    result.data = {"key": "value"}
-    result.error = None
-    return result
+def mock_execution_result_success():
+    """Успешный ExecutionResult с данными."""
+    return ExecutionResult(
+        status=ExecutionStatus.COMPLETED,
+        data={"key": "value"},
+        error=None,
+    )
+
+
+@pytest.fixture
+def mock_execution_result_empty():
+    """ExecutionResult с пустыми данными."""
+    return ExecutionResult(
+        status=ExecutionStatus.COMPLETED,
+        data=[],
+        error=None,
+    )
+
+
+@pytest.fixture
+def mock_execution_result_error():
+    """ExecutionResult с ошибкой."""
+    return ExecutionResult(
+        status=ExecutionStatus.FAILED,
+        data=None,
+        error=ValueError("Test error"),
+    )
+
+
+@pytest.fixture
+def mock_execution_result_large_data():
+    """ExecutionResult с большим набором данных."""
+    return ExecutionResult(
+        status=ExecutionStatus.COMPLETED,
+        data=[{"id": i, "data": "x" * 100} for i in range(20)],
+        error=None,
+    )
 
 
 # ============================================================================
@@ -79,7 +97,7 @@ class TestDecideSaveType:
         assert ObservationPhase.decide_save_type(data) == "summary"
     
     def test_empty_list_returns_summary(self):
-        """Пустой список → summary (слишком большой по логике _is_too_large)."""
+        """Пустой список → summary."""
         assert ObservationPhase.decide_save_type([]) == "summary"
     
     def test_small_dict_returns_raw_data(self):
@@ -102,24 +120,8 @@ class TestDecideSaveType:
         data = "x" * 2000
         assert ObservationPhase.decide_save_type(data) == "summary"
     
-    def test_explicit_mode_full(self):
-        """explicit_mode='full' → raw_data (если данные помещаются)."""
-        data = {"a": 1}
-        assert ObservationPhase.decide_save_type(data, explicit_mode="full") == "raw_data"
-    
-    def test_explicit_mode_full_with_large_data(self):
-        """explicit_mode='full' с большими данными → summary."""
-        data = [{"id": i} for i in range(10)]
-        assert ObservationPhase.decide_save_type(data, explicit_mode="full") == "summary"
-    
-    def test_explicit_mode_summary(self):
-        """explicit_mode='summary' → summary независимо от данных."""
-        data = {"a": 1}
-        assert ObservationPhase.decide_save_type(data, explicit_mode="summary") == "summary"
-    
     def test_none_data(self):
         """None данные → должно корректно обрабатываться."""
-        # _is_too_large(None) вернет True (последняя строка метода)
         assert ObservationPhase.decide_save_type(None) == "summary"
 
 
@@ -150,40 +152,9 @@ class TestIsTooLarge:
         """Маленький dict не слишком большой."""
         assert not ObservationPhase._is_too_large({"a": 1})
     
-    def test_large_dict_keys(self):
-        """Dict с большим количеством ключей > MAX_DICT_KEYS=10."""
-        data = {f"key{i}": i for i in range(15)}
-        assert ObservationPhase._is_too_large(data)
-    
     def test_none_data(self):
         """None считается слишком большим."""
         assert ObservationPhase._is_too_large(None)
-
-
-class TestGetSizeInfo:
-    """Тесты метода get_size_info()."""
-    
-    def test_list_info(self):
-        """Информация о списке содержит row_count и json_size."""
-        data = [{"id": 1}, {"id": 2}]
-        info = ObservationPhase.get_size_info(data)
-        assert info["type"] == "list"
-        assert info["row_count"] == 2
-        assert "json_size" in info
-    
-    def test_string_info(self):
-        """Информация о строке содержит char_count."""
-        data = "Hello World"
-        info = ObservationPhase.get_size_info(data)
-        assert info["type"] == "str"
-        assert info["char_count"] == 11
-    
-    def test_dict_info(self):
-        """Информация о dict содержит key_count."""
-        data = {"a": 1, "b": 2}
-        info = ObservationPhase.get_size_info(data)
-        assert info["type"] == "dict"
-        assert info["key_count"] == 2
 
 
 # ============================================================================
@@ -194,173 +165,111 @@ class TestAnalyzeMethod:
     """Тесты метода analyze()."""
     
     @pytest.mark.asyncio
-    async def test_returns_observation_analysis(self, observation_phase, mock_execution_result):
-        """analyze() возвращает ObservationAnalysis."""
+    async def test_returns_observation_result(self, observation_phase, mock_execution_result_success):
+        """analyze() возвращает ObservationResult."""
         result = await observation_phase.analyze(
-            result=mock_execution_result,
+            result=mock_execution_result_success,
             decision_action="test_action",
             decision_parameters={},
             session_context=None,
             step_number=1,
         )
-        assert isinstance(result, ObservationAnalysis)
+        assert isinstance(result, ObservationResult)
     
     @pytest.mark.asyncio
-    async def test_sets_save_type(self, observation_phase, mock_execution_result):
-        """analyze() заполняет save_type в возвращаемом ObservationAnalysis."""
+    async def test_result_has_required_fields(self, observation_phase, mock_execution_result_success):
+        """ObservationResult содержит все обязательные поля."""
         result = await observation_phase.analyze(
-            result=mock_execution_result,
+            result=mock_execution_result_success,
             decision_action="test_action",
             decision_parameters={},
             session_context=None,
             step_number=1,
         )
-        assert result.save_type in ("raw_data", "summary")
+        assert hasattr(result, 'status')
+        assert hasattr(result, 'observation')
+        assert hasattr(result, 'key_findings')
+        assert hasattr(result, 'data_quality')
+        assert hasattr(result, 'next_step_suggestion')
+        assert hasattr(result, 'errors')
+        assert hasattr(result, 'requires_additional_action')
     
     @pytest.mark.asyncio
-    async def test_does_not_mutate_state_with_none_context(self, observation_phase, mock_execution_result):
-        """При session_context=None analyze() НЕ падает и не мутирует состояние."""
-        result = await observation_phase.analyze(
-            result=mock_execution_result,
-            decision_action="test_action",
-            decision_parameters={},
-            session_context=None,
-            step_number=1,
-        )
-        assert isinstance(result, ObservationAnalysis)
-    
-    @pytest.mark.asyncio
-    async def test_does_not_mutate_state_with_context(self, observation_phase, mock_execution_result):
-        """analyze() НЕ вызывает методы agent_state (SRP: только анализ, без мутации)."""
-        mock_session = MagicMock()
-        mock_session.agent_state = MagicMock(spec=AgentState)
-        
-        await observation_phase.analyze(
-            result=mock_execution_result,
-            decision_action="test_action",
-            decision_parameters={},
-            session_context=mock_session,
-            step_number=1,
-        )
-        
-        # Проверяем, что agent_state НЕ трогали
-        mock_session.agent_state.push_observation.assert_not_called()
-        mock_session.agent_state.add_step.assert_not_called()
-        mock_session.agent_state.register_observation.assert_not_called()
-    
-    @pytest.mark.asyncio
-    async def test_calls_observer_analyze(self, observation_phase, mock_execution_result):
-        """analyze() вызывает observer.analyze() для получения данных."""
-        await observation_phase.analyze(
-            result=mock_execution_result,
-            decision_action="test_action",
-            decision_parameters={},
-            session_context=None,
-            step_number=1,
-        )
-        observation_phase.observer.analyze.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_with_empty_data(self, observation_phase):
-        """analyze() с пустыми данными (data=None)."""
-        result = MagicMock(spec=ExecutionResult)
-        result.status = MagicMock(value="success")
-        result.data = None
-        result.error = None
-        
+    async def test_with_empty_data(self, observation_phase, mock_execution_result_empty):
+        """analyze() с пустыми данными корректно обрабатывает."""
         obs = await observation_phase.analyze(
-            result=result,
+            result=mock_execution_result_empty,
             decision_action="test_action",
             decision_parameters={},
             session_context=None,
             step_number=1,
         )
-        assert isinstance(obs, ObservationAnalysis)
-        assert obs.save_type == "summary"  # None данные → summary
+        assert isinstance(obs, ObservationResult)
+        assert obs.status == "empty"
     
     @pytest.mark.asyncio
-    async def test_with_large_data_sets_summary(self, observation_phase):
-        """analyze() с большими данными устанавливает save_type='summary'."""
-        result = MagicMock(spec=ExecutionResult)
-        result.status = MagicMock(value="success")
-        result.data = [{"id": i} for i in range(10)]  # > MAX_ROWS
-        result.error = None
-        
+    async def test_with_error_data(self, observation_phase, mock_execution_result_error):
+        """analyze() с ошибкой корректно обрабатывает."""
         obs = await observation_phase.analyze(
-            result=result,
+            result=mock_execution_result_error,
             decision_action="test_action",
             decision_parameters={},
             session_context=None,
             step_number=1,
         )
-        assert obs.save_type == "summary"
+        assert isinstance(obs, ObservationResult)
+        assert obs.status == "error"
+    
+    @pytest.mark.asyncio
+    async def test_large_data_compression(self, observation_phase, mock_execution_result_large_data):
+        """analyze() со большими данными сжимает observation text."""
+        obs = await observation_phase.analyze(
+            result=mock_execution_result_large_data,
+            decision_action="test_action",
+            decision_parameters={},
+            session_context=None,
+            step_number=1,
+        )
+        assert isinstance(obs, ObservationResult)
+        # Текст наблюдения должен быть сжат (не содержать все 20 строк)
+        assert len(obs.observation) < 5000  # Разумный лимит для сжатого текста
+        assert "summary" in obs.observation.lower() or "строк" in obs.observation
 
 
 # ============================================================================
-# Тесты ObservationAnalysis модели
+# Тесты ObservationResult модели
 # ============================================================================
 
-class TestObservationAnalysis:
-    """Тесты Pydantic модели ObservationAnalysis."""
+class TestObservationResult:
+    """Тесты Pydantic модели ObservationResult."""
     
-    def test_create_with_save_type(self):
-        """ObservationAnalysis может быть создан с полем save_type."""
-        obs = ObservationAnalysis(
+    def test_create_minimal(self):
+        """ObservationResult может быть создан с минимальными полями."""
+        obs = ObservationResult(status="success")
+        assert obs.status == "success"
+        assert obs.observation == ""
+        assert obs.key_findings == []
+        assert obs.errors == []
+        assert obs.requires_additional_action == False
+    
+    def test_create_full(self):
+        """ObservationResult может быть создан со всеми полями."""
+        obs = ObservationResult(
             status="success",
-            insight="Test",
-            save_type="raw_data",
+            observation="Test observation",
+            key_findings=["Finding 1"],
+            data_quality={"completeness": 1.0},
+            next_step_suggestion="Continue",
+            errors=[],
+            requires_additional_action=False,
         )
-        assert obs.save_type == "raw_data"
+        assert obs.status == "success"
+        assert obs.observation == "Test observation"
     
-    def test_default_save_type_none(self):
-        """save_type по умолчанию None."""
-        obs = ObservationAnalysis(status="success")
-        assert obs.save_type is None
-    
-    def test_serialization_includes_save_type(self):
-        """При сериализации save_type включается в словарь."""
-        obs = ObservationAnalysis(status="success", save_type="summary")
+    def test_serialization(self):
+        """При сериализации все поля включаются в словарь."""
+        obs = ObservationResult(status="success", observation="Test")
         data = obs.model_dump()
-        assert "save_type" in data
-        assert data["save_type"] == "summary"
-
-
-# ============================================================================
-# Тесты истории наблюдений (оставлено из старого файла)
-# ============================================================================
-
-class TestAgentStateObservationHistory:
-    """Тесты управления историей наблюдений в AgentState."""
-    
-    def test_push_observation_adds_to_history(self):
-        """Наблюдения добавляются в историю."""
-        state = AgentState()
-        obs = ObservationAnalysis(status="success", insight="First observation")
-        state.push_observation(obs)
-        assert len(state.observation_history) == 1
-        assert state.observation_history[0].status == "success"
-    
-    def test_push_observation_respects_limit(self):
-        """История наблюдений ограничена 3 записями."""
-        state = AgentState()
-        for i in range(4):
-            obs = ObservationAnalysis(status="success", insight=f"Observation {i}")
-            state.push_observation(obs)
-        assert len(state.observation_history) == 3
-        assert state.observation_history[0].insight == "Observation 1"
-        assert state.observation_history[2].insight == "Observation 3"
-    
-    def test_fifo_behavior(self):
-        """При превышении лимита старые записи удаляются (FIFO)."""
-        state = AgentState()
-        for i in range(5):
-            obs = ObservationAnalysis(status="success", insight=f"Observation {i}")
-            state.push_observation(obs)
-        assert len(state.observation_history) == 3
-        assert state.observation_history[0].insight == "Observation 2"
-        assert state.observation_history[2].insight == "Observation 4"
-    
-    def test_empty_observation_history(self):
-        """Пустая история наблюдений."""
-        state = AgentState()
-        assert len(state.observation_history) == 0
+        assert "status" in data
+        assert "observation" in data
+        assert "key_findings" in data

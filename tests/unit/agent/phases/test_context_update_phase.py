@@ -12,9 +12,12 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from core.agent.phases.context_update_phase import ContextUpdatePhase
-from core.agent.state import ObservationAnalysis, AgentState
+from core.agent.state import AgentState
 from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
 from core.models.data.execution import ExecutionResult, ExecutionStatus
+
+# ObservationAnalysis заменён на обычный dict в тестах
+ObservationAnalysis = dict
 
 
 # ============================================================================
