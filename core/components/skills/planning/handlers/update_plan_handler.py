@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.components.skills.handlers.base_handler import SkillHandler
-from core.components.skills.check_result.handlers.param_utils import params_to_dict
 
 
 class UpdatePlanHandler(SkillHandler):
@@ -22,10 +21,9 @@ class UpdatePlanHandler(SkillHandler):
         RETURNS:
         - BaseModel: Pydantic модель выходного контракта
         """
-        params_dict = params_to_dict(params)
-        plan_id = params_dict.get('plan_id', '')
-        updates = params_dict.get('updates', {})
-        reason = params_dict.get('reason', '')
+        plan_id = params.plan_id if hasattr(params, 'plan_id') else ''
+        updates = params.updates if hasattr(params, 'updates') else {}
+        reason = params.reason if hasattr(params, 'reason') else ''
 
         if plan_id:
             plan_result = await self.executor.execute_action(

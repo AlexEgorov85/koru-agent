@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.components.skills.handlers.base_handler import SkillHandler
-from core.components.skills.check_result.handlers.param_utils import params_to_dict
 
 
 class CreatePlanHandler(SkillHandler):
@@ -22,8 +21,7 @@ class CreatePlanHandler(SkillHandler):
         RETURNS:
         - BaseModel: Pydantic модель выходного контракта
         """
-        params_dict = params_to_dict(params)
-        goal = params_dict.get('goal', '')
+        goal = params.goal if hasattr(params, 'goal') else ''
         
         prompt_obj = self.get_prompt()
         rendered_prompt = prompt_obj if prompt_obj else ""
