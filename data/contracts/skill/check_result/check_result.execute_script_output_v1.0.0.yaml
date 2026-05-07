@@ -26,8 +26,9 @@ schema_data:
       type: string
       description: Название выполненного скрипта
     warning:
-      type: [string, "null"]
+      type: string
       description: Предупреждение (если есть, может быть null)
+      nullable: true
   required:
     - rows
     - rowcount
