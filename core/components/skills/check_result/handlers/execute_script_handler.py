@@ -105,16 +105,34 @@ class DynamicQueryBuilder:
     ) -> tuple[str, Dict[str, Any]]:
         """Подготовка SQL и параметров - форматирование значений + рендеринг шаблона"""
         clean_params: Dict[str, Any] = {}
-        
+        final_sql = script.sql_template
+
         # Сначала обрабатываем параметры
         for param_name, param_def in script.parameters.items():
             value = params.get(param_name)
 
+            # Пропускаем пустые/None
             if value is None or (isinstance(value, str) and not value.strip()):
                 if not param_def.required:
                     continue
                 raise ValueError(f"Обязательный параметр '{param_name}' отсутствует")
 
+            # 🔹 1. ОБРАБОТКА СПИСКОВ (результат Vector Search)
+            if isinstance(value, list):
+                if not value:
+                    continue  # Пустой список → пропускаем условие
+
+                # Заменяем ILIKE на = ANY (PostgreSQL + asyncpg работают с этим нативно)
+                final_sql = re.sub(
+                    rf'ILIKE\s+:{param_name}\b',
+                    f'= ANY(:{param_name})',
+                    final_sql,
+                    flags=re.IGNORECASE
+                )
+                clean_params[param_name] = value
+                continue
+
+            # 🔹 2. СТАНДАРТНАЯ ЛОГИКА ДЛЯ СКАЛЯРОВ
             formatted_value = value
 
             if param_def.type == "like" and isinstance(value, str):
@@ -129,11 +147,14 @@ class DynamicQueryBuilder:
             elif param_def.type == "number":
                 clean_params[param_name] = int(value) if value else None
                 continue
+            elif param_def.type == "date":
+                clean_params[param_name] = value
+                continue
 
             clean_params[param_name] = formatted_value
 
         # Рендерим шаблон
-        final_sql = DynamicQueryBuilder._render_template(script.sql_template, clean_params)
+        final_sql = DynamicQueryBuilder._render_template(final_sql, clean_params)
 
         # Гарантируем наличие LIMIT :max_rows в SQL
         if ":max_rows" not in final_sql:
@@ -141,7 +162,6 @@ class DynamicQueryBuilder:
             clean_params["max_rows"] = clean_params.get("max_rows", script.max_rows_default)
 
         # Оставляем только те параметры, которые реально используются в SQL как :param_name
-        import re
         param_names_in_sql = re.findall(r':(\w+)', final_sql)
         clean_params = {k: v for k, v in clean_params.items() if k in param_names_in_sql}
 
