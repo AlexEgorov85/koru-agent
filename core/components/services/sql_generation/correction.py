@@ -86,7 +86,7 @@ class SQLCorrectionEngine:
         # Создание вывода с обоснованием
         output = {
             "corrected_sql": corrected_sql,
-            "reasoning": self._generate_reasoning(
+            "reasoning_detail": self._generate_reasoning(
                 correction_input.get("error_type"),
                 correction_input.get("error_message"),
                 corrected_sql

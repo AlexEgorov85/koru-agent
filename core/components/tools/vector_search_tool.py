@@ -479,7 +479,7 @@ class VectorSearchTool(Tool):
             analysis_type=analysis_type,
             result=result_data.get("result", {}),
             confidence=result_data.get("confidence", 0.5),
-            reasoning=result_data.get("reasoning", "")
+            reasoning_detail=result_data.get("reasoning_detail", {}) or result_data.get("reasoning", ""),
         )
 
         # 5. Сохранение в кэш

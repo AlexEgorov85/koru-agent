@@ -429,7 +429,7 @@ class SQLGenerationService(Service):
             result = {
                 "sql": sql,
                 "parameters": validated.get('parameters', {}) if isinstance(validated, dict) else getattr(validated, 'parameters', {}),
-                "reasoning": analysis_strategy,
+                "reasoning_detail": analysis_strategy,
                 "tables_used": [],
                 "safety_score": validated.get('safety_score', 0.0) if isinstance(validated, dict) else getattr(validated, 'safety_score', 0.0),
                 "generation_id": f"gen_{hash(natural_language_query)}",
