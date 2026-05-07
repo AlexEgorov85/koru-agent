@@ -14,13 +14,11 @@ import json
 import re
 import time
 from datetime import date, datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from pydantic import BaseModel
 
-from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.components.action_executor import ExecutionContext
-from core.components.skills.utils.observation_formatter import ObservationFormatter
 from core.config.component_config import ComponentConfig
 from core.errors.exceptions import SkillExecutionError
 from core.models.data.capability import Capability

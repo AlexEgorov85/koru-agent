@@ -50,17 +50,6 @@ class PromptContextBuilder:
         return self._prompt_builder._build_dialogue_history(session_context)
 
 
-class ObservationFormatter:
-    """Форматирует наблюдения и историю шагов для промпта."""
-
-    def __init__(self, prompt_builder: "PromptBuilderService"):
-        self._prompt_builder = prompt_builder
-
-    def build_step_history(self, last_steps: list, session_context=None) -> str:
-        """Сформировать человекочитаемую историю шагов."""
-        return self._prompt_builder._build_step_history(last_steps, session_context)
-
-
 class CapabilityResolver:
     """Разрешает и форматирует capability-контекст для LLM."""
 
@@ -105,7 +94,6 @@ class PromptBuilderService:
 
     def __init__(self):
         self.prompt_context_builder = PromptContextBuilder(self)
-        self.observation_formatter = ObservationFormatter(self)
         self.capability_resolver = CapabilityResolver(self)
 
     def build_reasoning_prompt(
@@ -138,7 +126,7 @@ class PromptBuilderService:
             "dialogue_history": self.prompt_context_builder.build_dialogue_history(
                 session_context
             ),
-            "step_history": self.observation_formatter.build_step_history(
+            "step_history": self._build_step_history(
                 context_analysis.get("last_steps", []), session_context=session_context
             ),
             "available_tools": tools_str,
@@ -179,7 +167,7 @@ class PromptBuilderService:
             f"Ошибки state (последние): {context_analysis.get('state_errors', [])}",
             f"Пустых результатов: {context_analysis.get('empty_results_count', 0)}",
             f"Повторов действий: {context_analysis.get('repeated_actions_count', 0)}",
-            f"Последнее наблюдение: {context_analysis.get('last_observation')}",
+            f"Последнее наблюдение: {context_analysis.get('last_observation').observation if context_analysis.get('last_observation') else None}",
             self._build_adaptive_hints(context_analysis),
         ]
         return "\n".join(part for part in parts if part)

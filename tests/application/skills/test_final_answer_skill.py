@@ -171,8 +171,9 @@ class TestFinalAnswerSkillExecution:
         # Используем реальные контракты вместо MagicMock
         input_contract = load_contract_schema("final_answer.generate", "input")
         output_contract = load_contract_schema("final_answer.generate", "output")
-        skill.input_contracts = {"final_answer.generate": input_contract}
-        skill.output_contracts = {"final_answer.generate": output_contract}
+        # Сохраняем скомпилированные Pydantic-схемы, а не объекты Contract
+        skill.input_contracts = {"final_answer.generate": input_contract.pydantic_schema}
+        skill.output_contracts = {"final_answer.generate": output_contract.pydantic_schema}
         
         await skill.initialize()
         return skill
@@ -343,7 +344,7 @@ class TestFinalAnswerSkillExecution:
         
         parameters = {
             "goal": "Тестовая цель",
-            "decision_reasoning": "Test"
+            "decision_reasoning_detail": {"analysis_final": "Тестовое решение"}
         }
         
         capability = Capability(

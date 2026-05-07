@@ -19,7 +19,7 @@ JsonParsingService — единый сервис для парсинка JSON о
 """
 import json
 import re
-from typing import Any, Optional, Dict, List, Type, Tuple
+from typing import Any, Optional, Dict, List, Type, Tuple, Union
 from pydantic import ValidationError, create_model
 
 from core.components.services.service import Service
@@ -611,6 +611,25 @@ class JsonParsingService(Service):
                 else:
                     self._log_warning(f"$ref '{ref_name}' не найден в $defs")
                     return Any
+
+            # Проверка на anyOf (Union type)
+            if "anyOf" in field_schema:
+                anyof_schemas = field_schema["anyOf"]
+                resolved_types = []
+                for sub_schema in anyof_schemas:
+                    resolved = resolve_field_type(sub_schema, field_name)
+                    resolved_types.append(resolved)
+                # Фильтруем Any
+                resolved_types = [t for t in resolved_types if t is not Any]
+                if not resolved_types:
+                    return Any
+                if len(resolved_types) == 1:
+                    return resolved_types[0]
+                if len(resolved_types) == 2:
+                    return Union[resolved_types[0], resolved_types[1]]
+                if len(resolved_types) == 3:
+                    return Union[resolved_types[0], resolved_types[1], resolved_types[2]]
+                return Any
 
             field_type = field_schema.get("type", "any")
 

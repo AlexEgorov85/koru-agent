@@ -26,8 +26,10 @@ schema_data:
             type: string
             description: "Полное имя таблицы (schema.table)"
           pk_value:
-            type: string
-            description: "Значение primary key (строковое представление)"
+             anyOf:
+               - type: string
+               - type: integer
+             description: "Значение primary key (строка или число)"
           row:
             type: object
             description: "Все поля строки из БД"

@@ -189,7 +189,36 @@ class Contract(TemplateValidatorMixin, BaseModel):
         RAISES:
         - ValueError: если тип неизвестен или не указан
         """
+        # Поддержка anyOf / oneOf (JSON Schema)
+        if "anyOf" in field_schema or "oneOf" in field_schema:
+            sub_schemas = field_schema.get("anyOf") or field_schema.get("oneOf")
+            if not sub_schemas:
+                raise ValueError(f"Поле '{field_name}': {('anyOf' if 'anyOf' in field_schema else 'oneOf')} пуст")
+            # Компилируем первый не-null тип (упрощение для Union)
+            non_null = [s for s in sub_schemas if s.get("type") != "null"]
+            target = non_null[0] if non_null else sub_schemas[0]
+            base_type = self._compile_field_schema(field_name, target)
+            # Если есть null в anyOf — делаем Optional
+            if any(s.get("type") == "null" for s in sub_schemas):
+                return Optional[base_type]
+            return base_type
+
         json_type = field_schema.get("type")
+
+        # Обработка типа как списка (например, ["string", "null"] для nullable-полей)
+        nullable = False
+        if isinstance(json_type, list):
+            non_null_types = [t for t in json_type if t != "null"]
+            nullable = "null" in json_type
+
+            if not non_null_types:
+                raise ValueError(f"Поле '{field_name}': тип не может состоять только из 'null'")
+
+            if len(non_null_types) == 1:
+                json_type = non_null_types[0]
+            else:
+                # Несколько типов — используем первый (упрощение для Union)
+                json_type = non_null_types[0]
 
         # Строгая проверка типа
         if json_type is None:
@@ -204,30 +233,30 @@ class Contract(TemplateValidatorMixin, BaseModel):
                 f"Допустимые: {', '.join(sorted(_VALID_JSON_SCHEMA_TYPES))}"
             )
 
-        # enum → Literal
-        enum_values = field_schema.get("enum")
-        if enum_values:
+        # Вычисление базового типа
+        if field_schema.get("enum"):
+            enum_values = field_schema["enum"]
             if not enum_values:
                 raise ValueError(f"Поле '{field_name}': enum не может быть пустым")
-            return Literal[tuple(enum_values)]
-
-        # array → list[ItemType]
-        if json_type == "array":
+            base_type = Literal[tuple(enum_values)]
+        elif json_type == "array":
             items_schema = field_schema.get("items")
             if items_schema:
                 item_type = self._compile_field_schema(f"{field_name}[]", items_schema)
-                return list[item_type]
-            return list
-
-        # object → вложенная Pydantic-модель
-        if json_type == "object":
+                base_type = list[item_type]
+            else:
+                base_type = list
+        elif json_type == "object":
             nested_properties = field_schema.get("properties")
             if nested_properties:
-                return self._compile_nested_object(field_name, field_schema)
-            return dict
+                base_type = self._compile_nested_object(field_name, field_schema)
+            else:
+                base_type = dict
+        else:
+            base_type = _JSON_TO_PYTHON_TYPE[json_type]
 
-        # Примитивы: string, integer, number, boolean
-        return _JSON_TO_PYTHON_TYPE[json_type]
+        # Оборачиваем в Optional, если поле nullable
+        return Optional[base_type] if nullable else base_type
 
     def _compile_nested_object(
         self,

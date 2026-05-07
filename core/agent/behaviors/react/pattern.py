@@ -1,4 +1,4 @@
-"""ReActPattern - реактивная стратегия поведения.
+﻿"""ReActPattern - реактивная стратегия поведения.
 
 АРХИТЕКТУРА:
 1. decide() - точка входа
@@ -7,10 +7,10 @@
 4. _make_decision() - принятие решения на основе результата LLM
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
-from core.agent.behaviors.react.schema_validator import SchemaValidator
 from core.agent.behaviors.react.utils import analyze_context
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
@@ -33,33 +33,8 @@ class ReActPattern(BaseBehaviorPattern):
         super().__init__(
             component_name, component_config, application_context, executor
         )
-
         self.error_count = 0
-        self.max_consecutive_errors = 3
-
-        self.schema_validator = SchemaValidator()
         self.fallback_strategy = FallbackStrategyService()
-
-    @property
-    def llm_orchestrator(self):
-        if self.application_context and hasattr(
-            self.application_context, "llm_orchestrator"
-        ):
-            return self.application_context.llm_orchestrator
-        return None
-
-    @property
-    def llm_provider(self):
-        """Получить LLM провайдер из инфраструктурного контекста."""
-        if self.application_context and hasattr(
-            self.application_context, "infrastructure_context"
-        ):
-            infra = self.application_context.infrastructure_context
-            if infra.resource_registry:
-                resource = infra.resource_registry.get_resource("default_llm")
-                if resource:
-                    return resource.instance
-        return None
 
     # =========================================================================
     # ПУБЛИЧНЫЙ ИНТЕРФЕЙС
@@ -115,88 +90,103 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability],
     ) -> Decision:
         """Генерация решения через LLM."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
         from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
+        # Логируем входные параметры
+        self._log_debug(
+            f"📥 [ReAct.decide] Входные параметры: "
+            f"session_id={session_context.session_id}, "
+            f"goal={session_context.goal}, "
+            f"caps={len(available_capabilities)}",
+            event_type=EventType.AGENT_DECISION,
+        )
+
+        # Берём промпт и контракт (загружены в initialize())
+        system_prompt = self.get_prompt("behavior.react.think.system")
+        user_prompt = self.get_prompt("behavior.react.think.user")
+        output_contract = self.get_output_contract("behavior.react.think")
+
+        # Извлекаем content из Prompt объекта
+        system = system_prompt.content if system_prompt else ""
+        user = user_prompt.content if user_prompt else ""
+
+        # Логируем загруженные промпты
+        self._log_debug(
+            f"📋 [ReAct.decide] Промпты загружены: "
+            f"system={len(system) if system else 0} симв., "
+            f"user={len(user) if user else 0} симв.",
+            event_type=EventType.LLM_CALL,
+        )
+
+        # Schema из контракта
+        schema = None
+        if output_contract:
+            if hasattr(output_contract, "model_json_schema"):
+                schema = output_contract.model_json_schema()
+            elif hasattr(output_contract, "model_schema"):
+                schema = output_contract.model_schema
+
+        if schema is None:
+            self.log.error(
+                "❌ [ReAct] Не удалось загрузить схему контракта 'behavior.react.think'. LLM будет вызван без строгой схемы!",
+                extra={"event_type": EventType.ERROR},
+            )
+
+        if not system or not user:
+            return self._handle_error("prompts_not_loaded", available_capabilities)
+
+        # Рендеринг промпта
+        full_prompt = self.prompt_builder.build_reasoning_prompt(
+            context_analysis=context,
+            available_capabilities=available_capabilities,
+            templates={"system": system, "user": user},
+            session_context=session_context,
+            pattern_id="react",
+            application_context=self.application_context,
+        )
+
+        # Логируем метаданные запроса
+        self._log_debug(
+            f"[ReAct.decide] prompt loaded: system={len(system)} chars, user={len(full_prompt)} chars, schema_keys={list(schema.keys()) if schema else []}",
+            event_type=EventType.LLM_CALL,
+        )
+
+        # Получаем оркестратор
+        orchestrator = getattr(self.application_context, "llm_orchestrator", None)
+        if not orchestrator:
+            return self.fallback_strategy.create_reasoning_fallback(
+                context, available_capabilities, "orchestrator_not_available"
+            )
+
+        # Получаем провайдер LLM
+        provider = None
+        if self.application_context and hasattr(self.application_context, "infrastructure_context"):
+            infra = self.application_context.infrastructure_context
+            if hasattr(infra, "resource_registry"):
+                resource = infra.resource_registry.get_resource("default_llm")
+                if resource:
+                    provider = resource.instance
+
         try:
-            # Логируем входные параметры
-            self._log_debug(
-                f"📥 [ReAct.decide] Входные параметры: "
-                f"session_id={session_context.session_id}, "
-                f"goal={session_context.goal}, "
-                f"caps={len(available_capabilities)}",
-                event_type=EventType.AGENT_DECISION,
-            )
-
-            # Берём промпт и контракт (загружены в initialize())
-            system_prompt = self.get_prompt("behavior.react.think.system")
-            user_prompt = self.get_prompt("behavior.react.think.user")
-            output_contract = self.get_output_contract("behavior.react.think")
-
-            # Извлекаем content из Prompt объекта
-            system = system_prompt.content if system_prompt else ""
-            user = user_prompt.content if user_prompt else ""
-
-            # Логируем загруженные промпты
-            self._log_debug(
-                f"📋 [ReAct.decide] Промпты загружены: "
-                f"system={len(system) if system else 0} симв., "
-                f"user={len(user) if user else 0} симв.",
+            self._log_info(
+                f"🔮 LLM вызов (temperature=0.3, max_tokens=2000, structured_output)",
                 event_type=EventType.LLM_CALL,
             )
 
-            # Schema из контракта (model_json_schema - метод класса, не экземпляра)
-            schema = None
-            if output_contract:
-                if hasattr(output_contract, "model_json_schema"):
-                    schema = output_contract.model_json_schema()
-                elif hasattr(output_contract, "model_schema"):
-                    schema = output_contract.model_schema
+            # Извлекаем данные для трассировки
+            step_number = None
+            if (
+                hasattr(session_context, "step_context")
+                and session_context.step_context
+            ):
+                step_number = session_context.step_context.get_current_step_number()
 
-            if not system or not user:
-                return self._handle_error("prompts_not_loaded", available_capabilities)
-
-            # Рендеринг промпта через build_reasoning_prompt
-            full_prompt = self.prompt_builder.build_reasoning_prompt(
-                context_analysis=context,
-                available_capabilities=available_capabilities,
-                templates={"system": system, "user": user},
-                schema_validator=self.schema_validator,
-                session_context=session_context,
-                pattern_id="react",
-                application_context=self.application_context,
-            )
-
-            # Логируем метаданные запроса ПЕРЕД вызовом LLM (только в файл)
-            self._log_debug(
-                f"[ReAct.decide] prompt loaded: system={len(system)} chars, user={len(full_prompt)} chars, schema_keys={list(schema.keys())}",
-                event_type=EventType.LLM_CALL,
-            )
-
-            # Вызов LLM
-            orchestrator = self.llm_orchestrator
-            if not orchestrator:
-                return self.fallback_strategy.create_reasoning_fallback(
-                    context, available_capabilities, "orchestrator_not_available"
-                )
-
-            # Получаем провайдер из инфраструктурного контекста
-            provider = self.llm_provider
-
-            if provider is None:
-                self._log_error(
-                    f"LLM provider is None! "
-                    f"Registry keys: {getattr(getattr(getattr(self.application_context, 'infrastructure_context', None), 'resource_registry', None), 'get_all_names', lambda: [])()}"
-                )
-                return self._handle_error(
-                    "llm_provider_not_available", available_capabilities
-                )
-
+            # Создаём LLMRequest
             llm_request = LLMRequest(
                 prompt=full_prompt,
                 system_prompt=system,
                 temperature=0.3,
-                max_tokens=2000,  # Увеличено для полного JSON ответа
+                max_tokens=2000,
                 structured_output=StructuredOutputConfig(
                     output_model="ReasoningResult",
                     schema_def=schema,
@@ -205,218 +195,80 @@ class ReActPattern(BaseBehaviorPattern):
                 ),
             )
 
-            try:
-                self._log_info(
-                    f"🔮 LLM вызов (temperature=0.3, max_tokens=2000, structured_output)",
-                    event_type=EventType.LLM_CALL,
-                )
-
-                # Извлекаем данные для трассировки из session_context
-                step_number = None
-                if (
-                    hasattr(session_context, "step_context")
-                    and session_context.step_context
-                ):
-                    step_number = session_context.step_context.get_current_step_number()
-
-                result = await orchestrator.execute_structured(
-                    request=llm_request,
-                    provider=provider,
-                    session_id=session_context.session_id,
-                    agent_id=getattr(session_context, "agent_id", None),
-                    step_number=step_number,
-                    goal=session_context.goal,
-                    phase="think",
-                    use_native_structured_output=False,
-                )
-            except Exception as e:
-                self._log_error(
-                    f"❌ Исключение при LLM вызове: {type(e).__name__}: {e}",
-                    event_type=EventType.LLM_ERROR,
-                    exc_info=True,
-                )
-                return self.fallback_strategy.create_error(
-                    f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
-                )
-
-            # ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ПРИЧИН пустого/невалидного ответа
-            if not result:
-                self._log_error(
-                    "❌ LLM вернул None (result=None)",
-                    event_type=EventType.LLM_ERROR,
-                )
-                return self.fallback_strategy.create_error(
-                    "llm_returned_none", available_capabilities
-                )
-            elif result.finish_reason == "empty":
-                self._log_error(
-                    f"❌ LLM вернул пустой ответ (finish_reason=empty) | "
-                    f"model={result.model} | attempts={getattr(result, 'parsing_attempts', 'N/A')}",
-                    event_type=EventType.LLM_ERROR,
-                )
-                return self.fallback_strategy.create_error(
-                    "llm_empty_response", available_capabilities
-                )
-            elif not result.content and not result.raw_response:
-                self._log_error(
-                    f"❌ LLM вернул ответ без контента | "
-                    f"finish_reason={result.finish_reason} | model={result.model}",
-                    event_type=EventType.LLM_ERROR,
-                )
-                return self.fallback_strategy.create_error(
-                    "llm_no_content", available_capabilities
-                )
-            elif not hasattr(result, "parsed_content") or result.parsed_content is None:
-                validation_errors = getattr(result, "validation_errors", [])
-                self._log_error(
-                    f"❌ JSON не распарсен | "
-                    f"finish_reason={result.finish_reason} | "
-                    f"errors={validation_errors}",
-                    event_type=EventType.LLM_ERROR,
-                )
-                return self.fallback_strategy.create_error(
-                    "llm_json_parse_failed", available_capabilities
-                )
-
-            reasoning_result = result.parsed_content
-
-            is_reflection_valid, reflection_reason = self.validate_reflection(
-                reasoning_result
+            # Вызов LLM через оркестратор
+            result = await orchestrator.execute_structured(
+                request=llm_request,
+                provider=provider,
+                session_id=session_context.session_id,
+                agent_id=getattr(session_context, "agent_id", None),
+                step_number=step_number,
+                goal=session_context.goal,
+                phase="think",
+                use_native_structured_output=False,
             )
-            if not is_reflection_valid:
-                if hasattr(session_context, "agent_state"):
-                    session_context.agent_state.register_step_outcome(
-                        action_name="reflection",
-                        status="failed",
-                        observation={"status": "error", "insight": reflection_reason},
-                        error_message=f"REFLECTION:{reflection_reason}"
-                    )
-                event_bus = getattr(
-                    getattr(self.application_context, "infrastructure_context", None),
-                    "event_bus",
-                    None,
-                )
-                if event_bus:
-                    from core.infrastructure.event_bus.unified_event_bus import (
-                        EventType,
-                    )
-
-                    await event_bus.publish(
-                        EventType.ERROR_OCCURRED,
-                        {"reason": reflection_reason},
-                        session_id=session_context.session_id,
-                        agent_id=getattr(session_context, "agent_id", None),
-                    )
-                    self._log_warning(
-                        f"⛔ Reflection gate заблокировал шаг: {reflection_reason}",
-                        event_type=EventType.WARNING,
-                    )
-                return self.fallback_strategy.create_error(
-                    f"reflection_blocked:{reflection_reason}", available_capabilities
-                )
-
-            self._log_info(
-                f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')})",
-                event_type=EventType.LLM_RESPONSE,
-            )
-
-            # Логируем ПОЛНЫЙ ответ LLM (сырой + распарсенный, только в файл)
-            raw_content = getattr(result, "raw_response", None)
-            raw_text = getattr(raw_content, "content", "") if raw_content else ""
-            self._log_debug(
-                f"🟢 [ReAct.decide] === ПОЛНЫЙ ОТВЕТ ОТ LLM ===\n"
-                f"--- Raw Response (len={len(raw_text)}) ---\n{raw_text}\n\n"
-                f"--- Parsed Content (Pydantic модель) ---\n"
-                f"{reasoning_result.model_dump_json(indent=2) if hasattr(reasoning_result, 'model_dump_json') else str(reasoning_result)}",
-                event_type=EventType.LLM_RESPONSE,
-            )
-
-            # Извлекаем размышление из 10 полей анализа
-            reasoning_detail = self._extract_full_reasoning(reasoning_result)
-            session_context.record_decision(
-                decision_data="reasoning", reasoning_detail=reasoning_detail
-            )
-
-            # Извлекаем полное размышление из 10 полей анализа
-            reasoning = self._extract_analysis_reasoning(reasoning_result)
-            reasoning_detail = self._extract_full_reasoning(reasoning_result)
-            
-            # Регистрируем решение в контексте с полным размышлением
-            session_context.record_decision(
-                decision_data="reasoning", reasoning_detail=reasoning_detail
-            )
- 
-            # Принятие решения
-            decision = await self._make_decision(
-                reasoning_result, available_capabilities
-            )
-            
-            # Добавляем полное размышление в решение
-            decision.reasoning_detail = reasoning_detail
- 
-            # Логируем финальное решение агента
-            reasoning_short = ""
-            if reasoning_detail:
-                reasoning_short = (
-                    reasoning_detail.get("analysis_final")
-                    or reasoning_detail.get("analysis_progress")
-                    or ""
-                )
-            
-            self._log_info(
-                f"🎯 [ReAct.decide] Финальное решение: "
-                f"type={decision.type.value}, "
-                f"action={decision.action or 'N/A'}, "
-                f"params={list((decision.parameters or {}).keys())}, "
-                f"reasoning={reasoning_short or 'N/A'}",
-                event_type=EventType.AGENT_DECISION,
-            )
-
-            self.error_count = 0
-            return decision
 
         except Exception as e:
             self._log_error(
-                f"❌ Критическая ошибка в ReActPattern.generate_decision: {e}",
+                f"❌ Исключение при LLM вызове: {type(e).__name__}: {e}",
+                event_type=EventType.LLM_ERROR,
                 exc_info=True,
             )
-            return self._handle_error(str(e), available_capabilities)
+            return self.fallback_strategy.create_error(
+                f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
+            )
+
+        # Проверка результата
+        if not result or not hasattr(result, "parsed_content") or result.parsed_content is None:
+            return self.fallback_strategy.create_error(
+                "llm_no_valid_response", available_capabilities
+            )
+
+        reasoning_result = result.parsed_content
+
+        self._log_info(
+            f"✅ LLM ответ получен (thought: {getattr(reasoning_result, 'thought', '')})",
+            event_type=EventType.LLM_RESPONSE,
+        )
+
+        decision = await self._make_decision(reasoning_result, available_capabilities)
+        self.error_count = 0
+
+        # Логируем финальное решение
+        self._log_info(
+            f"🎯 [ReAct.decide] Финальное решение: "
+            f"type={decision.type.value}, "
+            f"action={decision.action or 'N/A'}, "
+            f"params={list((decision.parameters or {}).keys())}, "
+            f"reasoning={decision.reasoning_detail or 'N/A'}",
+            event_type=EventType.AGENT_DECISION,
+        )
+
+        return decision
 
     async def _make_decision(
-        self, reasoning_result: Any, available_capabilities: List[Capability]
+        self,
+        reasoning_result: Any,
+        available_capabilities: List[Capability],
     ) -> Decision:
         """Преобразовать результат LLM в Decision."""
-        reasoning = self._extract_analysis_reasoning(reasoning_result)
-        reasoning_detail = self._extract_full_reasoning(reasoning_result)
-
         if isinstance(reasoning_result, dict):
             stop_condition = reasoning_result.get("stop_condition", False)
             stop_reason = reasoning_result.get("stop_reason", None)
-            decision = reasoning_result.get("decision", None)
-            capability_name = (
-                decision.get("next_action", None)
-                if isinstance(decision, dict)
-                else None
-            )
-            parameters = (
-                decision.get("parameters", {}) if isinstance(decision, dict) else {}
-            )
+            decision = reasoning_result.get("decision", {})
+            capability_name = decision.get("next_action") if isinstance(decision, dict) else None
+            parameters = decision.get("parameters", {}) if isinstance(decision, dict) else {}
         else:
             stop_condition = getattr(reasoning_result, "stop_condition", False)
             stop_reason = getattr(reasoning_result, "stop_reason", None)
             decision = getattr(reasoning_result, "decision", None)
             if isinstance(decision, dict):
-                capability_name = decision.get("next_action", None)
+                capability_name = decision.get("next_action")
                 parameters = decision.get("parameters", {})
             else:
-                capability_name = (
-                    getattr(decision, "next_action", None) if decision else None
-                )
+                capability_name = getattr(decision, "next_action", None) if decision else None
                 parameters = getattr(decision, "parameters", {}) if decision else {}
 
         if stop_condition:
-            # КРИТИЧНО: если LLM вернул next_action вместе с stop_condition=true,
-            # выполняем этот action (например, data_analysis.analyze_step_data) перед остановкой
             if capability_name and capability_name != "final_answer.generate":
                 self._log_info(
                     f"⚠️ LLM запросил {capability_name} перед остановкой (stop_condition=true)",
@@ -426,111 +278,57 @@ class ReActPattern(BaseBehaviorPattern):
                     type=DecisionType.ACT,
                     action=capability_name,
                     parameters=parameters,
-                    reasoning_detail=reasoning_detail,
                     is_final=False,
                 )
-            # Если LLM не указал next_action, проверяем большие данные
-            if self._should_continue_for_analysis(reasoning_result):
-                return Decision(
-                    type=DecisionType.ACT,
-                    action="data_analysis.analyze_step_data",
-                    parameters={},
-                    reasoning_detail=reasoning_detail,
-                    is_final=False,
-                )
-            return self._handle_stop_condition(capability_name, parameters, stop_reason, reasoning_detail)
+            return self._handle_stop_condition()
 
         if not capability_name:
-            return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action", reasoning_detail={"analysis_final": "LLM не вернул next_action"})
+            return Decision(
+                type=DecisionType.FAIL,
+                error="LLM не вернул next_action",
+                reasoning_detail={"analysis_final": "LLM не вернул next_action"}
+            )
 
-        # Поиск capability (inline реализация вместо _find_capability)
+        # Поиск capability
         capability = None
-        # 1. Прямое совпадение
         for cap in available_capabilities:
             if cap.name == capability_name:
                 capability = cap
                 break
-
-        # 2. Совпадение по префиксу
         if not capability and "." in capability_name:
             prefix = capability_name.split(".")[0]
             for cap in available_capabilities:
                 if cap.name == prefix:
                     capability = cap
                     break
-
         if not capability:
             for cap in available_capabilities:
                 if "react" in [s.lower() for s in (cap.supported_strategies or [])]:
                     capability = cap
                     capability_name = cap.name
                     break
-
-                if not capability:
-                    return Decision(
-                        type=DecisionType.FAIL, error="no_available_capabilities",
-                        reasoning_detail={"analysis_final": "no_available_capabilities"}
-                    )
-
-        # Валидация параметров (inline реализация вместо _validate_capability_parameters)
-        validated_params = parameters
-        if hasattr(self, "schema_validator") and self.schema_validator is not None:
-            try:
-                validated = self.schema_validator.validate_parameters(
-                    capability=capability, raw_params=parameters, context=str({})
-                )
-                validated_params = validated if validated else parameters
-            except Exception:
-                validated_params = {
-                    "input": parameters.get("input", "Продолжить выполнение задачи")
-                }
+        if not capability:
+            return Decision(
+                type=DecisionType.FAIL,
+                error="no_available_capabilities",
+                reasoning_detail={"analysis_final": "no_available_capabilities"}
+            )
 
         return Decision(
             type=DecisionType.ACT,
             action=capability_name,
-            parameters=validated_params,
-            reasoning_detail=reasoning_detail,
+            parameters=parameters,
+            reasoning_detail=getattr(reasoning_result, "reasoning_detail", None),
             is_final=capability_name == "final_answer.generate",
         )
 
-    def _should_continue_for_analysis(self, reasoning_result: Any) -> bool:
-        """
-        Проверить, нужно ли продолжить для анализа больших данных.
-        
-        ПРАВИЛО: Если в последнем наблюдении много данных, не останавливаемся,
-        а запускаем data_analysis для анализа.
-        """
-        # Проверяем observation из результата LLM
-        observation = None
-        if isinstance(reasoning_result, dict):
-            observation = reasoning_result.get("last_observation") or reasoning_result.get("observation")
-        else:
-            observation = getattr(reasoning_result, "last_observation", None) or getattr(reasoning_result, "observation", None)
-        
-        if observation:
-            obs_str = str(observation).lower()
-            # Ищем признаки больших данных в наблюдении
-            if "found" in obs_str and any(word in obs_str for word in ["results", "rows", "items"]):
-                # Извлекаем число
-                import re
-                numbers = re.findall(r'(\d+)\s*(?:results|rows|items)', obs_str)
-                for num_str in numbers:
-                    try:
-                        if int(num_str) > 10:
-                            return True
-                    except ValueError:
-                        pass
-        
-        return False
-
     def _handle_stop_condition(
-        self, capability_name: str, parameters: Dict[str, Any], stop_reason: str, reasoning_detail: Optional[Dict[str, Any]] = None
+        self, reasoning_detail: Optional[Dict[str, Any]] = None
     ) -> Decision:
-        """Обработать условие остановки - просто FINISH, Runtime сам вызовет final_answer."""
-        # Формируем reasoning_detail если не передан
+        """Обработать условие остановки — просто FINISH."""
         if reasoning_detail is None:
-            reasoning_detail = {"analysis_final": stop_reason or "goal_achieved"}
-        
+            reasoning_detail = {"analysis_final": "goal_achieved"}
+
         return Decision(
             type=DecisionType.FINISH,
             reasoning_detail=reasoning_detail,
@@ -538,123 +336,6 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
     def _handle_error(self, reason: str, capabilities: List[Capability]) -> Decision:
-        """Обработать ошибку - возвращаем FAIL."""
+        """Обработать ошибку — возвращаем FAIL."""
         self.error_count += 1
         return self.fallback_strategy.create_error(reason, capabilities)
-
-    def validate_reflection(self, step: Any) -> Tuple[bool, str]:
-        """Проверить reflection-блок шага, если он присутствует в контракте."""
-        reflection = None
-        if isinstance(step, dict):
-            reflection = step.get("reflection")
-        else:
-            reflection = getattr(step, "reflection", None)
-
-        if not reflection:
-            return True, ""
-
-        if isinstance(reflection, dict):
-            is_valid = reflection.get("is_valid", True)
-            is_redundant = reflection.get("is_redundant", False)
-        else:
-            is_valid = getattr(reflection, "is_valid", True)
-            is_redundant = getattr(reflection, "is_redundant", False)
-
-        if not is_valid:
-            return False, "invalid"
-        if is_redundant:
-            return False, "redundant"
-
-        return True, ""
-
-    def _extract_analysis_reasoning(self, reasoning_result: Any) -> str:
-        """
-        Универсальное извлечение размышления из ответа LLM.
-        Поддерживает: Pydantic-модели, dict, а также как 10 полей анализа, так и простое поле reasoning.
-        ВОЗВРАЩАЕТ: строку для summary (краткое обоснование)
-        """
-        import json
-
-        def safe_get(obj: Any, key: str) -> Any:
-            if isinstance(obj, dict):
-                return obj.get(key)
-            return getattr(obj, key, None)
-
-        # 1. Попытка извлечь 10 аналитических полей (старая схема)
-        ANALYSIS_FIELDS = [
-            ("analysis_progress", "Прогресс"),
-            ("analysis_state", "Состояние"),
-            ("analysis_deficit", "Дефицит"),
-            ("analysis_history", "История"),
-            ("analysis_errors", "Ошибки"),
-            ("analysis_tool_choice", "Выбор инструмента"),
-            ("analysis_params", "Параметры"),
-            ("analysis_fallback", "Fallback"),
-            ("analysis_stop", "Остановка"),
-            ("analysis_final", "Итог"),
-        ]
-
-        lines = []
-        for field_name, label in ANALYSIS_FIELDS:
-            value = safe_get(reasoning_result, field_name)
-            if value:
-                lines.append(f"{label}: {value}")
-
-        if lines:
-            return "\n".join(lines)
-
-        # 2. Fallback: ищем стандартные поля размышления
-        for key in ("reasoning", "thought", "reason", "explanation", "logic"):
-            val = safe_get(reasoning_result, key)
-            if val:
-                return str(val).strip()
-
-        # 3. Fallback: если это Pydantic-модель или dict, сериализуем содержимое
-        if hasattr(reasoning_result, "model_dump"):
-            dump = reasoning_result.model_dump()
-            if dump:
-                return json.dumps(dump, ensure_ascii=False, indent=2)
-        elif isinstance(reasoning_result, dict) and reasoning_result:
-            return json.dumps(reasoning_result, ensure_ascii=False, indent=2)
-
-        return "Размышление не доступно"
-
-    def _extract_full_reasoning(self, reasoning_result: Any) -> Dict[str, Any]:
-        """
-        Извлечение ПОЛНОГО структурированного рассуждения (все 10 полей анализа).
-        Используется для сохранения в AgentStep.reasoning_detail для переиспользования.
-
-        ВОЗВРАЩАЕТ:
-        - Dict со всеми полями анализа (даже пустыми)
-        """
-        def safe_get(obj: Any, key: str) -> Any:
-            if isinstance(obj, dict):
-                return obj.get(key)
-            return getattr(obj, key, None)
-
-        # 10 полей анализа
-        ANALYSIS_FIELDS = [
-            "analysis_progress",
-            "analysis_state",
-            "analysis_deficit",
-            "analysis_history",
-            "analysis_errors",
-            "analysis_tool_choice",
-            "analysis_params",
-            "analysis_fallback",
-            "analysis_stop",
-            "analysis_final",
-        ]
-
-        result = {}
-        for field_name in ANALYSIS_FIELDS:
-            value = safe_get(reasoning_result, field_name)
-            result[field_name] = value if value else None
-
-        # Дополнительно сохраняем стандартные поля, если они есть
-        for key in ("reasoning", "thought", "stop_condition", "stop_reason", "decision"):
-            val = safe_get(reasoning_result, key)
-            if val:
-                result[key] = val
-
-        return result

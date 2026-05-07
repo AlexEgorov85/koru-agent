@@ -11,6 +11,9 @@ schema_data:
     decision_reasoning:
       type: string
       description: Обоснование решения о завершении работы (reasoning from FINISH decision)
+    decision_reasoning_detail:
+      type: object
+      description: Полное структурированное рассуждение (10 полей analysis_*) от FINISH решения
     is_fallback:
       type: boolean
       default: false

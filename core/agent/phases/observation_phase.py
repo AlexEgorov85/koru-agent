@@ -28,8 +28,22 @@ class ObservationPhase:
     Возвращает СТРОГО ObservationResult (Pydantic модель).
     """
 
-    # Настройки
-    TRIGGER_MODE = "always"  # "always" | "on_error" | "on_empty"
+    # Настройки — LLM используется только при ошибках и пустых данных
+
+    # Пороги сжатия данных
+    LARGE_DATA_ROW_THRESHOLD = 5        # > 5 строк — считать данные большими, не писать сырые в observation
+    VERY_LARGE_DATA_ROW_THRESHOLD = 100  # > 100 строк — требовать data_analysis.analyze_step_data
+    MAX_EXAMPLES_TO_SHOW = 3              # Сколько примеров строк показывать в key_findings
+    MAX_PREVIEW_CHARS = 100               # Лимит символов для preview текста
+    MAX_TEXT_LENGTH = 500                 # Лимит символов для текстовых результатов
+    MAX_KEYS_TO_PREVIEW = 3                # Сколько ключей показывать в preview строки
+
+    # Настройки форматирования (аналогично observation_formatter.py)
+    TABLE_MAX_ROWS = 10                     # Максимум строк в табличном выводе
+    TABLE_MAX_KEYS = 5                      # Максимум ключей для preview
+    EMOJI_DATA = "📊"                       # Данные
+    EMOJI_WARNING = "⚠️"                    # Предупреждение
+    EMOJI_ANALYZE = "💡"                    # Требуется анализ
 
     def __init__(
         self,
@@ -45,80 +59,188 @@ class ObservationPhase:
         self.event_bus = event_bus
         self.application_context = application_context
 
-    async def analyze(
-        self,
-        result: ExecutionResult,
-        decision_action: str,
-        decision_parameters: Dict[str, Any],
-        session_context: Any,
-        step_number: int,
-    ) -> ObservationResult:
+    def _normalize_result(self, result: Any) -> Dict[str, Any]:
         """
-        Унифицированный анализ результата.
+        Нормализация любого результата в унифицированный формат.
 
-        Args:
-            result: ExecutionResult от ExecutionPhase
-            decision_action: Название действия
-            decision_parameters: Параметры действия
-            session_context: Контекст сессии для регистрации
-            step_number: Номер шага
-
-        Returns:
-            ObservationResult: Pydantic модель наблюдения (observation уже сжат при необходимости)
+        ВОЗВРАЩАЕТ:
+        - dict с ключами: data_type, count, items, sample, query
         """
-        
-        
-        session_id = session_context.session_id if session_context else "unknown"
+        if result is None:
+            return {"data_type": "none", "count": 0, "items": [], "sample": None, "query": ""}
 
-        # Определяем нужно ли LLM
-        should_call_llm = self._should_call_llm(result)
+        # Pydantic модели -> dict
+        if hasattr(result, 'model_dump'):
+            result = result.model_dump()
+        elif hasattr(result, 'dict'):
+            result = result.dict()
 
-        # Выполняем анализ
-        if should_call_llm:
-            observation_result = await self._run_llm_analysis(
-                result=result,
-                action=decision_action,
-                parameters=decision_parameters,
-                session_id=session_id,
-                step_number=step_number,
+        # SQL результаты (dict с rows)
+        if isinstance(result, dict) and ("rows" in result or "rowcount" in result):
+            rows = result.get("rows", [])
+            return {
+                "data_type": "sql",
+                "count": len(rows) if rows else result.get("rowcount", 0),
+                "items": rows if rows else [],
+                "sample": rows[0] if rows else None,
+                "query": result.get("query", ""),
+            }
+
+        # Vector search (list словарей с score)
+        if isinstance(result, list) and len(result) > 0:
+            first = result[0]
+            if isinstance(first, dict) and "score" in first:
+                return {
+                    "data_type": "vector_search",
+                    "count": len(result),
+                    "items": result,
+                    "sample": first,
+                    "query": result[0].get("query", "") if isinstance(result, dict) and "query" in result else "",
+                }
+
+        # Обычный список
+        if isinstance(result, list):
+            return {
+                "data_type": "list",
+                "count": len(result),
+                "items": result,
+                "sample": result[0] if result else None,
+                "query": "",
+            }
+
+        # Словарь
+        if isinstance(result, dict):
+            return {
+                "data_type": "dict",
+                "count": len(result),
+                "items": list(result.items())[:self.MAX_KEYS_TO_PREVIEW],
+                "sample": result,
+                "query": "",
+            }
+
+        # Всё остальное
+        return {
+            "data_type": "text",
+            "count": 1,
+            "items": [str(result)[:self.MAX_PREVIEW_CHARS]],
+            "sample": str(result)[:self.MAX_PREVIEW_CHARS],
+            "query": "",
+        }
+
+    def _build_observation(self, normalized: Dict[str, Any], action_name: str) -> Dict[str, Any]:
+        """
+        Единая логика формирования observation на основе нормализованных данных.
+
+        ВОЗВРАЩАЕТ:
+        - dict с ключами: observation_text, key_findings, next_step_suggestion, completeness
+        """
+        data_type = normalized["data_type"]
+        count = normalized["count"]
+        items = normalized["items"]
+        sample = normalized["sample"]
+
+        observation_text = ""
+        key_findings = []
+        completeness = 1.0
+        reliability = 0.8
+        next_step_suggestion = "Продолжить следующий шаг на основе прогресса цели"
+
+        # Если данных МНОГО — ТОЛЬКО СВОДКА (без сырых данных в observation)
+        if count > self.LARGE_DATA_ROW_THRESHOLD:
+            observation_text = (
+                f"{self.EMOJI_OBSERVATION} НАБЛЮДЕНИЕ (тип: {data_type})\n"
+                f"{self.EMOJI_DATA} Получено {count} строк. "
+                f"{self.EMOJI_ANALYZE} Для полного анализа используйте data_analysis.analyze_step_data"
             )
+
+            # Добавляем примеры в key_findings (всегда)
+            for i, item in enumerate(items[:self.MAX_EXAMPLES_TO_SHOW]):
+                if isinstance(item, dict):
+                    if data_type == "vector_search":
+                        score = item.get('score', 0)
+                        text = item.get('matched_text', item.get('content', str(item)))[:self.MAX_PREVIEW_CHARS]
+                        key_findings.append(f"[{i+1}] (score={score:.2f}) {text}")
+                    else:
+                        preview = {k: v for k, v in list(item.items())[:self.MAX_KEYS_TO_PREVIEW]}
+                        key_findings.append(f"[{i+1}] {preview}")
+                else:
+                    key_findings.append(f"[{i+1}] {str(item)[:self.MAX_PREVIEW_CHARS]}")
+
+            if count > self.MAX_EXAMPLES_TO_SHOW:
+                key_findings.append(f"... ещё {count - self.MAX_EXAMPLES_TO_SHOW} элементов")
+
+            # Если ДЕЙСТВИТЕЛЬНО МНОГО — требуем вызов data_analysis
+            if count > self.VERY_LARGE_DATA_ROW_THRESHOLD:
+                next_step_suggestion = (
+                    f"Обнаружено слишком много данных ({count} записей). "
+                    f"Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data."
+                )
         else:
-            observation_result = self._rule_based_observation(
-                action_name=decision_action,
-                parameters=decision_parameters,
-                result=result.data,
-                error=result.error if result.status == ExecutionStatus.FAILED else None,
-            )
+            # Данных мало — можно показать подробности
+            if data_type == "sql":
+                key_findings.append(f"{self.EMOJI_DATA} Получено {count} строк")
+                # Форматирование таблицей (аналогично observation_formatter.py)
+                if items:
+                    lines = []
+                    for i, row in enumerate(items[:self.TABLE_MAX_ROWS]):
+                        if isinstance(row, dict):
+                            line = "| " + " | ".join(str(v) for v in row.values()) + " |"
+                            lines.append(line)
+                        else:
+                            lines.append(f"| {row} |")
+                    if count > self.TABLE_MAX_ROWS:
+                        lines.append(f"... и ещё {count - self.TABLE_MAX_ROWS} записей")
+                    observation_text = "\n".join(lines)
+                else:
+                    observation_text = "Запрос выполнен, данных не найдено"
 
-        # Логируем
-        self.log.info(
-            f"📊 Observation: status={observation_result.status}, "
-            f"quality={observation_result.data_quality}",
-            extra={"event_type": EventType.INFO},
-        )
+                # Примеры строк (в key_findings)
+                for i, row in enumerate(items[:self.MAX_EXAMPLES_TO_SHOW]):
+                    if isinstance(row, dict):
+                        preview = {k: v for k, v in list(row.items())[:self.TABLE_MAX_KEYS]}
+                        key_findings.append(f"[{i+1}] {preview}")
 
-        return observation_result
+            elif data_type == "vector_search":
+                query_text = f" for query: {normalized.get('query', '')[:self.MAX_PREVIEW_CHARS]}" if normalized.get('query') else ""
+                observation_text = f"{self.EMOJI_DATA} Найдено {count} результатов{query_text}"
+                key_findings.append(f"{self.EMOJI_DATA} Найдено {count} результатов")
 
-    def _should_call_llm(self, result: ExecutionResult) -> bool:
-        """Определить нужно ли LLM."""
-        trigger_mode = self.TRIGGER_MODE
+                for i, r in enumerate(items[:self.MAX_EXAMPLES_TO_SHOW]):
+                    if isinstance(r, dict):
+                        score = r.get('score', 0)
+                        text = r.get('matched_text', r.get('content', str(r)))[:self.MAX_PREVIEW_CHARS]
+                        key_findings.append(f"[{i+1}] (score={score:.2f}) {text}")
 
-        if trigger_mode == "always":
-            return True
+            elif data_type == "list":
+                key_findings.append(f"{self.EMOJI_DATA} Список содержит {count} элементов")
+                try:
+                    observation_text = json.dumps(items, ensure_ascii=False, indent=2, default=str)[:self.MAX_TEXT_LENGTH]
+                except (TypeError, ValueError):
+                    observation_text = str(items)[:self.MAX_TEXT_LENGTH]
 
-        if result.status == ExecutionStatus.FAILED:
-            return True
+            elif data_type == "dict":
+                key_findings.append(f"{self.EMOJI_DATA} Словарь содержит {count} ключей")
+                try:
+                    observation_text = json.dumps(sample, ensure_ascii=False, indent=2, default=str)[:self.MAX_TEXT_LENGTH]
+                except (TypeError, ValueError):
+                    observation_text = str(sample)[:self.MAX_TEXT_LENGTH]
 
-        if result.data in (None, {}, [], ""):
-            return True
+            else: # text
+                observation_text = str(sample)[:self.MAX_TEXT_LENGTH]
+                key_findings.append(f"{self.EMOJI_DATA} Текстовый результат: {observation_text[:50]}")
 
-        if trigger_mode == "on_error":
-            return result.status == ExecutionStatus.FAILED
+            if count > self.MAX_EXAMPLES_TO_SHOW:
+                key_findings.append(f"... ещё {count - self.MAX_EXAMPLES_TO_SHOW} элементов")
 
-        if trigger_mode == "on_empty":
-            return result.data in (None, {}, [], "")
+            completeness = 0.8 if count < 5 else 1.0
 
-        return False
+        return {
+            "observation_text": observation_text,
+            "key_findings": key_findings,
+            "next_step_suggestion": next_step_suggestion,
+            "completeness": completeness,
+            "reliability": reliability,
+        }
 
     def _rule_based_observation(
         self,
@@ -130,20 +252,13 @@ class ObservationPhase:
         """
         Rule-based анализ результата без вызова LLM.
 
-        Вся логика сжатия данных — здесь.
-        observation_text формируется уже с учётом размера данных.
+        Вся логика сжатия данных — в _normalize_result и _build_observation.
         """
-        # Преобразуем Pydantic модели в стандартные типы Python
-        if hasattr(result, 'model_dump'):
-            result = result.model_dump()
-        elif hasattr(result, 'dict'):
-            result = result.dict()
-
-        # Определяем статус
+        # Ошибки обрабатываем отдельно
         if error:
             return self._handle_error_observation(action_name, parameters, error)
 
-        # Проверяем пустоту результата
+        # Пустота результата
         if result is None or (isinstance(result, (list, dict)) and len(result) == 0):
             return ObservationResult(
                 status="empty",
@@ -156,168 +271,29 @@ class ObservationPhase:
                 rule_based=True,
             )
 
-        # Успешный результат - анализируем данные и формируем информативное наблюдение
-        completeness = 1.0
-        reliability = 0.8
-        observation_text = ""
-        key_findings = []
-        next_step_suggestion = "Продолжить следующий шаг на основе прогресса цели"
+        # Нормализация и построение наблюдения (единый путь для всех типов данных)
+        normalized = self._normalize_result(result)
+        built = self._build_observation(normalized, action_name)
 
-        # Для vector_search результатов
-        if "vector_search" in action_name or (
-            isinstance(result, list) and len(result) > 0
-            and isinstance(result[0], dict) and "score" in result[0]
-        ):
-            results_list = []
-            if isinstance(result, list):
-                results_list = result
-            elif isinstance(result, dict) and "results" in result:
-                results_list = result.get("results", [])
-
-            if results_list:
-                count = len(results_list)
-                query_text = ""
-                if isinstance(result, dict) and "query" in result:
-                    query_text = f" for query: {result['query'][:50]}"
-                observation_text = f"Найдено {count} результатов{query_text}"
-
-                key_findings.append(f"Найдено {count} результатов")
-
-                # Добавляем примеры результатов
-                for i, r in enumerate(results_list[:5]):
-                    if isinstance(r, dict):
-                        score = r.get('score', 0)
-                        text = r.get('matched_text', r.get('content', r.get('text', str(r))))[:100]
-                        key_findings.append(f"[{i+1}] (score={score:.2f}) {text}")
-
-                if count > 5:
-                    key_findings.append(f"... ещё {count - 5} результатов")
-
-                if count > 10:
-                    if count > 100:
-                        next_step_suggestion = (
-                            f"Обнаружено слишком много данных ({count} записей). "
-                            f"Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data. "
-                            f"Перед запуском проверьте параметры или SQL-запрос — "
-                            f"если они неполные, запустите навык повторно с доработанными параметрами "
-                            f"(измените фильтры или SQL-запрос), чтобы сузить выборку."
-                        )
-                    else:
-                        next_step_suggestion = (
-                            f"Для полного анализа {count} результатов используйте data_analysis.analyze_step_data"
-                        )
-
-                completeness = 1.0 if count > 0 else 0.0
-            else:
-                observation_text = "Результаты не найдены"
-                completeness = 0.0
-                key_findings.append("Результаты не возвращены")
-
-        # Для SQL результатов
-        elif isinstance(result, dict) and ("rows" in result or "rowcount" in result):
-            rows = result.get("rows", [])
-            row_count = len(rows) if rows else result.get("rowcount", 0)
-
-            if row_count > 0:
-                key_findings.append(f"Получено {row_count} строк")
-
-                # ЕСЛИ ДАННЫХ МНОГО — ТОЛЬКО СВОДКА (сжатие здесь!)
-                if row_count > 10:
-                    observation_text = (
-                        f"Получено {row_count} строк. "
-                        f"Для полного анализа используйте data_analysis.analyze_step_data"
-                    )
-                    if row_count > 100:
-                        next_step_suggestion = (
-                            f"Обнаружено слишком много данных ({row_count} строк). "
-                            f"Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data."
-                        )
-                else:
-                    # Выводим сами данные только если их не слишком много
-                    try:
-                        observation_text = json.dumps(rows, ensure_ascii=False, indent=2, default=str)
-                    except (TypeError, ValueError):
-                        observation_text = str(rows)
-
-                # Показываем примеры строк в key_findings (всегда)
-                for i, row in enumerate(rows[:3]):
-                    if isinstance(row, dict):
-                        preview = {k: v for k, v in list(row.items())[:3]}
-                        key_findings.append(f"[{i+1}] {preview}")
-
-                if row_count > 3:
-                    key_findings.append(f"... ещё {row_count - 3} строк")
-
-                completeness = 1.0
-            else:
-                observation_text = "Запрос не вернул данных"
-                completeness = 0.0
-                key_findings.append("Запрос вернул пустой результат")
-
-        # Для списков
-        elif isinstance(result, list):
-            count = len(result)
-            if count > 0:
-                key_findings.append(f"Список содержит {count} элементов")
-
-                # ЕСЛИ ДАННЫХ МНОГО — ТОЛЬКО СВОДКА
-                if count > 10:
-                    observation_text = (
-                        f"Получено {count} элементов. "
-                        f"Для полного анализа используйте data_analysis.analyze_step_data"
-                    )
-                    if count > 100:
-                        next_step_suggestion = (
-                            f"Обнаружено слишком много данных ({count} элементов). "
-                            f"Для анализа ОБЯЗАТЕЛЬНО запустите навык data_analysis.analyze_step_data."
-                        )
-                else:
-                    try:
-                        observation_text = json.dumps(result, ensure_ascii=False, indent=2, default=str)
-                    except (TypeError, ValueError):
-                        observation_text = str(result)
-
-                if count > 3:
-                    key_findings.append(f"... и ещё {count - 3} элементов")
-
-                completeness = 0.8 if count < 5 else 1.0
-            else:
-                observation_text = "Получен пустой список"
-                completeness = 0.0
-                key_findings.append("Возвращён пустой список")
-
-        # Для словарей
-        elif isinstance(result, dict):
-            key_count = len(result)
-            try:
-                observation_text = json.dumps(result, ensure_ascii=False, indent=2, default=str)
-            except (TypeError, ValueError):
-                observation_text = str(result)
-            key_findings.append(f"Словарь содержит {key_count} ключей")
-            completeness = 0.8 if key_count > 0 else 0.0
-
-        else:
-            observation_text = str(result)
-            completeness = 0.5
-
-        # Проверяем warning-флаги
+        # Проверяем warning-флаги для словарей
+        reliability = built["reliability"]
         if isinstance(result, dict):
             if result.get('warning') or result.get('truncated'):
                 reliability = 0.6
-                key_findings.append(f"Предупреждение: {result.get('warning', 'Результат обрезан')}")
-            self.log.info(
-                f"⚠️ [Observation] Результат имеет предупреждения: {result.get('warning', 'N/A')}",
-                extra={"event_type": EventType.WARNING},
-            )
+                built["key_findings"].append(f"Предупреждение: {result.get('warning', 'Результат обрезан')}")
+                self.log.info(
+                    f"⚠️ [Observation] Результат имеет предупреждения: {result.get('warning', 'N/A')}",
+                    extra={"event_type": EventType.WARNING},
+                )
 
         return ObservationResult(
             status="success",
-            observation=observation_text,
-            key_findings=key_findings,
-            data_quality={"completeness": completeness, "reliability": reliability},
+            observation=built["observation_text"],
+            key_findings=built["key_findings"],
+            data_quality={"completeness": built["completeness"], "reliability": reliability},
             errors=[],
-            next_step_suggestion=next_step_suggestion if completeness > 0 else "Попробуйте другие параметры или проверьте доступность данных",
-            requires_additional_action=completeness == 0.0,
+            next_step_suggestion=built["next_step_suggestion"],
+            requires_additional_action=built["completeness"] == 0.0,
             rule_based=True,
         )
 
@@ -401,28 +377,11 @@ class ObservationPhase:
                 except Exception:
                     pass
 
-            # Fallback схема
             if schema is None:
-                schema = {
-                    "type": "object",
-                    "properties": {
-                        "status": {"type": "string", "enum": ["success", "partial", "error", "empty"]},
-                        "observation": {"type": "string", "description": "Краткое описание наблюдаемого результата"},
-                        "key_findings": {"type": "array", "items": {"type": "string"}},
-                        "data_quality": {
-                            "type": "object",
-                            "properties": {
-                                "completeness": {"type": "number", "minimum": 0, "maximum": 1},
-                                "reliability": {"type": "number", "minimum": 0, "maximum": 1}
-                            }
-                        },
-                        "errors": {"type": "array", "items": {"type": "string"}},
-                        "next_step_suggestion": {"type": "string"},
-                        "requires_additional_action": {"type": "boolean"}
-                    },
-                    "required": ["status", "observation", "requires_additional_action"],
-                    "additionalProperties": True,
-                }
+                self.log.error(
+                    "❌ [Observation] Не удалось загрузить схему контракта 'behavior.react.observe'. LLM будет вызван без строгой схемы!",
+                    extra={"event_type": EventType.ERROR},
+                )
 
             # Преобразуем результат в строку для LLM
             result_str = str(result_data) if result_data is not None else ""
@@ -454,12 +413,12 @@ class ObservationPhase:
                 system_prompt="Ты — аналитик результатов выполнения действий агента. Твоя задача — объективно оценить результат и дать рекомендации.",
                 temperature=0.2,
                 max_tokens=800,
-                structured_output=StructuredOutputConfig(
-                    output_model=None,
-                    schema_def=schema,
-                    max_retries=2,
-                    strict_mode=False,
-                ),
+            structured_output=StructuredOutputConfig(
+                output_model=None,
+                schema_def=schema if schema else None,
+                max_retries=2,
+                strict_mode=False,
+            ),
             )
 
             result_obj = await orchestrator.execute_structured(

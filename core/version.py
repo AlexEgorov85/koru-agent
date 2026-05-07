@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.46.5"
+__version__ = "5.46.6"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 46
-VERSION_PATCH = 5
+VERSION_PATCH = 6
 
 # Метаданные
-VERSION_CODENAME = "Improved observations, timeouts, data analysis chunking"
-VERSION_RELEASE_DATE = "2026-05-06"
+VERSION_CODENAME = "Runtime ACT block fix, Pydantic contract validation fixes"
+VERSION_RELEASE_DATE = "2026-05-07"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"

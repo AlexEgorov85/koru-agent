@@ -10,7 +10,7 @@ content: |
   {goal}
 
   ## Обоснование решения (от LLM)
-  {decision_reasoning}
+  {decision_reasoning_detail}
 
   ## История диалога (предыдущие вопросы и ответы)
   {dialogue_history}
@@ -33,15 +33,15 @@ content: |
   ## Инструкции
   Сгенерируй финальный ответ согласно требованиям.
   **ВАЖНО:** Используй информацию из истории диалога для понимания контекста предыдущих вопросов!
-  **ВАЖНО:** Если указан decision_reasoning, используй его для понимания логики завершения работы!
+  **ВАЖНО:** Если указан decision_reasoning_detail, используй его для понимания логики завершения работы!
 variables:
   - name: goal
     description: Исходная цель
     required: true
-  - name: decision_reasoning
-    description: Обоснование решения о завершении работы (от LLM)
+  - name: decision_reasoning_detail
+    description: Полное структурированное рассуждение (10 полей analysis_*) от FINISH решения
     required: false
-    default_value: ""
+    default_value: "{}"
   - name: dialogue_history
     description: История диалога (предыдущие вопросы и ответы)
     required: false

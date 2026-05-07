@@ -436,8 +436,17 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
             
             # Копируем input контракты из resolved_input_contracts
             for cap_name, contract_obj in self.component_config.resolved_input_contracts.items():
+                # Принудительно извлекаем скомпилированную Pydantic-схему
                 if hasattr(contract_obj, 'pydantic_schema'):
-                    self.input_contracts[cap_name] = contract_obj.pydantic_schema
+                    compiled_schema = contract_obj.pydantic_schema
+                    if compiled_schema is not None:
+                        self.input_contracts[cap_name] = compiled_schema
+                    else:
+                        self._log_warning(
+                            f"Контракт {cap_name}: pydantic_schema is None, используется Contract объект",
+                            event_type=EventType.WARNING
+                        )
+                        self.input_contracts[cap_name] = contract_obj
                 else:
                     self.input_contracts[cap_name] = contract_obj
             
@@ -626,13 +635,19 @@ class Component(ComponentLifecycle, ComponentLogger, ABC):
         
         if cap_name in self.input_contracts:
             schema = self.input_contracts[cap_name]
-            # schema — Pydantic-класс (скомпилирован в _preload_resources)
-            if hasattr(schema, 'model_validate'):
+            # schema должна быть скомпилированной Pydantic-схемой (класс, наследующий BaseModel, но не Contract)
+            # Contract тоже наследует BaseModel, поэтому проверяем явно
+            from core.models.data.contract import Contract
+            is_contract_model = isinstance(schema, type) and issubclass(schema, Contract)
+            
+            if hasattr(schema, 'model_validate') and not is_contract_model:
+                # Скомпилированная Pydantic-схема (не Contract)
                 try:
                     return schema.model_validate(parameters)
                 except Exception as e:
                     raise ValueError(f"Валидация входных данных не пройдена: {e}")
             elif hasattr(schema, 'pydantic_schema') and schema.pydantic_schema:
+                # Объект Contract — извлекаем скомпилированную схему
                 try:
                     return schema.pydantic_schema.model_validate(parameters)
                 except Exception as e:

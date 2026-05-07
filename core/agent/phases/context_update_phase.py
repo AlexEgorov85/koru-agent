@@ -19,7 +19,6 @@ from core.agent.state import ObservationResult
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
-from core.utils.observation_formatter import format_observation
 
 
 class ContextUpdatePhase:
