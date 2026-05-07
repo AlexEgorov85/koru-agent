@@ -122,7 +122,7 @@ class GenerateScriptHandler(SkillHandler):
                     "execution_time": total_time,
                     "execution_type": "dynamic",
                     "sql_query": sql_query,
-                    "warning": "Результатов не найдено. Выполнена автодиагностика." if not rows else None
+                    "warning": "Результатов не найдено. Попробуйте изменить параметры поиска." if not rows else ""
                 }
 
                 if diagnostic_hints:

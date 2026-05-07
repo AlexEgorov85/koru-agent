@@ -478,8 +478,11 @@ class AgentRuntime:
                 executed_steps += 1
                 continue
 
-                # Валидация инструмента и параметров через ValidationPhase
+            # Pattern решил ACT?
+            elif decision.type == DecisionType.ACT:
                 action_name = decision.action or ""
+                
+                # Валидация инструмента и параметров через ValidationPhase
                 
                 if available_caps:
                     is_valid, validation_result = self.validation_phase.validate_action(
@@ -615,6 +618,7 @@ class AgentRuntime:
                 )
 
                 executed_steps += 1
+                continue
 
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:

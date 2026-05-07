@@ -592,10 +592,10 @@ class ExecuteScriptHandler(SkillHandler):
         total_time = time.time() - start_time
         # Собираем все warnings в одну строку
         validation_warnings = validation_result.get("warnings", [])
-        warning_str = "; ".join(validation_warnings) if validation_warnings else None
+        warning_str = "; ".join(validation_warnings) if validation_warnings else ""
 
         columns = list(rows[0].keys()) if rows else []
-        
+
         result_data = {
             "rows": rows,
             "columns": columns,
@@ -603,7 +603,7 @@ class ExecuteScriptHandler(SkillHandler):
             "execution_time": total_time,
             "execution_type": "static",
             "script_name": script_name,
-            "warning": warning_str or ("Результатов не найдено" if not rows else None)
+            "warning": warning_str or ("Результатов не найдено" if not rows else "")
         }
 
         # Этап 6: Публикация метрик
