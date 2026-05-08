@@ -322,17 +322,18 @@ class ObservationPhase:
         )
 
     def _handle_error_observation(
-        self, action_name: str, parameters: Dict[str, Any], error: str
+        self, action_name: str, parameters: Dict[str, Any], error: Any
     ) -> ObservationResult:
         """Обработка ошибки в rule-based режиме."""
         # Проверяем, это ошибка валидации?
+        error_str = str(error)
         is_validation_error = any(
-            keyword in error.lower()
+            keyword in error_str.lower()
             for keyword in ['validation error', 'field required', 'input should be', 'extra fields not permitted']
         )
 
         if is_validation_error:
-            validation_details = self._extract_validation_details(error)
+            validation_details = self._extract_validation_details(error_str)
             observation_text = (
                 f"Ошибка валидации параметров для '{action_name}'. "
                 f"Переданные параметры: {parameters}. "
