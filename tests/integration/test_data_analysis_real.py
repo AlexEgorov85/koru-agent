@@ -106,7 +106,7 @@ def add_step_with_data(
         skill_name=skill_name,
         action_item_id=str(uuid.uuid4()),
         observation_item_ids=[obs_id],
-        summary=f"Получены данные на шаге {step_number}",
+        obs_text=f"Получены данные на шаге {step_number}",
         status=ExecutionStatus.COMPLETED
     )
     

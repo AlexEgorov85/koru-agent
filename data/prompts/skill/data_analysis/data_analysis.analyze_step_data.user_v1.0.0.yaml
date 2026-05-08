@@ -23,9 +23,7 @@ variables:
   - name: content
     description: Данные чанка для анализа (может включать схему)
     required: true
-  - name: chunk_number
-    description: Номер чанка (опционально)
-    required: false
+
 metadata:
   author: system
   created: '2026-04-20'

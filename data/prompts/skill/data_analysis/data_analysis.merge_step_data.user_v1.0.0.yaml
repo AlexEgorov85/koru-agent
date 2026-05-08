@@ -2,19 +2,15 @@ capability: data_analysis.merge_step_data.user
 version: v1.0.0
 status: active
 component_type: skill
-description: Пользовательский промпт для MERGE с иерархическим объединением
+description: Пользовательский промпт для MERGE (объединение N фрагментов)
 content: |
   === ВОПРОС ===
   {question}
 
-  === ФРАГМЕНТ 1 ===
-  {content1}
-
-  === ФРАГМЕНТ 2 ===
-  {content2}
+  {fragments}
 
   Инструкции по объединению:
-  - Объедини информацию из обоих фрагментов в связный ответ
+  - Объедини информацию из всех фрагментов в связный ответ
   - Убери дублирующиеся факты
   - Сохрани все уникальные ключевые данные
   - Если информация противоречива, укажи это
@@ -25,12 +21,11 @@ variables:
   - name: question
     description: Вопрос пользователя
     required: true
-  - name: content1
-    description: Первый фрагмент
-    required: true
-  - name: content2
-    description: Второй фрагмент
+  - name: fragments
+    description: Нумерованные фрагменты для объединения
     required: true
 metadata:
   author: system
   created: '2026-04-20'
+  updated: '2026-05-08'
+  tags: analysis, merge, reduce

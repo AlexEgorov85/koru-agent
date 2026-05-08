@@ -1,23 +1,15 @@
 """
-Навык анализа данных с поддержкой разных режимов работы.
+Навык анализа данных — оркестратор стратегий.
 
-ПОДДЕРЖИВАЕМЫЕ РЕЖИМЫ:
-- mapreduce: LLM + разбиение на чанки (для больших данных)
-- python: Локальные вычисления без LLM (для числовых данных)
-- llm: Прямой запрос к LLM без чанкинга (для небольших данных)
-- auto: Автовыбор режима на основе размера данных и типа вопроса
+АРХИТЕКТУРА:
+- DataAnalysisSkill — тонкий оркестратор (НЕ содержит логику анализа)
+- Стратегии (PythonStrategy, LLMStrategy, MapReduceStrategy) — изолированные режимы
+- base_strategy.py — контракт для всех стратегий
+- prompts.py — чистые функции рендеринга
 
-АРХИТЕКТУРА (MAPREDUCE):
-- INPUT: step_id → получение данных из контекста
-- MAP: Разбиение на чанки → Параллельный LLM-анализ
-- REDUCE: Иерархическое (tree) объединение ответов через LLM
-
-УЛУЧШЕНИЯ:
-- Schema-aware chunking: схема данных инжектится в каждый чанк
-- Tree Reduce: O(log N) вместо O(N) вызовов LLM
-- Early filtering: фильтрация пустых/мусорных результатов Map-фазы
-- Adaptive chars_per_token: динамический расчёт для RU/EN текста
-- Retry logic: устойчивость к сбоям
+ДОБАВЛЕНИЕ НОВОГО РЕЖИМА:
+1. Новый файл в strategies/
+2. Одна строка регистрации в __init__
 
 ИСПОЛЬЗОВАНИЕ:
     result = await executor.execute_action(
@@ -25,40 +17,27 @@
         parameters={
             "question": "Какие ключевые темы?",
             "step_id": 1,
-            "mode": "auto"  # Опционально: mapreduce, python, llm, auto
+            "mode": "auto"  # Опционально: python, llm, mapreduce, auto
         },
         context=execution_context
     )
 """
-import asyncio
 import time
-import json
-import logging
-import os
-import re
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from core.components.skills.skill import Skill
+from core.components.skills.data_analysis.base_strategy import AbstractStrategy, AnalysisInput, AnalysisResult
+from core.components.skills.data_analysis.strategies import PythonStrategy, LLMStrategy, MapReduceStrategy
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionStatus
-from core.infrastructure.event_bus.unified_event_bus import EventType
-
-log = logging.getLogger(__name__)
 
 
 class DataAnalysisSkill(Skill):
+    """Оркестратор анализа данных. Делегирует выполнение стратегиям."""
+
     name: str = "data_analysis"
 
     DEFAULT_CONTEXT_WINDOW = 8192
     DEFAULT_MAX_NEW_TOKENS = 2000
-    DEFAULT_RESERVE_TOKENS = 500
-    DEFAULT_MAX_CONCURRENT = 5
-    DEFAULT_CHARS_PER_TOKEN = 3.0
-    CHUNK_SAFETY_MARGIN = 0.85
-    REDUCE_SAFETY_FACTOR = 0.7
-    MERGE_BATCH_SIZE = 3
-    RETRY_MAX_ATTEMPTS = 3
-    RETRY_BASE_DELAY = 1.0
 
     @property
     def description(self) -> str:
@@ -75,110 +54,16 @@ class DataAnalysisSkill(Skill):
             name=name,
             component_config=component_config,
             executor=executor,
-            application_context=application_context
+            application_context=application_context,
         )
         self._context_window = self.DEFAULT_CONTEXT_WINDOW
         self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
-        self._chars_per_token = self.DEFAULT_CHARS_PER_TOKEN
-        self._schema_cache: Dict[str, str] = {}
-        self.chunk_llm_timeout = int(os.environ.get("DATA_ANALYSIS_CHUNK_TIMEOUT", "600"))
-        self.retry_max_attempts = int(os.environ.get("DATA_ANALYSIS_RETRY_ATTEMPTS", str(self.RETRY_MAX_ATTEMPTS)))
-        self.retry_base_delay = float(os.environ.get("DATA_ANALYSIS_RETRY_DELAY", str(self.RETRY_BASE_DELAY)))
 
-    def _calculate_max_chars(
-        self,
-        prompt_chars: int,
-        safety_factor: float = None
-    ) -> int:
-        """Расчёт максимального размера контента в символах с адаптивным CHARS_PER_TOKEN."""
-        if safety_factor is None:
-            safety_factor = self.CHUNK_SAFETY_MARGIN
-
-        prompt_tokens = prompt_chars / self._chars_per_token
-        available_tokens = (
-            self._context_window
-            - self._max_new_tokens
-            - self.DEFAULT_RESERVE_TOKENS
-            - prompt_tokens
-        )
-        max_content_tokens = max(available_tokens, 1000) * safety_factor
-        return int(max_content_tokens * self._chars_per_token)
-
-    def _detect_charset_density(self, text: str) -> float:
-        """Определение плотности текста для адаптивного расчёта токенов.
-
-        Русский текст плотнее (≈2.0-2.5 символа/токен), английкий разреженнее (≈4.0).
-        """
-        if not text:
-            return self.DEFAULT_CHARS_PER_TOKEN
-
-        cyrillic_ratio = sum(1 for c in text[:1000] if '\u0400' <= c <= '\u04FF') / min(len(text), 1000)
-
-        if cyrillic_ratio > 0.3:
-            return 2.2
-        elif cyrillic_ratio > 0.1:
-            return 2.5
-        else:
-            return 3.5
-
-    def _update_llm_config(self, execution_context: Any, sample_text: str = "") -> None:
-        """Обновляет LLM конфиг из контекста или использует значения по умолчанию."""
-        try:
-            app_ctx = getattr(execution_context, 'application_context', None)
-            if app_ctx is None and hasattr(execution_context, 'session_context'):
-                app_ctx = getattr(execution_context.session_context, 'application_context', None)
-
-            if app_ctx and hasattr(app_ctx, 'get_infrastructure_context'):
-                infra = app_ctx.get_infrastructure_context()
-                if hasattr(infra, 'resource_registry') and infra.resource_registry:
-                    from core.models.enums.common_enums import ResourceType
-                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
-                    if default_llm_info and default_llm_info.instance:
-                        provider = default_llm_info.instance
-                        self._context_window = getattr(provider, 'n_ctx', self.DEFAULT_CONTEXT_WINDOW)
-                        self._max_new_tokens = getattr(provider, 'max_tokens', self.DEFAULT_MAX_NEW_TOKENS)
-
-                        provider_model = getattr(provider, 'model_name', "") or ""
-                        if any(kw in provider_model.lower() for kw in ['gpt-4', 'claude', 'gemini']):
-                            self._context_window = max(self._context_window, 32000)
-        except Exception:
-            self._context_window = self.DEFAULT_CONTEXT_WINDOW
-            self._max_new_tokens = self.DEFAULT_MAX_NEW_TOKENS
-
-        if sample_text:
-            self._chars_per_token = self._detect_charset_density(sample_text)
-
-    def _get_model_name(self, execution_context: Any) -> Optional[str]:
-        """Получает имя модели LLM из контекста."""
-        try:
-            app_ctx = getattr(execution_context, 'application_context', None)
-            if app_ctx is None and hasattr(execution_context, 'session_context'):
-                app_ctx = getattr(execution_context.session_context, 'application_context', None)
-
-            if app_ctx and hasattr(app_ctx, 'get_infrastructure_context'):
-                infra = app_ctx.get_infrastructure_context()
-                if hasattr(infra, 'resource_registry') and infra.resource_registry:
-                    from core.models.enums.common_enums import ResourceType
-                    default_llm_info = infra.resource_registry.get_default_resource(ResourceType.LLM)
-                    if default_llm_info and default_llm_info.instance:
-                        provider = default_llm_info.instance
-                        model_name = getattr(provider, 'model_name', "") or ""
-                        return model_name if model_name else None
-        except Exception:
-            pass
-        return None
-
-    def _is_tokenizable_model(self, model_name: str) -> bool:
-        """Проверяет, поддерживает ли модель токенизацию через tiktoken."""
-        if not model_name:
-            return False
-        # Список моделей, поддерживаемых tiktoken
-        tokenizable_prefixes = [
-            'gpt-', 'claude', 'gemini', 'text-davinci', 'text-curie',
-            'text-babbage', 'text-ada', 'davinci', 'curie', 'babbage', 'ada'
+        self._strategies: List[AbstractStrategy] = [
+            PythonStrategy(self),
+            LLMStrategy(self),
+            MapReduceStrategy(self),
         ]
-        model_lower = model_name.lower()
-        return any(prefix in model_lower for prefix in tokenizable_prefixes)
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -188,20 +73,131 @@ class DataAnalysisSkill(Skill):
                 skill_name=self.name,
                 supported_strategies=["react"],
                 visible=True,
-                meta={
-                    "mapreduce": True
-                }
+                meta={"mapreduce": True},
             )
         ]
 
     async def initialize(self) -> bool:
         return await super().initialize()
 
-    def _get_event_type_for_success(self) -> str:
-        return "skill.data_analysis.executed"
+    async def _execute_impl(
+        self,
+        capability: Capability,
+        parameters: Dict[str, Any],
+        context: Any,
+    ) -> Dict[str, Any]:
+        start_time = time.time()
+
+        params_dict = self._normalize_parameters(parameters)
+
+        question = params_dict.get("question")
+        step_id = params_dict.get("step_id")
+        mode_override = params_dict.get("mode")
+
+        if not question:
+            raise ValueError("Параметр 'question' обязателен")
+        if step_id is None:
+            raise ValueError("Параметр 'step_id' обязателен")
+
+        data = self._get_step_data(context, step_id)
+        if data is None:
+            raise ValueError(f"Данные шага {step_id} не найдены")
+
+        rows = self._normalize_to_rows(data)
+
+        strategies = self._select_strategies(rows, question, mode_override)
+
+        input_data = AnalysisInput(
+            data=rows,
+            question=question,
+            step_id=step_id,
+            execution_context=context,
+            capabilities=[],
+        )
+
+        result = await self._execute_with_fallback(strategies, input_data)
+
+        processing_time = round((time.time() - start_time) * 1000, 2)
+        result.metadata["processing_time_ms"] = processing_time
+
+        await self._save_result_to_context(
+            context, question, result.answer, step_id, result.metadata,
+        )
+
+        return {
+            "answer": result.answer,
+            "execution_status": "error" if result.error else "success",
+            "execution_error": result.error,
+            "confidence": result.confidence,
+            "executed_operations": result.operations,
+            "metadata": result.metadata,
+        }
+
+    def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
+        """Нормализация параметров к словарю."""
+        if hasattr(parameters, 'model_dump'):
+            return parameters.model_dump()
+        elif hasattr(parameters, 'dict'):
+            return parameters.dict()
+        elif isinstance(parameters, dict):
+            return parameters
+        raise ValueError(f"Неподдерживаемый тип параметров: {type(parameters)}")
+
+    def _normalize_to_rows(self, data: Any) -> List[Dict[str, Any]]:
+        """Приводит данные к единому формату List[Dict]."""
+        if isinstance(data, list):
+            if data and isinstance(data[0], dict):
+                return data
+            return data
+        if isinstance(data, dict):
+            if "rows" in data and isinstance(data["rows"], list):
+                return self._normalize_to_rows(data["rows"])
+            if "data" in data:
+                return self._normalize_to_rows(data["data"])
+            return [data]
+        if isinstance(data, str):
+            return [{"text": data}]
+        return [{"content": str(data)}]
+
+    def _select_strategies(
+        self,
+        data: List[Dict],
+        question: str,
+        mode_override: Optional[str],
+    ) -> List[AbstractStrategy]:
+        """Выбирает стратегии на основе mode_override или can_handle."""
+        if mode_override and mode_override != "auto":
+            for s in self._strategies:
+                if s.name == mode_override:
+                    return [s]
+            raise ValueError(f"Неизвестный режим: {mode_override}")
+
+        candidates = [s for s in self._strategies if s.can_handle(data, question)]
+        return candidates if candidates else [self._strategies[-1]]
+
+    async def _execute_with_fallback(
+        self,
+        strategies: List[AbstractStrategy],
+        input_data: AnalysisInput,
+    ) -> AnalysisResult:
+        """Пытает стратегии по порядку. Если первая вернула ошибку/пусто — следующая."""
+
+        for strategy in strategies:
+            result = await strategy.execute(input_data)
+            if result.error:
+                continue
+            if result.answer and len(result.answer.strip()) > 0:
+                return result
+
+        return AnalysisResult(
+            answer="Не удалось проанализировать данные",
+            confidence=0.0,
+            operations=[],
+            metadata={},
+        )
 
     def _get_step_data(self, execution_context: Any, step_id: int) -> Any:
-        """Получает данные шага из data_context через observation_item_ids."""
+        """Получает данные шага из контекста через observation_item_ids."""
         session = None
 
         if hasattr(execution_context, 'session_context'):
@@ -234,517 +230,15 @@ class DataAnalysisSkill(Skill):
 
         content = obs_item.content if hasattr(obs_item, 'content') else obs_item
 
-        # Нормализация данных разных форматов
         if isinstance(content, dict):
-            # Формат от SQL/check_result: {"rows": [...], "columns": [...], ...}
             if "rows" in content:
                 return content["rows"]
-            # Формат от data_analysis или других: {"data": [...], ...}
             if "data" in content:
                 return content["data"]
-            # Формат observation: {"type": "raw_data", "data": {...}}
             if "type" in content and "data" in content:
                 return content["data"]
 
         return content
-
-    def _extract_schema(self, data: Any) -> Optional[str]:
-        """Извлекает схему данных из List[Dict] для инжекта в чанки."""
-        if isinstance(data, list) and data:
-            if isinstance(data[0], dict):
-                headers = list(data[0].keys())
-                self._schema_cache['headers'] = headers
-                return "СТРУКТУРА ДАННЫХ: " + ", ".join(headers)
-        elif isinstance(data, str):
-            lines = data.split('\n')
-            if lines and '|' in lines[0]:
-                header_parts = [p.strip() for p in lines[0].split('|') if p.strip()]
-                if header_parts:
-                    self._schema_cache['headers'] = header_parts
-                    return "СТРУКТУРА ДАННЫХ: " + ", ".join(header_parts)
-        return None
-
-    def _inject_schema_to_chunks(
-        self,
-        chunks: List[Dict[str, Any]],
-        schema: Optional[str],
-        input_type: str
-    ) -> List[Dict[str, Any]]:
-        """Инжектирует схему в каждый чанк для сохранения семантики полей."""
-        if not schema or input_type != "rows":
-            return chunks
-
-        schema_header = f"{schema}\n\nФАКТЫ:"
-        for chunk in chunks:
-            if not chunk.get("content", "").startswith("СТРУКТУРА"):
-                chunk["content"] = schema_header + "\n" + chunk["content"]
-
-        return chunks
-
-    async def _execute_impl(self, capability, parameters, context):
-        """Реализация анализа данных с поддержкой разных режимов."""
-        start_time = time.time()
-
-        params_dict = self._normalize_parameters(parameters)
-
-        question = params_dict.get("question")
-        step_id = params_dict.get("step_id")
-        mode = params_dict.get("mode", "auto")  # mapreduce, python, llm, auto
-
-        if not question:
-            raise ValueError("Параметр 'question' обязателен")
-        if step_id is None:
-            raise ValueError("Параметр 'step_id' обязателен")
-
-        data = self._get_step_data(context, step_id)
-
-        if data is None:
-            self._log_warning(
-                f"❌ Данные шага {step_id} не найдены. "
-                f"context type={type(context).__name__}",
-                event_type=EventType.WARNING
-            )
-            raise ValueError(f"Данные шага {step_id} не найдены")
-
-        # Определяем режим работы
-        if mode == "auto":
-            mode = self._detect_mode(data, question)
-            self._log_info(
-                f"🤖 [data_analysis] Auto-detected mode: {mode}",
-                event_type=EventType.INFO
-            )
-
-        # Выполняем в зависимости от режима
-        if mode == "python":
-            answer, confidence, metadata = await self._analyze_python_mode(
-                data=data,
-                question=question,
-                step_id=step_id
-            )
-            mode_used = "python"
-        elif mode == "llm":
-            answer, confidence, metadata = await self._analyze_llm_mode(
-                data=data,
-                question=question,
-                execution_context=context,
-                step_id=step_id
-            )
-            mode_used = "llm"
-        else:  # mapreduce (по умолчанию)
-            answer, confidence, metadata = await self._analyze_mapreduce_mode(
-                data=data,
-                question=question,
-                execution_context=context,
-                step_id=step_id
-            )
-            mode_used = "mapreduce"
-
-        processing_time = round((time.time() - start_time) * 1000, 2)
-        metadata["processing_time_ms"] = processing_time
-        metadata["mode_used"] = mode_used
-
-        await self._save_result_to_context(
-            execution_context=context,
-            question=question,
-            answer=answer,
-            step_id=step_id,
-            metadata=metadata
-        )
-
-        return {
-            "answer": answer,
-            "execution_status": "success",
-            "confidence": confidence,
-            "executed_operations": metadata.get("operations", [mode_used]),
-            "metadata": metadata
-        }
-
-    def _normalize_parameters(self, parameters: Any) -> Dict[str, Any]:
-        """Нормализация параметров к словарю."""
-        if hasattr(parameters, 'model_dump'):
-            return parameters.model_dump()
-        elif hasattr(parameters, 'dict'):
-            return parameters.dict()
-        elif isinstance(parameters, dict):
-            return parameters
-        raise ValueError(f"Неподдерживаемый тип параметров: {type(parameters)}")
-
-    def _detect_mode(self, data: Any, question: str) -> str:
-        """
-        Автоматическое определение режима на основе данных и вопроса.
-        
-        ЛОГИКА:
-        - Если данные - список словарей с числами и вопрос про вычисления → python
-        - Если данные небольшие (< 2000 символов) → llm
-        - Иначе → mapreduce
-        """
-        # Проверяем, подходит ли для python mode
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            # Проверяем, есть ли числовые поля
-            has_numeric = any(isinstance(v, (int, float)) for item in data[:10] for v in item.values())
-            # Проверяем, является ли вопрос вычислительным
-            calc_keywords = ["сумм", "средн", "количеств", "сколько", "миним", "максим", "count", "sum", "avg"]
-            is_calc_question = any(kw in question.lower() for kw in calc_keywords)
-            
-            if has_numeric and is_calc_question:
-                return "python"
-        
-        # Проверяем размер данных
-        data_str = str(data)
-        if len(data_str) < 2000:
-            return "llm"  # Небольшие данные - прямой запрос к LLM
-        
-        return "mapreduce"  # Большие данные - разбиение на чанки
-
-    async def _analyze_python_mode(
-        self,
-        data: Any,
-        question: str,
-        step_id: int
-    ) -> tuple[str, float, Dict[str, Any]]:
-        """
-        Локальный анализ данных без LLM (только Python).
-        
-        ПОДДЕРЖИВАЕМЫЕ ОПЕРАЦИИ:
-        - Сумма по полю (sum)
-        - Среднее по полю (average/mean)
-        - Количество записей (count)
-        - Минимум/максимум (min/max)
-        - Группировка по полю
-        """
-        if not isinstance(data, list) or not data:
-            return "Нет данных для анализа", 0.1, {"mode": "python", "operations": []}
-        
-        # Анализируем вопрос для определения операций
-        question_lower = question.lower()
-        operations = []
-        results = {}
-        
-        # Получаем все числовые поля
-        numeric_fields = []
-        if isinstance(data[0], dict):
-            numeric_fields = [k for k, v in data[0].items() if isinstance(v, (int, float))]
-        
-        # Count
-        if any(kw in question_lower for kw in ["количеств", "сколько", "запис", "count"]):
-            results["count"] = len(data)
-            operations.append("count")
-        
-        # Sum
-        for field in numeric_fields:
-            field_lower = field.lower()
-            if any(kw in question_lower for kw in ["сумм", "sum"]) and any(
-                field_lower in question_lower or field_lower in question_lower.replace(" ", "")
-                for kw in [field_lower]
-            ):
-                total = sum(item.get(field, 0) or 0 for item in data)
-                results[f"sum_{field}"] = total
-                operations.append(f"sum:{field}")
-        
-        # Average
-        for field in numeric_fields:
-            field_lower = field.lower()
-            if any(kw in question_lower for kw in ["средн", "average", "avg", "среднее"]) and any(
-                field_lower in question_lower or field_lower in question_lower.replace(" ", "")
-                for kw in [field_lower]
-            ):
-                total = sum(item.get(field, 0) or 0 for item in data)
-                avg = total / len(data) if data else 0
-                results[f"avg_{field}"] = round(avg, 2)
-                operations.append(f"avg:{field}")
-        
-        # Min/Max
-        for field in numeric_fields:
-            field_lower = field.lower()
-            if any(kw in question_lower for kw in ["мин", "min"]) and any(
-                field_lower in question_lower
-                for kw in [field_lower]
-            ):
-                values = [item.get(field) for item in data if item.get(field) is not None]
-                if values:
-                    results[f"min_{field}"] = min(values)
-                    operations.append(f"min:{field}")
-            
-            if any(kw in question_lower for kw in ["макс", "max"]) and any(
-                field_lower in question_lower
-                for kw in [field_lower]
-            ):
-                values = [item.get(field) for item in data if item.get(field) is not None]
-                if values:
-                    results[f"max_{field}"] = max(values)
-                    operations.append(f"max:{field}")
-        
-        # Формируем ответ
-        if not results:
-            # Просто выводим общую информацию
-            results["count"] = len(data)
-            results["fields"] = list(data[0].keys()) if data else []
-            operations.append("info")
-        
-        answer_parts = [f"Результат анализа данных (python mode):"]
-        for key, value in results.items():
-            if key == "fields":
-                answer_parts.append(f"- Поля: {', '.join(value)}")
-            else:
-                answer_parts.append(f"- {key}: {value}")
-        
-        answer = "\n".join(answer_parts)
-        confidence = 0.95 if operations else 0.5
-        
-        metadata = {
-            "mode": "python",
-            "operations": operations,
-            "rows_processed": len(data),
-            "fields": list(data[0].keys()) if data and isinstance(data[0], dict) else []
-        }
-        
-        return answer, confidence, metadata
-
-    async def _analyze_llm_mode(
-        self,
-        data: Any,
-        question: str,
-        execution_context: Any,
-        step_id: int
-    ) -> tuple[str, float, Dict[str, Any]]:
-        """
-        Прямой запрос к LLM без разбиения на чанки.
-        Для небольших данных.
-        """
-        data_str = str(data)
-        
-        prompt = f"""Проанализируй данные и ответь на вопрос.
-
-    ВОПРОС: {question}
-
-    ДАННЫЕ:
-    {data_str}
-
-    Инструкции:
-    - Отвечай ТОЛЬКО на основе предоставленных данных
-    - Если информации недостаточно, укажи это
-    - Пиши на русском языке
-    - Будь краток и точен
-
-    Ответ:"""
-        
-        executor = self._get_active_executor(execution_context)
-        
-        try:
-            result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": prompt,
-                    "temperature": 0.2,
-                    "max_tokens": 2000
-                },
-                context=execution_context
-            )
-            
-            if result.status == ExecutionStatus.COMPLETED:
-                answer = ""
-                if result.data:
-                    if isinstance(result.data, dict):
-                        answer = result.data.get("content", "") or result.data.get("text", "")
-                    else:
-                        answer = str(result.data)
-                
-                if not answer:
-                    answer = "Не удалось получить ответ от LLM"
-                
-                return answer, 0.85, {
-                    "mode": "llm",
-                    "operations": ["llm_direct"],
-                    "data_size": len(data_str)
-                }
-            else:
-                return f"Ошибка LLM: {result.error}", 0.1, {
-                    "mode": "llm",
-                    "error": result.error
-                }
-        except Exception as e:
-            return f"Ошибка при вызове LLM: {str(e)}", 0.1, {
-                "mode": "llm",
-                "error": str(e)
-            }
-
-    async def _analyze_mapreduce_mode(
-        self,
-        data: Any,
-        question: str,
-        execution_context: Any,
-        step_id: int
-    ) -> tuple[str, float, Dict[str, Any]]:
-        """
-        MapReduce режим: разбиение на чанки → параллельный анализ → объединение.
-        Для больших данных.
-        """
-        sample_text = str(data)[:1000] if data else ""
-        self._update_llm_config(execution_context, sample_text)
-
-        max_chunk_chars = self._calculate_max_chars(len(question) + 500)
-
-        self._log_info(
-            f"⚙️ [data_analysis] LLM: context={self._context_window}, "
-            f"max_new={self._max_new_tokens}, chars_per_token={self._chars_per_token:.2f}, "
-            f"max_chunk_chars={max_chunk_chars}",
-            event_type=EventType.INFO
-        )
-
-        from core.infrastructure.providers.vector.chunking_service import ChunkingService
-        
-        # Определяем модель LLM
-        model_name = self._get_model_name(execution_context)
-        
-        # Создаем сервис с токен-режимом (если модель поддерживается)
-        use_tokens = model_name is not None and self._is_tokenizable_model(model_name)
-        
-        if use_tokens:
-            max_tokens = self._context_window - self._max_new_tokens - self.DEFAULT_RESERVE_TOKENS
-            chunking_service = ChunkingService(
-                use_tokens=True,
-                model_name=model_name,
-                max_tokens_per_chunk=max_tokens,
-                token_overlap=int(max_tokens * 0.1)  # 10% overlap
-            )
-            actual_token_mode = chunking_service._token_encoder is not None
-        else:
-            chunking_service = ChunkingService(
-                chunk_size_chars=max_chunk_chars,
-                chunk_size_rows=50
-            )
-            actual_token_mode = False
-        
-        if actual_token_mode:
-            self._log_info(
-                f"🎯 [data_analysis] Токен-ориентированный чанкинг: model={model_name}, "
-                f"max_tokens={chunking_service.max_tokens_per_chunk}",
-                event_type=EventType.INFO
-            )
-        else:
-            self._log_info(
-                f"🎯 [data_analysis] Символ-ориентированный чанкинг (fallback): "
-                f"max_chars={max_chunk_chars}",
-                event_type=EventType.INFO
-            )
-        
-        schema = self._extract_schema(data)
-        
-        if isinstance(data, list):
-            chunks = chunking_service.chunk_rows(data, max_chunk_chars=max_chunk_chars)
-            self._log_info(
-                f"📊 [data_analysis] Шаг {step_id}: {len(data)} строк → {len(chunks)} чанков",
-                event_type=EventType.INFO
-            )
-            input_type = "rows"
-        elif isinstance(data, str):
-            chunks = chunking_service.chunk_text(data)
-            mode = chunks[0].get('mode', 'chars') if chunks else 'none'
-            self._log_info(
-                f"📄 [data_analysis] Шаг {step_id}: {len(data)} символов → {len(chunks)} чанков (mode={mode})",
-                event_type=EventType.INFO
-            )
-            input_type = "text"
-        else:
-            data_str = str(data)
-            chunks = chunking_service.chunk_text(data_str)
-            input_type = "unknown"
-
-        chunks = self._inject_schema_to_chunks(chunks, schema, input_type)
-
-        summaries = await self._map_phase(chunks, question, execution_context)
-        summaries = self._filter_empty_summaries(summaries)
-
-        if not summaries:
-            answer = "Не удалось извлечь релевантную информацию из данных"
-        else:
-            max_batch_chars = self._calculate_max_chars(len(question) + 500)
-            answer = await self._tree_reduce(summaries, question, execution_context, max_batch_chars)
-
-        metadata = {
-            "mode": "mapreduce",
-            "input_type": input_type,
-            "step_id": step_id,
-            "chunks_created": len(chunks),
-            "chunks_analyzed": len(summaries),
-            "operations": [f"map:{len(chunks)}", "reduce"],
-            "chars_per_token": self._chars_per_token
-        }
-        
-        return answer, 0.85, metadata
-
-    def _filter_empty_summaries(
-        self,
-        summaries: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Фильтрует пустые и мусорные результаты Map-фазы."""
-        noise_patterns = [
-            r'^нет\s+(данных|информации|результат)',
-            r'^не\s+удалось',
-            r'^\s*$',
-            r'^(не\s+применимо|no\s+data)',
-        ]
-
-        valid = []
-        for s in summaries:
-            content = self._safe_get_content(s.get("content"))
-            if not content or len(content.strip()) < 20:
-                continue
-
-            content_lower = content.lower()
-            is_noise = False
-            for pattern in noise_patterns:
-                if re.search(pattern, content_lower):
-                    is_noise = True
-                    break
-
-            if not is_noise:
-                valid.append(s)
-
-        if len(valid) < len(summaries):
-            log.info(f"[data_analysis] Filtered {len(summaries) - len(valid)} empty/noisy summaries")
-
-        return valid
-
-    def _safe_get_content(self, content: Any) -> str:
-        """Безопасное извлечение строки из content (может быть dict, str, coroutine, etc)."""
-        import inspect
-        if content is None:
-            return ""
-        if inspect.iscoroutine(content):
-            return ""
-        if isinstance(content, str):
-            return content
-        if isinstance(content, dict):
-            return str(content)
-        return str(content)
-
-    def _extract_content_from_result(self, result: Any, fallback: str = "") -> str:
-        """Извлечение контента из ExecutionResult.data (правильный способ!)."""
-        if not result or result.status != ExecutionStatus.COMPLETED:
-            return fallback
-
-        data = result.data
-        if data is None:
-            return fallback
-
-        if isinstance(data, dict):
-            return data.get("content", "") or data.get("text", "") or fallback
-
-        return str(data)
-
-    def _is_valid_result(self, result: Any) -> bool:
-        """Проверка что результат - валидный dict, а не coroutine или ошибка."""
-        import inspect
-        if result is None:
-            return False
-        if inspect.iscoroutine(result):
-            return False
-        if isinstance(result, Exception):
-            return False
-        if isinstance(result, dict):
-            return True
-        return False
 
     async def _save_result_to_context(
         self,
@@ -752,23 +246,21 @@ class DataAnalysisSkill(Skill):
         question: str,
         answer: str,
         step_id: int,
-        metadata: Dict[str, Any]
+        metadata: Dict[str, Any],
     ) -> None:
+        """Сохраняет результат анализа в контекст сессии."""
         try:
             session_context = self._get_session_context(execution_context)
             if not session_context:
-                self._log_warning("Не удалось получить session_context для сохранения результата")
                 return
 
-            result_content = f"""=== РЕЗУЛЬТАТ АНАЛИЗА ===
-Вопрос: {question}
-
-Ответ:
-{answer}
-
----
-Метаданные: {metadata}
-"""
+            result_content = (
+                f"=== РЕЗУЛЬТАТ АНАЛИЗА ===\n"
+                f"Вопрос: {question}\n\n"
+                f"Ответ:\n{answer}\n\n"
+                f"---\n"
+                f"Метаданные: {metadata}\n"
+            )
             session_context.record_observation(
                 observation_data=result_content,
                 source="data_analysis.analyze_step_data",
@@ -776,17 +268,13 @@ class DataAnalysisSkill(Skill):
                 metadata={
                     "skill": "data_analysis",
                     "question": question,
-                    **metadata
-                }
+                    **metadata,
+                },
             )
-            self._log_info(
-                f"💾 Результат анализа сохранён в контекст (step={step_id + 1})",
-                event_type=EventType.INFO
-            )
-        except Exception as e:
-            self._log_warning(f"Не удалось сохранить результат в контекст: {e}", event_type=EventType.WARNING)
+        except Exception:
+            pass
 
-    def _get_session_context(self, context: Any):
+    def _get_session_context(self, context: Any) -> Any:
         if hasattr(context, 'session_context'):
             sc = context.session_context
             if sc and hasattr(sc, 'record_observation'):
@@ -796,433 +284,3 @@ class DataAnalysisSkill(Skill):
             if sc and hasattr(sc, 'record_observation'):
                 return sc
         return None
-
-    def _get_active_executor(self, execution_context: Any):
-        """Получает executor из execution_context."""
-        if hasattr(execution_context, 'executor'):
-            return execution_context.executor
-        if hasattr(execution_context, 'session_context') and hasattr(execution_context.session_context, 'executor'):
-            return execution_context.session_context.executor
-        return self.executor
-
-    async def _map_phase(
-        self,
-        chunks: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any
-    ) -> List[Dict[str, Any]]:
-        if not chunks:
-            return []
-
-        if len(chunks) == 1:
-            return [await self._analyze_chunk_with_retry(chunks[0], question, execution_context)]
-
-        self._log_info(
-            f"🗺️ [MAP] Начало: {len(chunks)} чанков",
-            event_type=EventType.INFO
-        )
-
-        semaphore = asyncio.Semaphore(self.DEFAULT_MAX_CONCURRENT)
-
-        async def _run_with_progress(idx: int, chunk: Dict[str, Any]) -> Dict[str, Any]:
-            async with semaphore:
-                self._log_debug(
-                    f"🔹 [MAP] Запуск чанка {idx}/{len(chunks)} (id={chunk.get('chunk_id')})"
-                )
-                result = await self._analyze_chunk_with_retry(chunk, question, execution_context)
-                self._log_debug(
-                    f"✅ [MAP] Завершён чанк {idx}/{len(chunks)} (статус=success: {result.get('status') == 'success'})"
-                )
-                return result
-
-        tasks = [_run_with_progress(i, chunk) for i, chunk in enumerate(chunks, 1)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Фильтрация ошибок/исключений
-        valid_summaries = []
-        for i, r in enumerate(results, 1):
-            if isinstance(r, Exception):
-                self._log_error(
-                    f"❌ [MAP] Исключение в чанке {i}: {r}"
-                )
-            elif isinstance(r, dict) and r.get("content"):
-                valid_summaries.append(r)
-            else:
-                self._log_warning(
-                    f"⚠️ [MAP] Пропущен чанк {i}: {r}",
-                    event_type=EventType.WARNING
-                )
-
-        self._log_info(
-            f"🗺️ [MAP] Завершено: {len(valid_summaries)}/{len(chunks)} успешных",
-            event_type=EventType.INFO
-        )
-        return valid_summaries
-
-    async def _analyze_chunk_with_retry(
-        self,
-        chunk: Dict[str, Any],
-        question: str,
-        execution_context: Any
-    ) -> Dict[str, Any]:
-        """Анализ чанка с retry логикой и таймаутом."""
-        last_error = None
-        for attempt in range(1, self.retry_max_attempts + 1):
-            try:
-                # ⏱️ Жёсткий таймаут на попытку
-                result = await asyncio.wait_for(
-                    self._analyze_chunk(chunk, question, execution_context),
-                    timeout=self.chunk_llm_timeout
-                )
-                if result.get("content"):
-                    return result
-                self._log_warning(
-                    f"⚠️ Chunk {chunk.get('chunk_id')} вернул пустой контент (попытка {attempt})",
-                    event_type=EventType.WARNING
-                )
-            except asyncio.TimeoutError:
-                last_error = f"Таймаут {self.chunk_llm_timeout}s (попытка {attempt})"
-                self._log_error(
-                    f"⏱️ Chunk {chunk.get('chunk_id')} превысил таймаут {self.chunk_llm_timeout}s (попытка {attempt})"
-                )
-            except Exception as e:
-                last_error = e
-                self._log_error(
-                    f"❌ Chunk {chunk.get('chunk_id')} ошибка: {e} (попытка {attempt})"
-                )
-
-            if attempt < self.retry_max_attempts:
-                await asyncio.sleep(self.retry_base_delay * attempt)
-
-        return {"content": "", "chunk_id": chunk.get("chunk_id", 0), "error": str(last_error)}
-
-    async def _analyze_chunk(
-        self,
-        chunk: Dict[str, Any],
-        question: str,
-        execution_context: Any
-    ) -> Dict[str, Any]:
-        content = self._safe_get_content(chunk.get("content"))
-        chunk_id = chunk.get("chunk_id", 0)
-
-        if len(content) < 20:
-            return {"content": "", "chunk_id": chunk_id}
-
-        prompt = self._build_analyze_prompt(content, question, chunk_id)
-        executor = self._get_active_executor(execution_context)
-
-        try:
-            result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": prompt,
-                    "temperature": 0.2,
-                    "max_tokens": 2000
-                },
-                context=execution_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED:
-                content = ""
-                if result.data:
-                    if isinstance(result.data, dict):
-                        content = result.data.get("content", "") or result.data.get("text", "")
-                    else:
-                        content = str(result.data)
-                return {"content": self._safe_get_content(content), "chunk_id": chunk_id}
-            else:
-                return {"content": "", "chunk_id": chunk_id, "error": result.error or "LLM failed"}
-
-        except Exception as e:
-            return {"content": "", "chunk_id": chunk_id, "error": str(e)}
-
-    async def _tree_reduce(
-        self,
-        summaries: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any,
-        max_batch_chars: int = 3000
-    ) -> str:
-        """Иерархический (tree) reduce: O(log N) вместо O(N) вызовов LLM."""
-        if not summaries:
-            return "Нет данных для анализа"
-
-        if len(summaries) == 1:
-            return self._safe_get_content(summaries[0].get("content"))
-
-        current_level = summaries
-        iteration = 0
-
-        while len(current_level) > 1:
-            iteration += 1
-            next_level = []
-
-            for i in range(0, len(current_level), self.MERGE_BATCH_SIZE):
-                batch = current_level[i:i + self.MERGE_BATCH_SIZE]
-
-                if len(batch) == 1:
-                    next_level.append(batch[0])
-                else:
-                    merged = await self._merge_batch(batch, question, execution_context)
-                    next_level.append(merged)
-
-            self._log_info(
-                f"🌲 [data_analysis] Tree Reduce iteration {iteration}: "
-                f"{len(current_level)} → {len(next_level)}",
-                event_type=EventType.INFO
-            )
-
-            current_level = next_level
-
-        return current_level[0].get("content", "") if current_level else ""
-
-    async def _reduce_phase(
-        self,
-        summaries: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any,
-        max_batch_chars: int = 3000
-    ) -> str:
-        return await self._tree_reduce(summaries, question, execution_context, max_batch_chars)
-
-    async def _batch_reduce(
-        self,
-        items: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any,
-        max_batch_chars: int = 3000
-    ) -> str:
-        if len(items) == 1:
-            return items[0].get("content", "")
-
-        batches = self._create_batches(items, max_batch_chars)
-
-        self._log_info(
-            f"🌲 [data_analysis] Reduce: {len(items)} items → {len(batches)} batches",
-            event_type=EventType.INFO
-        )
-
-        merged_results = []
-        for batch in batches:
-            if len(batch) == 1:
-                merged_results.append(batch[0])
-            else:
-                result = await self._merge_batch(batch, question, execution_context)
-                merged_results.append(result)
-
-        if len(merged_results) == 1:
-            return merged_results[0].get("content", "")
-
-        return await self._batch_reduce(merged_results, question, execution_context, max_batch_chars)
-
-    def _create_batches(
-        self,
-        items: List[Dict[str, Any]],
-        max_chars: int
-    ) -> List[List[Dict[str, Any]]]:
-        batches = []
-        current_batch = []
-        current_size = 0
-
-        for item in items:
-            item_content = item.get("content", "")
-            item_size = len(item_content)
-
-            if not current_batch:
-                current_batch.append(item)
-                current_size = item_size
-            elif current_size + item_size <= max_chars:
-                current_batch.append(item)
-                current_size += item_size
-            else:
-                if current_batch:
-                    batches.append(current_batch)
-                current_batch = [item]
-                current_size = item_size
-
-        if current_batch:
-            batches.append(current_batch)
-
-        return batches
-
-    async def _merge_batch_with_retry(
-        self,
-        batch: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any
-    ) -> Dict[str, Any]:
-        """Слияние батча с retry логикой."""
-        last_error = None
-        for attempt in range(self.RETRY_MAX_ATTEMPTS):  # ARCHITECTURE: Retry logic для transient ошибок LLM
-            try:
-                result = await self._merge_batch(batch, question, execution_context)
-                if result.get("content"):
-                    return result
-                if attempt < self.RETRY_MAX_ATTEMPTS - 1:
-                    await asyncio.sleep(self.RETRY_BASE_DELAY * (attempt + 1))
-            except Exception as e:
-                last_error = e
-                if attempt < self.RETRY_MAX_ATTEMPTS - 1:
-                    await asyncio.sleep(self.RETRY_BASE_DELAY * (attempt + 1))
-
-        return {"content": "", "error": str(last_error)}
-
-    async def _merge_batch(
-        self,
-        batch: List[Dict[str, Any]],
-        question: str,
-        execution_context: Any
-    ) -> Dict[str, Any]:
-        if len(batch) == 1:
-            return batch[0]
-
-        if len(batch) == 2:
-            return await self._merge_pair(batch[0], batch[1], question, execution_context)
-
-        contents = [self._safe_get_content(item.get("content")) for item in batch]
-        combined = "\n\n---\n\n".join(contents)
-
-        executor = self._get_active_executor(execution_context)
-        prompt = self._build_merge_batch_prompt(contents, question)
-
-        try:
-            result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": prompt,
-                    "temperature": 0.3,
-                    "max_tokens": 2000
-                },
-                context=execution_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED:
-                content = ""
-                if result.data:
-                    if isinstance(result.data, dict):
-                        content = result.data.get("content", "") or result.data.get("text", "")
-                    else:
-                        content = str(result.data)
-                return {"content": self._safe_get_content(content) or combined}
-        except Exception as e:
-            self._log_warning(f"⚠️ [data_analysis] Merge batch error: {e}", event_type=EventType.WARNING)
-
-        return {"content": combined}
-
-    async def _merge_pair(
-        self,
-        item1: Dict[str, Any],
-        item2: Dict[str, Any],
-        question: str,
-        execution_context: Any
-    ) -> Dict[str, Any]:
-        content1 = self._safe_get_content(item1.get("content"))
-        content2 = self._safe_get_content(item2.get("content"))
-
-        prompt = self._build_merge_prompt(content1, content2, question)
-        executor = self._get_active_executor(execution_context)
-
-        try:
-            result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": prompt,
-                    "temperature": 0.3,
-                    "max_tokens": 2000
-                },
-                context=execution_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED:
-                content = ""
-                if result.data:
-                    if isinstance(result.data, dict):
-                        content = result.data.get("content", "") or result.data.get("text", "")
-                    else:
-                        content = str(result.data)
-                return {"content": self._safe_get_content(content) or f"{content1}\n\n{content2}"}
-        except Exception as e:
-            self._log_warning(f"⚠️ [data_analysis] Merge error: {e}", event_type=EventType.WARNING)
-
-        return {"content": f"{content1}\n\n{content2}"}
-
-    def _build_analyze_prompt(self, content: str, question: str, chunk_id: int = 0) -> str:
-        system_prompt = self.get_prompt("data_analysis.analyze_step_data.system")
-        user_prompt = self.get_prompt("data_analysis.analyze_step_data.user")
-
-        if not system_prompt or not user_prompt:
-            return self._build_analyze_prompt_fallback(content, question)
-
-        system = system_prompt.content or ""
-        user_template = user_prompt.content or ""
-
-        user = self._render_prompt(user_template, {
-            "question": question,
-            "content": content,
-            "chunk_number": str(chunk_id + 1)
-        })
-
-        return f"{system}\n\n{user}"
-
-    def _build_merge_prompt(self, content1: str, content2: str, question: str) -> str:
-        system_prompt = self.get_prompt("data_analysis.merge_step_data.system")
-        user_prompt = self.get_prompt("data_analysis.merge_step_data.user")
-        
-        if not system_prompt or not user_prompt:
-            return self._build_merge_prompt_fallback(content1, content2, question)
-        
-        system = system_prompt.content or ""
-        user_template = user_prompt.content or ""
-        
-        user = self._render_prompt(user_template, {
-            "question": question,
-            "content1": content1,
-            "content2": content2
-        })
-        
-        return f"{system}\n\n{user}"
-
-    def _build_merge_batch_prompt(self, contents: List[str], question: str) -> str:
-        fragments = []
-        for i, content in enumerate(contents, 1):
-            fragments.append(f"=== ФРАГМЕНТ {i} ===\n{content}")
-
-        combined = "\n\n".join(fragments)
-
-        return f"""Объедини несколько фрагментов анализа в один связный ответ.
-
-ВОПРОС: {question}
-
-{combined}
-
-Инструкции:
-- Объедини информацию из всех фрагментов
-- Убери дублирующиеся факты
-- Сохрани все ключевые данные
-- Пиши на русском языке
-- Будь краток
-
-Объединённый анализ:"""
-
-    def _build_analyze_prompt_fallback(self, content: str, question: str) -> str:
-        return f"""Проанализируй данные и ответь на вопрос.
-
-ВОПРОС: {question}
-
-ДАННЫЕ:
-{content}
-
-Инструкции:
-- Отвечай ТОЛЬКО на основе предоставленных данных
-- Если информации недостаточно, укажи это
-- Пиши на русском языке
-- Используй схему данных если она присутствует
-
-Ответ:"""
-
-    def _render_prompt(self, template: str, variables: Dict[str, Any]) -> str:
-        result = template
-        for key, value in variables.items():
-            placeholder = "{" + key + "}"
-            result = result.replace(placeholder, str(value))
-        return result

@@ -11,6 +11,14 @@ schema_data:
     step_id:
       type: integer
       description: Номер шага, данные которого нужно проанализировать
+    mode:
+      type: string
+      enum:
+        - auto
+        - python
+        - llm
+        - mapreduce
+      description: Режим анализа (auto = выбор стратегии автоматически)
   required:
     - question
     - step_id
