@@ -54,7 +54,7 @@ class LLMStrategy(AbstractStrategy):
                         "output_model": "data_analysis.analyze_step_data.output",
                         "schema_def": output_contract,
                         "strict_mode": True,
-                        "max_retries": 0,
+                        "max_retries": 1,
                     },
                 },
                 context=input_data.execution_context,
