@@ -20,6 +20,7 @@ def make_mock_skill(
     context_window=8192,
     max_new_tokens=2000,
     map_result_content="В этом чанке содержатся данные о продажах. Общая сумма: 150000 рублей.",
+    output_contract_available=True,
 ):
     skill = MagicMock()
     skill._context_window = context_window
@@ -41,12 +42,22 @@ def make_mock_skill(
 
     skill.get_prompt = MagicMock(side_effect=get_prompt)
 
+    if output_contract_available:
+        output_contract = MagicMock()
+        output_contract.model_json_schema.return_value = {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+        }
+        skill.get_output_contract = MagicMock(return_value=output_contract)
+    else:
+        skill.get_output_contract = MagicMock(return_value=None)
+
     executor = MagicMock()
     executor.execute_action = AsyncMock()
     from core.models.data.execution import ExecutionStatus
     exec_result = MagicMock()
     exec_result.status = ExecutionStatus.COMPLETED
-    exec_result.data = {"content": map_result_content}
+    exec_result.data = {"answer": map_result_content, "content": map_result_content}
     executor.execute_action.return_value = exec_result
 
     skill.executor = executor
@@ -247,6 +258,87 @@ class TestMapPhase:
         strategy = MapReduceStrategy(make_mock_skill())
         result = await strategy._map_phase([], "вопрос?", MagicMock())
         assert result == []
+
+
+# ============================================================================
+# _analyze_chunk (structured output)
+# ============================================================================
+
+class TestAnalyzeChunk:
+
+    @pytest.mark.asyncio
+    async def test_uses_structured_output(self):
+        skill = make_mock_skill()
+        strategy = MapReduceStrategy(skill)
+        result = await strategy._analyze_chunk(
+            {"content": "данные о продажах: 100 единиц", "chunk_id": 0},
+            "какие данные?", FakeContext(),
+        )
+        assert result["content"] == "В этом чанке содержатся данные о продажах. Общая сумма: 150000 рублей."
+        assert result["chunk_id"] == 0
+
+        call_args = skill.executor.execute_action.call_args
+        params = call_args[1]
+        assert params["action_name"] == "llm.generate_structured"
+        structured = params["parameters"]["structured_output"]
+        assert structured["output_model"] == "data_analysis.analyze_step_data.output"
+        assert structured["strict_mode"] is True
+
+    @pytest.mark.asyncio
+    async def test_handles_pydantic_response(self):
+        """result.data может быть Pydantic моделью с model_dump."""
+        skill = make_mock_skill()
+        strategy = MapReduceStrategy(skill)
+
+        class FakeModel:
+            def model_dump(self):
+                return {"answer": "Ответ из Pydantic модели"}
+
+        from core.models.data.execution import ExecutionStatus
+        exec_result = MagicMock()
+        exec_result.status = ExecutionStatus.COMPLETED
+        exec_result.data = FakeModel()
+        skill.executor.execute_action.return_value = exec_result
+
+        result = await strategy._analyze_chunk(
+            {"content": "достаточно длинные данные для проверки Pydantic модели", "chunk_id": 5},
+            "вопрос?", FakeContext(),
+        )
+        assert result["content"] == "Ответ из Pydantic модели"
+        assert result["chunk_id"] == 5
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_contract(self):
+        skill = make_mock_skill(output_contract_available=False)
+        strategy = MapReduceStrategy(skill)
+        result = await strategy._analyze_chunk(
+            {"content": "данные", "chunk_id": 1},
+            "вопрос?", FakeContext(),
+        )
+        assert result["content"] == ""
+        assert result["chunk_id"] == 1
+
+    @pytest.mark.asyncio
+    async def test_short_content_returns_early(self):
+        strategy = MapReduceStrategy(make_mock_skill())
+        result = await strategy._analyze_chunk(
+            {"content": "коротко", "chunk_id": 2},
+            "вопрос?", FakeContext(),
+        )
+        assert result["content"] == ""
+        assert result["chunk_id"] == 2
+
+    @pytest.mark.asyncio
+    async def test_executor_exception_returns_empty(self):
+        skill = make_mock_skill()
+        skill.executor.execute_action.side_effect = Exception("Network error")
+        strategy = MapReduceStrategy(skill)
+        result = await strategy._analyze_chunk(
+            {"content": "достаточно длинные данные для анализа", "chunk_id": 3},
+            "вопрос?", FakeContext(),
+        )
+        assert result["content"] == ""
+        assert result["chunk_id"] == 3
 
 
 # ============================================================================

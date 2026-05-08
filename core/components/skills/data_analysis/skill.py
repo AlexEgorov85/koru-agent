@@ -127,7 +127,7 @@ class DataAnalysisSkill(Skill):
         return {
             "answer": result.answer,
             "execution_status": "error" if result.error else "success",
-            "execution_error": result.error,
+            "execution_error": result.error or "",
             "confidence": result.confidence,
             "executed_operations": result.operations,
             "metadata": result.metadata,

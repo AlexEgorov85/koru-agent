@@ -187,19 +187,35 @@ class MapReduceStrategy(AbstractStrategy):
         executor = self._get_executor(execution_context)
 
         try:
+            output_contract = self._skill.get_output_contract("data_analysis.analyze_step_data")
+            if not output_contract:
+                return {"content": "", "chunk_id": chunk_id}
+
             result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={"prompt": prompt, "temperature": 0.2, "max_tokens": 2000},
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": prompt,
+                    "temperature": 0.2,
+                    "structured_output": {
+                        "output_model": "data_analysis.analyze_step_data.output",
+                        "schema_def": output_contract,
+                        "strict_mode": True,
+                        "max_retries": 1,
+                    },
+                },
                 context=execution_context,
             )
 
             from core.models.data.execution import ExecutionStatus
             if result.status == ExecutionStatus.COMPLETED and result.data:
-                if isinstance(result.data, dict):
-                    text = result.data.get("content", "") or result.data.get("text", "")
-                else:
-                    text = str(result.data)
-                return {"content": str(text), "chunk_id": chunk_id}
+                data = result.data
+                if hasattr(data, 'model_dump'):
+                    data = data.model_dump()
+                elif not isinstance(data, dict):
+                    data = {}
+                text = data.get("answer", "")
+                if text:
+                    return {"content": str(text), "chunk_id": chunk_id}
         except Exception:
             pass
 
