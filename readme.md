@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.46.5-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.46.7-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,9 +25,20 @@
 
 ---
 
-## 📊 Последние изменения (v5.46.5)
+## 📊 Последние изменения (v5.46.7)
 
-**Версия 5.46.5** (6 мая 2026) — **Улучшения наблюдений, таймаутов, анализа данных и чанкинга**
+**Версия 5.46.7** (8 мая 2026) — **Структурированный вывод в MapReduce, исправление контрактов**
+
+### Исправлено в 5.46.7:
+- ✅ Структурированный вывод (`llm.generate_structured`) для `_analyze_chunk` в MapReduceStrategy
+- ✅ Валидация наличия выходного контракта перед LLM-вызовом в MapReduce
+- ✅ Обработка Pydantic-моделей и dict в `result.data` для MapReduce
+- ✅ `execution_error` возвращает `""` вместо `None` для соответствия контракту
+- ✅ 5 новых unit-тестов для structured output
+
+### Исправлено в 5.46.6:
+- ✅ Runtime ACT block fix
+- ✅ Pydantic contract validation fixes
 
 ### Исправлено в 5.46.4:
 - ✅ Исправлена валидация входных/выходных данных в `component.py` (корректная работа с `pydantic_schema`)
@@ -37,14 +48,7 @@
 - ✅ Исправление таймаутов в `final_answer/skill.py` (безопасная работа с конфигом)
 - ✅ Обработка `next_action` перед остановкой в `ReActPattern`
 
-### Исправлено в 5.46.5:
-- ✅ Улучшение формата вывода наблюдений (JSON) в `observer.py`
-- ✅ Увеличение таймаутов: `agent_step_timeout` (120→600с), OpenRouter (180→600с)
-- ✅ Увеличение `chunk_llm_timeout` до 600с в `data_analysis/skill.py`
-- ✅ Переход `ChunkingService` на чанкинг по символам вместо строк
-- ✅ Улучшение извлечения данных из разных форматов в `data_analysis`
-
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5465---2026-05-06)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5467---2026-05-08)
 
 ---
 
@@ -267,7 +271,7 @@ agent_config = AgentConfig(
 
 | Показатель | Значение |
 |------------|----------|
-| **Версия** | 5.46.5 |
+| **Версия** | 5.46.7 |
 | **Тестов** | 446+ тестов (100% pass) |
 | **Покрытие** | ≥98% |
 | **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic, Gemini |

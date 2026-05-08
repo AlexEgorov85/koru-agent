@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [5.46.7] - 2026-05-08
+
+### Added
+- Структурированный вывод (`llm.generate_structured`) для `_analyze_chunk` в MapReduceStrategy
+- Валидация наличия выходного контракта перед LLM-вызовом в MapReduce
+- Обработка Pydantic-моделей и dict в `result.data` для MapReduce
+- Unit-тесты: 5 новых тестов для structured output в `_analyze_chunk`
+
+### Fixed
+- `execution_error: None` → `execution_error: ""` в `skill.py` для соответствия выходному контракту (тип string)
+
+### Changed
+- Обновлена версия проекта до 5.46.7
+
 ## [5.46.3] - 2026-05-05
 
 ### Fixed
