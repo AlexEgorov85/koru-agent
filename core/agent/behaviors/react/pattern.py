@@ -245,6 +245,30 @@ class ReActPattern(BaseBehaviorPattern):
 
         return decision
 
+    ANALYSIS_FIELDS = [
+        "analysis_question_decomposition", "analysis_subquestions_tracking",
+        "analysis_progress", "analysis_deficit", "analysis_data_quality",
+        "analysis_empty_error_strategy", "analysis_tool_choice",
+        "analysis_parameter_sources", "analysis_parameter_validation",
+        "analysis_limit_strategy", "analysis_alternative_paths",
+        "analysis_stop", "analysis_final",
+    ]
+
+    def _build_reasoning_detail(self, reasoning_result: Any) -> Dict[str, Any]:
+        """Собрать reasoning_detail из individual analysis_* полей LLM."""
+        detail = {}
+        if isinstance(reasoning_result, dict):
+            for field in self.ANALYSIS_FIELDS:
+                val = reasoning_result.get(field)
+                if val:
+                    detail[field] = val
+        else:
+            for field in self.ANALYSIS_FIELDS:
+                val = getattr(reasoning_result, field, None)
+                if val:
+                    detail[field] = val
+        return detail
+
     async def _make_decision(
         self,
         reasoning_result: Any,
@@ -278,9 +302,12 @@ class ReActPattern(BaseBehaviorPattern):
                     type=DecisionType.ACT,
                     action=capability_name,
                     parameters=parameters,
+                    reasoning_detail=self._build_reasoning_detail(reasoning_result) or None,
                     is_final=False,
                 )
-            return self._handle_stop_condition()
+            return self._handle_stop_condition(
+                reasoning_detail=self._build_reasoning_detail(reasoning_result) or None
+            )
 
         if not capability_name:
             return Decision(
@@ -318,7 +345,7 @@ class ReActPattern(BaseBehaviorPattern):
             type=DecisionType.ACT,
             action=capability_name,
             parameters=parameters,
-            reasoning_detail=getattr(reasoning_result, "reasoning_detail", None),
+            reasoning_detail=self._build_reasoning_detail(reasoning_result) or None,
             is_final=capability_name == "final_answer.generate",
         )
 

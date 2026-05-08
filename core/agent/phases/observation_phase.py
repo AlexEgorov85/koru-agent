@@ -41,6 +41,7 @@ class ObservationPhase:
     # Настройки форматирования (аналогично observation_formatter.py)
     TABLE_MAX_ROWS = 10                     # Максимум строк в табличном выводе
     TABLE_MAX_KEYS = 5                      # Максимум ключей для preview
+    EMOJI_OBSERVATION = "👁️"                # Наблюдение
     EMOJI_DATA = "📊"                       # Данные
     EMOJI_WARNING = "⚠️"                    # Предупреждение
     EMOJI_ANALYZE = "💡"                    # Требуется анализ
@@ -144,6 +145,29 @@ class ObservationPhase:
         completeness = 1.0
         reliability = 0.8
         next_step_suggestion = "Продолжить следующий шаг на основе прогресса цели"
+
+        # Результат навыка data_analysis — полный ответ в наблюдение
+        if action_name.startswith("data_analysis."):
+            answer_text = ""
+            if isinstance(sample, dict) and "answer" in sample:
+                answer_text = str(sample.get("answer", ""))
+            elif isinstance(sample, str):
+                answer_text = sample
+            else:
+                answer_text = str(sample)
+
+            if action_name == "data_analysis.analyze_step_data":
+                key_findings.append("📊 Результат анализа данных")
+            else:
+                key_findings.append(f"📊 Результат {action_name}")
+
+            return {
+                "observation_text": answer_text,
+                "key_findings": key_findings,
+                "next_step_suggestion": "Продолжить на основе полученного ответа",
+                "completeness": 1.0,
+                "reliability": 0.85,
+            }
 
         # Если данных МНОГО — ТОЛЬКО СВОДКА (без сырых данных в observation)
         if count > self.LARGE_DATA_ROW_THRESHOLD:
@@ -620,6 +644,52 @@ ERROR:
             "missing_fields": missing_fields,
             "invalid_fields": invalid_fields,
         }
+
+    async def analyze(
+        self,
+        result: Any,
+        decision_action: str,
+        decision_parameters: Dict[str, Any],
+        session_context: Any,
+        step_number: int,
+    ) -> ObservationResult:
+        """
+        Единая точка входа для анализа результата выполнения.
+
+        АРХИТЕКТУРА:
+        - Сначала rule-based анализ
+        - При ошибках или пустых данных — LLM анализ
+        """
+        # Определяем error из результата
+        error = None
+        if isinstance(result, ExecutionResult) and result.status == ExecutionStatus.FAILED:
+            error = result.error
+
+        # Rule-based анализ (быстрый путь)
+        observation = self._rule_based_observation(
+            action_name=decision_action,
+            parameters=decision_parameters,
+            result=result.data if isinstance(result, ExecutionResult) else result,
+            error=error,
+        )
+
+        # Если rule-based вернул успех — возвращаем
+        if observation.status == "success" and not error:
+            return observation
+
+        # Иначе — LLM анализ для ошибок и пустых данных
+        if isinstance(result, ExecutionResult):
+            session_id = session_context.session_id if session_context else "unknown"
+            llm_observation = await self._run_llm_analysis(
+                result=result,
+                action=decision_action,
+                parameters=decision_parameters,
+                session_id=session_id,
+                step_number=step_number,
+            )
+            return llm_observation
+
+        return observation
 
     @property
     def _llm_orchestrator(self):
