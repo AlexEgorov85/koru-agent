@@ -78,13 +78,16 @@ class LLMStrategy(AbstractStrategy):
             data = data.model_dump()
         elif not isinstance(data, dict):
             data = {}
+        metadata_value = data.get("metadata", {})
+        if not isinstance(metadata_value, dict):
+            metadata_value = {}
         return AnalysisResult(
             answer=data.get("answer", ""),
             confidence=data.get("confidence", 0.5),
             operations=["llm"],
             metadata={
                 "mode_used": "llm",
-                **data.get("metadata", {}),
+                **metadata_value,
             },
         )
 

@@ -62,10 +62,15 @@ class AbstractStrategy(ABC):
 
     def _get_executor(self, execution_context: Any) -> Any:
         """Получение executor из контекста или из скилла."""
-        if hasattr(execution_context, 'executor'):
-            return execution_context.executor
-        if hasattr(execution_context, 'session_context') and hasattr(
-            execution_context.session_context, 'executor',
-        ):
-            return execution_context.session_context.executor
-        return self._skill.executor
+        executor = None
+        if execution_context is not None and hasattr(execution_context, 'executor'):
+            executor = execution_context.executor
+        if executor is None and execution_context is not None and hasattr(execution_context, 'session_context'):
+            sc = execution_context.session_context
+            if hasattr(sc, 'executor'):
+                executor = sc.executor
+        if executor is None:
+            executor = self._skill.executor
+        if executor is None:
+            raise RuntimeError("Executor не найден ни в контексте, ни в навыке")
+        return executor

@@ -1,0 +1,18 @@
+capability: data_analysis.merge_step_data
+component_type: skill
+description: Input contract for REDUCE phase - объединение результатов анализа (merge)
+direction: input
+schema_data:
+  type: object
+  properties:
+    question:
+      type: string
+      description: Вопрос пользователя
+    fragments:
+      type: string
+      description: Нумерованные фрагменты для объединения
+  required:
+    - question
+    - fragments
+status: active
+version: v1.0.0

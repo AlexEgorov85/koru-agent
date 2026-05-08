@@ -57,14 +57,16 @@ class MapReduceStrategy(AbstractStrategy):
                 },
             )
 
-        answer = await self._tree_reduce(
+        reduce_result = await self._tree_reduce(
             summaries, input_data.question, input_data.execution_context,
             context_window, max_new,
         )
+        answer = reduce_result.get("answer", "")
+        confidence = float(reduce_result.get("confidence", 0.85))
 
         return AnalysisResult(
             answer=answer,
-            confidence=0.85,
+            confidence=confidence,
             operations=[f"map:{len(chunks)}", "reduce"],
             metadata={
                 "mode_used": "mapreduce",
@@ -214,12 +216,13 @@ class MapReduceStrategy(AbstractStrategy):
                 elif not isinstance(data, dict):
                     data = {}
                 text = data.get("answer", "")
+                confidence = data.get("confidence", 0.7)
                 if text:
-                    return {"content": str(text), "chunk_id": chunk_id}
+                    return {"content": str(text), "chunk_id": chunk_id, "confidence": float(confidence)}
         except Exception:
             pass
 
-        return {"content": "", "chunk_id": chunk_id}
+        return {"content": "", "chunk_id": chunk_id, "confidence": 0.2}
 
     def _filter_empty_summaries(self, summaries: List[Dict]) -> List[Dict]:
         noise_patterns = [
@@ -242,17 +245,25 @@ class MapReduceStrategy(AbstractStrategy):
     async def _tree_reduce(
         self, summaries: List[Dict], question: str,
         execution_context: Any, context_window: int, max_new_tokens: int,
-    ) -> str:
-        """Иерархический reduce через _merge_batch с контекстно-зависимым батчингом."""
+    ) -> Dict:
+        """Иерархический reduce. Возвращает {answer, confidence}."""
         if not summaries:
-            return "Нет данных для анализа"
+            return {"answer": "Нет данных для анализа", "confidence": 0.3}
         if len(summaries) == 1:
-            return str(summaries[0].get("content", ""))
+            return {
+                "answer": str(summaries[0].get("content", "")),
+                "confidence": float(summaries[0].get("confidence", 0.7)),
+            }
 
         result = await self._merge_batch(
             summaries, question, execution_context, context_window, max_new_tokens,
         )
-        return str(result.get("content", ""))
+        if not result:
+            return {"answer": "Ошибка при объединении результатов", "confidence": 0.2}
+        return {
+            "answer": str(result.get("content", "")),
+            "confidence": float(result.get("confidence", 0.8)),
+        }
 
     async def _merge_batch(
         self, batch: List[Dict], question: str, execution_context: Any,
@@ -282,17 +293,17 @@ class MapReduceStrategy(AbstractStrategy):
     async def _llm_merge(
         self, items: List[Dict], question: str, execution_context: Any,
     ) -> Dict:
-        """Слияние списка фрагментов через LLM с промптами из YAML."""
+        """Слияние списка фрагментов через LLM. Возвращает {content, confidence}."""
         contents = [str(item.get("content", "")) for item in items]
 
         if not contents:
-            return {"content": ""}
+            return {"content": "", "confidence": 0.0}
 
         system_prompt = self._skill.get_prompt("data_analysis.merge_step_data.system")
         user_prompt = self._skill.get_prompt("data_analysis.merge_step_data.user")
 
         if not system_prompt or not user_prompt:
-            return {"content": "\n\n---\n\n".join(contents)}
+            return {"content": "\n\n---\n\n".join(contents), "confidence": 0.5}
 
         fragments = "\n".join(
             f"=== ФРАГМЕНТ {i + 1} ===\n{c}" for i, c in enumerate(contents)
@@ -307,24 +318,53 @@ class MapReduceStrategy(AbstractStrategy):
 
         executor = self._get_executor(execution_context)
         try:
-            result = await executor.execute_action(
-                action_name="llm.generate",
-                parameters={"prompt": prompt, "temperature": 0.3, "max_tokens": 2000},
-                context=execution_context,
-            )
+            output_contract = self._skill.get_output_contract("data_analysis.merge_step_data")
+            if output_contract:
+                result = await executor.execute_action(
+                    action_name="llm.generate_structured",
+                    parameters={
+                        "prompt": prompt,
+                        "temperature": 0.3,
+                        "structured_output": {
+                            "output_model": "data_analysis.merge_step_data.output",
+                            "schema_def": output_contract,
+                            "strict_mode": True,
+                            "max_retries": 1,
+                        },
+                    },
+                    context=execution_context,
+                )
 
-            from core.models.data.execution import ExecutionStatus
-            if result.status == ExecutionStatus.COMPLETED and result.data:
-                if isinstance(result.data, dict):
-                    text = result.data.get("content", "") or result.data.get("text", "")
-                else:
-                    text = str(result.data)
-                if text:
-                    return {"content": text}
+                from core.models.data.execution import ExecutionStatus
+                if result.status == ExecutionStatus.COMPLETED and result.data:
+                    data = result.data
+                    if hasattr(data, 'model_dump'):
+                        data = data.model_dump()
+                    elif not isinstance(data, dict):
+                        data = {}
+                    text = data.get("answer", "")
+                    confidence = data.get("confidence", 0.85)
+                    if text:
+                        return {"content": str(text), "confidence": float(confidence)}
+            else:
+                result = await executor.execute_action(
+                    action_name="llm.generate",
+                    parameters={"prompt": prompt, "temperature": 0.3, "max_tokens": 2000},
+                    context=execution_context,
+                )
+
+                from core.models.data.execution import ExecutionStatus
+                if result.status == ExecutionStatus.COMPLETED and result.data:
+                    if isinstance(result.data, dict):
+                        text = result.data.get("content", "") or result.data.get("text", "")
+                    else:
+                        text = str(result.data)
+                    if text:
+                        return {"content": text, "confidence": 0.85}
         except Exception:
             pass
 
         combined = "\n\n---\n\n".join(contents)
-        return {"content": combined}
+        return {"content": combined, "confidence": 0.5}
 
 

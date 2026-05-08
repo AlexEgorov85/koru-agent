@@ -1,0 +1,17 @@
+capability: data_analysis.merge_step_data
+component_type: skill
+description: Output contract for REDUCE phase - объединение результатов анализа (merge)
+direction: output
+schema_data:
+  type: object
+  properties:
+    answer:
+      type: string
+      description: Объединённый текстовый ответ на основе всех фрагментов
+    confidence:
+      type: number
+      description: Уверенность 0.0-1.0 (обычно выше, чем у отдельных фрагментов)
+  required:
+    - answer
+status: active
+version: v1.0.0
