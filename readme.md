@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.46.7-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.46.8-orange.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
@@ -25,9 +25,17 @@
 
 ---
 
-## 📊 Последние изменения (v5.46.7)
+## 📊 Последние изменения (v5.46.8)
 
-**Версия 5.46.7** (8 мая 2026) — **Структурированный вывод в MapReduce, исправление контрактов**
+**Версия 5.46.8** (12 мая 2026) — **Каскадная валидация, narrative-логгер, защита от TypeError**
+
+### Исправлено в 5.46.8:
+- ✅ Исправлена cascade-ошибка при валидации, рефакторинг цикла агента
+- ✅ Исправление NoneType error в MAP-REDUCE data_analysis, добавлены контракты
+- ✅ Narrative-логгер теперь выводится в терминал через `_add_console_handler`
+- ✅ Защита от TypeError в final_answer — конвертация Pydantic-моделей в строку
+- ✅ Обновлена обработка данных в ObservationPhase
+- ✅ 4 новых контракта для merge_step_data, расширены тесты data_analysis
 
 ### Исправлено в 5.46.7:
 - ✅ Структурированный вывод (`llm.generate_structured`) для `_analyze_chunk` в MapReduceStrategy
@@ -36,7 +44,7 @@
 - ✅ `execution_error` возвращает `""` вместо `None` для соответствия контракту
 - ✅ 5 новых unit-тестов для structured output
 
-### Исправлено в 5.46.6:
+### Исправлено в 5.46.5:
 - ✅ Runtime ACT block fix
 - ✅ Pydantic contract validation fixes
 
@@ -48,7 +56,7 @@
 - ✅ Исправление таймаутов в `final_answer/skill.py` (безопасная работа с конфигом)
 - ✅ Обработка `next_action` перед остановкой в `ReActPattern`
 
-📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5467---2026-05-08)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5468---2026-05-12)
 
 ---
 
@@ -271,7 +279,7 @@ agent_config = AgentConfig(
 
 | Показатель | Значение |
 |------------|----------|
-| **Версия** | 5.46.7 |
+| **Версия** | 5.46.8 |
 | **Тестов** | 446+ тестов (100% pass) |
 | **Покрытие** | ≥98% |
 | **Поддержка LLM** | LlamaCpp, vLLM, OpenAI, OpenRouter, Anthropic, Gemini |

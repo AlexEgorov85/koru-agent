@@ -8,16 +8,16 @@
 """
 
 # Основная версия
-__version__ = "5.46.7"
+__version__ = "5.46.8"
 
 # Компоненты версии
 VERSION_MAJOR = 5
 VERSION_MINOR = 46
-VERSION_PATCH = 7
+VERSION_PATCH = 8
 
 # Метаданные
-VERSION_CODENAME = "Structured output in MapReduce, contract validation fixes"
-VERSION_RELEASE_DATE = "2026-05-08"
+VERSION_CODENAME = "Cascade validation fix, narrative logger, Pydantic serialization"
+VERSION_RELEASE_DATE = "2026-05-12"
 
 # Полная строка версии
 VERSION_STRING = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH} ({VERSION_CODENAME})"

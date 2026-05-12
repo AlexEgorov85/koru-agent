@@ -271,7 +271,7 @@ def parse_args():
     parser.add_argument(
         "--goal", "-g",
         type=str,
-        default=os.environ.get("AGENT_GOAL", "Сколько проверок проведно?"),
+        default=os.environ.get("AGENT_GOAL", "В каких проверках были найдены отлонения с нарушениями "),
         help="Цель агента (default: из env AGENT_GOAL или hardcoded)"
     )
     

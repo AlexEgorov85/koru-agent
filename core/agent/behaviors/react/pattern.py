@@ -293,20 +293,6 @@ class ReActPattern(BaseBehaviorPattern):
                 parameters = getattr(decision, "parameters", {}) if decision else {}
 
         if stop_condition:
-            # Если stop_condition=true и next_action указывает на реальную capability — разрешаем
-            if capability_name and self._find_capability(capability_name, available_capabilities):
-                self._log_info(
-                    f"⚠️ LLM запросил {capability_name} перед остановкой (stop_condition=true)",
-                    event_type=EventType.INFO
-                )
-                return Decision(
-                    type=DecisionType.ACT,
-                    action=capability_name,
-                    parameters=parameters,
-                    reasoning_detail=self._build_reasoning_detail(reasoning_result) or None,
-                    is_final=False,
-                )
-            # В любом другом случае (нет next_action, FINISH, мусор) — просто завершаем
             return self._handle_stop_condition(
                 reasoning_detail=self._build_reasoning_detail(reasoning_result) or None
             )
@@ -347,9 +333,6 @@ class ReActPattern(BaseBehaviorPattern):
             for cap in available_capabilities:
                 if cap.name == prefix:
                     return cap
-        for cap in available_capabilities:
-            if "react" in [s.lower() for s in (cap.supported_strategies or [])]:
-                return cap
         return None
 
     def _handle_stop_condition(

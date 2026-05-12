@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## [5.46.8] - 2026-05-12
+
+### Fixed
+- **Исправлена cascade-ошибка при валидации, рефакторинг цикла агента**
+  - Валидация больше не вызывает каскадных ошибок при некорректных данных
+  - Цикл агента переработан: улучшена обработка FINISH, ACT, THINK решений
+  - `runtime.py`: 547 строк -> чистая архитектура, убрано дублирование логики
+  - Улучшена обработка Pydantic-моделей и dict в `result.data` для MapReduce
+
+- **Исправление NoneType error в MAP-REDUCE data_analysis**
+  - `MapReduceStrategy`: защита от None при обработке чанков данных
+  - Добавлены контракты `data_analysis.merge_step_data_input/output` v1.0.0
+  - 3 новых контракта, обновлены существующие промпты data_analysis
+  - Расширены unit и integration тесты (300+ новых строк)
+
+- **Narrative-логгер теперь выводится в терминал**
+  - `LoggingSession`: добавлен `_add_console_handler` для narrative-логгера
+  - Логи `LogEventType.USER_PROGRESS` и `USER_RESULT` теперь отображаются в консоли
+  - Исправлено: narrative-логгер был только в файлах, теперь виден пользователю
+
+- **Защита от TypeError в final_answer**
+  - `final_answer/skill.py`: конвертация Pydantic-моделей в строку через `model_dump()`
+  - Исправлена ошибка `TypeError: Object of type PydanticModel is not JSON serializable`
+
+- **Обновлена обработка данных в ObservationPhase**
+  - `observation_phase.py`: улучшена обработка и форматирование данных
+  - `validation_phase.py`: исправлена передача контекста выполнения
+  - Обновлён `dev.yaml`: корректировка конфигурации провайдеров
+
+### Changed
+- Обновлена версия проекта до 5.46.8
+
 ## [5.46.7] - 2026-05-08
 
 ### Added
