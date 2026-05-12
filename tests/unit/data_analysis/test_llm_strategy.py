@@ -165,5 +165,5 @@ class TestLLMStrategyExecute:
         assert structured["output_model"] == "data_analysis.analyze_step_data.output"
         assert structured["schema_def"] == "fake_contract"
         assert structured["strict_mode"] is True
-        assert structured["max_retries"] == 0
+        assert structured["max_retries"] == 1
         assert params["temperature"] == 0.2

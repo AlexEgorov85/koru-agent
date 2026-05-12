@@ -368,7 +368,7 @@ class ObservationPhase:
             observation=f"Ошибка выполнения: {error}",
             key_findings=[f"Действие '{action_name}' не выполнено"],
             data_quality={"completeness": 0.0, "reliability": 0.0},
-            errors=[error],
+            errors=[str(error)],
             next_step_suggestion="Повторить с другими параметрами или используйте стратегию восстановления",
             requires_additional_action=True,
             rule_based=True,
@@ -383,7 +383,7 @@ class ObservationPhase:
         step_number: int,
     ) -> ObservationResult:
         """Запустить LLM анализ."""
-        error = result.error if result.status == ExecutionStatus.FAILED else None
+        error = str(result.error) if result.status == ExecutionStatus.FAILED and result.error else None
         result_data = result.data
 
         try:
@@ -453,7 +453,7 @@ class ObservationPhase:
                 agent_id="agent",
                 step_number=step_number,
                 phase='observe',
-                use_native_structured_output=False,
+                use_native_structured_output=True,
             )
 
             if not result_obj or not hasattr(result_obj, 'parsed_content') or result_obj.parsed_content is None:
@@ -590,7 +590,7 @@ ERROR:
                 observation=f"Error during execution: {error}",
                 key_findings=[],
                 data_quality={"completeness": 0.0, "reliability": 0.0},
-                errors=[error],
+                errors=[str(error)],
                 next_step_suggestion="Попробуйте другой подход или исправьте ошибку",
                 requires_additional_action=True,
                 rule_based=True,

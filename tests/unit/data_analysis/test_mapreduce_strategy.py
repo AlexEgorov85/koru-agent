@@ -352,13 +352,108 @@ class TestTreeReduce:
         strategy = MapReduceStrategy(make_mock_skill())
         summaries = [{"content": "единственный результат", "chunk_id": 0}]
         result = await strategy._tree_reduce(summaries, "вопрос?", MagicMock(), 8192, 2000)
-        assert result == "единственный результат"
+        assert isinstance(result, dict)
+        assert result["answer"] == "единственный результат"
+        assert result["confidence"] == 0.7
 
     @pytest.mark.asyncio
     async def test_empty_summaries(self):
         strategy = MapReduceStrategy(make_mock_skill())
         result = await strategy._tree_reduce([], "вопрос?", MagicMock(), 8192, 2000)
-        assert result == "Нет данных для анализа"
+        assert isinstance(result, dict)
+        assert result["answer"] == "Нет данных для анализа"
+        assert result["confidence"] == 0.3
+
+
+# ============================================================================
+# _llm_merge
+# ============================================================================
+
+class TestLlmMerge:
+
+    @pytest.mark.asyncio
+    async def test_multiple_items_calls_llm_merge(self):
+        skill = make_mock_skill()
+        strategy = MapReduceStrategy(skill)
+        items = [
+            {"content": "МСК продажи выросли", "confidence": 0.8},
+            {"content": "СПБ продажи упали", "confidence": 0.7},
+        ]
+        result = await strategy._llm_merge(items, "вопрос?", FakeContext())
+        assert result["content"]  # не пустой
+        assert "confidence" in result
+        # Должен быть вызов llm.generate_structured
+        call_args = skill.executor.execute_action.call_args
+        assert call_args[1]["action_name"] == "llm.generate_structured"
+
+    @pytest.mark.asyncio
+    async def test_no_merge_prompts_concatenates(self):
+        """Без merge-промптов — конкатенация фрагментов."""
+        skill = make_mock_skill(
+            merge_system=None,
+            merge_user=None,
+        )
+        strategy = MapReduceStrategy(skill)
+        items = [
+            {"content": "фрагмент A", "confidence": 0.8},
+            {"content": "фрагмент B", "confidence": 0.7},
+        ]
+        result = await strategy._llm_merge(items, "вопрос?", FakeContext())
+        assert "фрагмент A" in result["content"]
+        assert "фрагмент B" in result["content"]
+        assert result["confidence"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_executor_exception_falls_back(self):
+        """При ошибке LLM — возвращается конкатенация."""
+        skill = make_mock_skill()
+        skill.executor.execute_action.side_effect = Exception("LLM error")
+        strategy = MapReduceStrategy(skill)
+        items = [
+            {"content": "фрагмент A", "confidence": 0.8},
+            {"content": "фрагмент B", "confidence": 0.7},
+        ]
+        result = await strategy._llm_merge(items, "вопрос?", FakeContext())
+        assert "фрагмент A" in result["content"]
+        assert result["confidence"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_empty_items(self):
+        strategy = MapReduceStrategy(make_mock_skill())
+        result = await strategy._llm_merge([], "вопрос?", MagicMock())
+        assert result["content"] == ""
+        assert result["confidence"] == 0.0
+
+
+# ============================================================================
+# _merge_batch (рекурсивное слияние)
+# ============================================================================
+
+class TestMergeBatch:
+
+    @pytest.mark.asyncio
+    async def test_single_item(self):
+        """Один элемент — возвращается как есть."""
+        strategy = MapReduceStrategy(make_mock_skill())
+        item = {"content": "один результат", "confidence": 0.9}
+        result = await strategy._merge_batch([item], "вопрос?", MagicMock(), 8192, 2000)
+        assert result["content"] == "один результат"
+
+    @pytest.mark.asyncio
+    async def test_two_items_merges(self):
+        """Два элемента — вызывается _llm_merge."""
+        strategy = MapReduceStrategy(make_mock_skill())
+        items = [
+            {"content": "A" * 100, "confidence": 0.8},
+            {"content": "B" * 100, "confidence": 0.7},
+        ]
+        result = await strategy._merge_batch(items, "вопрос?", FakeContext(), 8192, 2000)
+        assert result["content"]
+
+
+# ============================================================================
+# execute (full flow, mocked LLM)
+# ============================================================================
 
 
 # ============================================================================
@@ -375,7 +470,7 @@ class TestMapReduceExecute:
         result = await strategy.execute(make_input(data, "анализ?"))
         assert isinstance(result, AnalysisResult)
         assert result.answer
-        assert result.confidence == 0.85
+        assert result.confidence == 0.7  # одна-summary → confidence из _analyze_chunk (default 0.7)
         assert any("map" in op for op in result.operations)
 
     @pytest.mark.asyncio

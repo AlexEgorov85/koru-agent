@@ -35,14 +35,13 @@ llm_providers:
   default_llm:
     enabled: true
     fallback_providers: []
-    model_name: GigaChat-Pro
+    model_name: openrouter/free
     parameters:
-      credentials: ""  # Укажите ключ GigaChat или задайте переменную GIGACHAT_CREDENTIALS
+      api_key: ""  # Укажите ключ OpenRouter или задайте переменную OPENROUTER_API_KEY
       temperature: 0.2
       max_tokens: 4096
-      timeout: 120.0
-      profanity_check: false
-    provider_type: gigachat
+      timeout_seconds: 300.0
+    provider_type: openrouter
     timeout_seconds: 300.0
 log_dir: logs/dev
 log_level: DEBUG

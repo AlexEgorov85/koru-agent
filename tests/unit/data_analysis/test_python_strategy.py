@@ -93,7 +93,7 @@ class TestPythonStrategyExecute:
         data = [{"val": 10}, {"val": 20}, {"val": 30}]
         result = await strategy.execute(make_input(data, "среднее val"))
         assert "avg_val" in result.answer
-        assert "20" in result.answer.split("avg_val:")[1].strip()[:4]
+        assert "avg_val: 20" in result.answer
         assert "avg:val" in result.operations
 
     @pytest.mark.asyncio
@@ -134,3 +134,23 @@ class TestPythonStrategyExecute:
         assert "max_val" in result.answer
         assert "10" in result.answer
         assert "30" in result.answer
+
+    @pytest.mark.asyncio
+    async def test_none_values_treated_as_zero_in_sum_avg(self):
+        strategy = PythonStrategy(make_skill())
+        data = [{"val": 10}, {"val": None}, {"val": 30}]
+        result = await strategy.execute(make_input(data, "сумма и среднее val"))
+        assert "sum_val" in result.answer
+        assert "avg_val" in result.answer
+        assert "40" in result.answer          # 10 + 0 + 30
+        assert "avg_val: 13." in result.answer  # 40/3 ≈ 13.33
+
+    @pytest.mark.asyncio
+    async def test_multiple_numeric_fields(self):
+        strategy = PythonStrategy(make_skill())
+        data = [{"a": 10, "b": 100}, {"a": 20, "b": 200}]
+        result = await strategy.execute(make_input(data, "сумма a и b"))
+        assert "sum_a: 30" in result.answer   # 10 + 20
+        assert "sum_b: 300" in result.answer  # 100 + 200
+        assert "sum:a" in result.operations
+        assert "sum:b" in result.operations

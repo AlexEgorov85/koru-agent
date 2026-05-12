@@ -67,7 +67,7 @@ class ValidationPhase:
             
             result = ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=ValueError(error_msg),
+                error=error_msg,
                 data={
                     "error_type": "unknown_tool",
                     "message": error_msg,
@@ -92,7 +92,7 @@ class ValidationPhase:
                 
                 result = ExecutionResult(
                     status=ExecutionStatus.FAILED,
-                    error=ValueError(error_msg),
+                    error=error_msg,
                     data={
                         "error_type": "invalid_parameters",
                         "message": error_msg,

@@ -3,8 +3,8 @@
 
 ТЕСТЫ:
   data_analysis.analyze_step_data:
-  - test_analyze_step_data_with_csv_rows: анализ CSV-данных (строк)
-  - test_analyze_step_data_with_text: анализ текстовых данных
+  - test_analyze_step_data_with_csv_rows: анализ CSV-данных (строк) [LLM]
+  - test_analyze_step_data_with_text: анализ текстовых данных [LLM]
   - test_analyze_step_data_missing_required_fields: отсутствие обязательных полей
   - test_analyze_step_data_not_found: шаг не найден в контексте
 
@@ -14,6 +14,7 @@
 - Реальные контексты, без моков
 - Тесты ошибок: проверка FAILED при невалидных входных данных
 """
+import os
 import uuid
 import pytest
 import pytest_asyncio
@@ -26,6 +27,12 @@ from core.session_context.session_context import SessionContext
 from core.session_context.model import ContextItemMetadata
 from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.models.enums.common_enums import ExecutionStatus
+
+# Маркер: тесты, требующие реальный LLM (пропускаются если TEST_LLM_TYPE=mock)
+requires_llm = pytest.mark.skipif(
+    os.getenv('TEST_LLM_TYPE', 'mock') == 'mock',
+    reason="Требуется реальный LLM (TEST_LLM_TYPE=real)",
+)
 
 
 # ============================================================================
@@ -139,6 +146,7 @@ class TestDataAnalysisSkillIntegration:
     """DataAnalysis Skill — интеграционные тесты с реальным контекстом."""
 
     @pytest.mark.asyncio
+    @requires_llm
     async def test_analyze_step_data_with_csv_rows(self, executor):
         """Анализ CSV-данных (строк) из SessionContext.
         
@@ -197,10 +205,103 @@ class TestDataAnalysisSkillIntegration:
         assert metadata.get("mode_used") == "mapreduce", f"Ожидался режим mapreduce, получен {metadata.get('mode_used')}"
         assert "chunks_created" in metadata, "Нет информации о созданных чанках"
         assert "processing_time_ms" in metadata, "Нет времени обработки"
-        
+
         print(f"✅ DataAnalysis: анализ CSV-данных выполнен (answer: {answer[:100]}...)")
 
     @pytest.mark.asyncio
+    async def test_analyze_step_data_python_mode(self, executor):
+        """Анализ в режиме python — локальные вычисления без LLM.
+        
+        Сценарий:
+        1. Данные с числовыми полями
+        2. Вопрос про сумму/количество
+        3. mode=python
+        4. Ожидается: ответ без LLM-вызова
+        """
+        session = create_filled_session(goal="Подсчёт суммы")
+
+        rows = [
+            {"id": 1, "name": "Item1", "value": 100},
+            {"id": 2, "name": "Item2", "value": 200},
+            {"id": 3, "name": "Item3", "value": 300},
+        ]
+
+        step_num = add_step_with_data(
+            session=session,
+            step_number=10,
+            raw_content=rows,
+        )
+
+        result = await executor.execute_action(
+            action_name="data_analysis.analyze_step_data",
+            parameters={
+                "question": "чему равна сумма value?",
+                "step_id": step_num,
+                "mode": "python",
+            },
+            context=ExecutionContext(session_context=session)
+        )
+
+        assert result.status == ExecutionStatus.COMPLETED, f"FAILED: {result.error}"
+        data = result.data if isinstance(result.data, dict) else result.data.model_dump()
+
+        assert "answer" in data, "Нет поля answer"
+        assert "confidence" in data, "Нет поля confidence"
+        answer = data["answer"]
+        assert "Результат анализа данных (python mode)" in answer
+        assert "sum_value: 600" in answer  # 100+200+300
+        assert "mode_used" in data.get("metadata", {})
+        assert data["metadata"]["mode_used"] == "python"
+
+        print(f"✅ DataAnalysis: python mode выполнен (answer: {answer[:80]}...)")
+
+    @pytest.mark.asyncio
+    async def test_analyze_step_data_auto_mode(self, executor):
+        """Анализ в режиме auto — автоматический выбор python стратегии.
+        
+        Сценарий:
+        1. Данные с числовыми полями
+        2. Вопрос содержит ключевое слово 'сумма'
+        3. mode=auto (или не указан)
+        4. Ожидается: PythonStrategy выбран автоматически
+        """
+        session = create_filled_session(goal="Авто-анализ")
+
+        rows = [
+            {"id": 1, "val": 10},
+            {"id": 2, "val": 20},
+            {"id": 3, "val": 30},
+        ]
+
+        step_num = add_step_with_data(
+            session=session,
+            step_number=20,
+            raw_content=rows,
+        )
+
+        result = await executor.execute_action(
+            action_name="data_analysis.analyze_step_data",
+            parameters={
+                "question": "сумма val",
+                "step_id": step_num,
+                # mode не указан — должен сработать auto
+            },
+            context=ExecutionContext(session_context=session)
+        )
+
+        assert result.status == ExecutionStatus.COMPLETED, f"FAILED: {result.error}"
+        data = result.data if isinstance(result.data, dict) else result.data.model_dump()
+
+        assert "answer" in data, "Нет поля answer"
+        answer = data["answer"]
+        assert "sum_val: 60" in answer  # 10+20+30
+        # В auto-режиме выбирается PythonStrategy
+        assert data["metadata"]["mode_used"] == "python"
+
+        print(f"✅ DataAnalysis: auto mode выполнен (answer: {answer[:80]}...)")
+
+    @pytest.mark.asyncio
+    @requires_llm
     async def test_analyze_step_data_with_text(self, executor):
         """Анализ текстовых данных из SessionContext."""
         session = create_filled_session(goal="Анализ текстового отчёта")
@@ -349,6 +450,7 @@ class TestDataAnalysisSkillErrorHandling:
         print(f"✅ DataAnalysis: None данные → FAILED")
 
     @pytest.mark.asyncio
+    @requires_llm
     async def test_analyze_question_mismatch(self, executor):
         """Вопрос не соответствует данным — LLM сообщает об отсутствии relevant данных."""
         session = create_filled_session(goal="Анализ несоответствия вопроса")

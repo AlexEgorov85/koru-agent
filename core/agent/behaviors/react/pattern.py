@@ -204,7 +204,7 @@ class ReActPattern(BaseBehaviorPattern):
                 step_number=step_number,
                 goal=session_context.goal,
                 phase="think",
-                use_native_structured_output=False,
+                use_native_structured_output=True,
             )
 
         except Exception as e:
@@ -293,7 +293,8 @@ class ReActPattern(BaseBehaviorPattern):
                 parameters = getattr(decision, "parameters", {}) if decision else {}
 
         if stop_condition:
-            if capability_name and capability_name != "final_answer.generate":
+            # Если stop_condition=true и next_action указывает на реальную capability — разрешаем
+            if capability_name and self._find_capability(capability_name, available_capabilities):
                 self._log_info(
                     f"⚠️ LLM запросил {capability_name} перед остановкой (stop_condition=true)",
                     event_type=EventType.INFO
@@ -305,6 +306,7 @@ class ReActPattern(BaseBehaviorPattern):
                     reasoning_detail=self._build_reasoning_detail(reasoning_result) or None,
                     is_final=False,
                 )
+            # В любом другом случае (нет next_action, FINISH, мусор) — просто завершаем
             return self._handle_stop_condition(
                 reasoning_detail=self._build_reasoning_detail(reasoning_result) or None
             )
@@ -317,23 +319,7 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
         # Поиск capability
-        capability = None
-        for cap in available_capabilities:
-            if cap.name == capability_name:
-                capability = cap
-                break
-        if not capability and "." in capability_name:
-            prefix = capability_name.split(".")[0]
-            for cap in available_capabilities:
-                if cap.name == prefix:
-                    capability = cap
-                    break
-        if not capability:
-            for cap in available_capabilities:
-                if "react" in [s.lower() for s in (cap.supported_strategies or [])]:
-                    capability = cap
-                    capability_name = cap.name
-                    break
+        capability = self._find_capability(capability_name, available_capabilities)
         if not capability:
             return Decision(
                 type=DecisionType.FAIL,
@@ -343,11 +329,28 @@ class ReActPattern(BaseBehaviorPattern):
 
         return Decision(
             type=DecisionType.ACT,
-            action=capability_name,
+            action=capability.name,
             parameters=parameters,
             reasoning_detail=self._build_reasoning_detail(reasoning_result) or None,
-            is_final=capability_name == "final_answer.generate",
+            is_final=capability.name == "final_answer.generate",
         )
+
+    def _find_capability(
+        self, name: str, available_capabilities: List[Capability]
+    ) -> Optional[Capability]:
+        """Поиск capability по имени с учётом префикса (skill.* → skill)."""
+        for cap in available_capabilities:
+            if cap.name == name:
+                return cap
+        if "." in name:
+            prefix = name.split(".")[0]
+            for cap in available_capabilities:
+                if cap.name == prefix:
+                    return cap
+        for cap in available_capabilities:
+            if "react" in [s.lower() for s in (cap.supported_strategies or [])]:
+                return cap
+        return None
 
     def _handle_stop_condition(
         self, reasoning_detail: Optional[Dict[str, Any]] = None

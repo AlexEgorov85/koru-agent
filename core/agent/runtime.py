@@ -10,7 +10,7 @@ Runtime — цикл выполнения агента с ObservationPhase и Me
 """
 
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.agent.components.sql_recovery import SQLRecoveryAnalyzer
 from core.application_context.application_context import ApplicationContext
@@ -343,294 +343,31 @@ class AgentRuntime:
         # Цикл выполнения
         executed_steps = 0
         for step in range(self.max_steps):
-            agent_state = self.session_context.agent_state
+            try:
+                stop, result, new_pattern, count_step = await self._execute_step(
+                    step=step, pattern=pattern, event_bus=event_bus,
+                    available_caps=available_caps, executed_steps=executed_steps,
+                )
 
-            # Высокоуровневый лог: начало шага
-            if self.narrative_log:
-                self.narrative_log.info(
-                    f"Шаг {step + 1}/{self.max_steps}: начало..."
+                if stop:
+                    return result
+
+                if new_pattern is not None:
+                    pattern = new_pattern
+
+                if count_step:
+                    executed_steps += 1
+
+            except Exception as _step_err:
+                self.log.error(
+                    f"❌ Критическая ошибка в шаге {step + 1}: {_step_err}",
+                    extra={"event_type": EventType.SYSTEM_ERROR},
+                    exc_info=True,
                 )
-            
-            # Проверка условий остановки через Policy (Fail-Fast) - ДЕЛЕГИРОВАНО STEP
-            should_stop, stop_reason = self.policy_check_phase.check_loop_conditions(
-                session_context=self.session_context,
-                metrics=self.metrics,
-                step_number=step,
-                agent_config=self.agent_config,
-            )
-            if should_stop:
-                self.log.warning(
-                    f"🛑 Остановка: {stop_reason}",
-                    extra={"event_type": EventType.AGENT_STOP}
-                )
-                await event_bus.publish(
-                    EventType.DEBUG,
-                    {"event": "AGENT_STOP_METRICS", "reason": stop_reason, "metrics": self.metrics.to_dict()},
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id
-                )
-                # ВСЕГДА пытаемся сформировать финальный ответ
                 return await self._attempt_final_answer(
                     executed_steps=executed_steps,
-                    stop_reason=stop_reason or f"Stopped: {stop_reason}"
+                    stop_reason=f"Критическая ошибка: {_step_err}"
                 )
-            
-            # Pattern решает - ДЕЛЕГИРОВАНО STEP
-            decision = await self.decision_phase.execute(
-                pattern=pattern,
-                session_context=self.session_context,
-                available_capabilities=available_caps,
-                step_number=step + 1,
-            )
-
-            # Высокоуровневый лог: принято решение
-            if self.narrative_log:
-                # Формируем краткое описание из reasoning_detail для лога
-                reasoning_short = ""
-                if decision.reasoning_detail:
-                    reasoning_short = (
-                        decision.reasoning_detail.get("analysis_final")
-                        or decision.reasoning_detail.get("analysis_progress")
-                        or ""
-                    )
-                
-                if decision.type == DecisionType.ACT:
-                    params_str = ", ".join(
-                        f"{k}={v}" for k, v in (decision.parameters or {}).items()
-                    )
-                    self.narrative_log.info(
-                        f"Принято решение: {decision.action}({params_str}) — {reasoning_short}"
-                    )
-                elif decision.type == DecisionType.FINISH:
-                    self.narrative_log.info(
-                        f"Принято решение: завершить — {reasoning_short}"
-                    )
-                elif decision.type == DecisionType.FAIL:
-                    self.narrative_log.info(
-                        f"Принято решение: ошибка — {decision.error}"
-                    )
-
-            # Pattern решил FINISH? - ДЕЛЕГИРОВАНО STEP
-            if decision.type == DecisionType.FINISH:
-                final_result = await self.final_answer_phase.generate_final_answer(
-                    session_context=self.session_context,
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                    goal=self.goal,
-                    decision_reasoning_detail=decision.reasoning_detail,
-                    sync_dialogue_callback=self._sync_dialogue_history_back,
-                )
-
-                # Высокоуровневый лог: финальный ответ
-                if self.narrative_log:
-                    self.narrative_log.info("Генерация финального ответа...")
-
-                if final_result:
-                    # Высокоуровневый лог: финальный ответ получен
-                    if self.narrative_log:
-                        answer_text = str(final_result.data)[:150] + "..." if final_result.data and len(str(final_result.data)) > 150 else str(final_result.data)
-                        self.narrative_log.info(f"Финальный ответ: {answer_text}")
-                    return final_result
-                
-                # Fallback если генерация не удалась
-                # Формируем краткий ответ из reasoning_detail
-                fallback_response = ""
-                if decision.reasoning_detail:
-                    fallback_response = (
-                        decision.reasoning_detail.get("analysis_final")
-                        or decision.reasoning_detail.get("analysis_progress")
-                        or "Завершено"
-                    )
-                else:
-                    fallback_response = "Завершено"
-                
-                self.session_context.commit_turn(
-                    user_query=self.goal,
-                    assistant_response=fallback_response,
-                    tools_used=[],
-                )
-                self._sync_dialogue_history_back()
-                result = decision.data or ExecutionResult.success(
-                    data=fallback_response
-                )
-                if self.narrative_log:
-                    self.narrative_log.info("Агент завершён успешно")
-                return result
-
-            # Pattern решил FAIL?
-            if decision.type == DecisionType.FAIL:
-                self.log.error(
-                    f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
-                    extra={"event_type": EventType.AGENT_STOP},
-                )
-
-                # Публикация события об ошибке
-                await event_bus.publish(
-                    EventType.ERROR_OCCURRED,
-                    data={
-                        "error": decision.error,
-                        "decision_reasoning_detail": decision.reasoning_detail or {"analysis_final": f"Ошибка: {decision.error or 'Неизвестная ошибка'}"},
-                        "step": executed_steps,
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-                executed_steps += 1
-                continue
-
-            # Pattern решил ACT?
-            elif decision.type == DecisionType.ACT:
-                action_name = decision.action or ""
-                
-                # Валидация инструмента и параметров через ValidationPhase
-                
-                if available_caps:
-                    is_valid, validation_result = self.validation_phase.validate_action(
-                        action_name=action_name,
-                        parameters=decision.parameters or {},
-                        available_capabilities=available_caps,
-                    )
-                    
-                    if not is_valid and validation_result:
-                        # Валидация не прошла — блокируем и отправляем ошибку LLM
-                        error_msg = validation_result.data.get("message", "Ошибка валидации") if validation_result.data else "Ошибка валидации"
-                        
-                        self.log.warning(
-                            f"⚠️ {error_msg}",
-                            extra={"event_type": EventType.WARNING},
-                        )
-                        
-                        # Регистрируем ошибку в состоянии
-                        self.session_context.agent_state.add_step(
-                            action_name=action_name,
-                            status="validation_failed",
-                            parameters=decision.parameters or {},
-                            observation={"status": "error", "message": error_msg}
-                        )
-                        
-                        # Создаём результат ошибки
-                        result = ExecutionResult(
-                            status=ExecutionStatus.FAILED,
-                            error=ValueError(error_msg),
-                            data=validation_result.data,
-                        )
-                        
-                        # observation_phase — чтобы LLM увидел ошибку
-                        observation = await self.observation_phase.analyze(
-                            result=result,
-                            decision_action=action_name,
-                            decision_parameters=decision.parameters or {},
-                            session_context=self.session_context,
-                            step_number=step + 1,
-                        )
-                        
-                        # Сохраняем ошибку в контекст
-                        await self.context_update_phase.save_and_register(
-                            result=result,
-                            observation=observation,
-                            decision_action=action_name,
-                            decision_parameters=decision.parameters or {},
-                            session_context=self.session_context,
-                            executed_steps=executed_steps,
-                            error_recovery_handler=self.error_recovery_phase,
-                            decision_reasoning_detail={"analysis_final": f"Ошибка: {error_msg}"},
-                        )
-
-                        executed_steps += 1
-                        continue
-
-                # Выполнение действия - ДЕЛЕГИРОВАНО STEP
-                result = await self.execution_phase.execute(
-                    decision_action=decision.action,
-                    decision_parameters=decision.parameters or {},
-                    session_context=self.session_context,
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                    step_number=step + 1,
-                )
-
-                # Высокоуровневый лог: выполнение завершено
-                if self.narrative_log:
-                    status_str = "успех" if result.status.value == "completed" else result.status.value
-                    self.narrative_log.info(
-                        f"Результат: {decision.action} — {status_str}"
-                    )
-
-                # ============================================
-                # OBSERVATION PHASE (единая точка истинности) - СНАЧАЛА
-                # ============================================
-                
-                observation = await self.observation_phase.analyze(
-                    result=result,
-                    decision_action=decision.action,
-                    decision_parameters=decision.parameters or {},
-                    session_context=self.session_context,
-                    step_number=executed_steps + 1,
-                )
-
-                # Высокоуровневый лог: наблюдение
-                if self.narrative_log and observation:
-                    self.narrative_log.info(
-                        f"Наблюдение: {observation.observation}"
-                    )
-
-                # Сохранение данных результата и регистрация шага - ПОТОМ
-                observation_item_ids = await self.context_update_phase.save_and_register(
-                    result=result,
-                    observation=observation,
-                    decision_action=decision.action,
-                    decision_parameters=decision.parameters or {},
-                    session_context=self.session_context,
-                    executed_steps=executed_steps,
-                    decision_reasoning_detail=decision.reasoning_detail,
-                    error_recovery_handler=self.error_recovery_phase,
-                )
-
-                # Публикация событий
-                await event_bus.publish(
-                    EventType.SESSION_STEP,
-                    {
-                        "step": executed_steps,
-                        "action": decision.action,
-                        "status": result.status.value,
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-                await event_bus.publish(
-                    EventType.TOOL_RESULT,
-                    {
-                        "step": executed_steps,
-                        "action": decision.action,
-                        "observation": self.session_context.agent_state.last_observation,
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-                await event_bus.publish(
-                    EventType.INFO,
-                    {
-                        "message": f"✅ Executor завершил: status={result.status.value}"
-                        + (f"\n   ❌ Error: {result.error}" if result.error else "")
-                    },
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-
-                executed_steps += 1
-                continue
-
-            # Pattern решил SWITCH?
-            if decision.type == DecisionType.SWITCH_STRATEGY:
-                await event_bus.publish(
-                    EventType.INFO,
-                    {"message": f"🔄 SWITCH STRATEGY: {decision.next_pattern}"},
-                    session_id=self.session_context.session_id,
-                    agent_id=self.agent_id,
-                )
-                # Switch pattern by re-initializing
-                self._pattern = None
-                pattern = await self._get_pattern()
 
         # ─────────────────────────────────────────────────────────────
         # ЦИКЛ ЗАВЕРШЁН: ВСЕГДА пытаемся сформировать финальный ответ
@@ -639,6 +376,288 @@ class AgentRuntime:
             executed_steps=executed_steps,
             stop_reason=f"Лимит шагов ({self.max_steps}) исчерпан"
         )
+
+    async def _execute_step(
+        self,
+        step: int,
+        pattern: Any,
+        event_bus: Any,
+        available_caps: List,
+        executed_steps: int,
+    ) -> Tuple[bool, Optional[ExecutionResult], Optional[Any], bool]:
+        """
+        Выполнить одну итерацию цикла агента.
+
+        RETURNS:
+            Tuple[stop, result, new_pattern, count_step]:
+            - stop: True если нужно выйти из цикла (FINISH/error/лимит)
+            - result: ExecutionResult если stop=True
+            - new_pattern: новый pattern если был SWITCH
+            - count_step: True если шаг нужно учесть в executed_steps
+        """
+        agent_state = self.session_context.agent_state
+
+        # Высокоуровневый лог: начало шага
+        if self.narrative_log:
+            self.narrative_log.info(
+                f"Шаг {step + 1}/{self.max_steps}: начало..."
+            )
+
+        # Проверка условий остановки через Policy (Fail-Fast)
+        should_stop, stop_reason = self.policy_check_phase.check_loop_conditions(
+            session_context=self.session_context,
+            metrics=self.metrics,
+            step_number=step,
+            agent_config=self.agent_config,
+        )
+        if should_stop:
+            self.log.warning(
+                f"🛑 Остановка: {stop_reason}",
+                extra={"event_type": EventType.AGENT_STOP}
+            )
+            await event_bus.publish(
+                EventType.DEBUG,
+                {"event": "AGENT_STOP_METRICS", "reason": stop_reason, "metrics": self.metrics.to_dict()},
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id
+            )
+            result = await self._attempt_final_answer(
+                executed_steps=executed_steps,
+                stop_reason=stop_reason or f"Stopped: {stop_reason}"
+            )
+            return (True, result, None, False)
+
+        # Pattern решает
+        decision = await self.decision_phase.execute(
+            pattern=pattern,
+            session_context=self.session_context,
+            available_capabilities=available_caps,
+            step_number=step + 1,
+        )
+
+        # Высокоуровневый лог: принято решение
+        if self.narrative_log:
+            reasoning_short = ""
+            if decision.reasoning_detail:
+                reasoning_short = (
+                    decision.reasoning_detail.get("analysis_final")
+                    or decision.reasoning_detail.get("analysis_progress")
+                    or ""
+                )
+
+            if decision.type == DecisionType.ACT:
+                params_str = ", ".join(
+                    f"{k}={v}" for k, v in (decision.parameters or {}).items()
+                )
+                self.narrative_log.info(
+                    f"Принято решение: {decision.action}({params_str}) — {reasoning_short}"
+                )
+            elif decision.type == DecisionType.FINISH:
+                self.narrative_log.info(
+                    f"Принято решение: завершить — {reasoning_short}"
+                )
+            elif decision.type == DecisionType.FAIL:
+                self.narrative_log.info(
+                    f"Принято решение: ошибка — {decision.error}"
+                )
+
+        # Pattern решил FINISH?
+        if decision.type == DecisionType.FINISH:
+            final_result = await self.final_answer_phase.generate_final_answer(
+                session_context=self.session_context,
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+                goal=self.goal,
+                decision_reasoning_detail=decision.reasoning_detail,
+                sync_dialogue_callback=self._sync_dialogue_history_back,
+            )
+
+            if self.narrative_log:
+                self.narrative_log.info("Генерация финального ответа...")
+
+            if final_result:
+                if self.narrative_log:
+                    answer_text = str(final_result.data)[:150] + "..." if final_result.data and len(str(final_result.data)) > 150 else str(final_result.data)
+                    self.narrative_log.info(f"Финальный ответ: {answer_text}")
+                return (True, final_result, None, False)
+
+            fallback_response = ""
+            if decision.reasoning_detail:
+                fallback_response = (
+                    decision.reasoning_detail.get("analysis_final")
+                    or decision.reasoning_detail.get("analysis_progress")
+                    or "Завершено"
+                )
+            else:
+                fallback_response = "Завершено"
+
+            self.session_context.commit_turn(
+                user_query=self.goal,
+                assistant_response=fallback_response,
+                tools_used=[],
+            )
+            self._sync_dialogue_history_back()
+            result = decision.data or ExecutionResult.success(data=fallback_response)
+            if self.narrative_log:
+                self.narrative_log.info("Агент завершён успешно")
+            return (True, result, None, False)
+
+        # Pattern решил FAIL?
+        if decision.type == DecisionType.FAIL:
+            self.log.error(
+                f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
+                extra={"event_type": EventType.AGENT_STOP},
+            )
+            await event_bus.publish(
+                EventType.ERROR_OCCURRED,
+                data={
+                    "error": decision.error,
+                    "decision_reasoning_detail": decision.reasoning_detail or {"analysis_final": f"Ошибка: {decision.error or 'Неизвестная ошибка'}"},
+                    "step": executed_steps,
+                },
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+            )
+            return (False, None, None, True)
+
+        # Pattern решил ACT?
+        if decision.type == DecisionType.ACT:
+            action_name = decision.action or ""
+
+            if available_caps:
+                is_valid, validation_result = self.validation_phase.validate_action(
+                    action_name=action_name,
+                    parameters=decision.parameters or {},
+                    available_capabilities=available_caps,
+                )
+
+                if not is_valid and validation_result:
+                    error_msg = validation_result.data.get("message", "Ошибка валидации") if validation_result.data else "Ошибка валидации"
+
+                    self.log.warning(
+                        f"⚠️ {error_msg}",
+                        extra={"event_type": EventType.WARNING},
+                    )
+
+                    self.session_context.agent_state.add_step(
+                        action_name=action_name,
+                        status="validation_failed",
+                        parameters=decision.parameters or {},
+                        observation={"status": "error", "message": error_msg}
+                    )
+
+                    result = ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        error=error_msg,
+                        data=validation_result.data,
+                    )
+
+                    observation = await self.observation_phase.analyze(
+                        result=result,
+                        decision_action=action_name,
+                        decision_parameters=decision.parameters or {},
+                        session_context=self.session_context,
+                        step_number=step + 1,
+                    )
+
+                    await self.context_update_phase.save_and_register(
+                        result=result,
+                        observation=observation,
+                        decision_action=action_name,
+                        decision_parameters=decision.parameters or {},
+                        session_context=self.session_context,
+                        executed_steps=executed_steps,
+                        error_recovery_handler=self.error_recovery_phase,
+                        decision_reasoning_detail={"analysis_final": f"Ошибка: {error_msg}"},
+                    )
+
+                    return (False, None, None, True)
+
+            # Выполнение действия
+            result = await self.execution_phase.execute(
+                decision_action=decision.action,
+                decision_parameters=decision.parameters or {},
+                session_context=self.session_context,
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+                step_number=step + 1,
+            )
+
+            if self.narrative_log:
+                status_str = "успех" if result.status.value == "completed" else result.status.value
+                self.narrative_log.info(
+                    f"Результат: {decision.action} — {status_str}"
+                )
+
+            observation = await self.observation_phase.analyze(
+                result=result,
+                decision_action=decision.action,
+                decision_parameters=decision.parameters or {},
+                session_context=self.session_context,
+                step_number=executed_steps + 1,
+            )
+
+            if self.narrative_log and observation:
+                self.narrative_log.info(
+                    f"Наблюдение: {observation.observation}"
+                )
+
+            await self.context_update_phase.save_and_register(
+                result=result,
+                observation=observation,
+                decision_action=decision.action,
+                decision_parameters=decision.parameters or {},
+                session_context=self.session_context,
+                executed_steps=executed_steps,
+                decision_reasoning_detail=decision.reasoning_detail,
+                error_recovery_handler=self.error_recovery_phase,
+            )
+
+            await event_bus.publish(
+                EventType.SESSION_STEP,
+                {
+                    "step": executed_steps,
+                    "action": decision.action,
+                    "status": result.status.value,
+                },
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+            )
+            await event_bus.publish(
+                EventType.TOOL_RESULT,
+                {
+                    "step": executed_steps,
+                    "action": decision.action,
+                    "observation": self.session_context.agent_state.last_observation,
+                },
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+            )
+            await event_bus.publish(
+                EventType.INFO,
+                {
+                    "message": f"✅ Executor завершил: status={result.status.value}"
+                    + (f"\n   ❌ Error: {result.error}" if result.error else "")
+                },
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+            )
+
+            return (False, None, None, True)
+
+        # Pattern решил SWITCH?
+        if decision.type == DecisionType.SWITCH_STRATEGY:
+            await event_bus.publish(
+                EventType.INFO,
+                {"message": f"🔄 SWITCH STRATEGY: {decision.next_pattern}"},
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
+            )
+            self._pattern = None
+            new_pattern = await self._get_pattern()
+            return (False, None, new_pattern, False)
+
+        return (False, None, None, False)
 
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""

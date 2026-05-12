@@ -14,6 +14,7 @@
 3. Валидация ответа от LLM
 4. Без моков LLM (если LLM недоступен — тест пропускается)
 """
+import os
 import pytest
 import pytest_asyncio
 import time
@@ -27,6 +28,13 @@ from core.session_context.session_context import SessionContext
 from core.session_context.model import ContextItemMetadata
 from core.components.action_executor import ActionExecutor, ExecutionContext
 from core.models.enums.common_enums import ExecutionStatus
+
+
+# Маркер: тесты требуют реальный LLM
+requires_real_llm = pytest.mark.skipif(
+    os.getenv('TEST_LLM_TYPE', 'mock') == 'mock',
+    reason="Требуется реальный LLM (TEST_LLM_TYPE=real)",
+)
 
 
 # ============================================================================
@@ -118,6 +126,7 @@ def add_step_with_data(
 # ============================================================================
 
 @pytest.mark.asyncio
+@requires_real_llm
 async def test_data_analysis_mapreduce_mode(executor, app_context):
     """
     MapReduce mode: проверка анализа данных через LLM.
@@ -204,6 +213,7 @@ async def test_data_analysis_mapreduce_mode(executor, app_context):
 # ============================================================================
 
 @pytest.mark.asyncio
+@requires_real_llm
 async def test_data_analysis_large_dataset(executor, app_context):
     """
     Проверка обработки большого набора данных (много чанков).
@@ -265,6 +275,7 @@ async def test_data_analysis_large_dataset(executor, app_context):
 # ============================================================================
 
 @pytest.mark.asyncio
+@requires_real_llm
 async def test_data_analysis_text_data(executor, app_context):
     """
     Проверка анализа текстовых данных.
@@ -387,6 +398,7 @@ async def test_data_analysis_empty_result(executor, app_context):
 # ============================================================================
 
 @pytest.mark.asyncio
+@requires_real_llm
 async def test_data_analysis_real_pipeline(executor, app_context):
     """
     Полный пайплайн: данные → Context → Analysis.
