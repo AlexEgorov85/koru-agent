@@ -347,6 +347,10 @@ class FinalAnswerSkill(Skill):
                             else:
                                 text_to_use = str(item_content)[:500]
                         
+                        # Приводим к строке — item_content может быть Pydantic-моделью
+                        if not isinstance(text_to_use, str):
+                            text_to_use = str(text_to_use)[:500]
+                        
                         observations.append(text_to_use)
                     elif item_type == "ERROR_LOG":
                         # Ошибки также включаем в observation для финального ответа
