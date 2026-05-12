@@ -359,22 +359,9 @@ class LoggingSession:
         handler = logging.FileHandler(path, encoding="utf-8")
         handler.setFormatter(_LogFileFormatter())
         logger.addHandler(handler)
-        return logger
 
-    def _setup_narrative_logger(
-        self,
-        name: str,
-        path: Path
-    ) -> logging.Logger:
-        """Создаёт narrative-логгер (высокоуровневый, человекочитаемый)."""
-        logger = logging.getLogger(name)
-        logger.setLevel(logging.INFO)
-        logger.handlers.clear()
-        logger.propagate = False
-
-        handler = logging.FileHandler(path, encoding="utf-8")
-        handler.setFormatter(_LogFileFormatter())
-        logger.addHandler(handler)
+        # Консольный хендлер — narrative тоже выводится в терминал
+        self._add_console_handler(logger)
         return logger
 
     def get_agent_narrative_logger(self, agent_id: str) -> Optional[logging.Logger]:
